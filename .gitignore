@@ -427,3 +427,16 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# ---- LlmNpcServer (CLAUDE.md §6) ----
+# 생성물. 재현 가능하다
+planstore/plans/
+planstore/rejected/
+# GGUF 파일
+models/
+# GPLv3 바이너리. 별도 배포
+tools/dotllm/
+logs/
+replays/
+# 스파이크의 대용량 원시 응답 (스키마·집계 결과는 커밋한다)
+spike/out/raw/
