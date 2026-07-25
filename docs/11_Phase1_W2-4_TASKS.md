@@ -424,7 +424,7 @@
 
 ```
 W2 ── 골격 · 계약 · 마스터데이터 · 코어
-[ ] T1-01 솔루션+빌드설정   [ ] T1-02 프로젝트10개   [ ] T1-03 CI
+[x] T1-01 솔루션+빌드설정   [ ] T1-02 프로젝트10개   [ ] T1-03 CI
 [ ] T1-04 강타입ID          [ ] T1-05 NpcCommand     [ ] T1-06 GameEvent
 [ ] T1-07 IGameServerLink   [ ] T1-08 Contracts테스트
 [ ] T1-09 world_flags       [ ] T1-10 WorldFlags생성기

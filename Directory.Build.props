@@ -1,0 +1,30 @@
+<Project>
+
+  <!--
+    docs/11_Phase1_W2-4_Core_Runtime.md §2 의 설정을 그대로 따른다.
+    솔루션 전체 공통. 개별 csproj 에서 재정의하지 않는다.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    CLAUDE.md §2.3 결정론 · §2.1 틱 루프 규칙을 컴파일 단계에서 거들기 위한 분석기 설정.
+    경고 억제(#pragma warning disable)를 금지하므로 기본 분석기는 켜 둔다.
+  -->
+  <PropertyGroup>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+  </PropertyGroup>
+
+</Project>
