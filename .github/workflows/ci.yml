@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: restore
+        run: dotnet restore NpcServer.sln
+
+      - name: build
+        run: dotnet build NpcServer.sln -c Release --no-restore
+
+      # CLAUDE.md §1 — 스타일 검사
+      - name: format
+        run: dotnet format NpcServer.sln --verify-no-changes --no-restore
+
+      # CLAUDE.md §5 — Golden 은 LLM 호출·비용이 발생하므로 CI 기본에서 제외한다.
+      # Load / FaultInjection 은 야간 워크플로에서 별도로 돈다.
+      - name: test
+        run: dotnet test NpcServer.sln -c Release --no-build --filter "Category!=Golden"

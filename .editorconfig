@@ -2,7 +2,9 @@ root = true
 
 [*]
 charset = utf-8
-end_of_line = crlf
+# end_of_line 은 지정하지 않는다.
+# 저장소는 LF 로 정규화하고(.gitattributes) 작업 복사본은 OS 기본을 쓴다.
+# 여기서 crlf 로 못박으면 Linux CI 의 dotnet format 이 ENDOFLINE 으로 깨진다.
 insert_final_newline = true
 indent_style = space
 indent_size = 4
