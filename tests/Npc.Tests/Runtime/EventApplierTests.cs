@@ -200,7 +200,9 @@ public sealed class EventApplierTests
 
         GameEvent close = Event(GameEventKind.PlayerProximity, 1) with
         {
-            Player = new PlayerId(1), Amount = 20, Code = (byte)ProximityChange.Enter,
+            Player = new PlayerId(1),
+            Amount = 20,
+            Code = (byte)ProximityChange.Enter,
         };
         h.Applier.Apply(in close);
         Assert.Equal(0, h.Store.Lod[0]);
@@ -208,7 +210,9 @@ public sealed class EventApplierTests
 
         GameEvent mid = Event(GameEventKind.PlayerProximity, 2) with
         {
-            Player = new PlayerId(1), Amount = 150, Code = (byte)ProximityChange.Enter,
+            Player = new PlayerId(1),
+            Amount = 150,
+            Code = (byte)ProximityChange.Enter,
         };
         h.Applier.Apply(in mid);
         Assert.Equal(1, h.Store.Lod[0]);
@@ -217,7 +221,8 @@ public sealed class EventApplierTests
         // 영원히 스캔 대상으로 남아 틱당 스캔이 파퓰레이션에 비례해 자란다.
         GameEvent gone = Event(GameEventKind.PlayerProximity, 3) with
         {
-            Player = new PlayerId(1), Code = (byte)ProximityChange.Leave,
+            Player = new PlayerId(1),
+            Code = (byte)ProximityChange.Leave,
         };
         h.Applier.Apply(in gone);
         Assert.Equal(NpcStore.InactiveLod, h.Store.Lod[0]);
@@ -227,7 +232,8 @@ public sealed class EventApplierTests
         h.Store.Flags[0] |= WorldFlags.RegionUnderAttack;
         GameEvent goneInWar = Event(GameEventKind.PlayerProximity, 4) with
         {
-            Player = new PlayerId(1), Code = (byte)ProximityChange.Leave,
+            Player = new PlayerId(1),
+            Code = (byte)ProximityChange.Leave,
         };
         h.Applier.Apply(in goneInWar);
         Assert.Equal(2, h.Store.Lod[0]);
@@ -245,7 +251,8 @@ public sealed class EventApplierTests
 
         GameEvent war = Event(GameEventKind.ZoneStateChanged, 1) with
         {
-            Zone = zone, Code = (byte)RegionState.War,
+            Zone = zone,
+            Code = (byte)RegionState.War,
         };
         h.Applier.Apply(in war);
 
