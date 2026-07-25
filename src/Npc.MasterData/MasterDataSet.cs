@@ -1,8 +1,10 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Npc.Contracts;
 using Npc.Core;
+using Npc.Core.Plan;
 
 namespace Npc.MasterData;
 
@@ -257,7 +259,7 @@ public readonly record struct FileHash(string FileName, string Sha256);
 /// <c>Npc.MasterData → Npc.Llm</c> 참조는 CLAUDE.md §3 이 금지한다.
 /// P1 에는 LLM 이 없으므로 P2 에서 조립 위치를 정한다.
 /// </summary>
-public sealed class MasterDataSet
+public sealed class MasterDataSet : IPlanVocabulary
 {
     /// <summary>액션 카탈로그.</summary>
     public required ActionCatalog Actions { get; init; }
@@ -306,6 +308,272 @@ public sealed class MasterDataSet
 
         return null;
     }
+
+    // ------------------------------------------------------------------ IPlanVocabulary
+    //
+    // docs/03 §5 의 컴파일 어휘. CompiledPlan 은 Npc.Core 에 있고 ActionCatalog 는 여기 있는데
+    // CLAUDE.md §3 이 Core → MasterData 를 금지하므로, Core 가 선언한 인터페이스를 여기서 구현한다.
+
+    /// <inheritdoc />
+    public bool TryGetAction(string actionId, out ActionId action)
+    {
+        if (Actions.TryGet(actionId, out ActionDef def))
+        {
+            action = def.Code;
+            return true;
+        }
+
+        action = default;
+        return false;
+    }
+
+    /// <inheritdoc />
+    public string ActionName(ActionId action) => Actions[action].Id;
+
+    /// <inheritdoc />
+    public StepFlags FlagsOf(ActionId action)
+    {
+        ActionDef def = Actions[action];
+        return new StepFlags(def.Requires, def.RequiresAny, def.Forbids, def.Grants, def.Clears);
+    }
+
+    /// <inheritdoc />
+    public int DefaultTimeoutSeconds(ActionId action) => Actions[action].DefaultTimeoutSeconds;
+
+    /// <inheritdoc />
+    public bool TryPackArgs(
+        ActionId action,
+        IReadOnlyDictionary<string, JsonElement> args,
+        out PackedArgs packed,
+        out string error)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        ActionDef def = Actions[action];
+
+        PoiSymbol poi = PoiSymbol.None;
+        ItemId item = default;
+        ushort count = 0;
+        byte argFlags = 0;
+        byte npcRef = NpcRefCodes.None;
+
+        foreach (ParamDef param in def.Params)
+        {
+            bool present = args.TryGetValue(param.Name, out JsonElement value);
+
+            if (!present)
+            {
+                if (param.Required)
+                {
+                    error = $"필수 파라미터 '{param.Name}' 이 없다.";
+                    packed = default;
+                    return false;
+                }
+
+                // 기본값으로 채운다.
+                switch (param.Type)
+                {
+                    case ParamType.Int:
+                        count = (ushort)Math.Clamp(param.DefaultInt, 0, ushort.MaxValue);
+                        break;
+
+                    case ParamType.Enum when param.DefaultText is { } fallback:
+                        argFlags = (byte)Math.Max(0, param.EnumValues.IndexOf(fallback));
+                        break;
+
+                    default:
+                        break;
+                }
+
+                continue;
+            }
+
+            switch (param.Type)
+            {
+                case ParamType.PoiRef:
+                    if (!PoiSymbols.TryParse(value.ValueKind == JsonValueKind.String ? value.GetString() : null, out poi))
+                    {
+                        error = $"'{param.Name}' 이 허용된 POI 심볼이 아니다: {value}";
+                        packed = default;
+                        return false;
+                    }
+
+                    break;
+
+                case ParamType.Route:
+                    // 순찰로는 첫 지점만 컴파일한다. 나머지 경유지는 P1 범위 밖이다.
+                    JsonElement first = value.ValueKind == JsonValueKind.Array && value.GetArrayLength() > 0
+                        ? value[0]
+                        : value;
+
+                    if (!PoiSymbols.TryParse(first.ValueKind == JsonValueKind.String ? first.GetString() : null, out poi))
+                    {
+                        error = $"'{param.Name}' 의 첫 지점이 허용된 POI 심볼이 아니다: {value}";
+                        packed = default;
+                        return false;
+                    }
+
+                    break;
+
+                case ParamType.ItemRef:
+                    if (value.ValueKind != JsonValueKind.String
+                        || !Items.TryGet(value.GetString()!, out ItemDef itemDef))
+                    {
+                        error = $"'{param.Name}' 이 items.json 에 없는 아이템이다: {value}";
+                        packed = default;
+                        return false;
+                    }
+
+                    item = itemDef.Code;
+                    break;
+
+                case ParamType.Int:
+                    if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int number))
+                    {
+                        error = $"'{param.Name}' 이 정수가 아니다: {value}";
+                        packed = default;
+                        return false;
+                    }
+
+                    count = (ushort)Math.Clamp(number, 0, ushort.MaxValue);
+                    break;
+
+                case ParamType.Enum:
+                    int index = value.ValueKind == JsonValueKind.String
+                        ? param.EnumValues.IndexOf(value.GetString()!)
+                        : -1;
+
+                    if (index < 0)
+                    {
+                        error = $"'{param.Name}' 이 허용된 열거값이 아니다: {value}";
+                        packed = default;
+                        return false;
+                    }
+
+                    argFlags = (byte)index;
+                    break;
+
+                case ParamType.NpcRef:
+                    if (!TryPackNpcRef(value, out npcRef))
+                    {
+                        error = $"'{param.Name}' 이 허용된 npc_ref 심볼이 아니다: {value}";
+                        packed = default;
+                        return false;
+                    }
+
+                    break;
+
+                case ParamType.ZoneRef:
+                    // 플랜은 존 id 를 직접 쓰지 않는다 — 버킷 단위 재사용이 깨진다.
+                    // 런타임이 NPC 의 현재 존을 쓴다.
+                    break;
+
+                default:
+                    error = $"'{param.Name}' 의 타입을 모른다.";
+                    packed = default;
+                    return false;
+            }
+        }
+
+        packed = new PackedArgs(poi, item, count, argFlags, npcRef);
+        error = string.Empty;
+        return true;
+    }
+
+    /// <inheritdoc />
+    public void UnpackArgs(ActionId action, in PackedArgs packed, IDictionary<string, JsonElement> args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        ActionDef def = Actions[action];
+
+        foreach (ParamDef param in def.Params)
+        {
+            switch (param.Type)
+            {
+                case ParamType.PoiRef when packed.Poi != PoiSymbol.None:
+                    args[param.Name] = Json(PoiSymbols.ToText(packed.Poi));
+                    break;
+
+                case ParamType.Route when packed.Poi != PoiSymbol.None:
+                    args[param.Name] = JsonDocument.Parse(
+                        $"[{JsonSerializer.Serialize(PoiSymbols.ToText(packed.Poi))}]").RootElement.Clone();
+                    break;
+
+                case ParamType.ItemRef when packed.Item.Value != 0:
+                    args[param.Name] = Json(Items[packed.Item].Id);
+                    break;
+
+                case ParamType.Int:
+                    args[param.Name] = JsonDocument.Parse(
+                        packed.Count.ToString(CultureInfo.InvariantCulture)).RootElement.Clone();
+                    break;
+
+                case ParamType.Enum when packed.ArgFlags < param.EnumValues.Length:
+                    args[param.Name] = Json(param.EnumValues[packed.ArgFlags]);
+                    break;
+
+                case ParamType.NpcRef when packed.NpcRef != NpcRefCodes.None:
+                    args[param.Name] = Json(UnpackNpcRef(packed.NpcRef));
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        static JsonElement Json(string text) =>
+            JsonDocument.Parse(JsonSerializer.Serialize(text)).RootElement.Clone();
+    }
+
+    private bool TryPackNpcRef(JsonElement value, out byte code)
+    {
+        code = NpcRefCodes.None;
+
+        if (value.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        string text = value.GetString()!;
+
+        if (string.Equals(text, "self", StringComparison.Ordinal))
+        {
+            code = NpcRefCodes.Self();
+            return true;
+        }
+
+        if (text.StartsWith("nearest:", StringComparison.Ordinal))
+        {
+            return Archetypes.TryGet(text["nearest:".Length..], out ArchetypeDef archetype)
+                && SetNearest(archetype, out code);
+        }
+
+        if (text.StartsWith("poi_owner:", StringComparison.Ordinal)
+            && PoiSymbols.TryParse(text["poi_owner:".Length..], out PoiSymbol symbol))
+        {
+            code = NpcRefCodes.PoiOwner(symbol);
+            return true;
+        }
+
+        return false;
+
+        static bool SetNearest(ArchetypeDef archetype, out byte code)
+        {
+            code = NpcRefCodes.NearestArchetype(archetype.Code.Value);
+            return archetype.Code.Value < 64;
+        }
+    }
+
+    private string UnpackNpcRef(byte code) => NpcRefCodes.KindOf(code) switch
+    {
+        NpcRefKind.Self => "self",
+        NpcRefKind.NearestArchetype =>
+            "nearest:" + Archetypes[new ArchetypeId((ushort)NpcRefCodes.PayloadOf(code))].Id,
+        NpcRefKind.PoiOwner =>
+            "poi_owner:" + PoiSymbols.ToText((PoiSymbol)NpcRefCodes.PayloadOf(code)),
+        _ => "self",
+    };
 }
 
 // --- zones.json / pois.json / context_buckets.json 의 JSON DTO ---

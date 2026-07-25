@@ -188,7 +188,7 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags requiredA
 |---|---|---|---|---|
 | **이동 (5)** | `MoveTo` | poi, speed | — | (POI별) |
 | | `Follow` | npc, distance | — | HasCompanion |
-| | `Wander` | zone, radius, duration_s | — | — |
+| | `Wander` | duration_s | — | — |
 | | `Flee` | poi | — | — |
 | | `Patrol` | route(poi[]), laps | OnDuty | — |
 | **노동 (8)** | `Work` | recipe, count | AtWorkplace, HasTool | HasProduct |

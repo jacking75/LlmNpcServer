@@ -115,6 +115,10 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/01 §2.2` | `Sleep`의 grants 를 `IsRested (clears IsSleeping)` 로 정정 | T1-12. `grants`에 `IsSleeping`이 남으면 `loop: true` 플랜의 첫 스텝(`MoveTo`, forbids `IsSleeping`)이 항상 V3.FORBIDDEN_FLAG 로 걸린다 |
 | 2026-07-26 | `docs/02 §3.2` | `MoveTo`의 `TargetNpc`·`Zone` 용법 명문화 | T1-12. `Follow`·`Wander`가 발행할 명령이 없었다 |
 | 2026-07-26 | `docs/01 §6` · `docs/11` T1-17 | `BucketKey` 를 `Npc.Planning` → `Npc.Core/Planning` 으로 이동 | T1-17. `docs/03 §5`의 `CompiledPlan.Bucket`(Npc.Core)이 `BucketKey`를 들고 있어 `Core → Planning → Core` 순환이 생겼다. `TimeOfDay`는 `GameClock`(Runtime)도 쓴다 |
+| 2026-07-26 | `docs/03 §5·§8` | `CompiledStep` 의 `WorldFlags` 4종을 `CompiledPlan.StepFlagSets` 병렬 배열로 분리 | T1-23. 플래그만 40바이트라 §8의 `Unsafe.SizeOf<CompiledStep>() <= 32` 와 양립할 수 없었다. 실측 14바이트 |
+| 2026-07-26 | `docs/03 §5` | `RequiredFlags` 를 '전 스텝 requires 의 OR' → '앞선 스텝이 세워주는 것을 뺀 진입 조건' 으로 정정 | T1-23. 단순 OR 이면 `Mine` 이 세워줄 `HasRawMaterial` 을 `Craft` 때문에 요구하게 되어 인지 스캔이 매 틱 이탈이라고 답한다 |
+| 2026-07-26 | `docs/03 §5` | `IPlanVocabulary` 도입 (Npc.Core 선언 · Npc.MasterData 구현) | T1-23. `CompiledPlan`(Core)이 `ActionCatalog`(MasterData)를 필요로 하는데 CLAUDE.md §3 이 `Core → MasterData` 를 금지한다 |
+| 2026-07-26 | `docs/01 §2.2` | `Wander` 파라미터에서 `zone`·`radius` 제거 (`duration_s` 만) | T1-23. 플랜에 존 id 가 박히면 (아키타입 × 버킷) 재사용이 깨진다 — 절대 POI id 를 금지한 것과 같은 이유다. 정수 파라미터 2개는 `CompiledStep` 의 `Count` 슬롯 하나에 들어가지 않는다. 존은 `$zone`(현재 존)으로 런타임이 채운다 |
 
 ---
 

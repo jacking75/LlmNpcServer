@@ -432,7 +432,7 @@ W2 ── 골격 · 계약 · 마스터데이터 · 코어
 [x] T1-14 zones+pois        [x] T1-15 거리행렬       [x] T1-16 archetypes(40)
 [x] T1-17 buckets+BucketKey [x] T1-18 interrupts     [x] T1-19 MasterDataSet
 [x] T1-20 검증V1~V11        [x] T1-21 validate CLI
-[x] T1-22 PlanDocument      [ ] T1-23 CompiledPlan   [x] T1-24 PoiSymbol
+[x] T1-22 PlanDocument      [x] T1-23 CompiledPlan   [x] T1-24 PoiSymbol
 [ ] T1-25 검증1단           [ ] T1-26 검증2단        [ ] T1-27 검증3단
 
 W3 ── 런타임 · 게이트웨이 · Sim

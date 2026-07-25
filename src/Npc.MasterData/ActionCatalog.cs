@@ -114,6 +114,9 @@ public enum EmitSource : byte
     /// <summary>자기 자신.</summary>
     InstanceSelf,
 
+    /// <summary>NPC 가 지금 있는 존.</summary>
+    InstanceZone,
+
     /// <summary>해당 WorldFlags 를 세우는 인벤토리 아이템 중 첫 번째. <c>Flag</c>.</summary>
     FirstWithFlag,
 }
@@ -515,6 +518,8 @@ public sealed class ActionCatalog
                 return new EmitMapping(field, EmitSource.InstanceWorkplace, 0, WorldFlags.None, []);
             case "self":
                 return new EmitMapping(field, EmitSource.InstanceSelf, 0, WorldFlags.None, []);
+            case "zone":
+                return new EmitMapping(field, EmitSource.InstanceZone, 0, WorldFlags.None, []);
         }
 
         if (symbol.StartsWith("first:", StringComparison.Ordinal))

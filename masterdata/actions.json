@@ -12,7 +12,7 @@
     "",
     "emits[].map 의 값 문법:",
     "  \"$param\"        플랜 스텝의 args 에서 가져온다",
-    "  \"$home\" \"$workplace\" \"$self\"   NPC 인스턴스에서 바인딩한다",
+    "  \"$home\" \"$workplace\" \"$self\" \"$zone\"   NPC 인스턴스에서 바인딩한다 ($zone 은 현재 존)",
     "  \"$first:Flag\"   해당 WorldFlags 를 세우는 인벤토리 아이템 중 첫 번째 (Eat/Drink)",
     "  그 외 문자열     아이템 id / 열거값 리터럴",
     "  숫자             정수 리터럴 (부호 있음)",
@@ -66,10 +66,8 @@
       "id": "Wander",
       "code": 3,
       "category": "movement",
-      "desc": "지정한 존 안을 목적 없이 돌아다닌다. 특별한 일과가 없는 주민이나 아이의 낮 시간을 채우는 데 쓴다. 장소 플래그가 전부 내려가므로 뒤에 장소 전제조건이 있는 액션을 두려면 MoveTo 를 다시 넣어야 한다.",
+      "desc": "지금 있는 존 안을 목적 없이 돌아다닌다. 특별한 일과가 없는 주민이나 아이의 낮 시간을 채우는 데 쓴다. 장소 플래그가 전부 내려가므로 뒤에 장소 전제조건이 있는 액션을 두려면 MoveTo 를 다시 넣어야 한다.",
       "params": {
-        "zone": { "type": "zone_ref", "required": true },
-        "radius": { "type": "int", "min": 10, "max": 200, "default": 50 },
         "duration_s": { "type": "int", "min": 60, "max": 3600, "default": 600 }
       },
       "requires": [],
@@ -80,7 +78,7 @@
       "duration": { "kind": "param", "base_s": 0, "per_meter_s": 0, "param": "duration_s" },
       "cost": 1,
       "default_timeout_s": 3600,
-      "emits": [{ "command": "MoveTo", "priority": "Cosmetic", "map": { "Zone": "$zone", "Amount": "$radius" } }],
+      "emits": [{ "command": "MoveTo", "priority": "Cosmetic", "map": { "Zone": "$zone", "Amount": 50 } }],
       "completes_on": ["NpcActionCompleted"],
       "fails_on": ["NpcActionFailed"]
     },

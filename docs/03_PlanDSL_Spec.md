@@ -225,32 +225,53 @@ public sealed class CompiledPlan
     public int        Version       { get; init; }
     public bool       Loop          { get; init; }
     public StepFailPolicy OnFail    { get; init; }
-    public WorldFlags RequiredFlags { get; init; }   // 전 스텝 requires의 OR — 이탈 판정용
+    public WorldFlags RequiredFlags { get; init; }   // 플랜 진입 조건 — 이탈 판정용 (아래 계산식)
     public WorldFlags ForbiddenFlags{ get; init; }
     public ImmutableArray<CompiledStep> Steps { get; init; }
+    public ImmutableArray<StepFlags>    StepFlagSets { get; init; }   // 스텝별 플래그 전이
 
     public string SourceJson { get; init; }          // 검수·리플레이용 원본 보존
     public PlanOrigin Origin { get; init; }          // Prebaked | Runtime | Fallback | Pinned
 }
 
 public readonly record struct CompiledStep(
-    ActionId Action,
-    PoiSymbol Poi,          // 심볼. 실행 시점에 개체 바인딩
-    ItemId   Item,
-    ushort   Count,
-    ushort   TimeoutSeconds,
-    byte     ArgFlags,      // speed 등급 등
+    ActionId  Action,
+    PoiSymbol Poi,           // 심볼. 실행 시점에 개체 바인딩
+    ItemId    Item,
+    ushort    Count,
+    ushort    TimeoutSeconds,
+    byte      ArgFlags,      // speed 등급 등 enum 파라미터의 ordinal
+    byte      NpcRef,        // npc_ref 심볼 (상위 2비트 종류 + 하위 6비트 페이로드)
+    ushort    FlagSetIndex); // → plan.StepFlagSets[i]
+
+public readonly record struct StepFlags(
     WorldFlags Requires,
+    WorldFlags RequiresAny,
     WorldFlags Forbids,
     WorldFlags Grants,
     WorldFlags Clears);
 ```
 
-`CompiledStep`은 **32바이트 이하 값 타입**으로 유지한다. 5,000 NPC × 최대 10스텝이 캐시에 잘 들어가야 한다.
+`CompiledStep`은 **32바이트 이하 값 타입**으로 유지한다 (실측 14바이트). 5,000 NPC × 최대 10스텝이 캐시에 잘 들어가야 한다.
+
+> **플래그를 `CompiledStep` 안에 두지 않는 이유.** `WorldFlags` 5종이면 그것만 40바이트다. 32바이트 상한과 양립할 수 없다. 스텝별 플래그는 `CompiledPlan.StepFlagSets` 병렬 배열에 두고 `FlagSetIndex`로 찾는다. 실행기 핫패스는 플래그를 보지 않으므로(플랜 단위 `RequiredFlags`만 본다) 이 간접 참조는 스캔 성능에 영향이 없다.
 
 ### `RequiredFlags` 사전계산이 핵심이다
 
-인지 스캔(§11.3)에서 NPC 5,000마리를 훑을 때 스텝을 순회하면 안 된다. 플랜 단위로 미리 OR 해둔 `RequiredFlags`/`ForbiddenFlags`와 현재 상태를 **비트 연산 한 번**으로 비교한다.
+인지 스캔(§11.3)에서 NPC 5,000마리를 훑을 때 스텝을 순회하면 안 된다. 플랜 단위로 미리 계산해둔 `RequiredFlags`/`ForbiddenFlags`와 현재 상태를 **비트 연산 한 번**으로 비교한다.
+
+**단순 OR 이 아니다.** 앞선 스텝이 세워주는 플래그는 진입 조건이 아니다. 전부 OR 하면 `Mine`이 세워줄 `HasRawMaterial`을 `Craft` 때문에 요구하게 되고, 인지 스캔이 매 틱 "이탈"이라고 답한다.
+
+```csharp
+WorldFlags granted = 0, cleared = 0, required = 0, forbidden = 0;
+foreach (var step in steps)
+{
+    required  |= step.Requires & ~granted;
+    forbidden |= step.Forbids  & ~cleared;
+    granted = (granted & ~step.Clears) | step.Grants;
+    cleared = (cleared & ~step.Grants) | step.Clears;
+}
+```
 
 ```csharp
 // 틱당 115회 실행되는 핫패스
@@ -343,7 +364,7 @@ planstore/
 | `Schema_GeneratedFromCatalog` | JSON Schema의 `action` 열거값이 `actions.json`과 일치 |
 | `Validator_CatchesEachCode` | V1~V4의 모든 실패 코드마다 최소 1개의 유발 픽스처 |
 | `Validator_AcceptsAllFallbacks` | `fallback_plans.json` 40개 전부 4단 통과 |
-| `CompiledStep_SizeIsBounded` | `Unsafe.SizeOf<CompiledStep>() <= 32` |
+| `CompiledStep_SizeIsBounded` | `Unsafe.SizeOf<CompiledStep>() <= 32` (플래그는 `StepFlagSets`로 분리) |
 | `Plan_RoundTrip` | JSON → Compiled → JSON 왕복 시 의미 동일 |
 | `Executor_AtomicSwap` | 스텝 실행 중 스왑 요청 → 스텝 경계에서만 교체, 상관 ID 누수 없음 |
 | `Executor_TimeoutSynthesis` | 명령을 드롭 → timeout 후 합성 실패 → 플랜 진행 재개 |
