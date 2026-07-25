@@ -159,7 +159,7 @@ src/
 tools/
   Npc.Prebake/      프리베이크 CLI
   Npc.Replay/       리플레이 CLI
-  gen_npcs.csx      NPC 인스턴스 생성기
+  gen_npcs.cs       NPC 인스턴스 생성기 (.NET 10 파일 기반 앱)
 masterdata/         마스터데이터 11종  → docs/01
 planstore/          프리베이크 플랜 (plans/ 는 gitignore, pinned/ 는 버전관리)
 scenarios/          시나리오 스크립트 (jsonl)
