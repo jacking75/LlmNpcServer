@@ -18,27 +18,41 @@ public sealed class PlanExecutor
     private readonly CorrelationTable _correlations;
     private readonly CommandEmitter _emitter;
     private readonly MasterDataSet _data;
+    private readonly int _timeScale;
     private readonly NpcCommand[] _batch = new NpcCommand[CommandEmitter.MaxCommandsPerStep];
 
     /// <summary>실행기를 만든다. 기동 시 1회.</summary>
+    /// <param name="data">마스터데이터.</param>
+    /// <param name="store">NPC 상태.</param>
+    /// <param name="plans">플랜 스토어.</param>
+    /// <param name="correlations">상관 ID 표.</param>
+    /// <param name="emitter">명령 발행기.</param>
+    /// <param name="timeScale">
+    /// 게임 시간 배속. <c>timeout_s</c>(게임 초)를 틱으로 바꿀 때 쓴다.
+    /// GameClock 을 통째로 받지 않는 이유는 실행기가 현재 시각을 몰라야 하기 때문이다 —
+    /// 틱은 인자로만 들어온다.
+    /// </param>
     public PlanExecutor(
         MasterDataSet data,
         NpcStore store,
         PlanStore plans,
         CorrelationTable correlations,
-        CommandEmitter emitter)
+        CommandEmitter emitter,
+        int timeScale = 1)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(plans);
         ArgumentNullException.ThrowIfNull(correlations);
         ArgumentNullException.ThrowIfNull(emitter);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeScale);
 
         _data = data;
         _store = store;
         _plans = plans;
         _correlations = correlations;
         _emitter = emitter;
+        _timeScale = timeScale;
     }
 
     /// <summary>발행한 명령 수.</summary>
@@ -52,6 +66,9 @@ public sealed class PlanExecutor
 
     /// <summary>재계획을 요청받은 횟수 (on_step_fail = replan).</summary>
     public long ReplansRequested { get; private set; }
+
+    /// <summary>명령 유실을 막으려고 로컬에서 합성한 ActionFailed(Timeout) 수.</summary>
+    public long TimeoutsSynthesized { get; private set; }
 
     /// <summary>재계획 요청을 받아 갈 큐. 없으면 요청을 세기만 한다.</summary>
     public ReplanQueue? ReplanQueue { get; init; }
@@ -72,8 +89,13 @@ public sealed class PlanExecutor
                     continue;
 
                 case StepStatus.Waiting:
-                    OnWaiting(i, tick);
-                    continue;
+                    if (!SynthesizeTimeout(i, tick))
+                    {
+                        continue;
+                    }
+
+                    ApplyFailPolicy(i);
+                    break;
 
                 case StepStatus.Completed:
                     AdvanceStep(i);
@@ -135,9 +157,6 @@ public sealed class PlanExecutor
     }
 
     // ---------------------------------------------------------------- 내부
-
-    /// <summary>대기 중인 스텝의 타임아웃을 본다. T1-33 에서 채운다.</summary>
-    private void OnWaiting(int npc, Tick tick) => SynthesizeTimeout(npc, tick);
 
     private void AdvanceStep(int npc)
     {
@@ -245,11 +264,42 @@ public sealed class PlanExecutor
         new PoiId(_store.CurrentPoi[npc]),
         new ZoneId(_store.ZoneCode[npc]));
 
-    /// <summary>T1-33 에서 구현한다.</summary>
-    private void SynthesizeTimeout(int npc, Tick tick)
+    /// <summary>
+    /// 명령 유실 방어. docs/02 §1 · docs/03 §6.
+    ///
+    /// <b>명령은 유실된다고 가정한다.</b> 게임서버가 응답 이벤트를 보내지 않아도 NPC 가
+    /// 영원히 멈추면 안 되므로, timeout_s 가 지나면 로컬에서 ActionFailed(Timeout) 을 합성한다.
+    /// 이 경로는 Npc.Sim --drop-rate 로 상시 테스트한다.
+    /// </summary>
+    /// <returns>타임아웃이 발생해 스텝이 실패로 바뀌었으면 true.</returns>
+    private bool SynthesizeTimeout(int npc, Tick tick)
     {
-        _ = npc;
-        _ = tick;
-        _ = _data;
+        CompiledPlan plan = _plans[_store.PlanId[npc]];
+
+        if (plan.Steps.IsEmpty)
+        {
+            return false;
+        }
+
+        int index = Math.Min(_store.StepIndex[npc], plan.Steps.Length - 1);
+        long budget = TimeoutTicks(plan.Steps[index].TimeoutSeconds);
+
+        if (tick.Value - _store.StepIssuedTick[npc] < budget)
+        {
+            return false;
+        }
+
+        _correlations.Invalidate(npc);
+        _store.StepStatus[npc] = (byte)StepStatus.Failed;
+        _store.LastFailReason[npc] = (byte)ActionFailReason.Timeout;
+        TimeoutsSynthesized++;
+        return true;
+    }
+
+    /// <summary>게임 초 → 틱. 게임초 = 틱 × TimeScale ÷ 10 의 역이다 (docs/11 §5).</summary>
+    public long TimeoutTicks(int timeoutSeconds)
+    {
+        long ticks = (long)timeoutSeconds * Tick.PerSecond / _timeScale;
+        return ticks < 1 ? 1 : ticks;
     }
 }

@@ -437,7 +437,7 @@ W2 ── 골격 · 계약 · 마스터데이터 · 코어
 
 W3 ── 런타임 · 게이트웨이 · Sim
 [x] T1-28 NpcStore SoA      [x] T1-29 GameClock      [x] T1-30 EventApplier
-[x] T1-31 CorrelationTable  [x] T1-32 PlanExecutor   [ ] T1-33 타임아웃합성
+[x] T1-31 CorrelationTable  [x] T1-32 PlanExecutor   [x] T1-33 타임아웃합성
 [ ] T1-34 PlanSwapper       [ ] T1-35 InterruptMatcher
 [ ] T1-36 LodBand           [ ] T1-37 CognitionScheduler
 [x] T1-38 ReplanQueue스텁   [x] T1-39 PlanStore스텁  [ ] T1-40 NpcServerLoop
