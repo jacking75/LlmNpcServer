@@ -225,8 +225,10 @@ public sealed class GameClock
     public int      TimeScale { get; init; }        // 1 = 실시간, 60 = 60배속
     public TimeOfDay TimeOfDay { get; private set; }
 
-    // 게임 하루 = 24 게임시간. TimeScale 60이면 실시간 24분.
-    // Tick 10Hz 기준: 게임 1분 = 1 tick @ scale 60
+    // 게임 하루 = 24 게임시간(86,400 게임초). TimeScale 60이면 실시간 24분.
+    // 환산: 게임초 = 틱 × TimeScale ÷ 10  (실시간 1초 = 10틱)
+    // scale 60  → 1틱 = 6 게임초,  게임 하루 = 14,400틱
+    // scale 600 → 1틱 = 60 게임초, 게임 하루 = 1,440틱
 }
 ```
 

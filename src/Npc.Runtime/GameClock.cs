@@ -1,0 +1,115 @@
+using Npc.Contracts;
+using Npc.Core;
+using Npc.MasterData;
+
+namespace Npc.Runtime;
+
+/// <summary>
+/// 게임 시계. docs/11 §5.
+///
+/// <b><see cref="DateTime"/>·<see cref="System.Diagnostics.Stopwatch"/> 를 쓰지 않는다</b> (CLAUDE.md §2.3).
+/// 시간 기준은 게임서버가 보내는 <c>TickSync</c> 하나뿐이다 (docs/02 §3.3).
+/// 그래야 리플레이가 100% 일치한다.
+///
+/// 환산: 실시간 1초 = 10틱. 게임 초 = 틱 × TimeScale ÷ 10.
+/// TimeScale 60 이면 게임 하루(24시간 = 86,400 게임초)가 실시간 24분이다.
+/// </summary>
+public sealed class GameClock
+{
+    private readonly BucketSpace _buckets;
+    private readonly long _originGameSeconds;
+    private long _syncedTick;
+
+    /// <summary>게임 하루의 초.</summary>
+    public const int SecondsPerGameDay = 24 * 3600;
+
+    /// <summary>시계를 만든다.</summary>
+    /// <param name="buckets">시간대 구간 정의. context_buckets.json 에서 온다.</param>
+    /// <param name="timeScale">1 = 실시간, 60 = 60배속.</param>
+    /// <param name="startGameHour">시작 게임 시각 0~23.</param>
+    public GameClock(BucketSpace buckets, int timeScale, int startGameHour = 6)
+    {
+        ArgumentNullException.ThrowIfNull(buckets);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeScale);
+        ArgumentOutOfRangeException.ThrowIfNegative(startGameHour);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(startGameHour, 23);
+
+        _buckets = buckets;
+        TimeScale = timeScale;
+        _originGameSeconds = (long)startGameHour * 3600;
+        TimeOfDay = buckets.TimeOfDayAt(startGameHour);
+    }
+
+    /// <summary>현재 틱.</summary>
+    public Tick Current { get; private set; }
+
+    /// <summary>1 = 실시간, 60 = 60배속.</summary>
+    public int TimeScale { get; }
+
+    /// <summary>현재 시간대.</summary>
+    public TimeOfDay TimeOfDay { get; private set; }
+
+    /// <summary>마지막 <see cref="TryAdvance"/> 에서 시간대가 바뀌었는가.</summary>
+    public bool TimeOfDayChanged { get; private set; }
+
+    /// <summary>게임 시작부터의 게임 초.</summary>
+    public long GameSeconds => _originGameSeconds + (Current.Value * TimeScale / Tick.PerSecond);
+
+    /// <summary>현재 게임 시각 0~23.</summary>
+    public int GameHour => (int)(GameSeconds / 3600 % 24);
+
+    /// <summary>몇 번째 게임 날인가. 0부터.</summary>
+    public long GameDay => GameSeconds / SecondsPerGameDay;
+
+    /// <summary>게임 하루에 해당하는 틱 수.</summary>
+    public long TicksPerGameDay => (long)SecondsPerGameDay * Tick.PerSecond / TimeScale;
+
+    /// <summary>게임 <paramref name="days"/> 일에 해당하는 틱 수.</summary>
+    public long TicksForGameDays(int days) => TicksPerGameDay * days;
+
+    /// <summary>
+    /// 게임서버 틱과 동기화한다. <c>TickSync</c> 수신 시 <see cref="EventApplier"/> 가 부른다.
+    /// 과거로는 되돌리지 않는다 — 재전송된 이벤트가 시계를 되감으면 안 된다 (N7).
+    /// </summary>
+    public void SyncTo(Tick serverTick)
+    {
+        if (serverTick.Value > _syncedTick)
+        {
+            _syncedTick = serverTick.Value;
+        }
+    }
+
+    /// <summary>
+    /// 동기화된 틱까지 한 틱 진행한다. docs/11 §5 의 틱 루프가 이걸 본다.
+    /// 진행할 것이 없으면 false — 루프는 다음 이벤트를 기다린다.
+    /// </summary>
+    public bool TryAdvance(out Tick tick)
+    {
+        TimeOfDayChanged = false;
+
+        if (Current.Value >= _syncedTick)
+        {
+            tick = Current;
+            return false;
+        }
+
+        Current = new Tick(Current.Value + 1);
+
+        TimeOfDay next = _buckets.TimeOfDayAt(GameHour);
+        if (next != TimeOfDay)
+        {
+            TimeOfDay = next;
+            TimeOfDayChanged = true;
+        }
+
+        tick = Current;
+        return true;
+    }
+
+    /// <summary>테스트·루프백에서 시계를 스스로 굴린다. 게임서버 없이 진행할 때만 쓴다.</summary>
+    public bool Step(out Tick tick)
+    {
+        SyncTo(new Tick(Current.Value + 1));
+        return TryAdvance(out tick);
+    }
+}
