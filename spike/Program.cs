@@ -8,9 +8,10 @@ internal static class Program
     /// <summary>스파이크 소스 폴더 절대 경로. data/ · out/ 을 여기 기준으로 읽고 쓴다.</summary>
     public static string SpikeRoot { get; } = FindSpikeRoot();
 
-    private static int Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
         var cmd = args.Length > 0 ? args[0] : "ready";
+        var rest = args.Length > 1 ? args[1..] : [];
 
         switch (cmd)
         {
@@ -20,9 +21,12 @@ internal static class Program
                 Console.WriteLine($"net  = {Environment.Version}");
                 return 0;
 
+            case "clients":
+                return await Clients.RunSmokeAsync(rest);
+
             default:
                 Console.Error.WriteLine($"unknown command: {cmd}");
-                Console.Error.WriteLine("usage: spike [ready]");
+                Console.Error.WriteLine("usage: spike [ready|clients]");
                 return 2;
         }
     }

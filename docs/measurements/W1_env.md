@@ -146,7 +146,30 @@ nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv
 # 8B Q4_K_M 을 GPU 로 재려면 free VRAM >= 6,000 MiB 가 필요하다
 ```
 
-### 4.4 PowerShell 5.1 관련
+### 4.4 캐시 적중 토큰(`cached_tokens`) 보고 여부
+
+| 엔진 | `usage.prompt_tokens_details.cached_tokens` | 비고 |
+|---|---|---|
+| Gemini 3.x (OpenAI 호환) | **보고함** — 4,300 토큰 프리픽스 2회차에서 4,079~4,080 | 암묵 캐시가 걸린다 |
+| dotLLM 0.1.0-preview.3 | **보고하지 않음** (항상 0) | KV 재사용은 하지만 usage 에 노출하지 않는다 |
+| llama.cpp (LM Studio) | 미확인 (T0-10 에서 확인) | |
+
+따라서 **캐시 적중 판정을 토큰 수에만 의존하면 안 된다.** 로컬 엔진은 `cached_tokens` 대신
+prefill 시간(첫 토큰까지의 시간)의 감소로 판정한다 — G0-3 의 판정 기준도 그쪽이다.
+
+### 4.5 로컬 CPU 추론은 이 워크로드에 쓸 수 없다
+
+Phi-4-mini(3.8B) Q4_K_M, CPU 16스레드, 프리픽스 약 4,400 토큰:
+
+```
+단건 요청이 10분 타임아웃을 초과 (프리필 미완)
+warm-up (10 프롬프트 토큰 + 16 생성): 3,735 ms  → 디코드 4~5 tok/s
+짧은 프롬프트(92 토큰): 1회차 7,817 ms / 2회차 374 ms
+```
+
+**T0-09 이후의 로컬 측정은 GPU 가 비어 있어야만 가능하다** (§4.3).
+
+### 4.6 PowerShell 5.1 관련
 
 - 이 저장소의 `.ps1` 은 한국어 주석을 포함하므로 **UTF-8 BOM 으로 저장**해야 한다. BOM 이 없으면
   Windows PowerShell 5.1 이 ANSI 로 읽어 파서 오류가 난다.
@@ -162,8 +185,12 @@ nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv
 | E2 | dotLLM 0.1.0-preview.3 | Phi-4-mini-instruct Q4_K_M (3.8B) | localhost:8080 |
 | E3 | llama.cpp (LM Studio) | Qwen3-8B Q4_K_M | localhost:1234 |
 | E4 | llama.cpp (LM Studio) | gemma-3-4b-it Q4_K_M | localhost:1234 |
-| E5 | 외부 | gemini-2.5-flash-lite | Gemini OpenAI 호환 |
-| E6 | 외부 | gemini-3.1-flash-lite | Gemini OpenAI 호환 |
+| E5 | 외부 | gemini-3.1-flash-lite | Gemini OpenAI 호환 |
+| E6 | 외부 | gemini-3.5-flash-lite | Gemini OpenAI 호환 |
+| E7 | 외부 | gemini-3.5-flash | Gemini OpenAI 호환 |
+
+Gemini **2.5 계열은 이 키로 쓸 수 없다** — `404 "no longer available to new users"`.
+3.x 만 남으므로 외부 3종을 그대로 T0-10 매트릭스의 "엔진 7종"으로 삼는다.
 
 G0-4(4B 가 8B 의 80% 이상)는 **E2 vs E1** (dotLLM 내부 비교) 와 **E4 vs E3** (llama.cpp 내부 비교)
 두 축으로 본다.
