@@ -252,6 +252,7 @@ internal sealed class NpcHost : IAsyncDisposable
             link, clock, applier, interrupts, cognition, executor, swapper, bands, replanQueue)
         {
             StopAtTick = totalTicks,
+            Transition = new BucketTransition(store, plans, data),
         };
 
         var meter = new NpcMeter(

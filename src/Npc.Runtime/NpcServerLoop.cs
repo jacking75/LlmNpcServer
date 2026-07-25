@@ -84,6 +84,7 @@ public sealed class NpcServerLoop
         _replanQueue = replanQueue;
     }
 
+
     /// <summary>
     /// 틱 관측자. 없으면 계측하지 않는다.
     /// 관측자가 루프 통계를 읽어야 해서 조립 순서상 루프가 먼저 생긴다 — 그래서 init 이 아니다.
@@ -92,6 +93,9 @@ public sealed class NpcServerLoop
 
     /// <summary>이 틱에 도달하면 루프를 끝낸다. 0 이면 무제한. 부하·게이트 테스트가 쓴다.</summary>
     public long StopAtTick { get; init; }
+
+    /// <summary>시간대 전환 지터. 없으면 전환이 한 틱에 몰린다 (docs/14 §5).</summary>
+    public BucketTransition? Transition { get; init; }
 
     /// <summary>처리한 틱 수.</summary>
     public long TicksProcessed { get; private set; }
@@ -144,6 +148,10 @@ public sealed class NpcServerLoop
         _bands.Rebalance();
         _cognition.Scan(tick, _replanQueue);
         _executor.Step(tick, _link);
+
+        // 시간대 전환 예약은 스왑 적용 전에 걸어야 이번 틱의 스텝 경계에서 갈아탄다.
+        Transition?.Tick(_clock, _swapper);
+
         _swapper.ApplyPendingSwaps(_executor);
 
         TicksProcessed++;
