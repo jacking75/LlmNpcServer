@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Npc.Contracts;
 using Npc.Core;
 using Npc.Core.Plan;
+using Npc.Core.Validation;
 
 namespace Npc.MasterData;
 
@@ -259,7 +260,7 @@ public readonly record struct FileHash(string FileName, string Sha256);
 /// <c>Npc.MasterData → Npc.Llm</c> 참조는 CLAUDE.md §3 이 금지한다.
 /// P1 에는 LLM 이 없으므로 P2 에서 조립 위치를 정한다.
 /// </summary>
-public sealed class MasterDataSet : IPlanVocabulary
+public sealed class MasterDataSet : IPlanValidationVocabulary
 {
     /// <summary>액션 카탈로그.</summary>
     public required ActionCatalog Actions { get; init; }
@@ -525,6 +526,201 @@ public sealed class MasterDataSet : IPlanVocabulary
         static JsonElement Json(string text) =>
             JsonDocument.Parse(JsonSerializer.Serialize(text)).RootElement.Clone();
     }
+
+    // ------------------------------------------------------------------ IPlanValidationVocabulary
+
+    /// <inheritdoc />
+    public bool IsActionAllowed(ArchetypeId archetype, ActionId action) => Archetypes[archetype].Allows(action);
+
+    /// <inheritdoc />
+    public WorldFlags InitialFlags(BucketKey bucket) => Buckets.InitialFlags(bucket);
+
+    /// <inheritdoc />
+    public ValidationResult ValidateArgs(
+        ActionId action, int stepIndex, IReadOnlyDictionary<string, JsonElement> args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        ActionDef def = Actions[action];
+
+        // --- 정의되지 않은 인자 ---
+        foreach (string key in args.Keys.Order(StringComparer.Ordinal))
+        {
+            if (def.Param(key) is null)
+            {
+                return ValidationResult.Fail(
+                    ValidationStage.Vocabulary, "V2.UNKNOWN_ARG", stepIndex,
+                    $"{def.Id} 에 '{key}' 파라미터가 없다. 정의: {string.Join(", ", def.Params.Select(p => p.Name))}");
+            }
+        }
+
+        foreach (ParamDef param in def.Params)
+        {
+            if (!args.TryGetValue(param.Name, out JsonElement value))
+            {
+                if (param.Required)
+                {
+                    return ValidationResult.Fail(
+                        ValidationStage.Vocabulary, "V2.MISSING_REQUIRED_ARG", stepIndex,
+                        $"{def.Id} 의 필수 파라미터 '{param.Name}' 이 없다.");
+                }
+
+                continue;
+            }
+
+            ValidationResult result = ValidateParam(def, param, value, stepIndex);
+            if (!result.IsValid)
+            {
+                return result;
+            }
+        }
+
+        return ValidationResult.Ok;
+    }
+
+    private ValidationResult ValidateParam(ActionDef def, ParamDef param, JsonElement value, int stepIndex)
+    {
+        switch (param.Type)
+        {
+            case ParamType.PoiRef:
+                if (value.ValueKind != JsonValueKind.String)
+                {
+                    return TypeMismatch(def, param, value, stepIndex, "문자열 POI 심볼");
+                }
+
+                if (!PoiSymbols.TryParse(value.GetString(), out _))
+                {
+                    return ValidationResult.Fail(
+                        ValidationStage.Vocabulary, "V2.UNKNOWN_POI", stepIndex,
+                        $"{def.Id}.{param.Name} 의 '{value.GetString()}' 는 허용된 POI 심볼이 아니다. "
+                        + $"허용: {string.Join(", ", PoiSymbols.Names.Skip(1))}");
+                }
+
+                break;
+
+            case ParamType.Route:
+                if (value.ValueKind != JsonValueKind.Array)
+                {
+                    return TypeMismatch(def, param, value, stepIndex, "POI 심볼 배열");
+                }
+
+                if (value.GetArrayLength() is < 2 or > 8)
+                {
+                    return ValidationResult.Fail(
+                        ValidationStage.Vocabulary, "V2.RANGE", stepIndex,
+                        $"{def.Id}.{param.Name} 의 길이가 {value.GetArrayLength()} 다. 2~8 이어야 한다.");
+                }
+
+                foreach (JsonElement waypoint in value.EnumerateArray())
+                {
+                    if (waypoint.ValueKind != JsonValueKind.String
+                        || !PoiSymbols.TryParse(waypoint.GetString(), out _))
+                    {
+                        return ValidationResult.Fail(
+                            ValidationStage.Vocabulary, "V2.UNKNOWN_POI", stepIndex,
+                            $"{def.Id}.{param.Name} 의 '{waypoint}' 는 허용된 POI 심볼이 아니다.");
+                    }
+                }
+
+                break;
+
+            case ParamType.ItemRef:
+                if (value.ValueKind != JsonValueKind.String)
+                {
+                    return TypeMismatch(def, param, value, stepIndex, "문자열 아이템 id");
+                }
+
+                // recipe 인자는 레시피 표를, 나머지는 아이템 표를 본다.
+                if (string.Equals(param.Name, "recipe", StringComparison.Ordinal))
+                {
+                    if (!Items.TryGetRecipe(value.GetString()!, out _))
+                    {
+                        return ValidationResult.Fail(
+                            ValidationStage.Vocabulary, "V2.UNKNOWN_RECIPE", stepIndex,
+                            $"{def.Id}.{param.Name} 의 '{value.GetString()}' 는 items.json 의 레시피가 아니다.");
+                    }
+                }
+                else if (!Items.TryGet(value.GetString()!, out _))
+                {
+                    return ValidationResult.Fail(
+                        ValidationStage.Vocabulary, "V2.UNKNOWN_ITEM", stepIndex,
+                        $"{def.Id}.{param.Name} 의 '{value.GetString()}' 는 items.json 에 없다.");
+                }
+
+                if (param.EnumValues.Length > 0 && !param.EnumValues.Contains(value.GetString()!))
+                {
+                    return ValidationResult.Fail(
+                        ValidationStage.Vocabulary, "V2.UNKNOWN_ITEM", stepIndex,
+                        $"{def.Id}.{param.Name} 은 {string.Join(", ", param.EnumValues)} 중 하나여야 한다.");
+                }
+
+                break;
+
+            case ParamType.NpcRef:
+                if (value.ValueKind != JsonValueKind.String)
+                {
+                    return TypeMismatch(def, param, value, stepIndex, "문자열 npc_ref 심볼");
+                }
+
+                if (!TryPackNpcRef(value, out _))
+                {
+                    return ValidationResult.Fail(
+                        ValidationStage.Vocabulary, "V2.TYPE_MISMATCH", stepIndex,
+                        $"{def.Id}.{param.Name} 의 '{value.GetString()}' 는 self / nearest:<archetype> / poi_owner:<poi> 가 아니다.");
+                }
+
+                break;
+
+            case ParamType.ZoneRef:
+                if (value.ValueKind != JsonValueKind.String || !Zones.TryGet(value.GetString()!, out _))
+                {
+                    return TypeMismatch(def, param, value, stepIndex, "zones.json 의 존 id");
+                }
+
+                break;
+
+            case ParamType.Enum:
+                if (value.ValueKind != JsonValueKind.String)
+                {
+                    return TypeMismatch(def, param, value, stepIndex, "문자열 열거값");
+                }
+
+                if (!param.EnumValues.Contains(value.GetString()!))
+                {
+                    return ValidationResult.Fail(
+                        ValidationStage.Vocabulary, "V2.TYPE_MISMATCH", stepIndex,
+                        $"{def.Id}.{param.Name} 은 {string.Join(", ", param.EnumValues)} 중 하나여야 한다. 받은 값: {value}");
+                }
+
+                break;
+
+            case ParamType.Int:
+                if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int number))
+                {
+                    return TypeMismatch(def, param, value, stepIndex, "정수");
+                }
+
+                if (number < param.Min || number > param.Max)
+                {
+                    return ValidationResult.Fail(
+                        ValidationStage.Vocabulary, "V2.RANGE", stepIndex,
+                        $"{def.Id}.{param.Name} 이 {number} 다. {param.Min}~{param.Max} 이어야 한다.");
+                }
+
+                break;
+
+            default:
+                return TypeMismatch(def, param, value, stepIndex, "알 수 없는 타입");
+        }
+
+        return ValidationResult.Ok;
+    }
+
+    private static ValidationResult TypeMismatch(
+        ActionDef def, ParamDef param, JsonElement value, int stepIndex, string expected) =>
+        ValidationResult.Fail(
+            ValidationStage.Vocabulary, "V2.TYPE_MISMATCH", stepIndex,
+            $"{def.Id}.{param.Name} 은 {expected} 여야 한다. 받은 값: {value}");
 
     private bool TryPackNpcRef(JsonElement value, out byte code)
     {
