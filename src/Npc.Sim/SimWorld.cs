@@ -67,6 +67,7 @@ public sealed class SimWorld : IAsyncDisposable
         _inventory = new int[(long)capacity * _stride <= int.MaxValue
             ? capacity * _stride
             : throw new ArgumentOutOfRangeException(nameof(capacity), "인벤토리 배열이 int 범위를 넘는다.")];
+        ObservedByPlayer = new bool[capacity];
     }
 
     /// <summary>설정.</summary>
@@ -89,6 +90,13 @@ public sealed class SimWorld : IAsyncDisposable
 
     /// <summary>마스터데이터.</summary>
     public MasterDataSet Data => _data;
+
+    /// <summary>
+    /// 플레이어가 보고 있는 NPC. <see cref="PlayerBots"/> 가 갱신하고 <see cref="TransformEmitter"/> 가 읽는다.
+    /// NPC 서버의 LOD 등급과 같은 정보를 Sim 쪽에서 표현한 것이다 —
+    /// Sim 은 플레이어 봇을 직접 들고 있으므로 근접 여부를 안다.
+    /// </summary>
+    public bool[] ObservedByPlayer { get; }
 
     /// <summary>이 NPC 가 스폰됐는가.</summary>
     public bool IsSpawned(int npc) => (uint)npc < (uint)Capacity && _spawned[npc];

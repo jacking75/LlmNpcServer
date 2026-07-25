@@ -444,7 +444,7 @@ W3 ── 런타임 · 게이트웨이 · Sim
 [x] T1-41 NullLink          [ ] T1-42 LoopbackLink   [ ] T1-43 RecordingLink
 [ ] T1-44 ReplayLink        [x] T1-45 TcpLink골격
 [x] T1-46 SimWorld          [x] T1-47 이동시뮬       [x] T1-48 상호작용시뮬
-[ ] T1-49 Transform발행     [ ] T1-50 욕구진행       [ ] T1-51 플레이어봇
+[x] T1-49 Transform발행     [x] T1-50 욕구진행       [x] T1-51 플레이어봇
 [ ] T1-52 시나리오로더      [ ] T1-53 실패·드롭주입
 
 W4 ── 폴백 · 인스턴스 · 호스트 · 튜닝
