@@ -39,6 +39,18 @@
         {
           "action": "MoveTo",
           "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
+        },
+        {
+          "action": "MoveTo",
+          "args": {
             "poi": "$home"
           },
           "timeout_s": 300
@@ -81,6 +93,18 @@
             "amount": 1
           },
           "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
         },
         {
           "action": "MoveTo",
@@ -131,6 +155,18 @@
         {
           "action": "MoveTo",
           "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
+        },
+        {
+          "action": "MoveTo",
+          "args": {
             "poi": "$home"
           },
           "timeout_s": 300
@@ -173,6 +209,18 @@
             "amount": 1
           },
           "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
         },
         {
           "action": "MoveTo",
@@ -223,6 +271,18 @@
         {
           "action": "MoveTo",
           "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
+        },
+        {
+          "action": "MoveTo",
+          "args": {
             "poi": "$home"
           },
           "timeout_s": 300
@@ -265,6 +325,18 @@
             "amount": 1
           },
           "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
         },
         {
           "action": "MoveTo",
@@ -315,6 +387,18 @@
         {
           "action": "MoveTo",
           "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
+        },
+        {
+          "action": "MoveTo",
+          "args": {
             "poi": "$home"
           },
           "timeout_s": 300
@@ -357,6 +441,18 @@
             "amount": 1
           },
           "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
         },
         {
           "action": "MoveTo",
@@ -407,6 +503,18 @@
         {
           "action": "MoveTo",
           "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
+        },
+        {
+          "action": "MoveTo",
+          "args": {
             "poi": "$home"
           },
           "timeout_s": 300
@@ -449,6 +557,18 @@
             "amount": 1
           },
           "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
         },
         {
           "action": "MoveTo",

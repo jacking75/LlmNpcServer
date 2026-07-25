@@ -88,7 +88,7 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | Phase | 문서 | 태스크 | 완료 | 상태 |
 |---|---|---|---|---|
 | **P0** W1 스파이크 | [`docs/10_Phase0_W1_TASKS.md`](docs/10_Phase0_W1_TASKS.md) | 13 | 0 | 미착수 |
-| **P1** W2–4 코어·런타임·Sim | [`docs/11_Phase1_W2-4_TASKS.md`](docs/11_Phase1_W2-4_TASKS.md) | 62 | 0 | 미착수 |
+| **P1** W2–4 코어·런타임·Sim | [`docs/11_Phase1_W2-4_TASKS.md`](docs/11_Phase1_W2-4_TASKS.md) | 62 | 62 | **게이트 통과** |
 | **P2** W5–6 플랜 컴파일러 | [`docs/12_Phase2_W5-6_TASKS.md`](docs/12_Phase2_W5-6_TASKS.md) | 24 | 0 | 미착수 |
 | **P3** W7–8 플랜 캐시 | [`docs/13_Phase3_W7-8_TASKS.md`](docs/13_Phase3_W7-8_TASKS.md) | 21 | 0 | 미착수 |
 | **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 0 | 미착수 |
@@ -121,6 +121,12 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/01 §2.2` | `Wander` 파라미터에서 `zone`·`radius` 제거 (`duration_s` 만) | T1-23. 플랜에 존 id 가 박히면 (아키타입 × 버킷) 재사용이 깨진다 — 절대 POI id 를 금지한 것과 같은 이유다. 정수 파라미터 2개는 `CompiledStep` 의 `Count` 슬롯 하나에 들어가지 않는다. 존은 `$zone`(현재 존)으로 런타임이 채운다 |
 | 2026-07-26 | `docs/01 §5` | `archetypes.json` 에 `initial_inventory` 추가 | T1-27. `docs/11 §8`이 gen_npcs 에게 "초기 인벤토리를 아키타입 기본값으로" 라고 지시하는데 §5 에 그 필드가 없었다. 검증기 3단의 초기 상태(`HasTool` 등)도 여기서 나온다 |
 | 2026-07-26 | `docs/03 §3` | 3단의 `ctx.InitialFlags` 에 아키타입 기본 인벤토리 플래그와 도착 시 장소 플래그를 명문화 | T1-27. 버킷 플래그만으로는 `HasTool`·`AtWorkplace` 가 서지 않아 `Work`·`Craft` 를 쓰는 플랜이 전부 3단에서 걸린다 (`docs/03 §1` 예시 포함) |
+| 2026-07-26 | `docs/01 §7` | 인터럽트 발동을 엣지 트리거로 명문화 | T1-57. `when` 조건이 대부분 플래그라 이벤트마다 다시 쏘면 `강제 액션 → 완료 이벤트 → 다시 강제` 되먹임이 생긴다. 200마리 1게임일에 강제 액션 155만 건이 나왔다 |
+| 2026-07-26 | `docs/01 §4` | POI 출입 제한을 `Workplace`/`Field`/`Wilderness` 로 한정 (`IsWorkSite`) | T1-27·T1-46. `allowed_archetypes` 를 출입 허가로 읽으면 농부가 시장에 못 들어간다 |
+| 2026-07-26 | `docs/11 §4` | 인지 스캔에 틱당 상한(`MaxScansPerTick = 150`) + 밴드별 커서 추가 | T1-60. 슬라이스만으로는 상한이 안 지켜진다. LOD 0 은 주기가 1 이라 밴드 전원을 매 틱 본다 — NPC 5,000·플레이어 봇 20 에서 실측 612건 |
+| 2026-07-26 | `docs/11 §10` | 대시보드 NPC 패널의 `VisualState` → `StepStatus` | T1-58. VisualState 는 연출이라 게임서버 소관이고 `NpcStore` 에 미러가 없다 |
+| 2026-07-26 | `docs/11 §10` | 링크 패널의 이벤트 수신·시퀀스 갭을 `NpcServerLoop` 이 세도록 | T1-58. 루프백 링크는 이벤트 리더를 그대로 넘겨줘서 셀 수 없다. 모든 이벤트가 지나는 곳은 `DrainEvents` 하나뿐이고, 링크마다 넣으면 구현체를 바꿀 때 검출이 사라진다 |
+| 2026-07-26 | `README §주요 실행 옵션` · `§프로젝트 구조` | 실행 옵션 7종 추가 · `gen_npcs.csx` → `.cs` | T1-56·T1-57. `--link record 와 replay` 에 경로 인자가 필요했고, 생성기는 dotnet-script 없이 도는 .NET 10 파일 기반 앱이다 |
 | 2026-07-26 | `docs/03 §3` | `V3.RESOURCE_IMBALANCE` 를 '자기모순만 잡는다' 로 한정 | T1-27. 3단은 창고 잔량을 모른다. 플랜이 아예 모으지 않는 자원까지 따지면 `docs/03 §1` 예시(석탄을 캐지 않음)가 반려된다 |
 | 2026-07-26 | `masterdata/items.json` | `iron_sword` 레시피 입력을 iron_ore 3 → 2 로 | T1-27. `docs/03 §1` 예시가 광석 8개로 검 3자루를 만드는데 3개씩이면 9개가 필요해 사양이 스스로를 반증한다 |
 | 2026-07-26 | `docs/11 §5` | `GameClock` 시간 환산 주석 정정 | T1-29. "게임 1분 = 1 tick @ scale 60" 은 같은 문단의 "TimeScale 60이면 실시간 24분" 과 10배 어긋난다. 실제로는 scale 60 에서 1틱 = 6 게임초다 |
