@@ -33,9 +33,12 @@ internal static class Program
             case "suffix":
                 return SuffixGen.Run();
 
+            case "validate":
+                return Validate.Run();
+
             default:
                 Console.Error.WriteLine($"unknown command: {cmd}");
-                Console.Error.WriteLine("usage: spike [ready|clients|schema|prefix|suffix]");
+                Console.Error.WriteLine("usage: spike [ready|clients|schema|prefix|suffix|validate]");
                 return 2;
         }
     }
