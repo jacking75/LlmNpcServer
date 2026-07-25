@@ -63,7 +63,8 @@ public sealed class NpcStoreTests
     {
         NpcStore store = NewStore(1_000, 83);
 
-        for (int i = 0; i < 100; i++)
+        // JIT 티어 승격이 끝날 때까지 돌린다. 승격 시점에 한 번 할당이 잡힌다.
+        for (int i = 0; i < 30_000; i++)
         {
             _ = store.ReadInventoryOf(i % 1_000)[0];
         }
@@ -175,7 +176,8 @@ public sealed class NpcStoreTests
         var buffer = default(RingBuffer8<RecentEvent>);
         var item = new RecentEvent(GameEventKind.NpcTransform, new Tick(1), 1, 10);
 
-        for (int i = 0; i < 100; i++)
+        // JIT 티어 승격이 끝날 때까지 돌린다.
+        for (int i = 0; i < 30_000; i++)
         {
             buffer.Add(item);
         }

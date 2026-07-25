@@ -317,7 +317,8 @@ public sealed class EventApplierTests
         Harness h = NewHarness();
         long sequence = 1;
 
-        for (int i = 0; i < 100; i++)
+        // JIT 티어 승격이 끝날 때까지 돌린다.
+        for (int i = 0; i < 30_000; i++)
         {
             GameEvent warm = Event(GameEventKind.NpcTransform, sequence++) with { Pos = new WorldPos(i, 0, 0) };
             h.Applier.Apply(in warm);

@@ -102,7 +102,8 @@ public sealed class ReplanQueueTests
     {
         var queue = new ReplanQueue(1_000);
 
-        for (int i = 0; i < 100; i++)
+        // JIT 티어 승격이 끝날 때까지 돌린다.
+        for (int i = 0; i < 30_000; i++)
         {
             queue.TryEnqueue(i, i);
             queue.TryDequeue(out _, out _);

@@ -86,8 +86,8 @@ public sealed class ItemTableTests
         int[] inventory = new int[s_table.MaxCode + 1];
         inventory[40] = 3;
 
-        // 워밍업 — JIT 이 첫 호출에서 할당할 수 있다.
-        for (int i = 0; i < 100; i++)
+        // JIT 티어 승격이 끝날 때까지 돌린다. 승격 시점에 한 번 할당이 잡힌다.
+        for (int i = 0; i < 30_000; i++)
         {
             _ = s_table.ComputeFlags(inventory);
         }

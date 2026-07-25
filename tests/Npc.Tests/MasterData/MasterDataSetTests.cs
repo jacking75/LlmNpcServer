@@ -89,7 +89,8 @@ public sealed class MasterDataSetTests
         PoiId a = s_data.Pois.Pois[0].Code;
         PoiId b = s_data.Pois.Pois[50].Code;
 
-        for (int i = 0; i < 100; i++)
+        // JIT 티어 승격이 끝날 때까지 돌린다. 승격 시점에 한 번 할당이 잡힌다.
+        for (int i = 0; i < 30_000; i++)
         {
             _ = s_data.Pois.Distance(a, b);
         }

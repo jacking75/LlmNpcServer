@@ -186,7 +186,8 @@ public sealed class LodBandTests
         NpcStore store = NewStore(2_000);
         var bands = new LodBandSet(store);
 
-        for (int i = 0; i < 100; i++)
+        // JIT 티어 승격이 끝날 때까지 돌린다.
+        for (int i = 0; i < 30_000; i++)
         {
             store.Lod[i % 2_000] = (byte)(i % 4);
             bands.Rebalance();

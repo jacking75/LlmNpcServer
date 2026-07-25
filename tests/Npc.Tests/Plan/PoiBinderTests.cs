@@ -157,7 +157,8 @@ public sealed class PoiBinderTests
     {
         PoiBindContext ctx = Context(9, "farmer");
 
-        for (int i = 0; i < 100; i++)
+        // JIT 티어 승격이 끝날 때까지 돌린다. 승격 시점에 한 번 할당이 잡힌다.
+        for (int i = 0; i < 30_000; i++)
         {
             _ = s_binder.TryBind(PoiSymbol.NearestField, ctx, out _);
         }
