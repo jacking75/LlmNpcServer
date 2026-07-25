@@ -17,6 +17,8 @@
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.8.1" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.8.1" />
     <PackageReference Include="OpenAI" Version="2.12.0" />
+    <!-- 검증기 1단 (T0-05/T0-08) — draft 2020-12 JSON Schema 검증 -->
+    <PackageReference Include="JsonSchema.Net" Version="9.3.0" />
     <!-- 토큰 수 계측용 (T0-06/T0-07). 오프라인 vocab 이 패키지에 포함된다. -->
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
     <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.0" />

@@ -24,9 +24,12 @@ internal static class Program
             case "clients":
                 return await Clients.RunSmokeAsync(rest);
 
+            case "schema":
+                return SchemaGen.Run();
+
             default:
                 Console.Error.WriteLine($"unknown command: {cmd}");
-                Console.Error.WriteLine("usage: spike [ready|clients]");
+                Console.Error.WriteLine("usage: spike [ready|clients|schema]");
                 return 2;
         }
     }
