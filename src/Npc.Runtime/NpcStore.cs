@@ -118,6 +118,9 @@ public sealed class NpcStore
     /// <summary>마지막 스텝 실패 사유. on_step_fail 정책 적용과 로깅에 쓴다.</summary>
     public byte[] LastFailReason = [];
 
+    /// <summary>현재 스텝을 몇 번 재시도했는가. on_step_fail = retry_once 가 본다.</summary>
+    public byte[] StepRetries = [];
+
     /// <summary>핫 배열 한 NPC 당 바이트 수. docs/11 §3 의 ~100KB 근거.</summary>
     public const int HotBytesPerNpc =
         sizeof(ulong)    // Flags
@@ -166,6 +169,7 @@ public sealed class NpcStore
         PendingPlanId = new int[capacity];
         LastEventSequence = new long[capacity];
         LastFailReason = new byte[capacity];
+        StepRetries = new byte[capacity];
 
         for (int i = 0; i < capacity; i++)
         {
