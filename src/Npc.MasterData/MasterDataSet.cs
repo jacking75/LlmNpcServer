@@ -40,7 +40,10 @@ public sealed record ZoneDef(
 /// <param name="OpenFrom">개방 시작 시간대.</param>
 /// <param name="OpenTo">개방 종료 시간대.</param>
 /// <param name="Grants">이 POI 에 있을 때 서는 플래그.</param>
-/// <param name="AllowedArchetypeMask">접근 가능한 아키타입 비트셋. 0 이면 제한 없음.</param>
+/// <param name="AllowedArchetypeMask">
+/// 여기서 일하는 아키타입의 비트셋. 0 이면 제한 없음.
+/// <b>출입 허가가 아니라 근무 허가다</b> — 시장·선술집·신전·성문은 누구나 드나든다.
+/// </param>
 /// <param name="Resources">채집 가능 자원.</param>
 public sealed record PoiDef(
     PoiId Code,
@@ -56,9 +59,19 @@ public sealed record PoiDef(
     ulong AllowedArchetypeMask,
     ImmutableArray<ItemId> Resources)
 {
-    /// <summary>이 아키타입이 들어갈 수 있는가. 비트 검사 한 번. 마스크 0 은 제한 없음이다.</summary>
+    /// <summary>이 아키타입이 여기서 일할 수 있는가. 비트 검사 한 번. 마스크 0 은 제한 없음이다.</summary>
     public bool Allows(ArchetypeId archetype) =>
         AllowedArchetypeMask == 0 || (archetype.Value < 64 && (AllowedArchetypeMask & (1UL << archetype.Value)) != 0);
+
+    /// <summary>
+    /// 근무 허가가 출입까지 제한하는 POI 인가.
+    /// 일터·채집지·야외 작업지는 아무나 들어가서 일할 수 없지만,
+    /// 시장·선술집·신전·성문·주거는 공공장소라 누구나 드나든다.
+    /// </summary>
+    public bool IsWorkSite => Type is PoiType.Workplace or PoiType.Field or PoiType.Wilderness;
+
+    /// <summary>이 아키타입이 들어갈 수 있는가. 공공장소는 언제나 참이다.</summary>
+    public bool CanEnter(ArchetypeId archetype) => !IsWorkSite || Allows(archetype);
 }
 
 /// <summary>zones.json 의 읽기 전용 인덱스.</summary>

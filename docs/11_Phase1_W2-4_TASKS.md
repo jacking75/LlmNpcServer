@@ -164,7 +164,7 @@
 **T1-24** `PoiSymbol` + 바인딩 · `M` · 선행 T1-14, T1-16
   파일 `src/Npc.Core/Plan/PoiSymbol.cs`, `src/Npc.Runtime/PoiBinder.cs` (신규)
   사양 `docs/03 §2` POI 심볼 표
-  내용 8종 심볼. 개체별 바인딩(`$home`→인스턴스 값, `$nearest_*`→거리 행렬). **바인딩에 `npcId` 해시 지터를 넣어** 전원이 같은 POI로 몰리지 않게 한다.
+  내용 9종 심볼. 개체별 바인딩(`$home`→인스턴스 값, `$nearest_*`→거리 행렬). **바인딩에 `npcId` 해시 지터를 넣어** 전원이 같은 POI로 몰리지 않게 한다.
   완료 `PoiBinder_DistributesNearest` 통과 (동일 조건 NPC 100마리가 2개 이상 POI로 분산)
 
 **T1-25** 검증기 1단 (스키마) · `S` · 선행 T1-22
@@ -432,7 +432,7 @@ W2 ── 골격 · 계약 · 마스터데이터 · 코어
 [x] T1-14 zones+pois        [x] T1-15 거리행렬       [x] T1-16 archetypes(40)
 [x] T1-17 buckets+BucketKey [x] T1-18 interrupts     [x] T1-19 MasterDataSet
 [x] T1-20 검증V1~V11        [x] T1-21 validate CLI
-[x] T1-22 PlanDocument      [ ] T1-23 CompiledPlan   [ ] T1-24 PoiSymbol
+[x] T1-22 PlanDocument      [ ] T1-23 CompiledPlan   [x] T1-24 PoiSymbol
 [ ] T1-25 검증1단           [ ] T1-26 검증2단        [ ] T1-27 검증3단
 
 W3 ── 런타임 · 게이트웨이 · Sim

@@ -295,12 +295,14 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags requiredA
       "capacity": 3,
       "open_hours": { "from": "Morning", "to": "Evening" },
       "grants": ["AtWorkplace"],        // 이 POI에 있을 때 세팅되는 플래그
-      "allowed_archetypes": ["blacksmith", "apprentice_smith"],
+      "allowed_archetypes": ["blacksmith", "apprentice_smith"],   // 여기서 *일하는* 아키타입
       "resources": []                   // field 타입일 때 채집 가능 자원
     }
   ]
 }
 ```
+
+> **`allowed_archetypes`는 출입 허가가 아니라 근무 허가다.** 일터(`workplace`)·채집지(`field`)·야외 작업지(`wilderness`)에서만 출입을 제한하고, 시장·선술집·신전·성문·주거는 공공장소라 누구나 드나든다. 농부가 시장에 못 가면 `$market` 바인딩이 실패한다.
 
 `poi_distances.bin` — 250×250 `Half` 행렬(≈122KB). Sim의 이동 소요시간 계산과 검증기 3단(도달 가능성)에 쓴다. 빌드 스크립트가 `pois.json`에서 생성한다.
 
@@ -534,8 +536,8 @@ HARD RULES
 2. Maximum 10 steps. Prefer 5-8.
 3. Every step's `requires` flags must be satisfiable by the preceding steps' `grants`,
    or already present in the given `flags` field.
-4. Reference POIs only by the symbolic forms: $home, $workplace, $market, $temple,
-   $gate, $nearest_field, $nearest_safe, $nearest_shelter. Never invent a POI id.
+4. Reference POIs only by the symbolic forms: $home, $workplace, $market, $tavern,
+   $temple, $gate, $nearest_field, $nearest_safe, $nearest_shelter. Never invent a POI id.
 5. Do not include dialogue text. Use Speak with a dialogue id only.
 6. The plan must be loopable or must end in a rest/sleep state.
 7. Output JSON only. No prose, no markdown fences.
