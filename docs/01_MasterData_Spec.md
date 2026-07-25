@@ -335,6 +335,13 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags requiredA
       },
 
       "default_goals": ["restock_ore","fulfill_orders","maintain_shop"],
+
+      "initial_inventory": [                 // gen_npcs 가 NPC 인스턴스에 복사하는 기본값 (docs/11 §8)
+        { "item": "smith_hammer", "count": 1 },
+        { "item": "bread", "count": 2 },
+        { "item": "water", "count": 1 },
+        { "item": "coin", "count": 10 }
+      ],
       "fallback_plan": "fb_blacksmith",
       "combat_capable": true,
       "population_weight": 0.012         // 5,000 중 약 60마리

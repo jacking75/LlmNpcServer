@@ -190,6 +190,9 @@ public interface IPlanVocabulary
     /// <summary>액션의 기본 타임아웃(초).</summary>
     int DefaultTimeoutSeconds(ActionId action);
 
+    /// <summary>아이템 id 문자열 → code.</summary>
+    bool TryGetItem(string itemId, out ItemId item);
+
     /// <summary>플랜 스텝의 args 를 컴파일된 슬롯으로. 실패하면 이유를 준다.</summary>
     bool TryPackArgs(
         ActionId action,

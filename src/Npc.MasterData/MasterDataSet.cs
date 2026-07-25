@@ -342,6 +342,19 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     public int DefaultTimeoutSeconds(ActionId action) => Actions[action].DefaultTimeoutSeconds;
 
     /// <inheritdoc />
+    public bool TryGetItem(string itemId, out ItemId item)
+    {
+        if (Items.TryGet(itemId, out ItemDef def))
+        {
+            item = def.Code;
+            return true;
+        }
+
+        item = default;
+        return false;
+    }
+
+    /// <inheritdoc />
     public bool TryPackArgs(
         ActionId action,
         IReadOnlyDictionary<string, JsonElement> args,
@@ -533,7 +546,83 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     public bool IsActionAllowed(ArchetypeId archetype, ActionId action) => Archetypes[archetype].Allows(action);
 
     /// <inheritdoc />
-    public WorldFlags InitialFlags(BucketKey bucket) => Buckets.InitialFlags(bucket);
+    public WorldFlags InitialFlags(BucketKey bucket) =>
+        Buckets.InitialFlags(bucket) | Archetypes[bucket.A].BaselineFlags;
+
+    /// <inheritdoc />
+    public bool CompletesOnArrival(ActionId action) =>
+        Actions[action].CompletesOn.Contains(GameEventKind.NpcArrived);
+
+    /// <inheritdoc />
+    public bool CanBindSymbol(ArchetypeId archetype, PoiSymbol symbol)
+    {
+        ArchetypeDef def = Archetypes[archetype];
+
+        return symbol switch
+        {
+            PoiSymbol.None => true,
+            PoiSymbol.Home => Pois.OfType(PoiType.Home).Length > 0,
+            PoiSymbol.Workplace => def.WorkplacePoiType is { } subtype && Pois.OfSubtype(subtype).Length > 0,
+            PoiSymbol.Market => HasEnterable(PoiType.Market, archetype),
+            PoiSymbol.Tavern => HasEnterable(PoiType.Tavern, archetype),
+            PoiSymbol.Temple => HasEnterable(PoiType.Temple, archetype),
+            PoiSymbol.Gate => HasEnterable(PoiType.Gate, archetype),
+            PoiSymbol.NearestField => HasEnterable(PoiType.Field, archetype),
+            PoiSymbol.NearestSafe => HasEnterable(PoiType.Gate, archetype) || HasEnterable(PoiType.Home, archetype),
+            PoiSymbol.NearestShelter => HasEnterable(PoiType.Home, archetype),
+            _ => false,
+        };
+    }
+
+    private bool HasEnterable(PoiType type, ArchetypeId archetype)
+    {
+        foreach (PoiId id in Pois.OfType(type))
+        {
+            if (Pois[id].CanEnter(archetype))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc />
+    public bool TryGetRecipeInputs(ItemId recipe, out ImmutableArray<PlanRecipeInput> inputs)
+    {
+        if (!Items.TryGetRecipe(Items[recipe].Id, out RecipeDef def))
+        {
+            inputs = [];
+            return false;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<PlanRecipeInput>(def.Inputs.Length);
+        foreach (RecipeSlot slot in def.Inputs)
+        {
+            builder.Add(new PlanRecipeInput(slot.Item, slot.Count));
+        }
+
+        inputs = builder.ToImmutable();
+        return true;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// 데이터로 판정한다. 채집 계열은 resource/crop 파라미터를 갖고,
+    /// 수령 계열(PickUp·Withdraw)은 InventoryFull 을 금지 플래그로 갖는다.
+    /// 액션 id 를 코드에 하드코딩하지 않는다.
+    /// </remarks>
+    public bool ProducesItem(ActionId action)
+    {
+        ActionDef def = Actions[action];
+
+        return def.Param("resource") is not null
+            || def.Param("crop") is not null
+            || ((def.Forbids & WorldFlags.InventoryFull) != 0 && def.Param("item") is not null);
+    }
+
+    /// <inheritdoc />
+    public bool ConsumesRecipe(ActionId action) => Actions[action].Param("recipe") is not null;
 
     /// <inheritdoc />
     public ValidationResult ValidateArgs(

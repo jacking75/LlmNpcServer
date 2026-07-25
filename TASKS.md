@@ -119,6 +119,10 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/03 §5` | `RequiredFlags` 를 '전 스텝 requires 의 OR' → '앞선 스텝이 세워주는 것을 뺀 진입 조건' 으로 정정 | T1-23. 단순 OR 이면 `Mine` 이 세워줄 `HasRawMaterial` 을 `Craft` 때문에 요구하게 되어 인지 스캔이 매 틱 이탈이라고 답한다 |
 | 2026-07-26 | `docs/03 §5` | `IPlanVocabulary` 도입 (Npc.Core 선언 · Npc.MasterData 구현) | T1-23. `CompiledPlan`(Core)이 `ActionCatalog`(MasterData)를 필요로 하는데 CLAUDE.md §3 이 `Core → MasterData` 를 금지한다 |
 | 2026-07-26 | `docs/01 §2.2` | `Wander` 파라미터에서 `zone`·`radius` 제거 (`duration_s` 만) | T1-23. 플랜에 존 id 가 박히면 (아키타입 × 버킷) 재사용이 깨진다 — 절대 POI id 를 금지한 것과 같은 이유다. 정수 파라미터 2개는 `CompiledStep` 의 `Count` 슬롯 하나에 들어가지 않는다. 존은 `$zone`(현재 존)으로 런타임이 채운다 |
+| 2026-07-26 | `docs/01 §5` | `archetypes.json` 에 `initial_inventory` 추가 | T1-27. `docs/11 §8`이 gen_npcs 에게 "초기 인벤토리를 아키타입 기본값으로" 라고 지시하는데 §5 에 그 필드가 없었다. 검증기 3단의 초기 상태(`HasTool` 등)도 여기서 나온다 |
+| 2026-07-26 | `docs/03 §3` | 3단의 `ctx.InitialFlags` 에 아키타입 기본 인벤토리 플래그와 도착 시 장소 플래그를 명문화 | T1-27. 버킷 플래그만으로는 `HasTool`·`AtWorkplace` 가 서지 않아 `Work`·`Craft` 를 쓰는 플랜이 전부 3단에서 걸린다 (`docs/03 §1` 예시 포함) |
+| 2026-07-26 | `docs/03 §3` | `V3.RESOURCE_IMBALANCE` 를 '자기모순만 잡는다' 로 한정 | T1-27. 3단은 창고 잔량을 모른다. 플랜이 아예 모으지 않는 자원까지 따지면 `docs/03 §1` 예시(석탄을 캐지 않음)가 반려된다 |
+| 2026-07-26 | `masterdata/items.json` | `iron_sword` 레시피 입력을 iron_ore 3 → 2 로 | T1-27. `docs/03 §1` 예시가 광석 8개로 검 3자루를 만드는데 3개씩이면 9개가 필요해 사양이 스스로를 반증한다 |
 
 ---
 

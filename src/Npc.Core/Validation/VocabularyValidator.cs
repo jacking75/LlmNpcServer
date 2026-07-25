@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Npc.Contracts;
 using Npc.Core.Plan;
@@ -22,7 +23,29 @@ public interface IPlanValidationVocabulary : IPlanVocabulary
 
     /// <summary>버킷이 함의하는 초기 상태. 검증기 3단이 여기서 시작한다 (docs/03 §3).</summary>
     WorldFlags InitialFlags(BucketKey bucket);
+
+    /// <summary>
+    /// 이 액션이 <c>NpcArrived</c> 로 완료되는가.
+    /// 참이면 도착한 POI 심볼이 함의하는 장소 플래그가 선다 —
+    /// docs/01 §2.2 가 <c>MoveTo</c> 의 grants 를 "(POI별)" 이라고 쓴 부분이다.
+    /// </summary>
+    bool CompletesOnArrival(ActionId action);
+
+    /// <summary>이 아키타입이 그 심볼을 바인딩할 수 있는가. V3.UNREACHABLE_POI 가 쓴다.</summary>
+    bool CanBindSymbol(ArchetypeId archetype, PoiSymbol symbol);
+
+    /// <summary>레시피의 입력 자원. 없으면 false. V3.RESOURCE_IMBALANCE 가 쓴다.</summary>
+    bool TryGetRecipeInputs(ItemId recipe, out ImmutableArray<PlanRecipeInput> inputs);
+
+    /// <summary>이 액션이 자원을 인벤토리에 넣는가(채집·수령). V3.RESOURCE_IMBALANCE 가 쓴다.</summary>
+    bool ProducesItem(ActionId action);
+
+    /// <summary>이 액션이 레시피를 소비하는가(제작·조리). V3.RESOURCE_IMBALANCE 가 쓴다.</summary>
+    bool ConsumesRecipe(ActionId action);
 }
+
+/// <summary>레시피 입력 한 줄. <see cref="IPlanValidationVocabulary"/> 가 돌려준다.</summary>
+public readonly record struct PlanRecipeInput(ItemId Item, int Count);
 
 /// <summary>
 /// 검증기 2단 — 어휘. docs/03 §3.

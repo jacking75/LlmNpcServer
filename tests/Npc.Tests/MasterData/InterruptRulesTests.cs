@@ -14,7 +14,7 @@ public sealed class InterruptRulesTests
         ActionCatalog.Load(Path.Combine(TestPaths.MasterData, "actions.json"), s_items);
 
     private static readonly ArchetypeTable s_archetypes =
-        ArchetypeTable.Load(Path.Combine(TestPaths.MasterData, "archetypes.json"), s_actions);
+        ArchetypeTable.Load(Path.Combine(TestPaths.MasterData, "archetypes.json"), s_actions, s_items);
 
     private static readonly InterruptRules s_rules =
         InterruptRules.Load(Path.Combine(TestPaths.MasterData, "interrupts.json"), s_actions);

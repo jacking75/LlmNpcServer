@@ -42,7 +42,7 @@ public static class MasterDataLoader
 
         ItemTable items = ItemTable.Load(Path_("items.json"));
         ActionCatalog actions = ActionCatalog.Load(Path_("actions.json"), items);
-        ArchetypeTable archetypes = ArchetypeTable.Load(Path_("archetypes.json"), actions);
+        ArchetypeTable archetypes = ArchetypeTable.Load(Path_("archetypes.json"), actions, items);
         ZoneTable zones = LoadZones(Path_("zones.json"));
         PoiTable pois = LoadPois(Path_("pois.json"), Path_("poi_distances.bin"), zones, archetypes, items);
         BucketSpace buckets = LoadBuckets(Path_("context_buckets.json"));

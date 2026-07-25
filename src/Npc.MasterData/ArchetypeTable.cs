@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Npc.Contracts;
+using Npc.Core;
 
 namespace Npc.MasterData;
 
@@ -21,6 +22,9 @@ public readonly record struct TraitSet(byte Diligence, byte Sociability, byte Co
         _ => 0,
     };
 }
+
+/// <summary>인벤토리 한 칸.</summary>
+public readonly record struct InventorySlot(ItemId Item, int Count);
 
 /// <summary>성향 종류.</summary>
 public enum TraitKind
@@ -43,6 +47,14 @@ public enum TraitKind
 /// <param name="PrimaryRecipes">$primary 심볼이 바인딩되는 레시피 목록.</param>
 /// <param name="Traits">성향.</param>
 /// <param name="DefaultGoals">기본 목표. 프롬프트 서픽스에 실린다.</param>
+/// <param name="InitialInventory">
+/// 기본 인벤토리. docs/11 §8 — gen_npcs 가 NPC 인스턴스에 복사한다.
+/// 검증기 3단의 초기 상태(HasTool/HasFood/…)도 여기서 나온다.
+/// </param>
+/// <param name="BaselineFlags">
+/// <see cref="InitialInventory"/> 가 세우는 <see cref="WorldFlags"/>.
+/// 로드 시점에 items.json 의 grants 로 계산한다 — 코드에 하드코딩하지 않는다.
+/// </param>
 /// <param name="FallbackPlanId">fallback_plans.json 의 플랜 id.</param>
 /// <param name="CombatCapable">전투 가능 여부. 인터럽트 규칙이 본다.</param>
 /// <param name="PopulationWeight">인구 비중. 40종 합 = 1.0.</param>
@@ -58,6 +70,8 @@ public sealed record ArchetypeDef(
     ImmutableArray<string> PrimaryRecipes,
     TraitSet Traits,
     ImmutableArray<string> DefaultGoals,
+    ImmutableArray<InventorySlot> InitialInventory,
+    WorldFlags BaselineFlags,
     string FallbackPlanId,
     bool CombatCapable,
     double PopulationWeight)
@@ -117,7 +131,7 @@ public sealed class ArchetypeTable
     }
 
     /// <summary>masterdata/archetypes.json 로드.</summary>
-    public static ArchetypeTable Load(string path, ActionCatalog actions)
+    public static ArchetypeTable Load(string path, ActionCatalog actions, ItemTable items)
     {
         using FileStream stream = File.OpenRead(path);
         ArchetypesFile? file = JsonSerializer.Deserialize(stream, ArchetypesJsonContext.Default.ArchetypesFile);
@@ -127,11 +141,11 @@ public sealed class ArchetypeTable
             throw new InvalidDataException($"archetypes.json 에서 아키타입을 읽지 못했다: {path}");
         }
 
-        return Build(file, actions);
+        return Build(file, actions, items);
     }
 
     /// <summary>JSON 문자열에서 로드. 테스트 픽스처용.</summary>
-    public static ArchetypeTable Parse(string json, ActionCatalog actions)
+    public static ArchetypeTable Parse(string json, ActionCatalog actions, ItemTable items)
     {
         ArchetypesFile? file = JsonSerializer.Deserialize(json, ArchetypesJsonContext.Default.ArchetypesFile);
 
@@ -140,10 +154,10 @@ public sealed class ArchetypeTable
             throw new InvalidDataException("archetypes.json 에서 아키타입을 읽지 못했다.");
         }
 
-        return Build(file, actions);
+        return Build(file, actions, items);
     }
 
-    private static ArchetypeTable Build(ArchetypesFile file, ActionCatalog actions)
+    private static ArchetypeTable Build(ArchetypesFile file, ActionCatalog actions, ItemTable items)
     {
         int maxCode = 0;
         foreach (ArchetypeDto dto in file.Archetypes)
@@ -188,6 +202,25 @@ public sealed class ArchetypeTable
                 mask |= 1UL << action.Code.Value;
             }
 
+            var inventory = ImmutableArray.CreateBuilder<InventorySlot>();
+            WorldFlags baseline = WorldFlags.None;
+
+            foreach (InventorySlotDto slot in dto.InitialInventory ?? [])
+            {
+                if (!items.TryGet(slot.Item, out ItemDef item))
+                {
+                    throw new InvalidDataException(
+                        $"archetypes.json: {dto.Id} 의 initial_inventory 가 없는 아이템 '{slot.Item}' 을 든다.");
+                }
+
+                inventory.Add(new InventorySlot(item.Code, slot.Count));
+
+                if (slot.Count > 0)
+                {
+                    baseline |= item.Grants;
+                }
+            }
+
             var def = new ArchetypeDef(
                 new ArchetypeId((ushort)dto.Code),
                 dto.Id,
@@ -204,6 +237,8 @@ public sealed class ArchetypeTable
                     Clamp(dto.Traits?.Courage ?? 50),
                     Clamp(dto.Traits?.Greed ?? 50)),
                 dto.DefaultGoals is null ? [] : [.. dto.DefaultGoals],
+                inventory.ToImmutable(),
+                baseline,
                 dto.FallbackPlan,
                 dto.CombatCapable,
                 dto.PopulationWeight);
@@ -239,11 +274,14 @@ public sealed class ArchetypeTable
         string[]? PrimaryRecipes,
         TraitDto? Traits,
         string[]? DefaultGoals,
+        InventorySlotDto[]? InitialInventory,
         string FallbackPlan,
         bool CombatCapable,
         double PopulationWeight);
 
     internal sealed record TraitDto(int Diligence, int Sociability, int Courage, int Greed);
+
+    internal sealed record InventorySlotDto(string Item, int Count);
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]

@@ -168,7 +168,14 @@ if (doc.Loop && !CanReenterFrom(state, doc.Steps[0])) return Fail("V3.LOOP_NOT_C
 | `V3.NO_TERMINAL` | `loop: false`인데 마지막이 `Sleep`/`Rest`가 아님 |
 | `V3.DEGENERATE` | 동일 액션이 3회 이상 연속 |
 
-> `ctx.InitialFlags`는 버킷 키에서 유도한다. 예: `*.Night.*` → `IsNight`, `*.War.*` → `RegionUnderAttack`, `RegionPeaceful` 해제. 이 매핑은 `context_buckets.json`의 `world_flag`에 정의되어 있다.
+> `ctx.InitialFlags`는 **버킷 키 + 아키타입 기본 인벤토리**에서 유도한다.
+>
+> - 버킷 쪽: `*.Night.*` → `IsNight`, `*.War.*` → `RegionUnderAttack`. 이 매핑은 `context_buckets.json`의 `world_flag`에 정의되어 있다.
+> - 아키타입 쪽: `archetypes.json`의 `initial_inventory`가 `items.json`의 `grants`를 통해 세우는 플래그(`HasTool`, `HasFood`, `HasWater`, `HasCoin`, …). 이게 없으면 `Work`(requires `HasTool`)를 쓰는 플랜이 전부 3단에서 걸린다.
+>
+> 장소 플래그(`AtWorkplace` 등)는 초기 상태에 없다. `MoveTo`처럼 **`NpcArrived`로 완료되는 액션**이 도착한 POI 심볼에 해당하는 장소 플래그를 세운다 — `docs/01 §2.2`가 `MoveTo`의 grants를 "(POI별)"이라고 쓴 부분이 이것이다.
+
+**`V3.RESOURCE_IMBALANCE`는 자기모순만 잡는다.** 플랜이 스스로 모으기도 하고 쓰기도 한 자원만 본다. 아예 모으지 않는 자원(석탄 등)은 인벤토리·보관함에서 온다고 가정한다 — 3단은 창고 잔량을 알 수 없다.
 
 ### 4단 — 드라이런 (`DryRun`)
 

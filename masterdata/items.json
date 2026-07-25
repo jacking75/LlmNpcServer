@@ -98,7 +98,7 @@
   ],
 
   "recipes": [
-    { "id": "iron_sword",     "workplace_type": "smithy",       "inputs": [{ "item": "iron_ore", "count": 3 }, { "item": "coal", "count": 1 }], "outputs": [{ "item": "iron_sword", "count": 1 }],    "duration_s": 600 },
+    { "id": "iron_sword",     "workplace_type": "smithy",       "inputs": [{ "item": "iron_ore", "count": 2 }, { "item": "coal", "count": 1 }], "outputs": [{ "item": "iron_sword", "count": 1 }],    "duration_s": 600 },
     { "id": "iron_tool",      "workplace_type": "smithy",       "inputs": [{ "item": "iron_ore", "count": 2 }, { "item": "coal", "count": 1 }], "outputs": [{ "item": "iron_tool", "count": 1 }],     "duration_s": 480 },
     { "id": "horseshoe",      "workplace_type": "smithy",       "inputs": [{ "item": "iron_ore", "count": 1 }, { "item": "coal", "count": 1 }], "outputs": [{ "item": "horseshoe", "count": 2 }],     "duration_s": 300 },
 

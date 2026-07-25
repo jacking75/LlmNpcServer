@@ -3975,7 +3975,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4005,7 +4007,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4035,7 +4039,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4065,7 +4071,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4095,7 +4103,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4125,7 +4135,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4155,7 +4167,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4185,7 +4199,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4215,7 +4231,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4245,7 +4263,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4275,7 +4295,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4305,7 +4327,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4335,7 +4359,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4365,7 +4391,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "farmer"
+        "farmer",
+        "baker",
+        "brewer"
       ],
       "resources": [
         "wheat",
@@ -4395,7 +4423,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "shepherd"
+        "shepherd",
+        "tailor",
+        "tanner"
       ],
       "resources": [
         "wool",
@@ -4423,7 +4453,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "shepherd"
+        "shepherd",
+        "tailor",
+        "tanner"
       ],
       "resources": [
         "wool",
@@ -4451,7 +4483,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "herbalist"
+        "herbalist",
+        "alchemist",
+        "healer"
       ],
       "resources": [
         "herb",
@@ -4662,7 +4696,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "fisher"
+        "fisher",
+        "innkeeper"
       ],
       "resources": [
         "raw_fish"
@@ -4688,7 +4723,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "fisher"
+        "fisher",
+        "innkeeper"
       ],
       "resources": [
         "raw_fish"
@@ -4714,7 +4750,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "fisher"
+        "fisher",
+        "innkeeper"
       ],
       "resources": [
         "raw_fish"
@@ -4740,7 +4777,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "fisher"
+        "fisher",
+        "innkeeper"
       ],
       "resources": [
         "raw_fish"
@@ -4766,7 +4804,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "fisher"
+        "fisher",
+        "innkeeper"
       ],
       "resources": [
         "raw_fish"
@@ -4792,7 +4831,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "fisher"
+        "fisher",
+        "innkeeper"
       ],
       "resources": [
         "raw_fish"
@@ -4818,7 +4858,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "woodcutter"
+        "woodcutter",
+        "carpenter"
       ],
       "resources": [
         "timber"
@@ -4844,7 +4885,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "woodcutter"
+        "woodcutter",
+        "carpenter"
       ],
       "resources": [
         "timber"
@@ -4870,7 +4912,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "herbalist"
+        "herbalist",
+        "alchemist",
+        "healer"
       ],
       "resources": [
         "herb",
@@ -4987,7 +5031,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "miner"
+        "miner",
+        "blacksmith",
+        "mason"
       ],
       "resources": [
         "iron_ore",
@@ -5019,7 +5065,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "miner"
+        "miner",
+        "blacksmith",
+        "mason"
       ],
       "resources": [
         "iron_ore",
@@ -5051,7 +5099,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "miner"
+        "miner",
+        "blacksmith",
+        "mason"
       ],
       "resources": [
         "iron_ore",
@@ -5083,7 +5133,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "miner"
+        "miner",
+        "blacksmith",
+        "mason"
       ],
       "resources": [
         "iron_ore",
@@ -5115,7 +5167,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "miner"
+        "miner",
+        "blacksmith",
+        "mason"
       ],
       "resources": [
         "iron_ore",
@@ -5147,7 +5201,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "miner"
+        "miner",
+        "blacksmith",
+        "mason"
       ],
       "resources": [
         "iron_ore",
@@ -5179,7 +5235,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "miner"
+        "miner",
+        "blacksmith",
+        "mason"
       ],
       "resources": [
         "iron_ore",
@@ -5211,7 +5269,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "miner"
+        "miner",
+        "blacksmith",
+        "mason"
       ],
       "resources": [
         "iron_ore",
@@ -5331,7 +5391,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "woodcutter"
+        "woodcutter",
+        "carpenter"
       ],
       "resources": [
         "timber"
@@ -5357,7 +5418,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "woodcutter"
+        "woodcutter",
+        "carpenter"
       ],
       "resources": [
         "timber"
@@ -5383,7 +5445,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "woodcutter"
+        "woodcutter",
+        "carpenter"
       ],
       "resources": [
         "timber"
@@ -5409,7 +5472,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "woodcutter"
+        "woodcutter",
+        "carpenter"
       ],
       "resources": [
         "timber"
@@ -5435,7 +5499,8 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "woodcutter"
+        "woodcutter",
+        "carpenter"
       ],
       "resources": [
         "timber"
@@ -5462,7 +5527,8 @@
       ],
       "allowed_archetypes": [
         "hunter",
-        "patrol_scout"
+        "patrol_scout",
+        "tanner"
       ],
       "resources": [
         "game_meat",
@@ -5491,7 +5557,8 @@
       ],
       "allowed_archetypes": [
         "hunter",
-        "patrol_scout"
+        "patrol_scout",
+        "tanner"
       ],
       "resources": [
         "game_meat",
@@ -5520,7 +5587,8 @@
       ],
       "allowed_archetypes": [
         "hunter",
-        "patrol_scout"
+        "patrol_scout",
+        "tanner"
       ],
       "resources": [
         "game_meat",
@@ -5549,7 +5617,8 @@
       ],
       "allowed_archetypes": [
         "hunter",
-        "patrol_scout"
+        "patrol_scout",
+        "tanner"
       ],
       "resources": [
         "game_meat",
@@ -5578,7 +5647,8 @@
       ],
       "allowed_archetypes": [
         "hunter",
-        "patrol_scout"
+        "patrol_scout",
+        "tanner"
       ],
       "resources": [
         "game_meat",
@@ -5606,7 +5676,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "herbalist"
+        "herbalist",
+        "alchemist",
+        "healer"
       ],
       "resources": [
         "herb",
@@ -5633,7 +5705,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "herbalist"
+        "herbalist",
+        "alchemist",
+        "healer"
       ],
       "resources": [
         "herb",
@@ -5660,7 +5734,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "herbalist"
+        "herbalist",
+        "alchemist",
+        "healer"
       ],
       "resources": [
         "herb",
@@ -5753,7 +5829,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "shepherd"
+        "shepherd",
+        "tailor",
+        "tanner"
       ],
       "resources": [
         "wool",
@@ -5781,7 +5859,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "shepherd"
+        "shepherd",
+        "tailor",
+        "tanner"
       ],
       "resources": [
         "wool",
@@ -5809,7 +5889,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "shepherd"
+        "shepherd",
+        "tailor",
+        "tanner"
       ],
       "resources": [
         "wool",
@@ -5837,7 +5919,9 @@
         "AtField"
       ],
       "allowed_archetypes": [
-        "shepherd"
+        "shepherd",
+        "tailor",
+        "tanner"
       ],
       "resources": [
         "wool",
@@ -5866,7 +5950,8 @@
       ],
       "allowed_archetypes": [
         "hunter",
-        "patrol_scout"
+        "patrol_scout",
+        "tanner"
       ],
       "resources": [
         "game_meat",
@@ -5895,7 +5980,8 @@
       ],
       "allowed_archetypes": [
         "hunter",
-        "patrol_scout"
+        "patrol_scout",
+        "tanner"
       ],
       "resources": [
         "game_meat",

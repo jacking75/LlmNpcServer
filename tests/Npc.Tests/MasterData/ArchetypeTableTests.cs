@@ -14,7 +14,7 @@ public sealed class ArchetypeTableTests
         ActionCatalog.Load(Path.Combine(TestPaths.MasterData, "actions.json"), s_items);
 
     private static readonly ArchetypeTable s_table =
-        ArchetypeTable.Load(Path.Combine(TestPaths.MasterData, "archetypes.json"), s_actions);
+        ArchetypeTable.Load(Path.Combine(TestPaths.MasterData, "archetypes.json"), s_actions, s_items);
 
     /// <summary>docs/01 §5 의 그룹 구성안. 합이 40 이다.</summary>
     private static readonly (string Group, int Count)[] s_groups =
@@ -235,7 +235,7 @@ public sealed class ArchetypeTableTests
             """;
 
         InvalidDataException ex =
-            Assert.Throws<InvalidDataException>(() => ArchetypeTable.Parse(Json, s_actions));
+            Assert.Throws<InvalidDataException>(() => ArchetypeTable.Parse(Json, s_actions, s_items));
 
         Assert.Contains("Teleport", ex.Message, StringComparison.Ordinal);
     }
