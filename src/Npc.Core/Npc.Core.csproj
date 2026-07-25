@@ -12,4 +12,37 @@
     <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
   </ItemGroup>
 
+  <!--
+    T1-10 — masterdata/world_flags.json 에서 WorldFlags enum 을 생성한다 (docs/01 §1).
+    손으로 쓴 enum 을 두지 않는다. bit 번호가 하나만 어긋나도 프리베이크된 플랜이 전부 무효다.
+  -->
+  <PropertyGroup>
+    <WorldFlagsJson>$(MSBuildThisFileDirectory)..\..\masterdata\world_flags.json</WorldFlagsJson>
+    <WorldFlagsGenerated>$(MSBuildThisFileDirectory)$(BaseIntermediateOutputPath)generated\WorldFlags.g.cs</WorldFlagsGenerated>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 생성기 자체는 MSBuild 태스크다. 어셈블리에 컴파일하지 않는다. -->
+    <Compile Remove="Generators\**\*.cs" />
+    <None Include="Generators\**\*.cs" />
+    <Compile Include="$(WorldFlagsGenerated)" Visible="false" />
+    <!-- json 이 바뀌면 다시 생성한다 -->
+    <UpToDateCheckInput Include="$(WorldFlagsJson)" />
+  </ItemGroup>
+
+  <UsingTask TaskName="WorldFlagsGenerator"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <Task>
+      <Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)Generators\WorldFlagsGenerator.cs" />
+    </Task>
+  </UsingTask>
+
+  <Target Name="GenerateWorldFlags"
+          BeforeTargets="BeforeCompile;CoreCompile"
+          Inputs="$(WorldFlagsJson);$(MSBuildThisFileDirectory)Generators\WorldFlagsGenerator.cs"
+          Outputs="$(WorldFlagsGenerated)">
+    <WorldFlagsGenerator InputPath="$(WorldFlagsJson)" OutputPath="$(WorldFlagsGenerated)" />
+  </Target>
+
 </Project>
