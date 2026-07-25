@@ -12,14 +12,15 @@ public sealed class LodBandTests
         return store;
     }
 
+    /// <summary>기본 등급은 비활성이다. 플레이어가 다가와야 승격된다 (docs/11 §4).</summary>
     [Fact]
-    public void LodBand_StartsWithEveryoneInBandZero()
+    public void LodBand_StartsInactive()
     {
         NpcStore store = NewStore(100);
         var bands = new LodBandSet(store);
 
-        Assert.Equal(100, bands.CountOf(0));
-        Assert.Equal(0, bands.CountOf(1));
+        Assert.Equal(100, bands.CountOf(NpcStore.InactiveLod));
+        Assert.Equal(0, bands.CountOf(0));
         Assert.False(bands.HasPendingMigration());
     }
 
@@ -30,7 +31,7 @@ public sealed class LodBandTests
         NpcStore store = NewStore(1_000);
         var bands = new LodBandSet(store);
 
-        // 1,000마리가 한꺼번에 등급이 바뀐다.
+        // 1,000마리가 한꺼번에 등급이 바뀐다 (비활성 → 원거리).
         for (int npc = 0; npc < 1_000; npc++)
         {
             store.Lod[npc] = 2;
@@ -52,7 +53,7 @@ public sealed class LodBandTests
         // 1,000 / 64 = 15.6 → 16틱
         Assert.Equal(16, ticks);
         Assert.Equal(1_000, bands.CountOf(2));
-        Assert.Equal(0, bands.CountOf(0));
+        Assert.Equal(0, bands.CountOf(NpcStore.InactiveLod));
         Assert.Equal(1_000, bands.Migrations);
     }
 
@@ -147,6 +148,12 @@ public sealed class LodBandTests
     public void LodBand_BandZeroIsScannedEveryTick()
     {
         NpcStore store = NewStore(50);
+
+        for (int npc = 0; npc < 50; npc++)
+        {
+            store.Lod[npc] = 0;
+        }
+
         var bands = new LodBandSet(store);
 
         for (long tick = 0; tick < 5; tick++)
@@ -164,16 +171,6 @@ public sealed class LodBandTests
     {
         NpcStore store = NewStore(50);
         var bands = new LodBandSet(store);
-
-        for (int npc = 0; npc < 50; npc++)
-        {
-            store.Lod[npc] = 3;
-        }
-
-        while (bands.HasPendingMigration())
-        {
-            bands.Rebalance();
-        }
 
         for (long tick = 0; tick < 200; tick++)
         {

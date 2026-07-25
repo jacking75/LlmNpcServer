@@ -213,13 +213,24 @@ public sealed class EventApplierTests
         h.Applier.Apply(in mid);
         Assert.Equal(1, h.Store.Lod[0]);
 
+        // 평시 존이면 비활성(3)으로 내린다. 여기서 2 에 머물면 한 번이라도 플레이어를 만난 NPC 가
+        // 영원히 스캔 대상으로 남아 틱당 스캔이 파퓰레이션에 비례해 자란다.
         GameEvent gone = Event(GameEventKind.PlayerProximity, 3) with
         {
             Player = new PlayerId(1), Code = (byte)ProximityChange.Leave,
         };
         h.Applier.Apply(in gone);
-        Assert.Equal(2, h.Store.Lod[0]);
+        Assert.Equal(NpcStore.InactiveLod, h.Store.Lod[0]);
         Assert.Equal(WorldFlags.None, h.Store.Flags[0] & WorldFlags.PlayerNearby);
+
+        // 공격받는 존이면 2 로 남긴다 (docs/11 §4 — 존 활성도에 따라 2 또는 3).
+        h.Store.Flags[0] |= WorldFlags.RegionUnderAttack;
+        GameEvent goneInWar = Event(GameEventKind.PlayerProximity, 4) with
+        {
+            Player = new PlayerId(1), Code = (byte)ProximityChange.Leave,
+        };
+        h.Applier.Apply(in goneInWar);
+        Assert.Equal(2, h.Store.Lod[0]);
     }
 
     /// <summary>존 상태 변경은 그 존의 NPC 만 건드린다.</summary>

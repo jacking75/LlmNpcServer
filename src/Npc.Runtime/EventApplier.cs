@@ -326,7 +326,12 @@ public sealed class EventApplier
         if (change == ProximityChange.Leave)
         {
             _store.Flags[npc] &= ~WorldFlags.PlayerNearby;
-            _store.Lod[npc] = 2;
+
+            // docs/11 §4 — 존 활성도에 따라 2 또는 3. 평시 존은 비활성으로 내린다.
+            // 여기서 3 으로 안 내리면 한 번이라도 플레이어를 만난 NPC 가 영원히 스캔 대상으로 남고,
+            // NPC 를 늘릴수록 틱당 스캔이 선형으로 자란다.
+            bool active = (_store.Flags[npc] & WorldFlags.RegionUnderAttack) != 0;
+            _store.Lod[npc] = active ? (byte)2 : NpcStore.InactiveLod;
             return;
         }
 

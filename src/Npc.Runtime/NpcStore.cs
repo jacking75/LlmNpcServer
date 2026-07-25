@@ -72,6 +72,9 @@ public sealed class NpcStore
     /// <summary>인지 LOD 등급 0..3.</summary>
     public byte[] Lod = [];
 
+    /// <summary>비활성 등급. 이벤트가 올 때만 본다 (docs/11 §4).</summary>
+    public const byte InactiveLod = 3;
+
     // --- 웜 (이벤트 수신 시 갱신) ---
 
     /// <summary>위치.</summary>
@@ -177,6 +180,10 @@ public sealed class NpcStore
             Hp[i] = 100;
             Stamina[i] = 100;
             LastEventSequence[i] = -1;
+
+            // 초기 등급은 비활성이다. 플레이어가 다가와야 승격된다 (docs/11 §4).
+            // 0 으로 두면 5,000마리가 전부 매 틱 판정 대상이 되어 틱 예산이 통째로 날아간다.
+            Lod[i] = InactiveLod;
         }
     }
 
