@@ -104,7 +104,7 @@
   완료 존 12 · POI 250±20 · 모든 POI의 zone 참조 유효 · 고립 존 없음
 
 **T1-15** POI 거리 행렬 생성 도구 · `M` · 선행 T1-14
-  파일 `tools/gen_poi_distances.csx` (신규), `masterdata/poi_distances.bin` (산출)
+  파일 `tools/gen_poi_distances.cs` (신규), `masterdata/poi_distances.bin` (산출)
   사양 `docs/01 §4`
   내용 250×250 `Half` 행렬. 존 그래프 기반 최단거리(Floyd–Warshall이면 충분).
   완료 파일 크기 ≈ 122KB · 대칭성 검증 · 무한대(도달 불가) 항목 0
@@ -366,7 +366,7 @@
   완료 `Fallback_BindsPerInstance` 통과
 
 **T1-56** NPC 5,000 생성 · `M` · 선행 T1-16, T1-14
-  파일 `tools/gen_npcs.csx` (신규), `masterdata/npc_instances.json` (산출)
+  파일 `tools/gen_npcs.cs` (신규), `masterdata/npc_instances.json` (산출)
   사양 `docs/01 §9` · `docs/11 §8`
   내용 인구 비중 배분 → POI 정원 내 배정 → `trait_offsets` 시드 난수.
   완료 `GenNpcs_IsReproducible` 통과 (같은 seed → 바이트 동일) · V10 통과 · 존별 인구가 capacity 이내
@@ -429,7 +429,7 @@ W2 ── 골격 · 계약 · 마스터데이터 · 코어
 [x] T1-07 IGameServerLink   [x] T1-08 Contracts테스트
 [x] T1-09 world_flags       [x] T1-10 WorldFlags생성기
 [x] T1-11 items             [x] T1-12 actions(37)    [x] T1-13 ActionCatalog
-[x] T1-14 zones+pois        [ ] T1-15 거리행렬       [ ] T1-16 archetypes(40)
+[x] T1-14 zones+pois        [x] T1-15 거리행렬       [ ] T1-16 archetypes(40)
 [ ] T1-17 buckets+BucketKey [ ] T1-18 interrupts     [ ] T1-19 MasterDataSet
 [ ] T1-20 검증V1~V11        [ ] T1-21 validate CLI
 [ ] T1-22 PlanDocument      [ ] T1-23 CompiledPlan   [ ] T1-24 PoiSymbol

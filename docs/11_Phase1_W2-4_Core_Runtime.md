@@ -34,7 +34,8 @@ NpcServer.sln
 ├─ tools/
 │  ├─ Npc.Prebake/          [W7~] 프리베이크 CLI
 │  ├─ Npc.Replay/           리플레이 CLI
-│  └─ gen_npcs.csx          NPC 인스턴스 생성기
+│  ├─ gen_npcs.cs            NPC 인스턴스 생성기 (.NET 10 파일 기반 앱)
+│  └─ gen_poi_distances.cs   POI 거리 행렬 생성기 (동일)
 ├─ masterdata/              §01 문서
 ├─ tests/Npc.Tests/
 └─ Directory.Build.props
@@ -313,7 +314,7 @@ public sealed class SimWorld
 ## 8. NPC 5,000 생성
 
 ```csharp
-// tools/gen_npcs.csx
+// tools/gen_npcs.cs
 // 1) archetypes.population_weight 로 아키타입별 인원 배분
 // 2) pois.capacity 를 넘지 않게 workplace/home 배정 (그리디 + 존 균형)
 // 3) trait_offsets 를 seed 고정 난수로 부여 (±15)

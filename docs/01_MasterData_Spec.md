@@ -468,7 +468,7 @@ LLM·캐시가 전부 실패했을 때 쓰는 최후 보루. **아키타입당 1
 
 ## 9. `npc_instances.json` — NPC 5,000
 
-생성 스크립트(`tools/gen_npcs.csx`)가 `archetypes.json`의 `population_weight`와 `pois.json`의 `capacity`를 보고 만든다. **수동 편집 대상이 아니다.**
+생성 스크립트(`tools/gen_npcs.cs`)가 `archetypes.json`의 `population_weight`와 `pois.json`의 `capacity`를 보고 만든다. **수동 편집 대상이 아니다.**
 
 ```jsonc
 {
