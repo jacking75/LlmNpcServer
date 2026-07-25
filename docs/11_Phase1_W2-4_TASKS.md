@@ -426,7 +426,7 @@
 W2 ── 골격 · 계약 · 마스터데이터 · 코어
 [x] T1-01 솔루션+빌드설정   [x] T1-02 프로젝트10개   [x] T1-03 CI
 [x] T1-04 강타입ID          [x] T1-05 NpcCommand     [x] T1-06 GameEvent
-[x] T1-07 IGameServerLink   [ ] T1-08 Contracts테스트
+[x] T1-07 IGameServerLink   [x] T1-08 Contracts테스트
 [ ] T1-09 world_flags       [ ] T1-10 WorldFlags생성기
 [ ] T1-11 items             [ ] T1-12 actions(37)    [ ] T1-13 ActionCatalog
 [ ] T1-14 zones+pois        [ ] T1-15 거리행렬       [ ] T1-16 archetypes(40)
