@@ -16,6 +16,10 @@ namespace Npc.Runtime;
 /// <param name="Workplace">인스턴스의 workplace_poi.</param>
 /// <param name="Current">현재 POI.</param>
 /// <param name="Zone">현재 존.</param>
+/// <param name="Target">
+/// 이벤트가 알려준 대상 NPC. 인터럽트가 <c>$threat</c> 를 쓸 때만 채워진다 —
+/// 위협의 정체는 규칙이 아니라 이벤트에 있다. 평시 플랜에서는 default 다.
+/// </param>
 public readonly record struct EmitContext(
     NpcId Npc,
     ArchetypeId Archetype,
@@ -24,7 +28,8 @@ public readonly record struct EmitContext(
     PoiId Home,
     PoiId Workplace,
     PoiId Current,
-    ZoneId Zone);
+    ZoneId Zone,
+    NpcId Target = default);
 
 /// <summary>
 /// 컴파일된 스텝을 <see cref="NpcCommand"/> 로 바꾼다. docs/03 §6 · docs/01 §2.1 <c>emits</c>.
@@ -157,6 +162,7 @@ public sealed class CommandEmitter
 
         return NpcRefCodes.KindOf(step.NpcRef) switch
         {
+            NpcRefKind.None => command with { TargetNpc = ctx.Target },
             NpcRefKind.Self => command with { TargetNpc = ctx.Npc },
             NpcRefKind.NearestArchetype => command with
             {

@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Npc.Contracts;
 using Npc.Core;
+using Npc.Core.Plan;
 
 namespace Npc.MasterData;
 
@@ -50,8 +51,10 @@ public readonly record struct TraitCondition(TraitKind Kind, TraitComparison Com
 /// <param name="Traits">성향 조건. 전부 만족해야 한다.</param>
 /// <param name="CombatCapable">아키타입의 전투 가능 여부 조건. null 이면 검사하지 않는다.</param>
 /// <param name="Action">즉시 실행할 액션.</param>
-/// <param name="PoiArgument">액션의 POI 인자 심볼 문자열. 없으면 null.</param>
-/// <param name="NpcArgument">액션의 npc_ref 인자 심볼 문자열. 없으면 null.</param>
+/// <param name="Poi">액션의 POI 인자 심볼. 없으면 <see cref="PoiSymbol.None"/>.</param>
+/// <param name="TargetsThreat">
+/// <c>$threat</c> 를 대상으로 하는가. 위협의 정체는 규칙이 아니라 이벤트가 알려준다.
+/// </param>
 /// <param name="Amount">액션의 정수 인자 (duration_s, count). 없으면 0.</param>
 /// <param name="Urgency">재계획 긴급도 0~100.</param>
 public sealed record InterruptRule(
@@ -64,8 +67,8 @@ public sealed record InterruptRule(
     ImmutableArray<TraitCondition> Traits,
     bool? CombatCapable,
     ActionId Action,
-    string? PoiArgument,
-    string? NpcArgument,
+    PoiSymbol Poi,
+    bool TargetsThreat,
     int Amount,
     int Urgency);
 
@@ -235,8 +238,8 @@ public sealed class InterruptRules
                 ParseTraits(dto.Id, dto.When.ArchetypeTrait),
                 dto.When.CombatCapable,
                 action.Code,
-                ReadString(dto.Then.Params, "poi"),
-                ReadString(dto.Then.Params, "target"),
+                ParsePoi(dto.Id, ReadString(dto.Then.Params, "poi")),
+                string.Equals(ReadString(dto.Then.Params, "target"), "$threat", StringComparison.Ordinal),
                 ReadInt(dto.Then.Params, "duration_s") + ReadInt(dto.Then.Params, "count"),
                 dto.Replan?.Urgency ?? 0));
         }
@@ -308,6 +311,22 @@ public sealed class InterruptRules
         }
 
         return builder.ToImmutable();
+    }
+
+    private static PoiSymbol ParsePoi(string ruleId, string? text)
+    {
+        if (text is null)
+        {
+            return PoiSymbol.None;
+        }
+
+        if (!PoiSymbols.TryParse(text, out PoiSymbol symbol))
+        {
+            throw new InvalidDataException(
+                $"interrupts.json: 규칙 '{ruleId}' 의 poi '{text}' 는 허용된 POI 심볼이 아니다.");
+        }
+
+        return symbol;
     }
 
     private static string? ReadString(Dictionary<string, JsonElement>? map, string key) =>

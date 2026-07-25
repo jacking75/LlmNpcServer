@@ -127,14 +127,21 @@ public sealed class PlanExecutor
     /// 인터럽트가 강제하는 즉시 액션. docs/01 §7.
     /// 진행 중인 명령은 상관 ID 무효화로 무시된다 (docs/03 §6).
     /// </summary>
-    public void ForceAction(int npc, in CompiledStep step, Tick tick, IGameServerLink link)
+    public void ForceAction(
+        int npc, in CompiledStep step, Tick tick, IGameServerLink link, NpcId target = default)
     {
         ArgumentNullException.ThrowIfNull(link);
+
+        if ((StepStatus)_store.StepStatus[npc] == StepStatus.Unspawned)
+        {
+            return;
+        }
 
         _correlations.Invalidate(npc);
 
         CorrelationId correlation = _correlations.Next(npc);
-        int count = _emitter.Emit(step, ContextOf(npc, tick, correlation), _store.ReadInventoryOf(npc), _batch);
+        EmitContext ctx = ContextOf(npc, tick, correlation) with { Target = target };
+        int count = _emitter.Emit(step, ctx, _store.ReadInventoryOf(npc), _batch);
 
         for (int c = 0; c < count; c++)
         {
