@@ -215,8 +215,8 @@ public sealed class PlanExecutorTests
 
         var sink = new NullSinkLink();
 
-        // 워밍업 — JIT 이 첫 호출에서 할당할 수 있다.
-        for (int t = 1; t <= 20; t++)
+        // JIT 티어 승격이 끝날 때까지 돌린다. 승격 시점에 한 번 할당이 잡힌다.
+        for (int t = 1; t <= 300; t++)
         {
             h.Executor.Step(new Tick(t), sink);
             for (int i = 0; i < h.Store.Count; i++)

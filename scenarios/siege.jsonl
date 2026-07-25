@@ -1,0 +1,12 @@
+{"_comment": "docs/02 §5 의 시나리오 스크립트. at_tick 에 이벤트를 주입한다. 존 id 는 masterdata/zones.json 의 것이어야 한다."}
+{"at_tick": 1800, "event": "ZoneStateChanged", "zone": "town_center", "code": "Alert"}
+{"at_tick": 1800, "event": "WeatherChanged", "zone": "town_center", "code": "Storm"}
+{"at_tick": 2400, "event": "ZoneStateChanged", "zone": "town_center", "code": "War"}
+{"at_tick": 2400, "event": "ZoneStateChanged", "zone": "gate_east", "code": "War"}
+{"at_tick": 2400, "event": "ZoneStateChanged", "zone": "town_east_market", "code": "Alert"}
+{"at_tick": 3000, "event": "KillSwitch", "target": "T2"}
+{"at_tick": 3600, "event": "KillSwitch", "target": "T1"}
+{"at_tick": 5400, "event": "ZoneStateChanged", "zone": "town_center", "code": "Peace"}
+{"at_tick": 5400, "event": "ZoneStateChanged", "zone": "gate_east", "code": "Peace"}
+{"at_tick": 5400, "event": "ZoneStateChanged", "zone": "town_east_market", "code": "Peace"}
+{"at_tick": 5400, "event": "WeatherChanged", "zone": "town_center", "code": "Fair"}
