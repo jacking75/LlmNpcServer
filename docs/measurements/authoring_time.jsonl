@@ -1,0 +1,44 @@
+// docs/11 §7 — 폴백 플랜 40개의 작성 소요 시간. W12 보고서 "오써링 공수 절감률" 의 분모다.
+// 이 40행은 코딩 에이전트가 생성했다. minutes 를 비워 두고 baseline_eligible=false 로 표시한다 —
+// 사람이 직접 작성한 시간이 아니므로 W12 비교에서 제외해야 한다.
+// 사람이 다시 작성하면 그 줄을 minutes·revisions·author 와 함께 덮어쓴다.
+{"archetype":"blacksmith","plan":"fb_blacksmith","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"carpenter","plan":"fb_carpenter","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"tailor","plan":"fb_tailor","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"alchemist","plan":"fb_alchemist","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"baker","plan":"fb_baker","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"brewer","plan":"fb_brewer","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"jeweler","plan":"fb_jeweler","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"tanner","plan":"fb_tanner","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"mason","plan":"fb_mason","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"scribe","plan":"fb_scribe","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"miner","plan":"fb_miner","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"farmer","plan":"fb_farmer","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"fisher","plan":"fb_fisher","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"hunter","plan":"fb_hunter","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"woodcutter","plan":"fb_woodcutter","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"herbalist","plan":"fb_herbalist","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"shepherd","plan":"fb_shepherd","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"merchant","plan":"fb_merchant","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"innkeeper","plan":"fb_innkeeper","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"stablemaster","plan":"fb_stablemaster","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"banker","plan":"fb_banker","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"peddler","plan":"fb_peddler","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"guard_captain","plan":"fb_guard_captain","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"town_guard","plan":"fb_town_guard","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"gate_guard","plan":"fb_gate_guard","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"patrol_scout","plan":"fb_patrol_scout","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"watchman","plan":"fb_watchman","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"priest","plan":"fb_priest","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"acolyte","plan":"fb_acolyte","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"scholar","plan":"fb_scholar","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"healer","plan":"fb_healer","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"villager","plan":"fb_villager","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"child","plan":"fb_child","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"elder","plan":"fb_elder","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"beggar","plan":"fb_beggar","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"drunkard","plan":"fb_drunkard","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"noble","plan":"fb_noble","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"quest_giver","plan":"fb_quest_giver","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"wandering_bard","plan":"fb_wandering_bard","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}
+{"archetype":"caravan_leader","plan":"fb_caravan_leader","minutes":null,"revisions":null,"author":"agent","baseline_eligible":false}

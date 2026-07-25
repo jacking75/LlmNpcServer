@@ -1,0 +1,1953 @@
+{
+  "version": 1,
+  "_comment": [
+    "docs/01 §8 · docs/11 §7. LLM·캐시가 전부 실패했을 때 쓰는 최후 보루. 아키타입당 1개.",
+    "전부 loop:true 다 — 폴백은 무한히 지속 가능해야 한다.",
+    "on_step_fail 은 skip 이다. 폴백에서 또 폴백으로 가면 갈 곳이 없다.",
+    "$workplace / $home / $primary 는 NPC 인스턴스에서 바인딩되는 심볼이다 (PlanTable 이 푼다).",
+    "Guard·Patrol 을 쓰지 않는 이유: OnDuty 를 요구하는데 폴백은 근무 배정 없이도 돌아야 한다."
+  ],
+  "plans": [
+    {
+      "id": "fb_blacksmith",
+      "archetype": "blacksmith",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "iron_sword",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "iron_sword",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_carpenter",
+      "archetype": "carpenter",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "plank",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "plank",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_tailor",
+      "archetype": "tailor",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "linen",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "linen",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_alchemist",
+      "archetype": "alchemist",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "healing_potion",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "healing_potion",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_baker",
+      "archetype": "baker",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "flour",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "flour",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_brewer",
+      "archetype": "brewer",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "ale",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "ale",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_jeweler",
+      "archetype": "jeweler",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "silver_ring",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "silver_ring",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_tanner",
+      "archetype": "tanner",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "leather",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "leather",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_mason",
+      "archetype": "mason",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "stone_block",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "stone_block",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_scribe",
+      "archetype": "scribe",
+      "goal": "earn_and_rest",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Work",
+          "args": {
+            "recipe": "parchment",
+            "count": 1
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "parchment",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_miner",
+      "archetype": "miner",
+      "goal": "gather_and_sell",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$nearest_field"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Mine",
+          "args": {
+            "resource": "iron_ore",
+            "count": 5
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "iron_ore",
+            "amount": 5
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_farmer",
+      "archetype": "farmer",
+      "goal": "gather_and_sell",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$nearest_field"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Farm",
+          "args": {
+            "crop": "wheat",
+            "count": 5
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "wheat",
+            "amount": 5
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_fisher",
+      "archetype": "fisher",
+      "goal": "gather_and_sell",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$nearest_field"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Fish",
+          "args": {
+            "count": 5
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "raw_fish",
+            "amount": 5
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_hunter",
+      "archetype": "hunter",
+      "goal": "gather_and_sell",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$nearest_field"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Gather",
+          "args": {
+            "resource": "game_meat",
+            "count": 5
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "game_meat",
+            "amount": 5
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_woodcutter",
+      "archetype": "woodcutter",
+      "goal": "gather_and_sell",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$nearest_field"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Gather",
+          "args": {
+            "resource": "timber",
+            "count": 5
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "timber",
+            "amount": 5
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_herbalist",
+      "archetype": "herbalist",
+      "goal": "gather_and_sell",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$nearest_field"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Gather",
+          "args": {
+            "resource": "herb",
+            "count": 5
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "herb",
+            "amount": 5
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_shepherd",
+      "archetype": "shepherd",
+      "goal": "gather_and_sell",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$nearest_field"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Gather",
+          "args": {
+            "resource": "wool",
+            "count": 5
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "wool",
+            "amount": 5
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_merchant",
+      "archetype": "merchant",
+      "goal": "run_the_stall",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "bread",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "Talk",
+          "args": {
+            "npc": "nearest:villager",
+            "topic": "trade"
+          },
+          "timeout_s": 120
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_innkeeper",
+      "archetype": "innkeeper",
+      "goal": "keep_the_tavern",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "ale",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "Gossip",
+          "args": {
+            "npc": "nearest:villager",
+            "topic": "rumor"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_stablemaster",
+      "archetype": "stablemaster",
+      "goal": "tend_the_stable",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Repair",
+          "args": {
+            "target": "$workplace"
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_banker",
+      "archetype": "banker",
+      "goal": "count_the_vault",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Store",
+          "args": {
+            "item": "coin",
+            "count": 1
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Withdraw",
+          "args": {
+            "item": "coin",
+            "count": 1
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_peddler",
+      "archetype": "peddler",
+      "goal": "walk_the_route",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Trade",
+          "args": {
+            "item": "bread",
+            "amount": 1
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$gate"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Gossip",
+          "args": {
+            "npc": "nearest:gate_guard",
+            "topic": "trade"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_guard_captain",
+      "archetype": "guard_captain",
+      "goal": "inspect_the_posts",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$gate"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Observe",
+          "args": {
+            "target": "nearest:villager",
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_town_guard",
+      "archetype": "town_guard",
+      "goal": "walk_the_streets",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Observe",
+          "args": {
+            "target": "nearest:villager",
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_gate_guard",
+      "archetype": "gate_guard",
+      "goal": "hold_the_gate",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$gate"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Observe",
+          "args": {
+            "target": "nearest:villager",
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_patrol_scout",
+      "archetype": "patrol_scout",
+      "goal": "sweep_the_edge",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$gate"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Observe",
+          "args": {
+            "target": "nearest:villager",
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_watchman",
+      "archetype": "watchman",
+      "goal": "night_round",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Observe",
+          "args": {
+            "target": "nearest:villager",
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_priest",
+      "archetype": "priest",
+      "goal": "lead_the_service",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$temple"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Pray",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Talk",
+          "args": {
+            "npc": "nearest:villager",
+            "topic": "greeting"
+          },
+          "timeout_s": 120
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_acolyte",
+      "archetype": "acolyte",
+      "goal": "assist_the_rites",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$temple"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Pray",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Observe",
+          "args": {
+            "target": "nearest:priest",
+            "duration_s": 300
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_scholar",
+      "archetype": "scholar",
+      "goal": "read_and_copy",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Observe",
+          "args": {
+            "target": "nearest:scribe",
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_healer",
+      "archetype": "healer",
+      "goal": "brew_remedies",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$nearest_field"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Gather",
+          "args": {
+            "resource": "herb",
+            "count": 5
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Craft",
+          "args": {
+            "recipe": "healing_potion",
+            "count": 1
+          },
+          "timeout_s": 1800
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_villager",
+      "archetype": "villager",
+      "goal": "do_the_errands",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Gossip",
+          "args": {
+            "npc": "nearest:merchant",
+            "topic": "rumor"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Wander",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_child",
+      "archetype": "child",
+      "goal": "play_all_day",
+      "steps": [
+        {
+          "action": "Wander",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Greet",
+          "args": {
+            "npc": "nearest:villager"
+          },
+          "timeout_s": 60
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_elder",
+      "archetype": "elder",
+      "goal": "sit_and_watch",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$temple"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Pray",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Gossip",
+          "args": {
+            "npc": "nearest:villager",
+            "topic": "rumor"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_beggar",
+      "archetype": "beggar",
+      "goal": "beg_and_shelter",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$market"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Perform",
+          "args": {
+            "kind": "song",
+            "duration_s": 900
+          },
+          "timeout_s": 1800
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$gate"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_drunkard",
+      "archetype": "drunkard",
+      "goal": "drink_and_stagger",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Drink",
+          "args": {},
+          "timeout_s": 120
+        },
+        {
+          "action": "Gossip",
+          "args": {
+            "npc": "nearest:innkeeper",
+            "topic": "rumor"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_noble",
+      "archetype": "noble",
+      "goal": "keep_appearances",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Bathe",
+          "args": {},
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$temple"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Pray",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 900
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_quest_giver",
+      "archetype": "quest_giver",
+      "goal": "wait_for_takers",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "Gossip",
+          "args": {
+            "npc": "nearest:villager",
+            "topic": "rumor"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_wandering_bard",
+      "archetype": "wandering_bard",
+      "goal": "sing_for_coin",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$tavern"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Perform",
+          "args": {
+            "kind": "song",
+            "duration_s": 900
+          },
+          "timeout_s": 1800
+        },
+        {
+          "action": "Gossip",
+          "args": {
+            "npc": "nearest:innkeeper",
+            "topic": "rumor"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    },
+    {
+      "id": "fb_caravan_leader",
+      "archetype": "caravan_leader",
+      "goal": "load_the_caravan",
+      "steps": [
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$workplace"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Store",
+          "args": {
+            "item": "coin",
+            "count": 1
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$gate"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Wait",
+          "args": {
+            "duration_s": 600
+          },
+          "timeout_s": 600
+        },
+        {
+          "action": "MoveTo",
+          "args": {
+            "poi": "$home"
+          },
+          "timeout_s": 300
+        },
+        {
+          "action": "Sleep",
+          "args": {
+            "until_time": "Morning"
+          },
+          "timeout_s": 7200
+        }
+      ],
+      "on_step_fail": "skip",
+      "loop": true
+    }
+  ]
+}

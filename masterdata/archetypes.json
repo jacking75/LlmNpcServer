@@ -890,6 +890,7 @@
         "Emote",
         "Equip",
         "Flee",
+        "Gather",
         "Greet",
         "MoveTo",
         "Observe",

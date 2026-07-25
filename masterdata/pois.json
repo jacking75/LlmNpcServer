@@ -5510,7 +5510,7 @@
       "id": "hunting_ground_001_11",
       "code": 226,
       "zone": "deepwood",
-      "type": "wilderness",
+      "type": "field",
       "subtype": "hunting_ground",
       "pos": {
         "x": 1361.2,
@@ -5523,7 +5523,7 @@
         "to": "Evening"
       },
       "grants": [
-        "InWilderness"
+        "AtField"
       ],
       "allowed_archetypes": [
         "hunter",
@@ -5540,7 +5540,7 @@
       "id": "hunting_ground_002_11",
       "code": 227,
       "zone": "deepwood",
-      "type": "wilderness",
+      "type": "field",
       "subtype": "hunting_ground",
       "pos": {
         "x": 1801.2,
@@ -5553,7 +5553,7 @@
         "to": "Evening"
       },
       "grants": [
-        "InWilderness"
+        "AtField"
       ],
       "allowed_archetypes": [
         "hunter",
@@ -5570,7 +5570,7 @@
       "id": "hunting_ground_003_11",
       "code": 228,
       "zone": "deepwood",
-      "type": "wilderness",
+      "type": "field",
       "subtype": "hunting_ground",
       "pos": {
         "x": 1186.6,
@@ -5583,7 +5583,7 @@
         "to": "Evening"
       },
       "grants": [
-        "InWilderness"
+        "AtField"
       ],
       "allowed_archetypes": [
         "hunter",
@@ -5600,7 +5600,7 @@
       "id": "hunting_ground_004_11",
       "code": 229,
       "zone": "deepwood",
-      "type": "wilderness",
+      "type": "field",
       "subtype": "hunting_ground",
       "pos": {
         "x": 1651.1,
@@ -5613,7 +5613,7 @@
         "to": "Evening"
       },
       "grants": [
-        "InWilderness"
+        "AtField"
       ],
       "allowed_archetypes": [
         "hunter",
@@ -5630,7 +5630,7 @@
       "id": "hunting_ground_005_11",
       "code": 230,
       "zone": "deepwood",
-      "type": "wilderness",
+      "type": "field",
       "subtype": "hunting_ground",
       "pos": {
         "x": 1611.6,
@@ -5643,7 +5643,7 @@
         "to": "Evening"
       },
       "grants": [
-        "InWilderness"
+        "AtField"
       ],
       "allowed_archetypes": [
         "hunter",
@@ -5933,7 +5933,7 @@
       "id": "hunting_ground_001_12",
       "code": 241,
       "zone": "highland_pasture",
-      "type": "wilderness",
+      "type": "field",
       "subtype": "hunting_ground",
       "pos": {
         "x": -979.4,
@@ -5946,7 +5946,7 @@
         "to": "Evening"
       },
       "grants": [
-        "InWilderness"
+        "AtField"
       ],
       "allowed_archetypes": [
         "hunter",
@@ -5963,7 +5963,7 @@
       "id": "hunting_ground_002_12",
       "code": 242,
       "zone": "highland_pasture",
-      "type": "wilderness",
+      "type": "field",
       "subtype": "hunting_ground",
       "pos": {
         "x": -1051.5,
@@ -5976,7 +5976,7 @@
         "to": "Evening"
       },
       "grants": [
-        "InWilderness"
+        "AtField"
       ],
       "allowed_archetypes": [
         "hunter",
