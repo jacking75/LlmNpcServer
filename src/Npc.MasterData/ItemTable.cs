@@ -87,6 +87,12 @@ public sealed class ItemTable
     /// <summary>가장 큰 code. 인벤토리 배열의 길이는 이 값 + 1 이다.</summary>
     public int MaxCode => _byCode.Length - 1;
 
+    /// <summary>
+    /// 어떤 아이템이든 세울 수 있는 플래그의 합집합.
+    /// 인벤토리가 바뀔 때 이 비트만 지우고 다시 계산하면 다른 출처의 플래그를 건드리지 않는다.
+    /// </summary>
+    public WorldFlags AllGrants { get; private set; }
+
     /// <summary>code 로 조회. 정의되지 않은 code 면 예외.</summary>
     public ItemDef this[ItemId code] =>
         (uint)code.Value < (uint)_byCode.Length && _byCode[code.Value] is { } def
@@ -226,8 +232,17 @@ public sealed class ItemTable
             recipes.Add(recipe);
         }
 
+        WorldFlags allGrants = WorldFlags.None;
+        foreach (WorldFlags g in grantsByCode)
+        {
+            allGrants |= g;
+        }
+
         return new ItemTable(
-            byCode, grantsByCode, byId, recipesById, items.ToImmutable(), recipes.ToImmutable());
+            byCode, grantsByCode, byId, recipesById, items.ToImmutable(), recipes.ToImmutable())
+        {
+            AllGrants = allGrants,
+        };
     }
 
     private static ImmutableArray<RecipeSlot> ToSlots(

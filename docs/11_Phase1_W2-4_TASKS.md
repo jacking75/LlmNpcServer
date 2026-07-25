@@ -436,7 +436,7 @@ W2 ── 골격 · 계약 · 마스터데이터 · 코어
 [x] T1-25 검증1단           [x] T1-26 검증2단        [x] T1-27 검증3단
 
 W3 ── 런타임 · 게이트웨이 · Sim
-[x] T1-28 NpcStore SoA      [x] T1-29 GameClock      [ ] T1-30 EventApplier
+[x] T1-28 NpcStore SoA      [x] T1-29 GameClock      [x] T1-30 EventApplier
 [x] T1-31 CorrelationTable  [ ] T1-32 PlanExecutor   [ ] T1-33 타임아웃합성
 [ ] T1-34 PlanSwapper       [ ] T1-35 InterruptMatcher
 [ ] T1-36 LodBand           [ ] T1-37 CognitionScheduler

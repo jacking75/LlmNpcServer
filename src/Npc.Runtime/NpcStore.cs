@@ -17,6 +17,12 @@ public enum StepStatus : byte
 
     /// <summary>스폰 확인 전. 명령을 발행하지 않는다 (docs/02 §3.3).</summary>
     Unspawned = 3,
+
+    /// <summary>완료 이벤트를 받았다. 다음 틱의 스텝 경계에서 전진한다.</summary>
+    Completed = 4,
+
+    /// <summary>실패 이벤트를 받았거나 타임아웃이 합성됐다. 스텝 경계에서 on_step_fail 정책을 적용한다.</summary>
+    Failed = 5,
 }
 
 /// <summary>
@@ -109,6 +115,9 @@ public sealed class NpcStore
     /// </summary>
     public long[] LastEventSequence = [];
 
+    /// <summary>마지막 스텝 실패 사유. on_step_fail 정책 적용과 로깅에 쓴다.</summary>
+    public byte[] LastFailReason = [];
+
     /// <summary>핫 배열 한 NPC 당 바이트 수. docs/11 §3 의 ~100KB 근거.</summary>
     public const int HotBytesPerNpc =
         sizeof(ulong)    // Flags
@@ -156,6 +165,7 @@ public sealed class NpcStore
         Recent = new RingBuffer8<RecentEvent>[capacity];
         PendingPlanId = new int[capacity];
         LastEventSequence = new long[capacity];
+        LastFailReason = new byte[capacity];
 
         for (int i = 0; i < capacity; i++)
         {
