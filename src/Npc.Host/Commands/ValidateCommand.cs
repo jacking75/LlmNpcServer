@@ -1,0 +1,145 @@
+using System.Globalization;
+using Npc.MasterData;
+using Npc.MasterData.Validation;
+
+namespace Npc.Host.Commands;
+
+/// <summary>
+/// <c>Npc.Host validate --masterdata ./masterdata</c>. docs/11 §11.
+///
+/// V1~V11 결과를 출력하고, 위반이 하나라도 있으면 비0으로 끝난다.
+/// CI 와 기동 스크립트가 이 종료 코드를 본다 — 검증 실패는 기동 실패다.
+/// </summary>
+public static class ValidateCommand
+{
+    /// <summary>서브커맨드 이름.</summary>
+    public const string Name = "validate";
+
+    /// <summary>사용법.</summary>
+    public const string Usage =
+        "사용법: Npc.Host validate --masterdata <경로> [--prefix-tokens <n>]";
+
+    /// <summary>검증 실행. 0 = 통과, 1 = 위반, 2 = 인자 오류.</summary>
+    public static int Run(string[] args, TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        string? directory = null;
+        int? prefixTokens = null;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--masterdata" when i + 1 < args.Length:
+                    directory = args[++i];
+                    break;
+
+                case "--prefix-tokens" when i + 1 < args.Length:
+                    if (!int.TryParse(args[++i], NumberStyles.Integer, CultureInfo.InvariantCulture, out int tokens))
+                    {
+                        output.WriteLine($"--prefix-tokens 값이 정수가 아니다: {args[i]}");
+                        return 2;
+                    }
+
+                    prefixTokens = tokens;
+                    break;
+
+                case "--help" or "-h":
+                    output.WriteLine(Usage);
+                    return 0;
+
+                default:
+                    output.WriteLine($"모르는 인자: {args[i]}");
+                    output.WriteLine(Usage);
+                    return 2;
+            }
+        }
+
+        directory ??= "./masterdata";
+
+        if (ResolveDirectory(directory) is not { } resolved)
+        {
+            output.WriteLine($"masterdata 폴더를 찾지 못했다: {directory}");
+            return 2;
+        }
+
+        directory = resolved;
+
+        MasterDataValidationReport report =
+            MasterDataValidator.Validate(directory, new MasterDataValidationOptions(prefixTokens));
+
+        output.WriteLine($"masterdata: {Path.GetFullPath(directory)}");
+
+        foreach (SkippedRule skip in report.Skipped)
+        {
+            output.WriteLine($"  SKIP {skip.Code}  {skip.Reason}");
+        }
+
+        if (report.IsValid)
+        {
+            // 로더까지 돌려봐야 참조 무결성과 거리 행렬 정합성이 확인된다.
+            try
+            {
+                MasterDataSet data = MasterDataLoader.Load(directory);
+
+                output.WriteLine(
+                    $"  OK   액션 {data.Actions.Count} · 아이템 {data.Items.Items.Length} · 존 {data.Zones.Count}"
+                    + $" · POI {data.Pois.Count} · 아키타입 {data.Archetypes.Count} · 인터럽트 {data.Interrupts.Count}");
+                output.WriteLine($"  content_hash: {data.ContentHash}");
+            }
+            catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException)
+            {
+                output.WriteLine($"  FAIL LOAD  {ex.Message}");
+                return 1;
+            }
+
+            output.WriteLine($"검증 통과 (V1~V11, 건너뜀 {report.Skipped.Length}건)");
+            return 0;
+        }
+
+        foreach (MasterDataViolation violation in report.Violations)
+        {
+            output.WriteLine($"  FAIL {violation.Code}  {violation.Detail}");
+        }
+
+        output.WriteLine($"검증 실패 {report.Violations.Length}건");
+        return 1;
+    }
+
+    /// <summary>
+    /// 상대 경로를 현재 폴더와 실행 파일 위치의 조상에서 찾는다.
+    /// <c>dotnet run --project src/Npc.Host</c> 는 작업 폴더를 프로젝트 폴더로 바꾸므로,
+    /// 저장소 루트에서 <c>--masterdata ./masterdata</c> 라고 써도 찾을 수 있어야 한다.
+    /// </summary>
+    private static string? ResolveDirectory(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            return path;
+        }
+
+        if (Path.IsPathRooted(path))
+        {
+            return null;
+        }
+
+        foreach (string origin in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            var dir = new DirectoryInfo(origin);
+
+            while (dir is not null)
+            {
+                string candidate = Path.Combine(dir.FullName, path);
+                if (Directory.Exists(candidate))
+                {
+                    return candidate;
+                }
+
+                dir = dir.Parent;
+            }
+        }
+
+        return null;
+    }
+}
