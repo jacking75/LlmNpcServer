@@ -541,7 +541,7 @@
         "y": 0.0,
         "z": -232.4
       },
-      "capacity": 45,
+      "capacity": 55,
       "open_hours": {
         "from": "Night",
         "to": "Night"
@@ -1017,7 +1017,7 @@
         "y": 0.0,
         "z": -481.3
       },
-      "capacity": 45,
+      "capacity": 55,
       "open_hours": {
         "from": "Night",
         "to": "Night"
@@ -1044,7 +1044,7 @@
         "y": 0.0,
         "z": -592.2
       },
-      "capacity": 45,
+      "capacity": 55,
       "open_hours": {
         "from": "Night",
         "to": "Night"
@@ -1671,7 +1671,7 @@
         "y": 0.0,
         "z": 718.7
       },
-      "capacity": 45,
+      "capacity": 55,
       "open_hours": {
         "from": "Night",
         "to": "Night"
@@ -2410,7 +2410,7 @@
         "y": 0.0,
         "z": 207.1
       },
-      "capacity": 45,
+      "capacity": 55,
       "open_hours": {
         "from": "Night",
         "to": "Night"
@@ -3463,7 +3463,7 @@
         "y": 0.0,
         "z": -138.3
       },
-      "capacity": 45,
+      "capacity": 55,
       "open_hours": {
         "from": "Night",
         "to": "Night"
@@ -3697,7 +3697,7 @@
         "y": 0.0,
         "z": -445.8
       },
-      "capacity": 45,
+      "capacity": 55,
       "open_hours": {
         "from": "Night",
         "to": "Night"
@@ -4494,7 +4494,7 @@
         "y": 0.0,
         "z": 508.2
       },
-      "capacity": 45,
+      "capacity": 55,
       "open_hours": {
         "from": "Night",
         "to": "Night"

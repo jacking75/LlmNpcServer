@@ -18,7 +18,7 @@
       ],
       "default_region_state": "Peace",
       "default_climate": "Fair",
-      "capacity": 1237
+      "capacity": 1247
     },
     {
       "id": "town_north",
@@ -31,7 +31,7 @@
       ],
       "default_region_state": "Peace",
       "default_climate": "Fair",
-      "capacity": 1198
+      "capacity": 1218
     },
     {
       "id": "town_south",
@@ -44,7 +44,7 @@
       ],
       "default_region_state": "Peace",
       "default_climate": "Fair",
-      "capacity": 1163
+      "capacity": 1173
     },
     {
       "id": "town_east_market",
@@ -56,7 +56,7 @@
       ],
       "default_region_state": "Peace",
       "default_climate": "Fair",
-      "capacity": 959
+      "capacity": 969
     },
     {
       "id": "town_west_crafts",
@@ -81,7 +81,7 @@
       ],
       "default_region_state": "Peace",
       "default_climate": "Fair",
-      "capacity": 355
+      "capacity": 365
     },
     {
       "id": "gate_west",
@@ -94,7 +94,7 @@
       ],
       "default_region_state": "Peace",
       "default_climate": "Fair",
-      "capacity": 333
+      "capacity": 343
     },
     {
       "id": "farmlands",
@@ -107,7 +107,7 @@
       ],
       "default_region_state": "Peace",
       "default_climate": "Fair",
-      "capacity": 1173
+      "capacity": 1183
     },
     {
       "id": "riverside",
