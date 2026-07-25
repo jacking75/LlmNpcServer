@@ -116,7 +116,7 @@
   완료 40종 · `population_weight` 합 = 1.0 ±0.001 · 모든 `allowed_actions`가 카탈로그에 존재
 
 **T1-17** `context_buckets.json` + `BucketKey` · `M` · 선행 T1-16
-  파일 `masterdata/context_buckets.json` (신규), `src/Npc.Planning/BucketKey.cs` (신규)
+  파일 `masterdata/context_buckets.json` (신규), `src/Npc.Core/Planning/BucketKey.cs` (신규)
   사양 `docs/01 §6`
   내용 TimeOfDay 6 / RegionState 4 / Climate 3. `ToIndex()` = `((A*6+T)*4+R)*3+C`.
   완료 `BucketKey_IndexIsBijective` 통과 (0..2879 전단사) · `total_keys == 2880`
@@ -430,7 +430,7 @@ W2 ── 골격 · 계약 · 마스터데이터 · 코어
 [x] T1-09 world_flags       [x] T1-10 WorldFlags생성기
 [x] T1-11 items             [x] T1-12 actions(37)    [x] T1-13 ActionCatalog
 [x] T1-14 zones+pois        [x] T1-15 거리행렬       [x] T1-16 archetypes(40)
-[ ] T1-17 buckets+BucketKey [ ] T1-18 interrupts     [ ] T1-19 MasterDataSet
+[x] T1-17 buckets+BucketKey [ ] T1-18 interrupts     [ ] T1-19 MasterDataSet
 [ ] T1-20 검증V1~V11        [ ] T1-21 validate CLI
 [ ] T1-22 PlanDocument      [ ] T1-23 CompiledPlan   [ ] T1-24 PoiSymbol
 [ ] T1-25 검증1단           [ ] T1-26 검증2단        [ ] T1-27 검증3단

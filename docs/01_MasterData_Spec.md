@@ -389,7 +389,8 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags requiredA
 ```
 
 ```csharp
-// Npc.Planning/BucketKey.cs
+// Npc.Core/Planning/BucketKey.cs — Npc.Planning 이 아니다. docs/03 §5 의 CompiledPlan.Bucket 이
+// 이 타입을 들고 있고 CompiledPlan 은 Npc.Core 에 있어서, Planning 에 두면 순환 참조가 된다.
 public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState R, Climate C)
 {
     public int ToIndex() => ((A.Value * 6 + (int)T) * 4 + (int)R) * 3 + (int)C;   // 0..2879

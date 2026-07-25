@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "_comment": [
+    "docs/01 §6. 플랜 캐시의 키 공간 정의.",
+    "차원 값의 순서가 곧 열거형의 ordinal 이다. 재배치하면 프리베이크된 플랜 2,880개가 통째로 깨진다.",
+    "world_flag 은 버킷이 함의하는 초기 WorldFlags 다 — 검증기 3단의 ctx.InitialFlags 가 여기서 나온다 (docs/03 §3).",
+    "GameEvent.Code 에 실리는 TimeOfDay/RegionState/Climate 값도 이 ordinal 이다 (docs/02 §3.3)."
+  ],
+  "dimensions": {
+    "time_of_day": {
+      "values": ["Dawn", "Morning", "Noon", "Afternoon", "Evening", "Night"],
+      "game_hours": {
+        "Dawn": [5, 7],
+        "Morning": [7, 11],
+        "Noon": [11, 14],
+        "Afternoon": [14, 18],
+        "Evening": [18, 22],
+        "Night": [22, 5]
+      },
+      "world_flag": {
+        "Dawn": "IsDawn",
+        "Morning": "IsDay",
+        "Noon": "IsDay",
+        "Afternoon": "IsDay",
+        "Evening": "IsEvening",
+        "Night": "IsNight"
+      }
+    },
+    "region_state": {
+      "values": ["Peace", "Alert", "War", "Disaster"],
+      "world_flag": {
+        "Peace": "RegionPeaceful",
+        "Alert": "RegionPeaceful",
+        "War": "RegionUnderAttack",
+        "Disaster": "RegionUnderAttack"
+      }
+    },
+    "climate": {
+      "values": ["Fair", "Cold", "Storm"],
+      "world_flag": {
+        "Fair": null,
+        "Cold": null,
+        "Storm": "WeatherHarsh"
+      }
+    }
+  },
+
+  "key_format": "{archetype}@{time_of_day}.{region_state}.{climate}",
+  "key_example": "blacksmith@Evening.War.Cold",
+  "index_formula": "((archetype * 6 + time_of_day) * 4 + region_state) * 3 + climate",
+
+  "total_keys": 2880,
+
+  "prebake_priority": [
+    { "region_state": "Peace", "weight": 10 },
+    { "region_state": "Alert", "weight": 3 },
+    { "region_state": "War", "weight": 2 },
+    { "region_state": "Disaster", "weight": 1 }
+  ]
+}
