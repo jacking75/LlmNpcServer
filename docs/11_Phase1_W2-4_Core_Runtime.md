@@ -124,10 +124,11 @@ public sealed class CognitionScheduler
     {
         foreach (var band in _bands)
         {
-            if (band.Period == 0) continue;
-            if (tick.Value % band.Period != 0) continue;
+            if (band.Period == 0) continue;              // 비활성 — 이벤트 시에만
 
-            var slice = band.Slices[(tick.Value / band.Period) % band.Period];
+            // 밴드 멤버를 Period 개의 슬라이스로 나누고 매 틱 하나를 본다.
+            // 그래서 이 밴드의 NPC 한 마리는 Period 틱마다 정확히 한 번 판정된다.
+            var slice = band.Slices[tick.Value % band.Period];
             for (int k = slice.Start; k < slice.End; k++)
             {
                 int i = band.Members[k];
