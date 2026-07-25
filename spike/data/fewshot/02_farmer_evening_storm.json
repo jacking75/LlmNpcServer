@@ -1,0 +1,26 @@
+{
+  "request": {
+    "archetype": "farmer",
+    "time_of_day": "Evening",
+    "region_state": "Alert",
+    "climate": "Storm",
+    "flags": ["AtField", "HasTool", "HasFood", "IsHungry", "WeatherHarsh"],
+    "traits": { "diligence": 70, "sociability": 35, "courage": 30, "greed": 40 },
+    "goals": ["harvest_crops", "stock_pantry"]
+  },
+  "plan": {
+    "schema": 1,
+    "goal": "harvest_before_storm",
+    "reasoning": "storm and alert: take one short harvest, then get indoors and eat",
+    "steps": [
+      { "action": "Gather", "args": { "resource": "wheat", "count": 4 }, "timeout_s": 600 },
+      { "action": "MoveTo", "args": { "poi": "$home", "speed": "run" }, "timeout_s": 300 },
+      { "action": "Store", "args": { "item": "wheat", "count": 4 }, "timeout_s": 300 },
+      { "action": "Eat", "args": {}, "timeout_s": 300 },
+      { "action": "Rest", "args": { "duration_s": 900 }, "timeout_s": 1200 },
+      { "action": "Sleep", "args": { "until_time": "Dawn" } }
+    ],
+    "on_step_fail": "fallback",
+    "loop": true
+  }
+}

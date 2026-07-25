@@ -27,9 +27,12 @@ internal static class Program
             case "schema":
                 return SchemaGen.Run();
 
+            case "prefix":
+                return PromptPrefix.Run();
+
             default:
                 Console.Error.WriteLine($"unknown command: {cmd}");
-                Console.Error.WriteLine("usage: spike [ready|clients|schema]");
+                Console.Error.WriteLine("usage: spike [ready|clients|schema|prefix]");
                 return 2;
         }
     }

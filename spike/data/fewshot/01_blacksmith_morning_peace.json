@@ -1,0 +1,28 @@
+{
+  "request": {
+    "archetype": "blacksmith",
+    "time_of_day": "Morning",
+    "region_state": "Peace",
+    "climate": "Fair",
+    "flags": ["AtHome", "HasTool", "IsRested"],
+    "traits": { "diligence": 80, "sociability": 40, "courage": 55, "greed": 50 },
+    "goals": ["restock_ore", "fulfill_orders", "maintain_shop"]
+  },
+  "plan": {
+    "schema": 1,
+    "goal": "forge_and_sell",
+    "reasoning": "peaceful morning, rested: fetch ore first, forge, sell before dark",
+    "steps": [
+      { "action": "MoveTo", "args": { "poi": "$nearest_field", "speed": "walk" }, "timeout_s": 300 },
+      { "action": "Gather", "args": { "resource": "iron_ore", "count": 6 }, "timeout_s": 900 },
+      { "action": "MoveTo", "args": { "poi": "$workplace" }, "timeout_s": 300 },
+      { "action": "Craft", "args": { "recipe": "iron_sword", "count": 2 }, "timeout_s": 1800 },
+      { "action": "MoveTo", "args": { "poi": "$market" }, "timeout_s": 300 },
+      { "action": "Trade", "args": { "item": "iron_sword", "amount": 2 }, "timeout_s": 600 },
+      { "action": "MoveTo", "args": { "poi": "$home" }, "timeout_s": 300 },
+      { "action": "Sleep", "args": { "until_time": "Dawn" } }
+    ],
+    "on_step_fail": "fallback",
+    "loop": true
+  }
+}

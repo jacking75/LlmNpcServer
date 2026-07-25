@@ -1,0 +1,27 @@
+{
+  "request": {
+    "archetype": "town_guard",
+    "time_of_day": "Night",
+    "region_state": "War",
+    "climate": "Cold",
+    "flags": ["AtWorkplace", "IsNight", "IsRested", "RegionUnderAttack"],
+    "traits": { "diligence": 65, "sociability": 45, "courage": 80, "greed": 25 },
+    "goals": ["hold_the_gate", "protect_civilians"]
+  },
+  "plan": {
+    "schema": 1,
+    "goal": "hold_gate_through_night",
+    "reasoning": "region under attack at night: gate watch dominates, brief handover talk",
+    "steps": [
+      { "action": "MoveTo", "args": { "poi": "$gate", "speed": "run" }, "timeout_s": 300 },
+      { "action": "Guard", "args": { "poi": "$gate", "duration_s": 3600 }, "timeout_s": 7200 },
+      { "action": "Talk", "args": { "npc": "nearest:town_guard", "topic": "warning" }, "timeout_s": 120 },
+      { "action": "Guard", "args": { "poi": "$gate", "duration_s": 3600 }, "timeout_s": 7200 },
+      { "action": "MoveTo", "args": { "poi": "$home" }, "timeout_s": 300 },
+      { "action": "Rest", "args": { "duration_s": 600 }, "timeout_s": 900 },
+      { "action": "Sleep", "args": { "until_time": "Noon" } }
+    ],
+    "on_step_fail": "replan",
+    "loop": true
+  }
+}
