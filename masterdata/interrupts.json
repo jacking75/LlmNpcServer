@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "_comment": [
+    "docs/01 §7. LLM 이 만들지 않는다 — 인터럽트는 반응 속도가 생명이라 결정론 규칙으로만 정의한다.",
+    "then 은 즉시 실행되고, replan.urgency 는 재계획 우선순위 큐에 점수로 들어간다.",
+    "즉 '먼저 도망치고, 새 계획은 나중에 받는다'.",
+    "",
+    "when 조건 (전부 AND 로 묶인다):",
+    "  any_flag        하나라도 서 있으면 참",
+    "  all_flag        전부 서 있어야 참",
+    "  none_flag       하나도 서 있지 않아야 참",
+    "  event           이 종류의 이벤트를 받았을 때만 참 (생략하면 이벤트를 가리지 않는다)",
+    "  archetype_trait 성향 비교. \"<40\" \">=40\" \"==50\" 형식",
+    "  combat_capable  아키타입의 전투 가능 여부",
+    "",
+    "우선순위가 같으면 id 오름차순으로 결정한다 — 매칭 결과가 결정론이어야 리플레이가 된다.",
+    "then.action 이 그 아키타입의 allowed_actions 에 없으면 규칙을 건너뛴다."
+  ],
+  "rules": [
+    {
+      "id": "flee_on_threat", "priority": 100,
+      "when": { "any_flag": ["ThreatNearby", "InCombat"], "archetype_trait": { "courage": "<40" } },
+      "then": { "action": "Flee", "params": { "poi": "$nearest_safe" } },
+      "replan": { "urgency": 100 }
+    },
+    {
+      "id": "fight_on_threat", "priority": 100,
+      "when": { "any_flag": ["ThreatNearby"], "archetype_trait": { "courage": ">=40" }, "combat_capable": true },
+      "then": { "action": "Attack", "params": { "target": "$threat" } },
+      "replan": { "urgency": 90 }
+    },
+    {
+      "id": "flee_on_damage", "priority": 98,
+      "when": { "event": "DamageTaken", "archetype_trait": { "courage": "<40" } },
+      "then": { "action": "Flee", "params": { "poi": "$nearest_safe" } },
+      "replan": { "urgency": 100 }
+    },
+    {
+      "id": "retreat_when_injured", "priority": 95,
+      "when": { "all_flag": ["InCombat", "IsInjured"], "combat_capable": true },
+      "then": { "action": "Retreat", "params": { "poi": "$nearest_safe" } },
+      "replan": { "urgency": 95 }
+    },
+    {
+      "id": "call_for_help_when_cornered", "priority": 92,
+      "when": { "all_flag": ["ThreatNearby"], "none_flag": ["AllyNearby"], "combat_capable": false },
+      "then": { "action": "CallForHelp", "params": {} },
+      "replan": { "urgency": 85 }
+    },
+    {
+      "id": "yield_to_player", "priority": 90,
+      "when": { "event": "PlayerInteracted" },
+      "then": { "action": "Wait", "params": { "duration_s": 30 } },
+      "replan": { "urgency": 70 }
+    },
+    {
+      "id": "defend_post_under_attack", "priority": 85,
+      "when": { "all_flag": ["RegionUnderAttack", "OnDuty"], "combat_capable": true },
+      "then": { "action": "Defend", "params": { "poi": "$gate" } },
+      "replan": { "urgency": 80 }
+    },
+    {
+      "id": "eat_when_starving", "priority": 50,
+      "when": { "all_flag": ["IsHungry", "HasFood"], "none_flag": ["IsSleeping"] },
+      "then": { "action": "Eat", "params": {} },
+      "replan": { "urgency": 10 }
+    },
+    {
+      "id": "drink_when_thirsty", "priority": 48,
+      "when": { "all_flag": ["IsThirsty", "HasWater"], "none_flag": ["IsSleeping"] },
+      "then": { "action": "Drink", "params": {} },
+      "replan": { "urgency": 10 }
+    },
+    {
+      "id": "rest_when_exhausted", "priority": 45,
+      "when": { "all_flag": ["IsExhausted"], "none_flag": ["IsSleeping", "InCombat"] },
+      "then": { "action": "Rest", "params": { "duration_s": 600 } },
+      "replan": { "urgency": 30 }
+    },
+    {
+      "id": "seek_shelter", "priority": 40,
+      "when": { "all_flag": ["WeatherHarsh", "InWilderness"], "none_flag": ["IsSleeping"] },
+      "then": { "action": "MoveTo", "params": { "poi": "$nearest_shelter" } },
+      "replan": { "urgency": 40 }
+    },
+    {
+      "id": "drop_when_inventory_full", "priority": 35,
+      "when": { "all_flag": ["InventoryFull"], "none_flag": ["IsSleeping"] },
+      "then": { "action": "Drop", "params": { "count": 1 } },
+      "replan": { "urgency": 20 }
+    },
+    {
+      "id": "go_home_at_night", "priority": 20,
+      "when": { "all_flag": ["IsNight"], "none_flag": ["OnDuty", "AtHome", "IsSleeping", "InCombat"] },
+      "then": { "action": "MoveTo", "params": { "poi": "$home" } },
+      "replan": { "urgency": 15 }
+    }
+  ]
+}
