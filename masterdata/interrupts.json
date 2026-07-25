@@ -36,6 +36,13 @@
       "replan": { "urgency": 100 }
     },
     {
+      "id": "retreat_on_threat", "priority": 94,
+      "_comment": "싸울 줄도 도망갈 만큼 겁이 많지도 않은 아키타입의 대응. 대장장이처럼 combat_capable 이지만 Attack 이 allowed_actions 에 없는 경우가 여기로 온다 — 이 규칙이 없으면 위협에 아무 반응도 하지 않는다.",
+      "when": { "any_flag": ["ThreatNearby", "InCombat"] },
+      "then": { "action": "Retreat", "params": { "poi": "$nearest_safe" } },
+      "replan": { "urgency": 90 }
+    },
+    {
       "id": "retreat_when_injured", "priority": 95,
       "when": { "all_flag": ["InCombat", "IsInjured"], "combat_capable": true },
       "then": { "action": "Retreat", "params": { "poi": "$nearest_safe" } },
