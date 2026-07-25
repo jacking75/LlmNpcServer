@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "_comment": [
+    "docs/01 §1. 플랜의 전제조건·효과, 인지 스캔의 이탈 판정이 전부 이 64비트 위에서 돈다.",
+    "bit 번호를 절대 재배치하지 않는다 — 프리베이크된 플랜 2,880개가 통째로 깨진다.",
+    "추가는 예약 구간(22~23, 44~63)에만 한다.",
+    "이 파일에서 src/Npc.Core/WorldFlags.g.cs 가 생성된다. 손으로 쓴 enum 을 두지 않는다."
+  ],
+  "reserved_bits": [22, 23, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63],
+  "flags": [
+    { "bit": 0,  "id": "AtHome",           "group": "location",  "desc": "자택에 있다" },
+    { "bit": 1,  "id": "AtWorkplace",      "group": "location",  "desc": "자신의 일터에 있다" },
+    { "bit": 2,  "id": "AtMarket",         "group": "location",  "desc": "시장에 있다" },
+    { "bit": 3,  "id": "AtTavern",         "group": "location",  "desc": "선술집에 있다" },
+    { "bit": 4,  "id": "AtTemple",         "group": "location",  "desc": "신전에 있다" },
+    { "bit": 5,  "id": "AtGate",           "group": "location",  "desc": "성문에 있다" },
+    { "bit": 6,  "id": "AtField",          "group": "location",  "desc": "농경지/채집지에 있다" },
+    { "bit": 7,  "id": "InWilderness",     "group": "location",  "desc": "마을 밖 야외에 있다" },
+
+    { "bit": 8,  "id": "HasFood",          "group": "inventory", "desc": "식량을 가지고 있다" },
+    { "bit": 9,  "id": "HasWater",         "group": "inventory", "desc": "물을 가지고 있다" },
+    { "bit": 10, "id": "HasTool",          "group": "inventory", "desc": "직업 도구를 가지고 있다" },
+    { "bit": 11, "id": "HasRawMaterial",   "group": "inventory", "desc": "가공 전 재료를 가지고 있다" },
+    { "bit": 12, "id": "HasProduct",       "group": "inventory", "desc": "판매 가능한 완성품을 가지고 있다" },
+    { "bit": 13, "id": "HasCoin",          "group": "inventory", "desc": "화폐를 가지고 있다" },
+    { "bit": 14, "id": "InventoryFull",    "group": "inventory", "desc": "인벤토리가 가득 찼다" },
+    { "bit": 15, "id": "HasWeapon",        "group": "inventory", "desc": "무기를 장비했다" },
+
+    { "bit": 16, "id": "IsRested",         "group": "body",      "desc": "충분히 쉬었다" },
+    { "bit": 17, "id": "IsHungry",         "group": "body",      "desc": "배고프다" },
+    { "bit": 18, "id": "IsThirsty",        "group": "body",      "desc": "목마르다" },
+    { "bit": 19, "id": "IsInjured",        "group": "body",      "desc": "부상 상태 (HP < 50%)" },
+    { "bit": 20, "id": "IsExhausted",      "group": "body",      "desc": "탈진 상태 (스태미나 < 20%)" },
+    { "bit": 21, "id": "IsSleeping",       "group": "body",      "desc": "수면 중" },
+
+    { "bit": 24, "id": "IsDawn",           "group": "time",      "desc": "새벽" },
+    { "bit": 25, "id": "IsDay",            "group": "time",      "desc": "낮" },
+    { "bit": 26, "id": "IsEvening",        "group": "time",      "desc": "저녁" },
+    { "bit": 27, "id": "IsNight",          "group": "time",      "desc": "밤" },
+
+    { "bit": 28, "id": "HasCustomer",      "group": "social",    "desc": "손님이 있다" },
+    { "bit": 29, "id": "HasCompanion",     "group": "social",    "desc": "동행 NPC가 있다" },
+    { "bit": 30, "id": "IsAlone",          "group": "social",    "desc": "주변에 아무도 없다" },
+    { "bit": 31, "id": "OnDuty",           "group": "social",    "desc": "근무 시간이다" },
+
+    { "bit": 32, "id": "ShopOpen",         "group": "world",     "desc": "자신의 상점이 열려있다" },
+    { "bit": 33, "id": "MarketOpen",       "group": "world",     "desc": "시장이 열려있다" },
+    { "bit": 34, "id": "GatesOpen",        "group": "world",     "desc": "성문이 열려있다" },
+    { "bit": 35, "id": "RegionPeaceful",   "group": "world",     "desc": "지역이 평시다" },
+    { "bit": 36, "id": "RegionUnderAttack","group": "world",     "desc": "지역이 공격받고 있다" },
+    { "bit": 37, "id": "WeatherHarsh",     "group": "world",     "desc": "악천후다" },
+    { "bit": 38, "id": "ResourceDepleted", "group": "world",     "desc": "대상 자원이 고갈됐다" },
+    { "bit": 39, "id": "PathBlocked",      "group": "world",     "desc": "목표 경로가 막혔다" },
+
+    { "bit": 40, "id": "ThreatNearby",     "group": "threat",    "desc": "적대 대상이 근처에 있다" },
+    { "bit": 41, "id": "PlayerNearby",     "group": "threat",    "desc": "플레이어가 인지 범위에 있다" },
+    { "bit": 42, "id": "AllyNearby",       "group": "threat",    "desc": "아군이 근처에 있다" },
+    { "bit": 43, "id": "InCombat",         "group": "threat",    "desc": "전투 중이다" }
+  ],
+  "exclusive_groups": [
+    {
+      "id": "time",
+      "_comment": "시간대 플래그는 상호 배타다. 동시에 두 개가 서면 버그다.",
+      "flags": ["IsDawn", "IsDay", "IsEvening", "IsNight"]
+    }
+  ]
+}
