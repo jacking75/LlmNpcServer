@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Spike</RootNamespace>
+    <AssemblyName>Spike</AssemblyName>
+    <!-- Microsoft.Extensions.AI 는 아직 프리뷰 API 를 노출한다. 스파이크에서만 억제한다. -->
+    <NoWarn>$(NoWarn);MEAI001</NoWarn>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.8.1" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.8.1" />
+    <PackageReference Include="OpenAI" Version="2.12.0" />
+    <!-- 토큰 수 계측용 (T0-06/T0-07). 오프라인 vocab 이 패키지에 포함된다. -->
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.0" />
+    <!-- Tokenizers 2.0.0 이 끌고 오는 Bcl.Memory 9.0.4 에 GHSA-73j8-2gch-69rq 취약점이 있다. 상향 고정. -->
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- data/ 와 out/ 은 실행 시 소스 폴더에서 직접 읽는다. 복사하지 않는다. -->
+    <None Update="data\**\*" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
+</Project>
