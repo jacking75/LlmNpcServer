@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "_comment": [
+    "docs/01 §4. 존 12개. adjacent 는 대칭이며 그래프는 연결돼 있다 (V11).",
+    "capacity 는 그 존 안 POI 정원의 합이다 — gen_npcs 가 이 값을 넘지 않게 배치한다.",
+    "code 는 재배치하지 않는다."
+  ],
+  "zones": [
+    {
+      "id": "town_center",
+      "code": 1,
+      "name_key": "zone.town_center",
+      "adjacent": [
+        "town_east_market",
+        "town_north",
+        "town_south",
+        "town_west_crafts"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 1237
+    },
+    {
+      "id": "town_north",
+      "code": 2,
+      "name_key": "zone.town_north",
+      "adjacent": [
+        "gate_west",
+        "highland_pasture",
+        "town_center"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 1198
+    },
+    {
+      "id": "town_south",
+      "code": 3,
+      "name_key": "zone.town_south",
+      "adjacent": [
+        "farmlands",
+        "riverside",
+        "town_center"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 1163
+    },
+    {
+      "id": "town_east_market",
+      "code": 4,
+      "name_key": "zone.town_east_market",
+      "adjacent": [
+        "gate_east",
+        "town_center"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 959
+    },
+    {
+      "id": "town_west_crafts",
+      "code": 5,
+      "name_key": "zone.town_west_crafts",
+      "adjacent": [
+        "gate_west",
+        "town_center"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 1004
+    },
+    {
+      "id": "gate_east",
+      "code": 6,
+      "name_key": "zone.gate_east",
+      "adjacent": [
+        "deepwood",
+        "farmlands",
+        "town_east_market"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 355
+    },
+    {
+      "id": "gate_west",
+      "code": 7,
+      "name_key": "zone.gate_west",
+      "adjacent": [
+        "mine_hills",
+        "town_north",
+        "town_west_crafts"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 333
+    },
+    {
+      "id": "farmlands",
+      "code": 8,
+      "name_key": "zone.farmlands",
+      "adjacent": [
+        "gate_east",
+        "riverside",
+        "town_south"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 1173
+    },
+    {
+      "id": "riverside",
+      "code": 9,
+      "name_key": "zone.riverside",
+      "adjacent": [
+        "deepwood",
+        "farmlands",
+        "town_south"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 580
+    },
+    {
+      "id": "mine_hills",
+      "code": 10,
+      "name_key": "zone.mine_hills",
+      "adjacent": [
+        "gate_west",
+        "highland_pasture"
+      ],
+      "default_region_state": "Alert",
+      "default_climate": "Cold",
+      "capacity": 460
+    },
+    {
+      "id": "deepwood",
+      "code": 11,
+      "name_key": "zone.deepwood",
+      "adjacent": [
+        "gate_east",
+        "riverside"
+      ],
+      "default_region_state": "Alert",
+      "default_climate": "Fair",
+      "capacity": 438
+    },
+    {
+      "id": "highland_pasture",
+      "code": 12,
+      "name_key": "zone.highland_pasture",
+      "adjacent": [
+        "mine_hills",
+        "town_north"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Cold",
+      "capacity": 258
+    }
+  ]
+}

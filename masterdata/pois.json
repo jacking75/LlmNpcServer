@@ -1,0 +1,5929 @@
+{
+  "version": 1,
+  "_comment": [
+    "docs/01 §4. POI 243개. type 8종 / subtype 27종.",
+    "code 는 poi_distances.bin 행렬의 첨자다. 절대 재배치하지 않는다.",
+    "allowed_archetypes 가 비어 있으면 제한 없음이다 (주거·시장·성문 등).",
+    "pos 는 존 중심 기준 황금각 나선 위의 결정론적 배치다 — 난수를 쓰지 않았다."
+  ],
+  "pois": [
+    {
+      "id": "house_001_01",
+      "code": 1,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 34.7,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_01",
+      "code": 2,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -44.4,
+        "y": 0.0,
+        "z": 40.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_01",
+      "code": 3,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 6.8,
+        "y": 0.0,
+        "z": -77.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_01",
+      "code": 4,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 55.9,
+        "y": 0.0,
+        "z": 73.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_005_01",
+      "code": 5,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -102.6,
+        "y": 0.0,
+        "z": -18.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_006_01",
+      "code": 6,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 97.2,
+        "y": 0.0,
+        "z": -61.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_007_01",
+      "code": 7,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -32.5,
+        "y": 0.0,
+        "z": 121.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_008_01",
+      "code": 8,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -62.0,
+        "y": 0.0,
+        "z": -119.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_009_01",
+      "code": 9,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 134.6,
+        "y": 0.0,
+        "z": 49.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_010_01",
+      "code": 10,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -140.0,
+        "y": 0.0,
+        "z": 57.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_011_01",
+      "code": 11,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 67.5,
+        "y": 0.0,
+        "z": -144.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_012_01",
+      "code": 12,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 49.9,
+        "y": 0.0,
+        "z": 159.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_013_01",
+      "code": 13,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -150.3,
+        "y": 0.0,
+        "z": -87.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_014_01",
+      "code": 14,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 176.3,
+        "y": 0.0,
+        "z": -38.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_015_01",
+      "code": 15,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -107.6,
+        "y": 0.0,
+        "z": 153.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_016_01",
+      "code": 16,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -24.9,
+        "y": 0.0,
+        "z": -191.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_017_01",
+      "code": 17,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 152.6,
+        "y": 0.0,
+        "z": 128.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_018_01",
+      "code": 18,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -205.4,
+        "y": 0.0,
+        "z": 8.5
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "tavern_001_01",
+      "code": 19,
+      "zone": "town_center",
+      "type": "tavern",
+      "subtype": "tavern",
+      "pos": {
+        "x": 149.8,
+        "y": 0.0,
+        "z": -149.1
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Noon",
+        "to": "Night"
+      },
+      "grants": [
+        "AtTavern"
+      ],
+      "allowed_archetypes": [
+        "innkeeper",
+        "wandering_bard",
+        "quest_giver"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tavern_002_01",
+      "code": 20,
+      "zone": "town_center",
+      "type": "tavern",
+      "subtype": "tavern",
+      "pos": {
+        "x": -10.0,
+        "y": 0.0,
+        "z": 216.7
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Noon",
+        "to": "Night"
+      },
+      "grants": [
+        "AtTavern"
+      ],
+      "allowed_archetypes": [
+        "innkeeper",
+        "wandering_bard",
+        "quest_giver"
+      ],
+      "resources": []
+    },
+    {
+      "id": "temple_001_01",
+      "code": 21,
+      "zone": "town_center",
+      "type": "temple",
+      "subtype": "temple",
+      "pos": {
+        "x": -142.5,
+        "y": 0.0,
+        "z": -170.8
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtTemple"
+      ],
+      "allowed_archetypes": [
+        "priest",
+        "acolyte"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_001_01",
+      "code": 22,
+      "zone": "town_center",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": 225.8,
+        "y": 0.0,
+        "z": 30.4
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_002_01",
+      "code": 23,
+      "zone": "town_center",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": -191.3,
+        "y": 0.0,
+        "z": 133.1
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "guardhouse_001_01",
+      "code": 24,
+      "zone": "town_center",
+      "type": "workplace",
+      "subtype": "guardhouse",
+      "pos": {
+        "x": 52.3,
+        "y": 0.0,
+        "z": -232.4
+      },
+      "capacity": 45,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "guard_captain",
+        "town_guard",
+        "watchman",
+        "patrol_scout"
+      ],
+      "resources": []
+    },
+    {
+      "id": "bank_001_01",
+      "code": 25,
+      "zone": "town_center",
+      "type": "workplace",
+      "subtype": "bank",
+      "pos": {
+        "x": 120.9,
+        "y": 0.0,
+        "z": 211.0
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Afternoon"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "banker"
+      ],
+      "resources": []
+    },
+    {
+      "id": "infirmary_001_01",
+      "code": 26,
+      "zone": "town_center",
+      "type": "workplace",
+      "subtype": "infirmary",
+      "pos": {
+        "x": -236.4,
+        "y": 0.0,
+        "z": -75.4
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "healer"
+      ],
+      "resources": []
+    },
+    {
+      "id": "scriptorium_001_01",
+      "code": 27,
+      "zone": "town_center",
+      "type": "workplace",
+      "subtype": "scriptorium",
+      "pos": {
+        "x": 229.6,
+        "y": 0.0,
+        "z": -106.1
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "scribe",
+        "scholar"
+      ],
+      "resources": []
+    },
+    {
+      "id": "alchemy_lab_001_01",
+      "code": 28,
+      "zone": "town_center",
+      "type": "workplace",
+      "subtype": "alchemy_lab",
+      "pos": {
+        "x": -99.5,
+        "y": 0.0,
+        "z": 237.7
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "alchemist"
+      ],
+      "resources": []
+    },
+    {
+      "id": "house_001_02",
+      "code": 29,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 32.1,
+        "y": 0.0,
+        "z": -600.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_02",
+      "code": 30,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -41.0,
+        "y": 0.0,
+        "z": -562.5
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_02",
+      "code": 31,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 6.3,
+        "y": 0.0,
+        "z": -671.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_02",
+      "code": 32,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 51.6,
+        "y": 0.0,
+        "z": -532.7
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_005_02",
+      "code": 33,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -94.7,
+        "y": 0.0,
+        "z": -616.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_006_02",
+      "code": 34,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 89.7,
+        "y": 0.0,
+        "z": -657.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_007_02",
+      "code": 35,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -30.0,
+        "y": 0.0,
+        "z": -488.3
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_008_02",
+      "code": 36,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -57.3,
+        "y": 0.0,
+        "z": -710.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_009_02",
+      "code": 37,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 124.2,
+        "y": 0.0,
+        "z": -554.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_010_02",
+      "code": 38,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -129.2,
+        "y": 0.0,
+        "z": -546.7
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_011_02",
+      "code": 39,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 62.3,
+        "y": 0.0,
+        "z": -733.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_012_02",
+      "code": 40,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 46.0,
+        "y": 0.0,
+        "z": -453.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_013_02",
+      "code": 41,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -138.7,
+        "y": 0.0,
+        "z": -680.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_014_02",
+      "code": 42,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 162.8,
+        "y": 0.0,
+        "z": -635.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_015_02",
+      "code": 43,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -99.3,
+        "y": 0.0,
+        "z": -458.7
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_016_02",
+      "code": 44,
+      "zone": "town_north",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -22.9,
+        "y": 0.0,
+        "z": -777.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "guardhouse_001_02",
+      "code": 45,
+      "zone": "town_north",
+      "type": "workplace",
+      "subtype": "guardhouse",
+      "pos": {
+        "x": 140.9,
+        "y": 0.0,
+        "z": -481.3
+      },
+      "capacity": 45,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "guard_captain",
+        "town_guard",
+        "watchman",
+        "patrol_scout"
+      ],
+      "resources": []
+    },
+    {
+      "id": "guardhouse_002_02",
+      "code": 46,
+      "zone": "town_north",
+      "type": "workplace",
+      "subtype": "guardhouse",
+      "pos": {
+        "x": -189.6,
+        "y": 0.0,
+        "z": -592.2
+      },
+      "capacity": 45,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "guard_captain",
+        "town_guard",
+        "watchman",
+        "patrol_scout"
+      ],
+      "resources": []
+    },
+    {
+      "id": "stable_001_02",
+      "code": 47,
+      "zone": "town_north",
+      "type": "workplace",
+      "subtype": "stable",
+      "pos": {
+        "x": 138.3,
+        "y": 0.0,
+        "z": -737.6
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "stablemaster",
+        "caravan_leader"
+      ],
+      "resources": []
+    },
+    {
+      "id": "stable_002_02",
+      "code": 48,
+      "zone": "town_north",
+      "type": "workplace",
+      "subtype": "stable",
+      "pos": {
+        "x": -9.3,
+        "y": 0.0,
+        "z": -399.9
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "stablemaster",
+        "caravan_leader"
+      ],
+      "resources": []
+    },
+    {
+      "id": "bakery_001_02",
+      "code": 49,
+      "zone": "town_north",
+      "type": "workplace",
+      "subtype": "bakery",
+      "pos": {
+        "x": -131.6,
+        "y": 0.0,
+        "z": -757.7
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Afternoon"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "baker"
+      ],
+      "resources": []
+    },
+    {
+      "id": "temple_001_02",
+      "code": 50,
+      "zone": "town_north",
+      "type": "temple",
+      "subtype": "temple",
+      "pos": {
+        "x": 208.4,
+        "y": 0.0,
+        "z": -572.0
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtTemple"
+      ],
+      "allowed_archetypes": [
+        "priest",
+        "acolyte"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_001_02",
+      "code": 51,
+      "zone": "town_north",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": -176.6,
+        "y": 0.0,
+        "z": -477.1
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_002_02",
+      "code": 52,
+      "zone": "town_north",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": 48.3,
+        "y": 0.0,
+        "z": -814.5
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tavern_001_02",
+      "code": 53,
+      "zone": "town_north",
+      "type": "tavern",
+      "subtype": "tavern",
+      "pos": {
+        "x": 111.6,
+        "y": 0.0,
+        "z": -405.2
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Noon",
+        "to": "Night"
+      },
+      "grants": [
+        "AtTavern"
+      ],
+      "allowed_archetypes": [
+        "innkeeper",
+        "wandering_bard",
+        "quest_giver"
+      ],
+      "resources": []
+    },
+    {
+      "id": "infirmary_001_02",
+      "code": 54,
+      "zone": "town_north",
+      "type": "workplace",
+      "subtype": "infirmary",
+      "pos": {
+        "x": -218.2,
+        "y": 0.0,
+        "z": -669.6
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "healer"
+      ],
+      "resources": []
+    },
+    {
+      "id": "smithy_001_02",
+      "code": 55,
+      "zone": "town_north",
+      "type": "workplace",
+      "subtype": "smithy",
+      "pos": {
+        "x": 212.0,
+        "y": 0.0,
+        "z": -697.9
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "blacksmith"
+      ],
+      "resources": []
+    },
+    {
+      "id": "scriptorium_001_02",
+      "code": 56,
+      "zone": "town_north",
+      "type": "workplace",
+      "subtype": "scriptorium",
+      "pos": {
+        "x": -91.8,
+        "y": 0.0,
+        "z": -380.6
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "scribe",
+        "scholar"
+      ],
+      "resources": []
+    },
+    {
+      "id": "house_001_03",
+      "code": 57,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 32.1,
+        "y": 0.0,
+        "z": 600.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_03",
+      "code": 58,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -41.0,
+        "y": 0.0,
+        "z": 637.5
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_03",
+      "code": 59,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 6.3,
+        "y": 0.0,
+        "z": 528.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_03",
+      "code": 60,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 51.6,
+        "y": 0.0,
+        "z": 667.3
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_005_03",
+      "code": 61,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -94.7,
+        "y": 0.0,
+        "z": 583.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_006_03",
+      "code": 62,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 89.7,
+        "y": 0.0,
+        "z": 542.9
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_007_03",
+      "code": 63,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -30.0,
+        "y": 0.0,
+        "z": 711.7
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_008_03",
+      "code": 64,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -57.3,
+        "y": 0.0,
+        "z": 489.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_009_03",
+      "code": 65,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 124.2,
+        "y": 0.0,
+        "z": 645.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_010_03",
+      "code": 66,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -129.2,
+        "y": 0.0,
+        "z": 653.3
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_011_03",
+      "code": 67,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 62.3,
+        "y": 0.0,
+        "z": 466.9
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_012_03",
+      "code": 68,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 46.0,
+        "y": 0.0,
+        "z": 746.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_013_03",
+      "code": 69,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -138.7,
+        "y": 0.0,
+        "z": 519.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_014_03",
+      "code": 70,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 162.8,
+        "y": 0.0,
+        "z": 564.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_015_03",
+      "code": 71,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -99.3,
+        "y": 0.0,
+        "z": 741.3
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_016_03",
+      "code": 72,
+      "zone": "town_south",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -22.9,
+        "y": 0.0,
+        "z": 422.9
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "guardhouse_001_03",
+      "code": 73,
+      "zone": "town_south",
+      "type": "workplace",
+      "subtype": "guardhouse",
+      "pos": {
+        "x": 140.9,
+        "y": 0.0,
+        "z": 718.7
+      },
+      "capacity": 45,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "guard_captain",
+        "town_guard",
+        "watchman",
+        "patrol_scout"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_001_03",
+      "code": 74,
+      "zone": "town_south",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": -189.6,
+        "y": 0.0,
+        "z": 607.8
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_002_03",
+      "code": 75,
+      "zone": "town_south",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": 138.3,
+        "y": 0.0,
+        "z": 462.4
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_003_03",
+      "code": 76,
+      "zone": "town_south",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": -9.3,
+        "y": 0.0,
+        "z": 800.1
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tavern_001_03",
+      "code": 77,
+      "zone": "town_south",
+      "type": "tavern",
+      "subtype": "tavern",
+      "pos": {
+        "x": -131.6,
+        "y": 0.0,
+        "z": 442.3
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Noon",
+        "to": "Night"
+      },
+      "grants": [
+        "AtTavern"
+      ],
+      "allowed_archetypes": [
+        "innkeeper",
+        "wandering_bard",
+        "quest_giver"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tavern_002_03",
+      "code": 78,
+      "zone": "town_south",
+      "type": "tavern",
+      "subtype": "tavern",
+      "pos": {
+        "x": 208.4,
+        "y": 0.0,
+        "z": 628.0
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Noon",
+        "to": "Night"
+      },
+      "grants": [
+        "AtTavern"
+      ],
+      "allowed_archetypes": [
+        "innkeeper",
+        "wandering_bard",
+        "quest_giver"
+      ],
+      "resources": []
+    },
+    {
+      "id": "temple_001_03",
+      "code": 79,
+      "zone": "town_south",
+      "type": "temple",
+      "subtype": "temple",
+      "pos": {
+        "x": -176.6,
+        "y": 0.0,
+        "z": 722.9
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtTemple"
+      ],
+      "allowed_archetypes": [
+        "priest",
+        "acolyte"
+      ],
+      "resources": []
+    },
+    {
+      "id": "brewery_001_03",
+      "code": 80,
+      "zone": "town_south",
+      "type": "workplace",
+      "subtype": "brewery",
+      "pos": {
+        "x": 48.3,
+        "y": 0.0,
+        "z": 385.5
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "brewer"
+      ],
+      "resources": []
+    },
+    {
+      "id": "carpenter_shop_001_03",
+      "code": 81,
+      "zone": "town_south",
+      "type": "workplace",
+      "subtype": "carpenter_shop",
+      "pos": {
+        "x": 111.6,
+        "y": 0.0,
+        "z": 794.8
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "carpenter"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tailor_shop_001_03",
+      "code": 82,
+      "zone": "town_south",
+      "type": "workplace",
+      "subtype": "tailor_shop",
+      "pos": {
+        "x": -218.2,
+        "y": 0.0,
+        "z": 530.4
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "tailor"
+      ],
+      "resources": []
+    },
+    {
+      "id": "bank_001_03",
+      "code": 83,
+      "zone": "town_south",
+      "type": "workplace",
+      "subtype": "bank",
+      "pos": {
+        "x": 212.0,
+        "y": 0.0,
+        "z": 502.1
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Afternoon"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "banker"
+      ],
+      "resources": []
+    },
+    {
+      "id": "infirmary_001_03",
+      "code": 84,
+      "zone": "town_south",
+      "type": "workplace",
+      "subtype": "infirmary",
+      "pos": {
+        "x": -91.8,
+        "y": 0.0,
+        "z": 819.4
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "healer"
+      ],
+      "resources": []
+    },
+    {
+      "id": "house_001_04",
+      "code": 85,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 633.2,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_04",
+      "code": 86,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 557.6,
+        "y": 0.0,
+        "z": 38.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_04",
+      "code": 87,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 606.5,
+        "y": 0.0,
+        "z": -73.9
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_04",
+      "code": 88,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 653.4,
+        "y": 0.0,
+        "z": 69.7
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_005_04",
+      "code": 89,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 501.9,
+        "y": 0.0,
+        "z": -17.3
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_006_04",
+      "code": 90,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 692.9,
+        "y": 0.0,
+        "z": -59.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_007_04",
+      "code": 91,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 568.9,
+        "y": 0.0,
+        "z": 115.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_008_04",
+      "code": 92,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 540.7,
+        "y": 0.0,
+        "z": -114.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_009_04",
+      "code": 93,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 728.6,
+        "y": 0.0,
+        "z": 47.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_010_04",
+      "code": 94,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 466.2,
+        "y": 0.0,
+        "z": 55.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_011_04",
+      "code": 95,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 664.5,
+        "y": 0.0,
+        "z": -137.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_012_04",
+      "code": 96,
+      "zone": "town_east_market",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 647.6,
+        "y": 0.0,
+        "z": 151.9
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "market_stall_001_04",
+      "code": 97,
+      "zone": "town_east_market",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": 456.4,
+        "y": 0.0,
+        "z": -83.2
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_002_04",
+      "code": 98,
+      "zone": "town_east_market",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": 768.5,
+        "y": 0.0,
+        "z": -37.0
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_003_04",
+      "code": 99,
+      "zone": "town_east_market",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": 497.2,
+        "y": 0.0,
+        "z": 146.2
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_004_04",
+      "code": 100,
+      "zone": "town_east_market",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": 576.2,
+        "y": 0.0,
+        "z": -183.3
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "market_stall_005_04",
+      "code": 101,
+      "zone": "town_east_market",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": 745.8,
+        "y": 0.0,
+        "z": 122.9
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [
+        "merchant",
+        "peddler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "stable_001_04",
+      "code": 102,
+      "zone": "town_east_market",
+      "type": "workplace",
+      "subtype": "stable",
+      "pos": {
+        "x": 403.8,
+        "y": 0.0,
+        "z": 8.1
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "stablemaster",
+        "caravan_leader"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tavern_001_04",
+      "code": 103,
+      "zone": "town_east_market",
+      "type": "tavern",
+      "subtype": "tavern",
+      "pos": {
+        "x": 743.1,
+        "y": 0.0,
+        "z": -142.4
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Noon",
+        "to": "Night"
+      },
+      "grants": [
+        "AtTavern"
+      ],
+      "allowed_archetypes": [
+        "innkeeper",
+        "wandering_bard",
+        "quest_giver"
+      ],
+      "resources": []
+    },
+    {
+      "id": "guardhouse_001_04",
+      "code": 104,
+      "zone": "town_east_market",
+      "type": "workplace",
+      "subtype": "guardhouse",
+      "pos": {
+        "x": 590.4,
+        "y": 0.0,
+        "z": 207.1
+      },
+      "capacity": 45,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "guard_captain",
+        "town_guard",
+        "watchman",
+        "patrol_scout"
+      ],
+      "resources": []
+    },
+    {
+      "id": "scriptorium_001_04",
+      "code": 105,
+      "zone": "town_east_market",
+      "type": "workplace",
+      "subtype": "scriptorium",
+      "pos": {
+        "x": 463.8,
+        "y": 0.0,
+        "z": -163.2
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "scribe",
+        "scholar"
+      ],
+      "resources": []
+    },
+    {
+      "id": "jeweler_shop_001_04",
+      "code": 106,
+      "zone": "town_east_market",
+      "type": "workplace",
+      "subtype": "jeweler_shop",
+      "pos": {
+        "x": 815.7,
+        "y": 0.0,
+        "z": 29.0
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "jeweler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "bakery_001_04",
+      "code": 107,
+      "zone": "town_east_market",
+      "type": "workplace",
+      "subtype": "bakery",
+      "pos": {
+        "x": 417.2,
+        "y": 0.0,
+        "z": 127.2
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Afternoon"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "baker"
+      ],
+      "resources": []
+    },
+    {
+      "id": "masonry_001_04",
+      "code": 108,
+      "zone": "town_east_market",
+      "type": "workplace",
+      "subtype": "masonry",
+      "pos": {
+        "x": 650.0,
+        "y": 0.0,
+        "z": -222.0
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "mason"
+      ],
+      "resources": []
+    },
+    {
+      "id": "house_001_05",
+      "code": 109,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -571.7,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_05",
+      "code": 110,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -636.2,
+        "y": 0.0,
+        "z": 33.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_05",
+      "code": 111,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -594.5,
+        "y": 0.0,
+        "z": -63.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_05",
+      "code": 112,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -554.4,
+        "y": 0.0,
+        "z": 59.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_005_05",
+      "code": 113,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -683.6,
+        "y": 0.0,
+        "z": -14.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_006_05",
+      "code": 114,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -520.8,
+        "y": 0.0,
+        "z": -50.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_007_05",
+      "code": 115,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -626.5,
+        "y": 0.0,
+        "z": 98.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_008_05",
+      "code": 116,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -650.5,
+        "y": 0.0,
+        "z": -97.3
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_009_05",
+      "code": 117,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -490.4,
+        "y": 0.0,
+        "z": 40.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_010_05",
+      "code": 118,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -714.1,
+        "y": 0.0,
+        "z": 47.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_011_05",
+      "code": 119,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -545.0,
+        "y": 0.0,
+        "z": -117.5
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_012_05",
+      "code": 120,
+      "zone": "town_west_crafts",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -559.4,
+        "y": 0.0,
+        "z": 129.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "smithy_001_05",
+      "code": 121,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "smithy",
+      "pos": {
+        "x": -722.5,
+        "y": 0.0,
+        "z": -71.0
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "blacksmith"
+      ],
+      "resources": []
+    },
+    {
+      "id": "smithy_002_05",
+      "code": 122,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "smithy",
+      "pos": {
+        "x": -456.3,
+        "y": 0.0,
+        "z": -31.6
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "blacksmith"
+      ],
+      "resources": []
+    },
+    {
+      "id": "smithy_003_05",
+      "code": 123,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "smithy",
+      "pos": {
+        "x": -687.7,
+        "y": 0.0,
+        "z": 124.7
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "blacksmith"
+      ],
+      "resources": []
+    },
+    {
+      "id": "carpenter_shop_001_05",
+      "code": 124,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "carpenter_shop",
+      "pos": {
+        "x": -620.3,
+        "y": 0.0,
+        "z": -156.3
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "carpenter"
+      ],
+      "resources": []
+    },
+    {
+      "id": "carpenter_shop_002_05",
+      "code": 125,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "carpenter_shop",
+      "pos": {
+        "x": -475.6,
+        "y": 0.0,
+        "z": 104.8
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "carpenter"
+      ],
+      "resources": []
+    },
+    {
+      "id": "carpenter_shop_003_05",
+      "code": 126,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "carpenter_shop",
+      "pos": {
+        "x": -767.3,
+        "y": 0.0,
+        "z": 6.9
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "carpenter"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tailor_shop_001_05",
+      "code": 127,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "tailor_shop",
+      "pos": {
+        "x": -477.9,
+        "y": 0.0,
+        "z": -121.5
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "tailor"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tailor_shop_002_05",
+      "code": 128,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "tailor_shop",
+      "pos": {
+        "x": -608.2,
+        "y": 0.0,
+        "z": 176.6
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "tailor"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tailor_shop_003_05",
+      "code": 129,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "tailor_shop",
+      "pos": {
+        "x": -716.1,
+        "y": 0.0,
+        "z": -139.2
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "tailor"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tannery_001_05",
+      "code": 130,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "tannery",
+      "pos": {
+        "x": -416.0,
+        "y": 0.0,
+        "z": 24.8
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "tanner"
+      ],
+      "resources": []
+    },
+    {
+      "id": "tannery_002_05",
+      "code": 131,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "tannery",
+      "pos": {
+        "x": -755.9,
+        "y": 0.0,
+        "z": 108.5
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "tanner"
+      ],
+      "resources": []
+    },
+    {
+      "id": "masonry_001_05",
+      "code": 132,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "masonry",
+      "pos": {
+        "x": -557.4,
+        "y": 0.0,
+        "z": -189.4
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "mason"
+      ],
+      "resources": []
+    },
+    {
+      "id": "masonry_002_05",
+      "code": 133,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "masonry",
+      "pos": {
+        "x": -501.5,
+        "y": 0.0,
+        "z": 171.9
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "mason"
+      ],
+      "resources": []
+    },
+    {
+      "id": "jeweler_shop_001_05",
+      "code": 134,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "jeweler_shop",
+      "pos": {
+        "x": -792.6,
+        "y": 0.0,
+        "z": -61.4
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "jeweler"
+      ],
+      "resources": []
+    },
+    {
+      "id": "alchemy_lab_001_05",
+      "code": 135,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "alchemy_lab",
+      "pos": {
+        "x": -412.9,
+        "y": 0.0,
+        "z": -86.4
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "alchemist"
+      ],
+      "resources": []
+    },
+    {
+      "id": "alchemy_lab_002_05",
+      "code": 136,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "alchemy_lab",
+      "pos": {
+        "x": -681.1,
+        "y": 0.0,
+        "z": 193.7
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "alchemist"
+      ],
+      "resources": []
+    },
+    {
+      "id": "bakery_001_05",
+      "code": 137,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "bakery",
+      "pos": {
+        "x": -672.3,
+        "y": 0.0,
+        "z": -201.1
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Afternoon"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "baker"
+      ],
+      "resources": []
+    },
+    {
+      "id": "bakery_002_05",
+      "code": 138,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "bakery",
+      "pos": {
+        "x": -407.5,
+        "y": 0.0,
+        "z": 101.2
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Afternoon"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "baker"
+      ],
+      "resources": []
+    },
+    {
+      "id": "brewery_001_05",
+      "code": 139,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "brewery",
+      "pos": {
+        "x": -813.8,
+        "y": 0.0,
+        "z": 56.4
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "brewer"
+      ],
+      "resources": []
+    },
+    {
+      "id": "brewery_002_05",
+      "code": 140,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "brewery",
+      "pos": {
+        "x": -478.5,
+        "y": 0.0,
+        "z": -189.0
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "brewer"
+      ],
+      "resources": []
+    },
+    {
+      "id": "scriptorium_001_05",
+      "code": 141,
+      "zone": "town_west_crafts",
+      "type": "workplace",
+      "subtype": "scriptorium",
+      "pos": {
+        "x": -561.3,
+        "y": 0.0,
+        "z": 225.0
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "scribe",
+        "scholar"
+      ],
+      "resources": []
+    },
+    {
+      "id": "house_001_06",
+      "code": 142,
+      "zone": "gate_east",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 1140.2,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_06",
+      "code": 143,
+      "zone": "gate_east",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 1048.6,
+        "y": 0.0,
+        "z": 47.1
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_06",
+      "code": 144,
+      "zone": "gate_east",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 1107.9,
+        "y": 0.0,
+        "z": -89.7
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_06",
+      "code": 145,
+      "zone": "gate_east",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 1164.8,
+        "y": 0.0,
+        "z": 84.5
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "gatehouse_001_06",
+      "code": 146,
+      "zone": "gate_east",
+      "type": "gate",
+      "subtype": "gatehouse",
+      "pos": {
+        "x": 981.1,
+        "y": 0.0,
+        "z": -21.0
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtGate"
+      ],
+      "allowed_archetypes": [
+        "gate_guard"
+      ],
+      "resources": []
+    },
+    {
+      "id": "gatehouse_002_06",
+      "code": 147,
+      "zone": "gate_east",
+      "type": "gate",
+      "subtype": "gatehouse",
+      "pos": {
+        "x": 1212.6,
+        "y": 0.0,
+        "z": -71.6
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtGate"
+      ],
+      "allowed_archetypes": [
+        "gate_guard"
+      ],
+      "resources": []
+    },
+    {
+      "id": "gatehouse_003_06",
+      "code": 148,
+      "zone": "gate_east",
+      "type": "gate",
+      "subtype": "gatehouse",
+      "pos": {
+        "x": 1062.3,
+        "y": 0.0,
+        "z": 140.1
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtGate"
+      ],
+      "allowed_archetypes": [
+        "gate_guard"
+      ],
+      "resources": []
+    },
+    {
+      "id": "guardhouse_001_06",
+      "code": 149,
+      "zone": "gate_east",
+      "type": "workplace",
+      "subtype": "guardhouse",
+      "pos": {
+        "x": 1028.2,
+        "y": 0.0,
+        "z": -138.3
+      },
+      "capacity": 45,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "guard_captain",
+        "town_guard",
+        "watchman",
+        "patrol_scout"
+      ],
+      "resources": []
+    },
+    {
+      "id": "stable_001_06",
+      "code": 150,
+      "zone": "gate_east",
+      "type": "workplace",
+      "subtype": "stable",
+      "pos": {
+        "x": 1255.9,
+        "y": 0.0,
+        "z": 56.9
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "stablemaster",
+        "caravan_leader"
+      ],
+      "resources": []
+    },
+    {
+      "id": "wayshrine_001_06",
+      "code": 151,
+      "zone": "gate_east",
+      "type": "wilderness",
+      "subtype": "wayshrine",
+      "pos": {
+        "x": 937.8,
+        "y": 0.0,
+        "z": 66.9
+      },
+      "capacity": 10,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_001_07",
+      "code": 152,
+      "zone": "gate_west",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -1057.6,
+        "y": 0.0,
+        "z": -300.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_07",
+      "code": 153,
+      "zone": "gate_west",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -1154.2,
+        "y": 0.0,
+        "z": -250.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_07",
+      "code": 154,
+      "zone": "gate_west",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -1091.7,
+        "y": 0.0,
+        "z": -394.5
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_07",
+      "code": 155,
+      "zone": "gate_west",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -1031.7,
+        "y": 0.0,
+        "z": -210.9
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "gatehouse_001_07",
+      "code": 156,
+      "zone": "gate_west",
+      "type": "gate",
+      "subtype": "gatehouse",
+      "pos": {
+        "x": -1225.3,
+        "y": 0.0,
+        "z": -322.2
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtGate"
+      ],
+      "allowed_archetypes": [
+        "gate_guard"
+      ],
+      "resources": []
+    },
+    {
+      "id": "gatehouse_002_07",
+      "code": 157,
+      "zone": "gate_west",
+      "type": "gate",
+      "subtype": "gatehouse",
+      "pos": {
+        "x": -981.3,
+        "y": 0.0,
+        "z": -375.5
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtGate"
+      ],
+      "allowed_archetypes": [
+        "gate_guard"
+      ],
+      "resources": []
+    },
+    {
+      "id": "gatehouse_003_07",
+      "code": 158,
+      "zone": "gate_west",
+      "type": "gate",
+      "subtype": "gatehouse",
+      "pos": {
+        "x": -1139.7,
+        "y": 0.0,
+        "z": -152.3
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtGate"
+      ],
+      "allowed_archetypes": [
+        "gate_guard"
+      ],
+      "resources": []
+    },
+    {
+      "id": "guardhouse_001_07",
+      "code": 159,
+      "zone": "gate_west",
+      "type": "workplace",
+      "subtype": "guardhouse",
+      "pos": {
+        "x": -1175.7,
+        "y": 0.0,
+        "z": -445.8
+      },
+      "capacity": 45,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "guard_captain",
+        "town_guard",
+        "watchman",
+        "patrol_scout"
+      ],
+      "resources": []
+    },
+    {
+      "id": "wayshrine_001_07",
+      "code": 160,
+      "zone": "gate_west",
+      "type": "wilderness",
+      "subtype": "wayshrine",
+      "pos": {
+        "x": -935.7,
+        "y": 0.0,
+        "z": -240.0
+      },
+      "capacity": 10,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_001_08",
+      "code": 161,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 955.1,
+        "y": 0.0,
+        "z": 900.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_08",
+      "code": 162,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 829.6,
+        "y": 0.0,
+        "z": 964.5
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_08",
+      "code": 163,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 910.8,
+        "y": 0.0,
+        "z": 777.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_08",
+      "code": 164,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 988.8,
+        "y": 0.0,
+        "z": 1015.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_005_08",
+      "code": 165,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 737.1,
+        "y": 0.0,
+        "z": 871.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_006_08",
+      "code": 166,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 1054.3,
+        "y": 0.0,
+        "z": 801.8
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_007_08",
+      "code": 167,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 848.4,
+        "y": 0.0,
+        "z": 1092.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_008_08",
+      "code": 168,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 801.6,
+        "y": 0.0,
+        "z": 710.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_009_08",
+      "code": 169,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 1113.6,
+        "y": 0.0,
+        "z": 978.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_010_08",
+      "code": 170,
+      "zone": "farmlands",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 677.8,
+        "y": 0.0,
+        "z": 991.7
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "farm_001_08",
+      "code": 171,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 1007.1,
+        "y": 0.0,
+        "z": 671.1
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_002_08",
+      "code": 172,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 979.2,
+        "y": 0.0,
+        "z": 1152.4
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_003_08",
+      "code": 173,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 661.4,
+        "y": 0.0,
+        "z": 761.7
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_004_08",
+      "code": 174,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 1179.9,
+        "y": 0.0,
+        "z": 838.5
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_005_08",
+      "code": 175,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 729.2,
+        "y": 0.0,
+        "z": 1143.0
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_006_08",
+      "code": 176,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 860.5,
+        "y": 0.0,
+        "z": 595.5
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_007_08",
+      "code": 177,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 1142.2,
+        "y": 0.0,
+        "z": 1104.2
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_008_08",
+      "code": 178,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 574.0,
+        "y": 0.0,
+        "z": 913.5
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_009_08",
+      "code": 179,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 1137.8,
+        "y": 0.0,
+        "z": 663.4
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_010_08",
+      "code": 180,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 884.1,
+        "y": 0.0,
+        "z": 1244.0
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_011_08",
+      "code": 181,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 673.8,
+        "y": 0.0,
+        "z": 628.9
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_012_08",
+      "code": 182,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 1258.4,
+        "y": 0.0,
+        "z": 948.2
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_013_08",
+      "code": 183,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 596.3,
+        "y": 0.0,
+        "z": 1111.3
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "farm_014_08",
+      "code": 184,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 983.0,
+        "y": 0.0,
+        "z": 531.1
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "farmer"
+      ],
+      "resources": [
+        "wheat",
+        "vegetable",
+        "grape",
+        "apple",
+        "flax"
+      ]
+    },
+    {
+      "id": "pasture_001_08",
+      "code": 185,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "pasture",
+      "pos": {
+        "x": 1091.9,
+        "y": 0.0,
+        "z": 1234.9
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "shepherd"
+      ],
+      "resources": [
+        "wool",
+        "milk",
+        "hide"
+      ]
+    },
+    {
+      "id": "pasture_002_08",
+      "code": 186,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "pasture",
+      "pos": {
+        "x": 524.8,
+        "y": 0.0,
+        "z": 780.3
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "shepherd"
+      ],
+      "resources": [
+        "wool",
+        "milk",
+        "hide"
+      ]
+    },
+    {
+      "id": "herb_patch_001_08",
+      "code": 187,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "herb_patch",
+      "pos": {
+        "x": 1264.5,
+        "y": 0.0,
+        "z": 731.6
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "herbalist"
+      ],
+      "resources": [
+        "herb",
+        "mushroom"
+      ]
+    },
+    {
+      "id": "temple_001_08",
+      "code": 188,
+      "zone": "farmlands",
+      "type": "temple",
+      "subtype": "temple",
+      "pos": {
+        "x": 742.1,
+        "y": 0.0,
+        "z": 1277.3
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtTemple"
+      ],
+      "allowed_archetypes": [
+        "priest",
+        "acolyte"
+      ],
+      "resources": []
+    },
+    {
+      "id": "guardhouse_001_08",
+      "code": 189,
+      "zone": "farmlands",
+      "type": "workplace",
+      "subtype": "guardhouse",
+      "pos": {
+        "x": 759.1,
+        "y": 0.0,
+        "z": 508.2
+      },
+      "capacity": 45,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "guard_captain",
+        "town_guard",
+        "watchman",
+        "patrol_scout"
+      ],
+      "resources": []
+    },
+    {
+      "id": "house_001_09",
+      "code": 190,
+      "zone": "riverside",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 67.2,
+        "y": 0.0,
+        "z": 1300.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_09",
+      "code": 191,
+      "zone": "riverside",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -85.8,
+        "y": 0.0,
+        "z": 1378.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_09",
+      "code": 192,
+      "zone": "riverside",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 13.1,
+        "y": 0.0,
+        "z": 1150.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_09",
+      "code": 193,
+      "zone": "riverside",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 108.1,
+        "y": 0.0,
+        "z": 1441.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_005_09",
+      "code": 194,
+      "zone": "riverside",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -198.4,
+        "y": 0.0,
+        "z": 1264.9
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_006_09",
+      "code": 195,
+      "zone": "riverside",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 188.0,
+        "y": 0.0,
+        "z": 1180.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "fishing_spot_001_09",
+      "code": 196,
+      "zone": "riverside",
+      "type": "field",
+      "subtype": "fishing_spot",
+      "pos": {
+        "x": -62.9,
+        "y": 0.0,
+        "z": 1533.9
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "fisher"
+      ],
+      "resources": [
+        "raw_fish"
+      ]
+    },
+    {
+      "id": "fishing_spot_002_09",
+      "code": 197,
+      "zone": "riverside",
+      "type": "field",
+      "subtype": "fishing_spot",
+      "pos": {
+        "x": -119.9,
+        "y": 0.0,
+        "z": 1069.1
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "fisher"
+      ],
+      "resources": [
+        "raw_fish"
+      ]
+    },
+    {
+      "id": "fishing_spot_003_09",
+      "code": 198,
+      "zone": "riverside",
+      "type": "field",
+      "subtype": "fishing_spot",
+      "pos": {
+        "x": 260.2,
+        "y": 0.0,
+        "z": 1395.0
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "fisher"
+      ],
+      "resources": [
+        "raw_fish"
+      ]
+    },
+    {
+      "id": "fishing_spot_004_09",
+      "code": 199,
+      "zone": "riverside",
+      "type": "field",
+      "subtype": "fishing_spot",
+      "pos": {
+        "x": -270.7,
+        "y": 0.0,
+        "z": 1411.7
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "fisher"
+      ],
+      "resources": [
+        "raw_fish"
+      ]
+    },
+    {
+      "id": "fishing_spot_005_09",
+      "code": 200,
+      "zone": "riverside",
+      "type": "field",
+      "subtype": "fishing_spot",
+      "pos": {
+        "x": 130.5,
+        "y": 0.0,
+        "z": 1021.2
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "fisher"
+      ],
+      "resources": [
+        "raw_fish"
+      ]
+    },
+    {
+      "id": "fishing_spot_006_09",
+      "code": 201,
+      "zone": "riverside",
+      "type": "field",
+      "subtype": "fishing_spot",
+      "pos": {
+        "x": 96.4,
+        "y": 0.0,
+        "z": 1607.4
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "fisher"
+      ],
+      "resources": [
+        "raw_fish"
+      ]
+    },
+    {
+      "id": "logging_camp_001_09",
+      "code": 202,
+      "zone": "riverside",
+      "type": "field",
+      "subtype": "logging_camp",
+      "pos": {
+        "x": -290.6,
+        "y": 0.0,
+        "z": 1131.6
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "woodcutter"
+      ],
+      "resources": [
+        "timber"
+      ]
+    },
+    {
+      "id": "logging_camp_002_09",
+      "code": 203,
+      "zone": "riverside",
+      "type": "field",
+      "subtype": "logging_camp",
+      "pos": {
+        "x": 340.9,
+        "y": 0.0,
+        "z": 1225.1
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "woodcutter"
+      ],
+      "resources": [
+        "timber"
+      ]
+    },
+    {
+      "id": "herb_patch_001_09",
+      "code": 204,
+      "zone": "riverside",
+      "type": "field",
+      "subtype": "herb_patch",
+      "pos": {
+        "x": -208.1,
+        "y": 0.0,
+        "z": 1595.9
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "herbalist"
+      ],
+      "resources": [
+        "herb",
+        "mushroom"
+      ]
+    },
+    {
+      "id": "tannery_001_09",
+      "code": 205,
+      "zone": "riverside",
+      "type": "workplace",
+      "subtype": "tannery",
+      "pos": {
+        "x": -48.1,
+        "y": 0.0,
+        "z": 929.1
+      },
+      "capacity": 14,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [
+        "tanner"
+      ],
+      "resources": []
+    },
+    {
+      "id": "house_001_10",
+      "code": 206,
+      "zone": "mine_hills",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -1521.6,
+        "y": 0.0,
+        "z": -800.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_10",
+      "code": 207,
+      "zone": "mine_hills",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -1700.2,
+        "y": 0.0,
+        "z": -708.2
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_10",
+      "code": 208,
+      "zone": "mine_hills",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -1584.7,
+        "y": 0.0,
+        "z": -974.7
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "mine_001_10",
+      "code": 209,
+      "zone": "mine_hills",
+      "type": "field",
+      "subtype": "mine",
+      "pos": {
+        "x": -1473.7,
+        "y": 0.0,
+        "z": -635.3
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "miner"
+      ],
+      "resources": [
+        "iron_ore",
+        "coal",
+        "copper_ore",
+        "silver_ore",
+        "gold_ore",
+        "gemstone_rough",
+        "stone"
+      ]
+    },
+    {
+      "id": "mine_002_10",
+      "code": 210,
+      "zone": "mine_hills",
+      "type": "field",
+      "subtype": "mine",
+      "pos": {
+        "x": -1831.7,
+        "y": 0.0,
+        "z": -841.0
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "miner"
+      ],
+      "resources": [
+        "iron_ore",
+        "coal",
+        "copper_ore",
+        "silver_ore",
+        "gold_ore",
+        "gemstone_rough",
+        "stone"
+      ]
+    },
+    {
+      "id": "mine_003_10",
+      "code": 211,
+      "zone": "mine_hills",
+      "type": "field",
+      "subtype": "mine",
+      "pos": {
+        "x": -1380.5,
+        "y": 0.0,
+        "z": -939.6
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "miner"
+      ],
+      "resources": [
+        "iron_ore",
+        "coal",
+        "copper_ore",
+        "silver_ore",
+        "gold_ore",
+        "gemstone_rough",
+        "stone"
+      ]
+    },
+    {
+      "id": "mine_004_10",
+      "code": 212,
+      "zone": "mine_hills",
+      "type": "field",
+      "subtype": "mine",
+      "pos": {
+        "x": -1673.4,
+        "y": 0.0,
+        "z": -526.9
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "miner"
+      ],
+      "resources": [
+        "iron_ore",
+        "coal",
+        "copper_ore",
+        "silver_ore",
+        "gold_ore",
+        "gemstone_rough",
+        "stone"
+      ]
+    },
+    {
+      "id": "mine_005_10",
+      "code": 213,
+      "zone": "mine_hills",
+      "type": "field",
+      "subtype": "mine",
+      "pos": {
+        "x": -1740.0,
+        "y": 0.0,
+        "z": -1069.6
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "miner"
+      ],
+      "resources": [
+        "iron_ore",
+        "coal",
+        "copper_ore",
+        "silver_ore",
+        "gold_ore",
+        "gemstone_rough",
+        "stone"
+      ]
+    },
+    {
+      "id": "mine_006_10",
+      "code": 214,
+      "zone": "mine_hills",
+      "type": "field",
+      "subtype": "mine",
+      "pos": {
+        "x": -1296.2,
+        "y": 0.0,
+        "z": -689.0
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "miner"
+      ],
+      "resources": [
+        "iron_ore",
+        "coal",
+        "copper_ore",
+        "silver_ore",
+        "gold_ore",
+        "gemstone_rough",
+        "stone"
+      ]
+    },
+    {
+      "id": "mine_007_10",
+      "code": 215,
+      "zone": "mine_hills",
+      "type": "field",
+      "subtype": "mine",
+      "pos": {
+        "x": -1916.1,
+        "y": 0.0,
+        "z": -669.5
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "miner"
+      ],
+      "resources": [
+        "iron_ore",
+        "coal",
+        "copper_ore",
+        "silver_ore",
+        "gold_ore",
+        "gemstone_rough",
+        "stone"
+      ]
+    },
+    {
+      "id": "mine_008_10",
+      "code": 216,
+      "zone": "mine_hills",
+      "type": "field",
+      "subtype": "mine",
+      "pos": {
+        "x": -1447.6,
+        "y": 0.0,
+        "z": -1125.6
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "miner"
+      ],
+      "resources": [
+        "iron_ore",
+        "coal",
+        "copper_ore",
+        "silver_ore",
+        "gold_ore",
+        "gemstone_rough",
+        "stone"
+      ]
+    },
+    {
+      "id": "wayshrine_001_10",
+      "code": 217,
+      "zone": "mine_hills",
+      "type": "wilderness",
+      "subtype": "wayshrine",
+      "pos": {
+        "x": -1487.4,
+        "y": 0.0,
+        "z": -441.0
+      },
+      "capacity": 10,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "wayshrine_002_10",
+      "code": 218,
+      "zone": "mine_hills",
+      "type": "wilderness",
+      "subtype": "wayshrine",
+      "pos": {
+        "x": -1939.4,
+        "y": 0.0,
+        "z": -996.7
+      },
+      "capacity": 10,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_001_11",
+      "code": 219,
+      "zone": "deepwood",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 1577.8,
+        "y": 0.0,
+        "z": 1400.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_11",
+      "code": 220,
+      "zone": "deepwood",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 1400.7,
+        "y": 0.0,
+        "z": 1491.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "logging_camp_001_11",
+      "code": 221,
+      "zone": "deepwood",
+      "type": "field",
+      "subtype": "logging_camp",
+      "pos": {
+        "x": 1515.2,
+        "y": 0.0,
+        "z": 1226.7
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "woodcutter"
+      ],
+      "resources": [
+        "timber"
+      ]
+    },
+    {
+      "id": "logging_camp_002_11",
+      "code": 222,
+      "zone": "deepwood",
+      "type": "field",
+      "subtype": "logging_camp",
+      "pos": {
+        "x": 1625.2,
+        "y": 0.0,
+        "z": 1563.3
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "woodcutter"
+      ],
+      "resources": [
+        "timber"
+      ]
+    },
+    {
+      "id": "logging_camp_003_11",
+      "code": 223,
+      "zone": "deepwood",
+      "type": "field",
+      "subtype": "logging_camp",
+      "pos": {
+        "x": 1270.2,
+        "y": 0.0,
+        "z": 1359.4
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "woodcutter"
+      ],
+      "resources": [
+        "timber"
+      ]
+    },
+    {
+      "id": "logging_camp_004_11",
+      "code": 224,
+      "zone": "deepwood",
+      "type": "field",
+      "subtype": "logging_camp",
+      "pos": {
+        "x": 1717.7,
+        "y": 0.0,
+        "z": 1261.5
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "woodcutter"
+      ],
+      "resources": [
+        "timber"
+      ]
+    },
+    {
+      "id": "logging_camp_005_11",
+      "code": 225,
+      "zone": "deepwood",
+      "type": "field",
+      "subtype": "logging_camp",
+      "pos": {
+        "x": 1427.2,
+        "y": 0.0,
+        "z": 1670.8
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "woodcutter"
+      ],
+      "resources": [
+        "timber"
+      ]
+    },
+    {
+      "id": "hunting_ground_001_11",
+      "code": 226,
+      "zone": "deepwood",
+      "type": "wilderness",
+      "subtype": "hunting_ground",
+      "pos": {
+        "x": 1361.2,
+        "y": 0.0,
+        "z": 1132.7
+      },
+      "capacity": 24,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [
+        "hunter",
+        "patrol_scout"
+      ],
+      "resources": [
+        "game_meat",
+        "hide",
+        "feather"
+      ]
+    },
+    {
+      "id": "hunting_ground_002_11",
+      "code": 227,
+      "zone": "deepwood",
+      "type": "wilderness",
+      "subtype": "hunting_ground",
+      "pos": {
+        "x": 1801.2,
+        "y": 0.0,
+        "z": 1510.0
+      },
+      "capacity": 24,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [
+        "hunter",
+        "patrol_scout"
+      ],
+      "resources": [
+        "game_meat",
+        "hide",
+        "feather"
+      ]
+    },
+    {
+      "id": "hunting_ground_003_11",
+      "code": 228,
+      "zone": "deepwood",
+      "type": "wilderness",
+      "subtype": "hunting_ground",
+      "pos": {
+        "x": 1186.6,
+        "y": 0.0,
+        "z": 1529.4
+      },
+      "capacity": 24,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [
+        "hunter",
+        "patrol_scout"
+      ],
+      "resources": [
+        "game_meat",
+        "hide",
+        "feather"
+      ]
+    },
+    {
+      "id": "hunting_ground_004_11",
+      "code": 229,
+      "zone": "deepwood",
+      "type": "wilderness",
+      "subtype": "hunting_ground",
+      "pos": {
+        "x": 1651.1,
+        "y": 0.0,
+        "z": 1077.2
+      },
+      "capacity": 24,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [
+        "hunter",
+        "patrol_scout"
+      ],
+      "resources": [
+        "game_meat",
+        "hide",
+        "feather"
+      ]
+    },
+    {
+      "id": "hunting_ground_005_11",
+      "code": 230,
+      "zone": "deepwood",
+      "type": "wilderness",
+      "subtype": "hunting_ground",
+      "pos": {
+        "x": 1611.6,
+        "y": 0.0,
+        "z": 1755.9
+      },
+      "capacity": 24,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [
+        "hunter",
+        "patrol_scout"
+      ],
+      "resources": [
+        "game_meat",
+        "hide",
+        "feather"
+      ]
+    },
+    {
+      "id": "herb_patch_001_11",
+      "code": 231,
+      "zone": "deepwood",
+      "type": "field",
+      "subtype": "herb_patch",
+      "pos": {
+        "x": 1163.5,
+        "y": 0.0,
+        "z": 1205.0
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "herbalist"
+      ],
+      "resources": [
+        "herb",
+        "mushroom"
+      ]
+    },
+    {
+      "id": "herb_patch_002_11",
+      "code": 232,
+      "zone": "deepwood",
+      "type": "field",
+      "subtype": "herb_patch",
+      "pos": {
+        "x": 1894.7,
+        "y": 0.0,
+        "z": 1313.2
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "herbalist"
+      ],
+      "resources": [
+        "herb",
+        "mushroom"
+      ]
+    },
+    {
+      "id": "herb_patch_003_11",
+      "code": 233,
+      "zone": "deepwood",
+      "type": "field",
+      "subtype": "herb_patch",
+      "pos": {
+        "x": 1259.1,
+        "y": 0.0,
+        "z": 1742.7
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "herbalist"
+      ],
+      "resources": [
+        "herb",
+        "mushroom"
+      ]
+    },
+    {
+      "id": "wayshrine_001_11",
+      "code": 234,
+      "zone": "deepwood",
+      "type": "wilderness",
+      "subtype": "wayshrine",
+      "pos": {
+        "x": 1444.3,
+        "y": 0.0,
+        "z": 970.5
+      },
+      "capacity": 10,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_001_12",
+      "code": 235,
+      "zone": "highland_pasture",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -815.1,
+        "y": 0.0,
+        "z": -1300.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_12",
+      "code": 236,
+      "zone": "highland_pasture",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -1008.4,
+        "y": 0.0,
+        "z": -1200.7
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "pasture_001_12",
+      "code": 237,
+      "zone": "highland_pasture",
+      "type": "field",
+      "subtype": "pasture",
+      "pos": {
+        "x": -883.4,
+        "y": 0.0,
+        "z": -1489.0
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "shepherd"
+      ],
+      "resources": [
+        "wool",
+        "milk",
+        "hide"
+      ]
+    },
+    {
+      "id": "pasture_002_12",
+      "code": 238,
+      "zone": "highland_pasture",
+      "type": "field",
+      "subtype": "pasture",
+      "pos": {
+        "x": -763.4,
+        "y": 0.0,
+        "z": -1121.8
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "shepherd"
+      ],
+      "resources": [
+        "wool",
+        "milk",
+        "hide"
+      ]
+    },
+    {
+      "id": "pasture_003_12",
+      "code": 239,
+      "zone": "highland_pasture",
+      "type": "field",
+      "subtype": "pasture",
+      "pos": {
+        "x": -1150.7,
+        "y": 0.0,
+        "z": -1344.3
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "shepherd"
+      ],
+      "resources": [
+        "wool",
+        "milk",
+        "hide"
+      ]
+    },
+    {
+      "id": "pasture_004_12",
+      "code": 240,
+      "zone": "highland_pasture",
+      "type": "field",
+      "subtype": "pasture",
+      "pos": {
+        "x": -662.5,
+        "y": 0.0,
+        "z": -1451.0
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [
+        "shepherd"
+      ],
+      "resources": [
+        "wool",
+        "milk",
+        "hide"
+      ]
+    },
+    {
+      "id": "hunting_ground_001_12",
+      "code": 241,
+      "zone": "highland_pasture",
+      "type": "wilderness",
+      "subtype": "hunting_ground",
+      "pos": {
+        "x": -979.4,
+        "y": 0.0,
+        "z": -1004.5
+      },
+      "capacity": 24,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [
+        "hunter",
+        "patrol_scout"
+      ],
+      "resources": [
+        "game_meat",
+        "hide",
+        "feather"
+      ]
+    },
+    {
+      "id": "hunting_ground_002_12",
+      "code": 242,
+      "zone": "highland_pasture",
+      "type": "wilderness",
+      "subtype": "hunting_ground",
+      "pos": {
+        "x": -1051.5,
+        "y": 0.0,
+        "z": -1591.6
+      },
+      "capacity": 24,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [
+        "hunter",
+        "patrol_scout"
+      ],
+      "resources": [
+        "game_meat",
+        "hide",
+        "feather"
+      ]
+    },
+    {
+      "id": "wayshrine_001_12",
+      "code": 243,
+      "zone": "highland_pasture",
+      "type": "wilderness",
+      "subtype": "wayshrine",
+      "pos": {
+        "x": -571.4,
+        "y": 0.0,
+        "z": -1180.0
+      },
+      "capacity": 10,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "InWilderness"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    }
+  ]
+}
