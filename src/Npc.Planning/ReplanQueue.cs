@@ -44,6 +44,9 @@ public sealed class ReplanQueue
     /// <summary>중복이라 점수만 갱신한 횟수.</summary>
     public long Deduplicated { get; private set; }
 
+    /// <summary>큐에 새로 들어간 요청 수. 대시보드의 "초당 유입" 이 이 값의 차분이다 (docs/11 §10).</summary>
+    public long TotalEnqueued { get; private set; }
+
     /// <summary>
     /// 재계획 요청. 이미 들어 있으면 점수만 올리고 false 를 돌려준다.
     /// 할당 0.
@@ -79,6 +82,7 @@ public sealed class ReplanQueue
         _tail = (_tail + 1) % _capacity;
         _count++;
         _score[npc] = score;
+        TotalEnqueued++;
         return true;
     }
 

@@ -49,6 +49,7 @@ public sealed class NpcServerLoop
     private readonly PlanSwapper _swapper;
     private readonly LodBandSet _bands;
     private readonly ReplanQueue _replanQueue;
+    private long _lastSequence;
 
     /// <summary>루프를 조립한다. 기동 시 1회.</summary>
     public NpcServerLoop(
@@ -83,8 +84,11 @@ public sealed class NpcServerLoop
         _replanQueue = replanQueue;
     }
 
-    /// <summary>틱 관측자. 없으면 계측하지 않는다.</summary>
-    public ITickObserver? Observer { get; init; }
+    /// <summary>
+    /// 틱 관측자. 없으면 계측하지 않는다.
+    /// 관측자가 루프 통계를 읽어야 해서 조립 순서상 루프가 먼저 생긴다 — 그래서 init 이 아니다.
+    /// </summary>
+    public ITickObserver? Observer { get; set; }
 
     /// <summary>이 틱에 도달하면 루프를 끝낸다. 0 이면 무제한. 부하·게이트 테스트가 쓴다.</summary>
     public long StopAtTick { get; init; }
@@ -97,6 +101,13 @@ public sealed class NpcServerLoop
 
     /// <summary>이벤트 상한에 걸려 다음 틱으로 넘긴 횟수.</summary>
     public long EventBacklogs { get; private set; }
+
+    /// <summary>
+    /// N6 — 시퀀스가 끊긴 횟수. 모든 이벤트가 여기 한 곳을 지나므로 검출도 여기서 한다.
+    /// 링크 구현체마다 넣으면 구현체를 바꿀 때마다 검출이 사라진다.
+    /// 재주입(N7)으로 같은 시퀀스가 두 번 오는 것은 갭이 아니다.
+    /// </summary>
+    public long EventGaps { get; private set; }
 
     /// <summary>
     /// 틱 루프. 이벤트가 올 때마다 깨어나 배수하고, 시계가 진행되면 한 틱을 돈다.
@@ -146,6 +157,16 @@ public sealed class NpcServerLoop
 
         while (drained < MaxEventsPerTick && _link.Events.TryRead(out GameEvent ev))
         {
+            if (ev.Sequence > _lastSequence)
+            {
+                if (_lastSequence != 0 && ev.Sequence != _lastSequence + 1)
+                {
+                    EventGaps++;
+                }
+
+                _lastSequence = ev.Sequence;
+            }
+
             _applier.Apply(in ev);
             _interrupts.Handle(in ev, _clock.Current, _executor, _link, _replanQueue);
             drained++;

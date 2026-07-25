@@ -3,6 +3,7 @@ using Npc.Contracts;
 using Npc.Gateway;
 using Npc.Host;
 using Npc.Host.Commands;
+using Npc.Host.Metrics;
 using Npc.MasterData;
 using Npc.Planning;
 using Npc.Runtime;
@@ -60,6 +61,7 @@ WebApplication app = builder.Build();
 
 app.MapGet("/", () => "Npc.Host");
 app.MapGet("/status", () => host.Snapshot());
+app.MapGet("/metrics", () => host.Metrics.Snapshot());
 
 await app.StartAsync(CancellationToken.None);
 Console.Out.WriteLine($"listening on http://localhost:{options.Port}");
@@ -91,6 +93,7 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly CognitionScheduler _cognition;
     private readonly InterruptMatcher _interrupts;
     private readonly ReplanQueue _replanQueue;
+    private readonly NpcMeter _meter;
     private readonly SimDriver? _driver;
     private readonly NullGameServerLink? _nullLink;
     private readonly long _totalTicks;
@@ -104,6 +107,7 @@ internal sealed class NpcHost : IAsyncDisposable
         CognitionScheduler cognition,
         InterruptMatcher interrupts,
         ReplanQueue replanQueue,
+        NpcMeter meter,
         SimDriver? driver,
         NullGameServerLink? nullLink,
         long totalTicks,
@@ -117,6 +121,7 @@ internal sealed class NpcHost : IAsyncDisposable
         _cognition = cognition;
         _interrupts = interrupts;
         _replanQueue = replanQueue;
+        _meter = meter;
         _driver = driver;
         _nullLink = nullLink;
         _totalTicks = totalTicks;
@@ -131,6 +136,9 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>게임서버 대역. Loopback·Record 일 때만 있다.</summary>
     public SimDriver? Driver => _driver;
+
+    /// <summary>계측. /metrics 와 게이트 러너가 읽는다.</summary>
+    public NpcMeter Metrics => _meter;
 
     /// <summary>옵션대로 전부 조립한다. 기동 시 1회.</summary>
     public static NpcHost Create(HostOptions options, TextWriter log)
@@ -235,13 +243,18 @@ internal sealed class NpcHost : IAsyncDisposable
             StopAtTick = totalTicks,
         };
 
+        var meter = new NpcMeter(
+            store, bands, plans, replanQueue, cognition, interrupts, link, loop, clock, data);
+
+        loop.Observer = meter;
+
         log.WriteLine(
             $"npcs {npcs} · link {options.Link} · time-scale {options.TimeScale} · "
             + $"days {options.Days} ({(totalTicks == 0 ? "무제한" : totalTicks + " ticks")}) · "
             + $"llm off (P1)");
 
         return new NpcHost(
-            options, link, loop, clock, executor, cognition, interrupts, replanQueue,
+            options, link, loop, clock, executor, cognition, interrupts, replanQueue, meter,
             driver, nullLink, totalTicks, npcs);
     }
 
@@ -287,6 +300,12 @@ internal sealed class NpcHost : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(log);
 
         HostSnapshot s = Snapshot();
+        MetricsSnapshot m = _meter.Snapshot();
+
+        log.WriteLine(
+            $"tick p50 {m.Tick.P50Ms:0.###}ms · p99 {m.Tick.P99Ms:0.###}ms · max {m.Tick.MaxMs:0.###}ms · "
+            + $"overruns {m.Tick.Overruns} · gen0 {m.Tick.Gen0Collections} · "
+            + $"bytes/tick {m.Tick.BytesPerTick} · heap {m.Tick.ManagedHeapMb}MB");
 
         log.WriteLine(
             $"ticks {s.TicksProcessed} · game day {s.GameDay} · events {s.EventsDrained} · "
@@ -299,6 +318,8 @@ internal sealed class NpcHost : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        _meter.Dispose();
+
         await _link.DisposeAsync().ConfigureAwait(false);
 
         if (_driver is not null)

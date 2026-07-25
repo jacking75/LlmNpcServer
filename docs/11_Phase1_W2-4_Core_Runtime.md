@@ -366,9 +366,9 @@ static partial void LogStepFailed(ILogger l, int npc, int step, ActionFailReason
 | 패널 | 내용 |
 |---|---|
 | 틱 | p50/p99 실행 시간, 오버런 횟수, 게임 시각 |
-| NPC | 총원, LOD 밴드별 분포, 상태(VisualState) 히스토그램 |
+| NPC | 총원, LOD 밴드별 분포, 스텝 실행 상태(`StepStatus`) 히스토그램 |
 | 액션 | 현재 실행 중인 액션 Top 10 |
-| 링크 | 명령 송출/드롭, 이벤트 수신, 시퀀스 갭 |
+| 링크 | 명령 송출/드롭, 이벤트 수신, 시퀀스 갭 (수신·갭은 링크가 아니라 `NpcServerLoop` 이 센다) |
 | 재계획 | 큐 깊이, 초당 유입 (W9에 티어별 분리) |
 
 W7 이후 캐시 히트율, W9 이후 토큰/비용 패널을 추가한다.
