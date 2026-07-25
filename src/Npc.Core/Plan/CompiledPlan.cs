@@ -110,8 +110,12 @@ public static class NpcRefCodes
 /// <summary>
 /// 런타임이 쓰는 플랜 표현. docs/03 §5.
 /// JSON 은 저장·검수용이고, 실행기는 이 구조만 본다.
+///
+/// <c>class</c> 가 아니라 <c>record</c> 인 이유는 <c>with</c> 하나 때문이다 —
+/// PlanStore 가 등록 시점에 <see cref="Id"/> 를 박아 넣어야 하는데,
+/// 그것 하나 때문에 세터를 열면 런타임 중에 플랜이 바뀔 수 있게 된다.
 /// </summary>
-public sealed class CompiledPlan
+public sealed record CompiledPlan
 {
     /// <summary>플랜 id. PlanStore 의 첨자.</summary>
     public required PlanId Id { get; init; }

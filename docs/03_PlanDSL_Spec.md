@@ -225,7 +225,7 @@ JSON은 저장·검수용이고, 런타임은 컴파일된 구조를 쓴다.
 
 ```csharp
 // Npc.Core/CompiledPlan.cs
-public sealed class CompiledPlan
+public sealed record CompiledPlan   // record 인 이유: PlanStore 가 등록 시점에 Id 를 with 로 박는다
 {
     public PlanId     Id            { get; init; }
     public BucketKey  Bucket        { get; init; }

@@ -124,6 +124,7 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/03 §3` | `V3.RESOURCE_IMBALANCE` 를 '자기모순만 잡는다' 로 한정 | T1-27. 3단은 창고 잔량을 모른다. 플랜이 아예 모으지 않는 자원까지 따지면 `docs/03 §1` 예시(석탄을 캐지 않음)가 반려된다 |
 | 2026-07-26 | `masterdata/items.json` | `iron_sword` 레시피 입력을 iron_ore 3 → 2 로 | T1-27. `docs/03 §1` 예시가 광석 8개로 검 3자루를 만드는데 3개씩이면 9개가 필요해 사양이 스스로를 반증한다 |
 | 2026-07-26 | `docs/11 §5` | `GameClock` 시간 환산 주석 정정 | T1-29. "게임 1분 = 1 tick @ scale 60" 은 같은 문단의 "TimeScale 60이면 실시간 24분" 과 10배 어긋난다. 실제로는 scale 60 에서 1틱 = 6 게임초다 |
+| 2026-07-26 | `docs/03 §5` | `CompiledPlan` 을 `sealed class` → `sealed record` 로 | T1-39. `PlanStore.Register` 가 등록 시점에 `Id` 를 박아야 하는데, 그것 하나 때문에 세터를 열면 런타임 중에 플랜이 바뀔 수 있게 된다. `with` 로 새 인스턴스를 만든다 |
 
 ---
 
