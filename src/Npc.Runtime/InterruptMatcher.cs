@@ -13,11 +13,18 @@ namespace Npc.Runtime;
 ///
 /// 순서는 "먼저 도망치고, 새 계획은 나중에 받는다"다. <c>then</c> 액션을 그 틱에 발행하고,
 /// <c>replan.urgency</c> 는 재계획 큐에 점수로 넣는다.
+///
+/// <b>발동은 엣지 트리거다.</b> 규칙 조건은 대부분 플래그라 한 번 참이 되면 한동안 참으로 남는다
+/// (예: <c>go_home_at_night</c> 은 집에 닿을 때까지 참이다). 들어오는 이벤트마다 다시 쏘면
+/// 강제 액션 → 완료 이벤트 → 다시 강제의 되먹임이 생겨 명령 수가 폭주한다.
+/// 그래서 NPC 별로 마지막에 발동한 규칙을 기억하고, <b>같은 규칙이 이어서 걸리면 넘긴다</b>.
+/// 조건이 한 번 풀렸다가 다시 참이 되면 그때 다시 쏜다. docs/01 §7.
 /// </summary>
 public sealed class InterruptMatcher
 {
     private readonly MasterDataSet _data;
     private readonly NpcStore _store;
+    private readonly InterruptRule?[] _armed;   // NPC 별 마지막으로 발동한 규칙
 
     /// <summary>매처를 만든다. 기동 시 1회.</summary>
     public InterruptMatcher(MasterDataSet data, NpcStore store)
@@ -27,6 +34,7 @@ public sealed class InterruptMatcher
 
         _data = data;
         _store = store;
+        _armed = new InterruptRule?[store.Count];
     }
 
     /// <summary>매칭된 횟수.</summary>
@@ -34,6 +42,9 @@ public sealed class InterruptMatcher
 
     /// <summary>즉시 발행한 액션 수.</summary>
     public long Forced { get; private set; }
+
+    /// <summary>같은 규칙이 이어서 걸려 넘긴 횟수. 되먹임 방지가 실제로 일하는 양이다.</summary>
+    public long Suppressed { get; private set; }
 
     /// <summary>
     /// 이벤트에 걸리는 규칙을 찾는다. 없으면 false.
@@ -93,12 +104,27 @@ public sealed class InterruptMatcher
         ArgumentNullException.ThrowIfNull(executor);
         ArgumentNullException.ThrowIfNull(link);
 
+        int npc = ev.Npc.Value;
+
         if (!TryMatch(in ev, out InterruptRule rule))
         {
+            // 아무 규칙도 안 걸린다 = 상황이 풀렸다. 다음 진입을 다시 받을 수 있게 무장을 푼다.
+            if ((uint)npc < (uint)_armed.Length)
+            {
+                _armed[npc] = null;
+            }
+
             return false;
         }
 
-        int npc = ev.Npc.Value;
+        if (ReferenceEquals(_armed[npc], rule))
+        {
+            Suppressed++;
+            return false;   // 같은 규칙이 계속 참이다. 이미 반응했다
+        }
+
+        _armed[npc] = rule;
+
         CompiledStep step = ToStep(rule, in ev);
 
         executor.ForceAction(npc, in step, tick, link, TargetOf(rule, in ev));

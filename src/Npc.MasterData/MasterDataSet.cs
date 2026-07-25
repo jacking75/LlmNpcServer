@@ -864,7 +864,103 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     };
 }
 
-// --- zones.json / pois.json / context_buckets.json 의 JSON DTO ---
+/// <summary>NPC 인스턴스 하나. docs/01 §9.</summary>
+/// <param name="Id">1부터 시작하는 인스턴스 id. NpcStore 첨자는 <c>Id - 1</c> 이다.</param>
+/// <param name="Archetype">아키타입 code.</param>
+/// <param name="Zone">집이 있는 존.</param>
+/// <param name="Home">집 POI.</param>
+/// <param name="Workplace">일터 POI. 없으면 <c>default</c> (villager·child 등).</param>
+/// <param name="Spawn">스폰 좌표.</param>
+public readonly record struct NpcInstanceDef(
+    int Id,
+    ArchetypeId Archetype,
+    ZoneId Zone,
+    PoiId Home,
+    PoiId Workplace,
+    WorldPos Spawn);
+
+/// <summary>
+/// npc_instances.json 의 읽기 전용 인덱스. docs/01 §9.
+///
+/// <b>마스터데이터 본체와 따로 읽는다.</b> 3MB 넘는 산출물이라
+/// 검증기나 단위 테스트가 매번 읽을 이유가 없다 — 호스트만 기동 시 1회 읽는다.
+/// 같은 이유로 content_hash 에도 넣지 않는다. 인스턴스가 바뀌어도 프리베이크된 플랜은
+/// 그대로다 (플랜은 버킷 단위이지 개체 단위가 아니다).
+///
+/// <c>trait_offsets</c> 는 P1 에서 읽지 않는다. 소요시간 랜덤화(P4)가 쓸 값이다.
+/// </summary>
+public sealed class NpcInstanceTable
+{
+    private NpcInstanceTable(int seed, ImmutableArray<NpcInstanceDef> instances)
+    {
+        Seed = seed;
+        Instances = instances;
+    }
+
+    /// <summary>생성 시드. 같은 시드면 같은 파일이 나온다.</summary>
+    public int Seed { get; }
+
+    /// <summary>id 오름차순의 인스턴스.</summary>
+    public ImmutableArray<NpcInstanceDef> Instances { get; }
+
+    /// <summary>인스턴스 수.</summary>
+    public int Count => Instances.Length;
+
+    /// <summary>NpcStore 첨자로 조회.</summary>
+    public NpcInstanceDef this[int index] => Instances[index];
+
+    /// <summary>masterdata/npc_instances.json 로드.</summary>
+    public static NpcInstanceTable Load(string path, MasterDataSet data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        NpcInstancesFile file = JsonSerializer.Deserialize(
+            File.ReadAllText(path), WorldJsonContext.Default.NpcInstancesFile)
+            ?? throw new InvalidDataException("npc_instances.json 을 읽지 못했다.");
+
+        var instances = ImmutableArray.CreateBuilder<NpcInstanceDef>(file.Npcs.Length);
+
+        foreach (NpcInstanceDto dto in file.Npcs)
+        {
+            if (!data.Archetypes.TryGet(dto.Archetype, out ArchetypeDef archetype))
+            {
+                throw new InvalidDataException($"npc_instances.json: NPC {dto.Id} 의 아키타입 '{dto.Archetype}' 이 없다.");
+            }
+
+            if (!data.Pois.TryGet(dto.HomePoi, out PoiDef home))
+            {
+                throw new InvalidDataException($"npc_instances.json: NPC {dto.Id} 의 집 '{dto.HomePoi}' 가 없다.");
+            }
+
+            PoiId workplace = default;
+
+            if (dto.WorkplacePoi is { } workId)
+            {
+                if (!data.Pois.TryGet(workId, out PoiDef work))
+                {
+                    throw new InvalidDataException($"npc_instances.json: NPC {dto.Id} 의 일터 '{workId}' 가 없다.");
+                }
+
+                workplace = work.Code;
+            }
+
+            instances.Add(new NpcInstanceDef(
+                dto.Id,
+                archetype.Code,
+                home.Zone,
+                home.Code,
+                workplace,
+                new WorldPos(dto.SpawnPos.X, dto.SpawnPos.Y, dto.SpawnPos.Z)));
+        }
+
+        // id 오름차순이어야 첨자(Id - 1)와 순서가 맞는다.
+        instances.Sort((a, b) => a.Id.CompareTo(b.Id));
+
+        return new NpcInstanceTable(file.Seed, instances.ToImmutable());
+    }
+}
+
+// --- zones.json / pois.json / context_buckets.json / npc_instances.json 의 JSON DTO ---
 
 internal sealed record ZonesFile(ZoneDto[] Zones);
 
@@ -905,8 +1001,19 @@ internal sealed record DimensionDto(
     Dictionary<string, int[]>? GameHours,
     Dictionary<string, string?>? WorldFlag);
 
+internal sealed record NpcInstancesFile(int Version, int Seed, NpcInstanceDto[] Npcs);
+
+internal sealed record NpcInstanceDto(
+    int Id,
+    string Archetype,
+    string Zone,
+    string HomePoi,
+    string? WorkplacePoi,
+    PosDto SpawnPos);
+
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(ZonesFile))]
 [JsonSerializable(typeof(PoisFile))]
 [JsonSerializable(typeof(BucketsFile))]
+[JsonSerializable(typeof(NpcInstancesFile))]
 internal sealed partial class WorldJsonContext : JsonSerializerContext;

@@ -8,6 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 게이트 러너(T1-62)가 조립된 호스트를 그대로 돌린다. 테스트용 조립을 따로 두면
+         "기동되는 것"과 "테스트되는 것"이 갈라진다. -->
+    <InternalsVisibleTo Include="Npc.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
     <ProjectReference Include="..\Npc.Core\Npc.Core.csproj" />
     <ProjectReference Include="..\Npc.MasterData\Npc.MasterData.csproj" />

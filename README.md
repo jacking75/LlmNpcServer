@@ -140,6 +140,14 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--no-llm` | T1·T2 비활성. 캐시 + 폴백만 |
 | `--scenario <jsonl>` | 시나리오 이벤트 주입 |
 | `--fail-rate` / `--drop-rate` | Sim의 액션 실패 / 명령 유실 주입 |
+| `--trace <path>` | `--link record` 의 출력 · `--link replay` 의 입력 (jsonl) |
+| `--days N` | 돌릴 게임 일수. 0=무제한 |
+| `--player-bots N` | 가상 플레이어 수 (기본 20). 0이면 모든 NPC가 비활성 밴드에 머문다 |
+| `--masterdata <dir>` | 마스터데이터 디렉터리 (기본 `./masterdata`) |
+| `--seed N` | Sim 시드 (기본 20260725) |
+| `--port N` | 대시보드·메트릭 포트 (기본 5080) |
+| `--max-speed` | 10Hz 페이싱 없이 최대 속도로. 부하·게이트 측정용 |
+| `--no-dashboard` | 웹 호스트를 띄우지 않는다 |
 
 ---
 
