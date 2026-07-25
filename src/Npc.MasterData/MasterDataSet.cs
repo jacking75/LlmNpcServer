@@ -283,9 +283,12 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     /// <summary>인터럽트 규칙.</summary>
     public required InterruptRules Interrupts { get; init; }
 
-    // docs/01 §11 의 Fallbacks(PlanTable)·Npcs(NpcRoster) 는 아직 없다.
-    // fallback_plans.json 은 T1-54·T1-55, npc_instances.json 은 T1-56 에서 만들어진다.
-    // 그 태스크에서 이 클래스에 프로퍼티를 추가한다.
+    /// <summary>
+    /// 폴백 플랜. docs/01 §8. fallback_plans.json 이 없으면 null.
+    /// 로더가 이 인스턴스를 만든 뒤에 채운다 — PlanTable 이 MasterDataSet 을 필요로 해서
+    /// 생성자 안에서는 만들 수 없다.
+    /// </summary>
+    public PlanTable? Fallbacks { get; internal set; }
 
     /// <summary>파일별 해시. 파일명 오름차순.</summary>
     public required ImmutableArray<FileHash> FileHashes { get; init; }

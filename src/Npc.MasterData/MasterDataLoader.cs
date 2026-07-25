@@ -22,6 +22,7 @@ public static class MasterDataLoader
         "actions.json",
         "archetypes.json",
         "context_buckets.json",
+        "fallback_plans.json",
         "interrupts.json",
         "items.json",
         "poi_distances.bin",
@@ -50,7 +51,7 @@ public static class MasterDataLoader
 
         ImmutableArray<FileHash> hashes = HashFiles(masterDataDirectory);
 
-        return new MasterDataSet
+        var set = new MasterDataSet
         {
             Actions = actions,
             Items = items,
@@ -62,6 +63,16 @@ public static class MasterDataLoader
             FileHashes = hashes,
             ContentHash = CombineHashes(hashes),
         };
+
+        // 폴백 플랜은 MasterDataSet 자신을 어휘로 써서 검증·컴파일하므로 나중에 붙인다.
+        // 파일이 없으면 null 이다 — PlanStore 가 최후 플랜으로 대신한다 (T1-39).
+        string fallbackPath = Path_("fallback_plans.json");
+        if (File.Exists(fallbackPath))
+        {
+            set.Fallbacks = PlanTable.Load(fallbackPath, set);
+        }
+
+        return set;
     }
 
     // ---------------------------------------------------------------- 해시
@@ -80,6 +91,12 @@ public static class MasterDataLoader
             string path = Path.Combine(masterDataDirectory, name);
             if (!File.Exists(path))
             {
+                // fallback_plans.json 은 T1-54 전에는 없을 수 있다. 있으면 해시에 넣는다.
+                if (name == "fallback_plans.json")
+                {
+                    continue;
+                }
+
                 throw new FileNotFoundException($"마스터데이터 파일이 없다: {name}", path);
             }
 
