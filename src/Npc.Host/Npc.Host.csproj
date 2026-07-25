@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- 조립 루트. ASP.NET 호스트 · 메트릭 · 대시보드. CLAUDE.md §3 — 전부 참조한다. -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Host</RootNamespace>
+    <AssemblyName>Npc.Host</AssemblyName>
+    <NoWarn>$(NoWarn);MEAI001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
+    <ProjectReference Include="..\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\Npc.Planning\Npc.Planning.csproj" />
+    <ProjectReference Include="..\Npc.Runtime\Npc.Runtime.csproj" />
+    <ProjectReference Include="..\Npc.Llm\Npc.Llm.csproj" />
+    <ProjectReference Include="..\Npc.Gateway\Npc.Gateway.csproj" />
+    <ProjectReference Include="..\Npc.Sim\Npc.Sim.csproj" />
+  </ItemGroup>
+
+</Project>

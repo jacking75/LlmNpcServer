@@ -177,7 +177,7 @@ world_flags → items → actions → zones → pois → archetypes
 Npc.Contracts  ←  외부 NuGet 의존 0. 참조하는 프로젝트 없음
 Npc.Core       ←  외부 NuGet 의존 0. Contracts만 참조
 Npc.MasterData ←  Core
-Npc.Runtime    ←  Core, MasterData, Contracts
+Npc.Runtime    ←  Core, MasterData, Contracts, Planning
 Npc.Planning   ←  Core, MasterData
 Npc.Llm        ←  Core            (+ Microsoft.Extensions.AI)
 Npc.Gateway    ←  Contracts
@@ -186,6 +186,7 @@ Npc.Host       ←  전부
 ```
 
 - **`Npc.Runtime`은 `Npc.Llm`을 참조하지 않는다.** 참조가 생기면 틱 루프에 LLM이 들어올 길이 열린다.
+- `Npc.Runtime → Npc.Planning`은 허용한다. `CognitionScheduler.Scan`이 `PlanStore`·`ReplanQueue`를 직접 받기 때문이다 (`docs/11 §4`). `Npc.Planning`은 `Core`·`MasterData`만 참조하므로 이 간선으로 LLM이 들어올 길은 없다.
 - `Npc.Core`와 `Npc.Contracts`에 NuGet 패키지를 추가하지 않는다. 순수 로직만.
 
 ---

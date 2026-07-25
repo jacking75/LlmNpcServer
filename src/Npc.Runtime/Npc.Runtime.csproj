@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    틱 루프 · 플랜 실행기 · 인지 LOD 스캐너. docs/11 §3~§5.
+    CLAUDE.md §3 — Npc.Llm 을 절대 참조하지 않는다.
+    참조가 생기는 순간 틱 루프에 LLM 호출이 들어올 길이 열린다.
+    Architecture_RuntimeDoesNotReferenceLlm 테스트가 이것을 강제한다.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Runtime</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
+    <ProjectReference Include="..\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\Npc.Planning\Npc.Planning.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- CLAUDE.md §2.1 — 로깅은 소스 생성 로거([LoggerMessage])만 쓴다. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

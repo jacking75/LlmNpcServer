@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 플랜 스토어 · 재계획 큐. P1 에서는 스텁(폴백 반환 + FIFO)만. -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Planning</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\Npc.MasterData\Npc.MasterData.csproj" />
+  </ItemGroup>
+
+</Project>

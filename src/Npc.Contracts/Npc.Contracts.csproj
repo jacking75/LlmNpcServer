@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    게임서버로 향하는 아웃바운드 포트와 패킷 DTO. docs/02.
+    CLAUDE.md §3 — 외부 NuGet 의존 0. 참조하는 프로젝트 없음.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Contracts</RootNamespace>
+  </PropertyGroup>
+
+</Project>

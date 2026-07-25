@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- IGameServerLink 구현체들 (Null · Loopback · Recording · Replay · Tcp 골격). docs/02 §2. -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Gateway</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

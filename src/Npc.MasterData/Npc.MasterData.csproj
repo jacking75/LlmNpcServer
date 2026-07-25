@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 마스터데이터 로더 · 검증 · 읽기 전용 인덱스. docs/01. -->
+  <PropertyGroup>
+    <RootNamespace>Npc.MasterData</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Core\Npc.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    게임서버 대역(헤드리스 월드). docs/02 §5 · docs/11 §6.
+    게임서버를 만드는 것이 아니라, NPC 서버를 혼자 돌려보기 위한 우리 쪽 가짜 구현이다.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Sim</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
+    <ProjectReference Include="..\Npc.MasterData\Npc.MasterData.csproj" />
+  </ItemGroup>
+
+</Project>

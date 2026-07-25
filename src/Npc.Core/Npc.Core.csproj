@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    플랜 DSL · 검증기 · WorldFlags · BucketKey. docs/03.
+    CLAUDE.md §3 — 외부 NuGet 의존 0. Contracts 만 참조한다.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

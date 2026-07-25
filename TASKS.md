@@ -109,7 +109,7 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 
 | 날짜 | 문서 | 변경 | 계기 |
 |---|---|---|---|
-| — | | | |
+| 2026-07-26 | `CLAUDE.md §3` · `docs/11 §2` | `Npc.Runtime` 의존에 `Npc.Planning` 추가 | T1-02. `docs/11 §4`의 `CognitionScheduler.Scan(..., PlanStore, ReplanQueue)` 시그니처가 이 간선을 요구한다. `Npc.Runtime ↛ Npc.Llm` 금지는 그대로 유지 |
 
 ---
 
