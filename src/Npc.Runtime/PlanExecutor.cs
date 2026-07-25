@@ -74,6 +74,12 @@ public sealed class PlanExecutor
     public ReplanQueue? ReplanQueue { get; init; }
 
     /// <summary>
+    /// 플랜 스왑기. 스텝 경계마다 대기 중인 플랜이 있는지 확인한다 (docs/03 §6).
+    /// 없으면 스왑을 하지 않는다.
+    /// </summary>
+    public PlanSwapper? Swapper { get; init; }
+
+    /// <summary>
     /// 한 틱. 전원을 훑으며 완료·실패를 처리하고 준비된 스텝의 명령을 낸다.
     /// </summary>
     public void Step(Tick tick, IGameServerLink link)
@@ -160,11 +166,19 @@ public sealed class PlanExecutor
 
     private void AdvanceStep(int npc)
     {
-        CompiledPlan plan = _plans[_store.PlanId[npc]];
-        int next = _store.StepIndex[npc] + 1;
-
         _store.StepRetries[npc] = 0;
         StepsAdvanced++;
+
+        // 스텝 경계다. 워커가 걸어둔 새 플랜이 있으면 여기서 갈아끼운다 (docs/03 §6).
+        // 스텝 중간에 바꾸면 직전 스텝의 응답이 새 스텝의 완료로 오인된다.
+        if (Swapper is not null && Swapper.TryTake(npc, out PlanId swapped))
+        {
+            AssignPlan(npc, swapped);
+            return;
+        }
+
+        CompiledPlan plan = _plans[_store.PlanId[npc]];
+        int next = _store.StepIndex[npc] + 1;
 
         if (next < plan.Steps.Length)
         {
