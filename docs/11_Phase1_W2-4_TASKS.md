@@ -440,7 +440,7 @@ W3 ── 런타임 · 게이트웨이 · Sim
 [x] T1-31 CorrelationTable  [ ] T1-32 PlanExecutor   [ ] T1-33 타임아웃합성
 [ ] T1-34 PlanSwapper       [ ] T1-35 InterruptMatcher
 [ ] T1-36 LodBand           [ ] T1-37 CognitionScheduler
-[ ] T1-38 ReplanQueue스텁   [x] T1-39 PlanStore스텁  [ ] T1-40 NpcServerLoop
+[x] T1-38 ReplanQueue스텁   [x] T1-39 PlanStore스텁  [ ] T1-40 NpcServerLoop
 [ ] T1-41 NullLink          [ ] T1-42 LoopbackLink   [ ] T1-43 RecordingLink
 [ ] T1-44 ReplayLink        [ ] T1-45 TcpLink골격
 [ ] T1-46 SimWorld          [ ] T1-47 이동시뮬       [ ] T1-48 상호작용시뮬
