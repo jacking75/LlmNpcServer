@@ -428,7 +428,7 @@ W2 ── 골격 · 계약 · 마스터데이터 · 코어
 [x] T1-04 강타입ID          [x] T1-05 NpcCommand     [x] T1-06 GameEvent
 [x] T1-07 IGameServerLink   [x] T1-08 Contracts테스트
 [x] T1-09 world_flags       [x] T1-10 WorldFlags생성기
-[x] T1-11 items             [ ] T1-12 actions(37)    [ ] T1-13 ActionCatalog
+[x] T1-11 items             [x] T1-12 actions(37)    [ ] T1-13 ActionCatalog
 [ ] T1-14 zones+pois        [ ] T1-15 거리행렬       [ ] T1-16 archetypes(40)
 [ ] T1-17 buckets+BucketKey [ ] T1-18 interrupts     [ ] T1-19 MasterDataSet
 [ ] T1-20 검증V1~V11        [ ] T1-21 validate CLI

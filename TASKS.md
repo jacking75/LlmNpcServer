@@ -110,6 +110,10 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 날짜 | 문서 | 변경 | 계기 |
 |---|---|---|---|
 | 2026-07-26 | `CLAUDE.md §3` · `docs/11 §2` | `Npc.Runtime` 의존에 `Npc.Planning` 추가 | T1-02. `docs/11 §4`의 `CognitionScheduler.Scan(..., PlanStore, ReplanQueue)` 시그니처가 이 간선을 요구한다. `Npc.Runtime ↛ Npc.Llm` 금지는 그대로 유지 |
+| 2026-07-26 | `docs/01 §2.1·§2.2` · `docs/03 §3` | 액션에 `requires_any`(OR 전제) 추가 | T1-12. §2.2 표의 `AtHome/AtTavern`·`HasCoin \| HasProduct`를 §2.1의 `requires`(AND)로는 표현할 수 없었다 |
+| 2026-07-26 | `docs/01 §2.1` | `emits[].priority` 와 `emits[].map` 값 문법 명문화 | T1-12. 역압 시 드롭 순서(`docs/02 §1`)를 데이터가 정해야 하고, `Eat`의 소비 아이템을 코드에 하드코딩하지 않으려면 `$first:Flag` 심볼이 필요했다 |
+| 2026-07-26 | `docs/01 §2.2` | `Sleep`의 grants 를 `IsRested (clears IsSleeping)` 로 정정 | T1-12. `grants`에 `IsSleeping`이 남으면 `loop: true` 플랜의 첫 스텝(`MoveTo`, forbids `IsSleeping`)이 항상 V3.FORBIDDEN_FLAG 로 걸린다 |
+| 2026-07-26 | `docs/02 §3.2` | `MoveTo`의 `TargetNpc`·`Zone` 용법 명문화 | T1-12. `Follow`·`Wander`가 발행할 명령이 없었다 |
 
 ---
 

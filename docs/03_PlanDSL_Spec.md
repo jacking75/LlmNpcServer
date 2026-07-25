@@ -150,6 +150,8 @@ foreach (var (step, i) in doc.Steps.Index())
 {
     var def = catalog[step.Action];
     if ((def.Requires & ~state) != 0) return Fail("V3.PRECONDITION_UNMET", i);
+    if (def.RequiresAny != 0 && (def.RequiresAny & state) == 0)
+        return Fail("V3.PRECONDITION_UNMET", i);          // OR 전제 (docs/01 §2.1 requires_any)
     if ((def.Forbids  &  state) != 0) return Fail("V3.FORBIDDEN_FLAG", i);
     state = (state & ~def.Clears) | def.Grants;
 }

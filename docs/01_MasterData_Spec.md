@@ -141,7 +141,8 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags forbidden
         "speed": { "type": "enum", "values": ["walk", "run"], "default": "walk" }
       },
 
-      "requires":  [],                              // 전제 플래그 (WorldFlags id)
+      "requires":     [],                           // 전제 플래그 — 전부 성립해야 한다 (AND)
+      "requires_any": [],                           // 전제 플래그 — 하나 이상 성립해야 한다 (OR). 비면 검사 안 함
       "forbids":   ["IsSleeping", "IsExhausted"],   // 금지 플래그
       "grants":    [],                              // 성공 시 세팅되는 플래그 (동적: POI 타입에 따름)
       "clears":    ["AtHome","AtWorkplace","AtMarket","AtTavern","AtTemple","AtGate","AtField"],
@@ -151,7 +152,7 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags forbidden
       "default_timeout_s": 300,
 
       "emits": [                                    // 게임서버 명령 매핑
-        { "command": "MoveTo", "map": { "TargetPoi": "$poi", "Flags": "$speed" } }
+        { "command": "MoveTo", "priority": "Normal", "map": { "TargetPoi": "$poi", "Flags": "$speed" } }
       ],
       "completes_on": ["NpcArrived"],               // 이 이벤트 수신 시 스텝 완료
       "fails_on":     ["NpcActionFailed"]
@@ -159,6 +160,27 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags forbidden
   ]
 }
 ```
+
+**`requires` vs `requires_any`.** `requires`는 AND, `requires_any`는 OR다. 아래 §2.2 표에서 `A/B` 또는 `A | B`로 적힌 칸이 `requires_any`에 들어간다. 이탈 판정은 비트 연산 세 번이다.
+
+```csharp
+static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags requiredAny, WorldFlags forbidden)
+    => (required & ~cur) != 0
+    || (requiredAny != 0 && (requiredAny & cur) == 0)
+    || (forbidden & cur) != 0;
+```
+
+**`emits[].priority`** 는 역압 시 드롭 순서다 (`docs/02 §1`). 생략하면 `Normal`.
+
+**`emits[].map` 의 값 문법**
+
+| 값 | 뜻 |
+|---|---|
+| `"$param"` | 플랜 스텝의 `args`에서 가져온다 |
+| `"$home"` `"$workplace"` `"$self"` | NPC 인스턴스에서 바인딩한다 |
+| `"$first:Flag"` | 해당 `WorldFlags`를 세우는 인벤토리 아이템 중 첫 번째 (`Eat`/`Drink`) |
+| 그 외 문자열 | 아이템 id / 열거값 리터럴 |
+| 숫자 | 정수 리터럴 (부호 있음) |
 
 ### 2.2 전체 액션 목록 (37개)
 
@@ -185,7 +207,7 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags forbidden
 | | `Perform` | kind, duration_s | AtTavern/AtMarket | HasCoin |
 | **욕구 (5)** | `Eat` | — | HasFood | (clears IsHungry) |
 | | `Drink` | — | HasWater | (clears IsThirsty) |
-| | `Sleep` | until_time | AtHome | IsRested, IsSleeping |
+| | `Sleep` | until_time | AtHome | IsRested (clears IsSleeping) |
 | | `Rest` | duration_s | — | IsRested |
 | | `Bathe` | — | AtHome | — |
 | **전투 (5)** | `Attack` | target | HasWeapon | InCombat |

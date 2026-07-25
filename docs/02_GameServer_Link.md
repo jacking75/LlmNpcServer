@@ -213,7 +213,7 @@ public enum VisualState : byte { Idle, Walking, Running, Working, Fighting, Slee
 |---|---|---|
 | `Spawn` | `Archetype, Zone, TargetPos` | NPC 생성 |
 | `Despawn` | — | NPC 제거 |
-| `MoveTo` | `TargetPoi` 또는 `TargetPos`, `Flags`(속도) | 이동 지시. **경로 계산은 게임서버 소관** |
+| `MoveTo` | `TargetPoi` 또는 `TargetPos`, `Flags`(속도) | 이동 지시. **경로 계산은 게임서버 소관**. `TargetNpc`가 설정되면 추종(`Follow`), `Zone`+`Amount`면 그 존 반경 안 배회(`Wander`) |
 | `Stop` | — | 즉시 정지 |
 | `FaceTo` | `TargetNpc` 또는 `TargetPos` | 방향 전환 |
 | `PlayAnimation` | `Animation, Amount`(반복) | 연출 |
