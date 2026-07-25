@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.FileProviders;
 using Npc.Contracts;
 using Npc.Gateway;
 using Npc.Host;
@@ -59,12 +60,22 @@ builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 WebApplication app = builder.Build();
 
-app.MapGet("/", () => "Npc.Host");
+app.MapGet("/", () => Results.Redirect("/dashboard"));
 app.MapGet("/status", () => host.Snapshot());
 app.MapGet("/metrics", () => host.Metrics.Snapshot());
 
+// 대시보드 1차. docs/11 §10. 단일 HTML 이고 /metrics 를 폴링한다.
+app.MapGet("/dashboard", () =>
+{
+    IFileInfo file = app.Environment.WebRootFileProvider.GetFileInfo("dashboard.html");
+
+    return file.Exists
+        ? Results.File(file.CreateReadStream(), "text/html; charset=utf-8")
+        : Results.NotFound("dashboard.html 이 없다.");
+});
+
 await app.StartAsync(CancellationToken.None);
-Console.Out.WriteLine($"listening on http://localhost:{options.Port}");
+Console.Out.WriteLine($"dashboard: http://localhost:{options.Port}/dashboard");
 
 await host.RunAsync(lifetime.Token);
 host.Report(Console.Out);

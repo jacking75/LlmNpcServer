@@ -80,19 +80,20 @@ public sealed class NpcMeterTests
             "--loopback", "--npcs", "50", "--time-scale", "600", "--days", "1",
             "--max-speed", "--no-dashboard");
 
-        string json = JsonSerializer.Serialize(m);
+        // ASP.NET 의 기본 JSON 옵션(camelCase)으로 나간다. 대시보드가 읽는 이름 그대로 확인한다.
+        string json = JsonSerializer.Serialize(m, JsonSerializerOptions.Web);
 
         foreach (string key in new[]
         {
-            "\"Tick\"", "\"P50Ms\"", "\"P99Ms\"", "\"Overruns\"", "\"GameHour\"", "\"TimeOfDay\"",
-            "\"Gen0Collections\"", "\"BytesPerTick\"", "\"ManagedHeapMb\"",
-            "\"Npc\"", "\"Total\"", "\"ByLod\"", "\"ByStepStatus\"", "\"BandMigrations\"",
-            "\"Actions\"", "\"Action\"", "\"Count\"",
-            "\"Link\"", "\"CommandsFlushed\"", "\"CommandsDropped\"",
-            "\"EventsDrained\"", "\"EventGaps\"", "\"EventBacklogs\"",
-            "\"Replan\"", "\"QueueDepth\"", "\"EnqueuedPerSecond\"", "\"Deviations\"",
-            "\"ScanPerTick\"", "\"InterruptsForced\"",
-            "\"LlmCalls\"",
+            "\"tick\"", "\"p50Ms\"", "\"p99Ms\"", "\"overruns\"", "\"gameHour\"", "\"timeOfDay\"",
+            "\"gen0Collections\"", "\"bytesPerTick\"", "\"managedHeapMb\"",
+            "\"npc\"", "\"total\"", "\"byLod\"", "\"byStepStatus\"", "\"bandMigrations\"",
+            "\"actions\"", "\"action\"", "\"count\"",
+            "\"link\"", "\"commandsFlushed\"", "\"commandsDropped\"",
+            "\"eventsDrained\"", "\"eventGaps\"", "\"eventBacklogs\"",
+            "\"replan\"", "\"queueDepth\"", "\"enqueuedPerSecond\"", "\"deviations\"",
+            "\"scanPerTick\"", "\"interruptsForced\"",
+            "\"llmCalls\"",
         })
         {
             Assert.Contains(key, json, StringComparison.Ordinal);

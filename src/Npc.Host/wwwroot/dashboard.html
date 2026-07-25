@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<!--
+  NPC 서버 대시보드 1차. docs/11 §10.
+
+  단일 HTML 이다. 외부 스크립트도 폰트도 CDN 도 없다 — 이 서버는 인터넷이 없는
+  사내망에서도 뜬다. /metrics 를 1초마다 폴링해 5패널을 갱신한다.
+
+  W7 이후 캐시 히트율, W9 이후 토큰/비용 패널이 붙는다.
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Npc.Host — 대시보드</title>
+<style>
+  :root {
+    --bg: #12141a; --panel: #1b1e26; --line: #2a2f3a;
+    --fg: #e6e8ee; --dim: #8b93a7; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
+    font: 13px/1.5 ui-monospace, "Cascadia Mono", "D2Coding", Consolas, monospace;
+  }
+  header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 12px; }
+  h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  #clock { color: var(--dim); }
+  #state { margin-left: auto; color: var(--dim); }
+  #state.live { color: var(--ok); }
+  #state.dead { color: var(--bad); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+  h2 { font-size: 12px; margin: 0 0 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 2px 0; vertical-align: baseline; }
+  td.k { color: var(--dim); white-space: nowrap; padding-right: 12px; }
+  td.v { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { position: relative; height: 14px; background: #232733; border-radius: 3px; overflow: hidden; }
+  .bar > i { position: absolute; inset: 0 auto 0 0; background: #3b82f6; }
+  .bar > span { position: relative; padding-left: 6px; font-size: 11px; line-height: 14px; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Npc.Host</h1>
+  <span id="clock">—</span>
+  <span id="state">연결 중…</span>
+</header>
+
+<div class="grid">
+  <section><h2>틱</h2><table id="p-tick"></table></section>
+  <section><h2>NPC</h2><table id="p-npc"></table></section>
+  <section><h2>액션 Top 10</h2><table id="p-action"></table></section>
+  <section><h2>링크</h2><table id="p-link"></table></section>
+  <section><h2>재계획</h2><table id="p-replan"></table></section>
+</div>
+
+<script>
+"use strict";
+
+const POLL_MS = 1000;
+const TICK_BUDGET_MS = 20;   // docs/11 §5
+const SCAN_BUDGET = 150;     // docs/11 §9
+const LOD_NAMES = ["0 근접", "1 근거리", "2 원거리", "3 비활성"];
+const STEP_STATUS = ["Unspawned", "Ready", "Waiting", "Completed", "Failed", "Done", "?", "?"];
+
+const $ = (id) => document.getElementById(id);
+
+function rows(table, items) {
+  table.replaceChildren(...items.map(([k, v, cls]) => {
+    const tr = document.createElement("tr");
+    const tdK = document.createElement("td");
+    tdK.className = "k";
+    tdK.textContent = k;
+    const tdV = document.createElement("td");
+    tdV.className = "v" + (cls ? " " + cls : "");
+    if (v instanceof Node) { tdV.replaceChildren(v); } else { tdV.textContent = v; }
+    tr.append(tdK, tdV);
+    return tr;
+  }));
+}
+
+function bar(value, total, label) {
+  const wrap = document.createElement("div");
+  wrap.className = "bar";
+  const fill = document.createElement("i");
+  fill.style.width = (total > 0 ? (100 * value / total) : 0).toFixed(1) + "%";
+  const text = document.createElement("span");
+  text.textContent = label;
+  wrap.append(fill, text);
+  return wrap;
+}
+
+function grade(value, budget) {
+  if (value > budget) { return "bad"; }
+  if (value > budget * 0.75) { return "warn"; }
+  return "ok";
+}
+
+function render(m) {
+  const t = m.tick, n = m.npc, l = m.link, r = m.replan;
+
+  $("clock").textContent =
+    `게임 ${t.gameDay}일 ${String(t.gameHour).padStart(2, "0")}시 · ${t.timeOfDay} · tick ${t.ticks}`;
+
+  rows($("p-tick"), [
+    ["p50", t.p50Ms.toFixed(3) + " ms", grade(t.p50Ms, 8)],
+    ["p99", t.p99Ms.toFixed(3) + " ms", grade(t.p99Ms, TICK_BUDGET_MS)],
+    ["max", t.maxMs.toFixed(3) + " ms", grade(t.maxMs, TICK_BUDGET_MS)],
+    ["오버런", t.overruns, t.overruns > 0 ? "bad" : "ok"],
+    ["Gen0 GC", t.gen0Collections, t.gen0Collections > 0 ? "warn" : "ok"],
+    ["할당/틱", t.bytesPerTick + " B", t.bytesPerTick > 0 ? "warn" : "ok"],
+    ["관리 힙", t.managedHeapMb.toFixed(1) + " MB", grade(t.managedHeapMb, 400)],
+  ]);
+
+  rows($("p-npc"), [
+    ["총원", n.total],
+    ...n.byLod.map((c, i) => [LOD_NAMES[i], bar(c, n.total, String(c))]),
+    ...n.byStepStatus
+      .map((c, i) => [STEP_STATUS[i], c, i])
+      .filter(([, c]) => c > 0)
+      .map(([k, c]) => [k, c]),
+    ["밴드 이동", n.bandMigrations],
+  ]);
+
+  rows($("p-action"), m.actions.length === 0
+    ? [["—", "실행 중인 액션 없음"]]
+    : m.actions.map((a) => [a.action, bar(a.count, n.total, String(a.count))]));
+
+  rows($("p-link"), [
+    ["명령 큐잉", l.commandsEnqueued],
+    ["명령 송출", l.commandsFlushed],
+    ["명령 드롭", l.commandsDropped, l.commandsDropped > 0 ? "warn" : "ok"],
+    ["대기 중", l.pendingCommands],
+    ["이벤트 배수", l.eventsDrained],
+    ["시퀀스 갭", l.eventGaps, l.eventGaps > 0 ? "bad" : "ok"],
+    ["이벤트 적체", l.eventBacklogs, l.eventBacklogs > 0 ? "warn" : "ok"],
+  ]);
+
+  rows($("p-replan"), [
+    ["큐 깊이", r.queueDepth],
+    ["초당 유입", r.enqueuedPerSecond.toFixed(2)],
+    ["인지 스캔/틱", r.scanPerTick, grade(r.scanPerTick, SCAN_BUDGET)],
+    ["이탈 판정", r.deviations],
+    ["인터럽트 발동", r.interruptsForced],
+    ["인터럽트 억제", r.interruptsSuppressed],
+    ["LLM 호출", m.llmCalls, m.llmCalls > 0 ? "warn" : "ok"],
+  ]);
+}
+
+async function poll() {
+  const state = $("state");
+
+  try {
+    const res = await fetch("/metrics", { cache: "no-store" });
+    if (!res.ok) { throw new Error("HTTP " + res.status); }
+
+    render(await res.json());
+    state.textContent = "live";
+    state.className = "live";
+  } catch (e) {
+    state.textContent = "끊김 — " + e.message;
+    state.className = "dead";
+  }
+}
+
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>
