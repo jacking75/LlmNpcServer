@@ -30,9 +30,12 @@ internal static class Program
             case "prefix":
                 return PromptPrefix.Run();
 
+            case "suffix":
+                return SuffixGen.Run();
+
             default:
                 Console.Error.WriteLine($"unknown command: {cmd}");
-                Console.Error.WriteLine("usage: spike [ready|clients|schema|prefix]");
+                Console.Error.WriteLine("usage: spike [ready|clients|schema|prefix|suffix]");
                 return 2;
         }
     }
