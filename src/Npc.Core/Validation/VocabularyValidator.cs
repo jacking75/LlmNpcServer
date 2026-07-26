@@ -37,6 +37,14 @@ public interface IPlanValidationVocabulary : IPlanVocabulary
     /// <summary>레시피의 입력 자원. 없으면 false. V3.RESOURCE_IMBALANCE 가 쓴다.</summary>
     bool TryGetRecipeInputs(ItemId recipe, out ImmutableArray<PlanRecipeInput> inputs);
 
+    /// <summary>
+    /// 아이템 code → 문자열 id.
+    ///
+    /// <b>이게 없으면 <c>V3.RESOURCE_IMBALANCE</c> 의 설명이 아이템을 숫자로 찍는다</b> —
+    /// "숫자를 그대로 내보내면 모델이 못 고친다"(docs/12 §5)에 정확히 걸리는 경우다.
+    /// </summary>
+    string ItemName(ItemId item);
+
     /// <summary>이 액션이 자원을 인벤토리에 넣는가(채집·수령). V3.RESOURCE_IMBALANCE 가 쓴다.</summary>
     bool ProducesItem(ActionId action);
 

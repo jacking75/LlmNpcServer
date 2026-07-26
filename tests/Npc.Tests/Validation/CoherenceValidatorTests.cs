@@ -265,6 +265,122 @@ public sealed class CoherenceValidatorTests
         Assert.Equal(2, result.StepIndex);
     }
 
+    /// <summary>
+    /// T2-12 완료 조건 — V3 7종 전부에 대해 플래그·액션·아이템이 <b>이름</b>으로 나오고
+    /// 숫자 code 가 detail 에 남지 않는다. 이 문자열이 그대로 재시도 서픽스에 실린다 (docs/03 §4).
+    /// </summary>
+    [Fact]
+    public void Explain_IsHumanReadable()
+    {
+        (string Code, string Json, string Archetype, string[] Names)[] cases =
+        [
+            // 1) 전제 미충족 — 플래그 이름
+            ("V3.PRECONDITION_UNMET", """
+                { "schema": 1, "goal": "test_goal", "loop": true, "steps": [
+                  { "action": "Craft", "args": { "recipe": "iron_sword", "count": 1 } },
+                  { "action": "MoveTo", "args": { "poi": "$home" } },
+                  { "action": "Sleep", "args": { "until_time": "Morning" } } ] }
+                """, "blacksmith", ["Craft", "AtWorkplace"]),
+
+            // 3) 루프 미폐쇄 — 첫 스텝이 요구하는 플래그를 마지막 상태가 못 세운다
+            ("V3.LOOP_NOT_CLOSED", """
+                { "schema": 1, "goal": "test_goal", "loop": true, "steps": [
+                  { "action": "Eat", "args": {} },
+                  { "action": "Rest", "args": { "duration_s": 600 } },
+                  { "action": "Wait", "args": { "duration_s": 60 } } ] }
+                """, "blacksmith", ["HasFood"]),
+
+            // 4) 도달 불가 POI — 심볼 이름 (주민은 일터가 없다)
+            ("V3.UNREACHABLE_POI", """
+                { "schema": 1, "goal": "test_goal", "loop": true, "steps": [
+                  { "action": "MoveTo", "args": { "poi": "$workplace" } },
+                  { "action": "MoveTo", "args": { "poi": "$home" } },
+                  { "action": "Sleep", "args": { "until_time": "Morning" } } ] }
+                """, "villager", ["MoveTo", "$workplace"]),
+
+            // 5) 자원 수지 — 아이템 "이름". T2-12 가 메운 구멍이다.
+            ("V3.RESOURCE_IMBALANCE", """
+                { "schema": 1, "goal": "test_goal", "loop": true, "steps": [
+                  { "action": "MoveTo", "args": { "poi": "$nearest_field" } },
+                  { "action": "Mine", "args": { "resource": "iron_ore", "count": 3 } },
+                  { "action": "MoveTo", "args": { "poi": "$workplace" } },
+                  { "action": "Craft", "args": { "recipe": "iron_sword", "count": 3 } },
+                  { "action": "MoveTo", "args": { "poi": "$home" } },
+                  { "action": "Sleep", "args": { "until_time": "Morning" } } ] }
+                """, "blacksmith", ["iron_ore"]),
+
+            // 6) 종결 없음 — 마지막 액션 이름
+            ("V3.NO_TERMINAL", """
+                { "schema": 1, "goal": "test_goal", "loop": false, "steps": [
+                  { "action": "MoveTo", "args": { "poi": "$workplace" } },
+                  { "action": "Work", "args": { "recipe": "iron_sword", "count": 1 } },
+                  { "action": "MoveTo", "args": { "poi": "$market" } } ] }
+                """, "blacksmith", ["MoveTo", "IsRested"]),
+
+            // 7) 퇴화 — 액션 이름
+            ("V3.DEGENERATE", """
+                { "schema": 1, "goal": "test_goal", "loop": false, "steps": [
+                  { "action": "Greet", "args": { "npc": "self" } },
+                  { "action": "Greet", "args": { "npc": "self" } },
+                  { "action": "Greet", "args": { "npc": "self" } },
+                  { "action": "Rest", "args": { "duration_s": 600 } } ] }
+                """, "blacksmith", ["Greet"]),
+        ];
+
+        // 금지 플래그는 초기 상태에 그 플래그가 서 있어야 만들 수 있다 (액션의 clears 가 잘 내린다).
+        const string ForbiddenJson = """
+            { "schema": 1, "goal": "test_goal", "loop": true, "steps": [
+              { "action": "MoveTo", "args": { "poi": "$home" } },
+              { "action": "Sleep", "args": { "until_time": "Morning" } },
+              { "action": "Bathe", "args": {} } ] }
+            """;
+
+        ValidationResult forbidden = CoherenceValidator.Validate(
+            Parse(ForbiddenJson), Bucket("noble"), Bucket("noble").A, new SleepingVocabulary(s_data));
+
+        var results = new List<(string Code, ValidationResult Result, string[] Names)>
+        {
+            ("V3.FORBIDDEN_FLAG", forbidden, ["MoveTo", "IsSleeping"]),
+        };
+
+        foreach ((string code, string json, string archetype, string[] names) in cases)
+        {
+            results.Add((code, Validate(json, archetype), names));
+        }
+
+        foreach ((string code, ValidationResult result, string[] names) in results)
+        {
+            Assert.Equal(code, result.Code);
+
+            string explained = CoherenceValidator.Explain(result);
+
+            // 블록 형식은 docs/03 §4 그대로 — stage / code / step / detail.
+            using System.Text.Json.JsonDocument block = System.Text.Json.JsonDocument.Parse(explained);
+            System.Text.Json.JsonElement failed = block.RootElement.GetProperty("previous_attempt_failed");
+
+            Assert.Equal("Coherence", failed.GetProperty("stage").GetString());
+            Assert.Equal(code, failed.GetProperty("code").GetString());
+            Assert.Equal(result.StepIndex, failed.GetProperty("step").GetInt32());
+
+            string detail = failed.GetProperty("detail").GetString()!;
+
+            foreach (string name in names)
+            {
+                Assert.Contains(name, detail, StringComparison.Ordinal);
+            }
+
+            // 숫자 code 가 남지 않는다. 아이템·플래그·액션은 전부 이름으로만 나온다.
+            Assert.DoesNotContain("item ", detail, StringComparison.Ordinal);
+            Assert.DoesNotContain("18446744", detail, StringComparison.Ordinal);
+
+            // 스텝 번호는 문서 전체 실패(-1)를 빼고 전부 있어야 한다.
+            if (code is not "V3.LOOP_NOT_CLOSED")
+            {
+                Assert.True(result.StepIndex >= 0, code);
+            }
+        }
+    }
+
     /// <summary>T1-27 완료 조건 — Explain() 이 플래그 이름을 포함한다.</summary>
     [Fact]
     public void Coherence_ExplainUsesFlagNamesNotBitmasks()
@@ -348,6 +464,8 @@ public sealed class CoherenceValidatorTests
         public bool TryGetRecipeInputs(
             ItemId recipe, out System.Collections.Immutable.ImmutableArray<PlanRecipeInput> inputs) =>
             inner.TryGetRecipeInputs(recipe, out inputs);
+
+        public string ItemName(ItemId item) => inner.ItemName(item);
 
         public bool ProducesItem(ActionId action) => inner.ProducesItem(action);
 

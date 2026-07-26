@@ -55,6 +55,9 @@ public static class CoherenceValidator
         var gathered = new Dictionary<ItemId, int>();
         var consumed = new Dictionary<ItemId, int>();
 
+        // 어느 스텝이 그 자원을 마지막으로 썼는가. 실패 설명에 "몇 번째 스텝을 고쳐라"를 넣기 위해서다.
+        var consumedAtStep = new Dictionary<ItemId, int>();
+
         ActionId firstAction = default;
         PoiSymbol firstPoi = PoiSymbol.None;
         StepFlags firstFlags = default;
@@ -122,7 +125,7 @@ public static class CoherenceValidator
                     $"{step.Action} repeats {repeats} times in a row. Merge them or vary the plan.");
             }
 
-            TrackResources(vocabulary, action, step, gathered, consumed);
+            TrackResources(vocabulary, action, step, i, gathered, consumed, consumedAtStep);
 
             // 도착으로 완료되는 액션은 그 POI 가 함의하는 장소 플래그를 세운다.
             WorldFlags grants = flags.Grants;
@@ -155,11 +158,16 @@ public static class CoherenceValidator
 
             if (produced < consumed[item])
             {
+                // 아이템을 code 숫자로 찍지 않는다 — 숫자를 그대로 내보내면 모델이 못 고친다 (docs/12 §5).
+                string name = vocabulary.ItemName(item);
+                int step = consumedAtStep.GetValueOrDefault(item, -1);
+
                 return ValidationResult.Fail(
-                    ValidationStage.Coherence, "V3.RESOURCE_IMBALANCE", -1,
+                    ValidationStage.Coherence, "V3.RESOURCE_IMBALANCE", step,
                     string.Create(
                         CultureInfo.InvariantCulture,
-                        $"The plan gathers {produced} of item {item.Value} but consumes {consumed[item]}."));
+                        $"The plan gathers {produced} {name} but consumes {consumed[item]}. "
+                        + $"Gather more {name} before this step, or lower the count."));
             }
         }
 
@@ -203,7 +211,9 @@ public static class CoherenceValidator
             {
                 return ValidationResult.Fail(
                     ValidationStage.Coherence, "V3.NO_TERMINAL", document.Steps.Length - 1,
-                    "loop is false, so the plan must end in a rest state (an action that grants IsRested).");
+                    $"loop is false, so the plan must end in a rest state, but the last step is "
+                    + $"{vocabulary.ActionName(previousAction)}, which does not grant IsRested. "
+                    + $"End with Sleep at $home or with Rest.");
             }
         }
 
@@ -263,8 +273,10 @@ public static class CoherenceValidator
         IPlanValidationVocabulary vocabulary,
         ActionId action,
         PlanStep step,
+        int stepIndex,
         Dictionary<ItemId, int> gathered,
-        Dictionary<ItemId, int> consumed)
+        Dictionary<ItemId, int> consumed,
+        Dictionary<ItemId, int> consumedAtStep)
     {
         int count = ReadCount(step);
 
@@ -275,6 +287,7 @@ public static class CoherenceValidator
             foreach (PlanRecipeInput input in inputs)
             {
                 consumed[input.Item] = consumed.GetValueOrDefault(input.Item) + (input.Count * Math.Max(1, count));
+                consumedAtStep[input.Item] = stepIndex;
             }
 
             return;

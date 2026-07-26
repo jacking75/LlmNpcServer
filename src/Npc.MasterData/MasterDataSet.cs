@@ -591,6 +591,9 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     }
 
     /// <inheritdoc />
+    public string ItemName(ItemId item) => Items[item].Id;
+
+    /// <inheritdoc />
     public bool TryGetRecipeInputs(ItemId recipe, out ImmutableArray<PlanRecipeInput> inputs)
     {
         if (!Items.TryGetRecipe(Items[recipe].Id, out RecipeDef def))
