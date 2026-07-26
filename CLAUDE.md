@@ -179,7 +179,7 @@ Npc.Core       ←  외부 NuGet 의존 0. Contracts만 참조
 Npc.MasterData ←  Core
 Npc.Runtime    ←  Core, MasterData, Contracts, Planning
 Npc.Planning   ←  Core, MasterData
-Npc.Llm        ←  Core            (+ Microsoft.Extensions.AI)
+Npc.Llm        ←  Core, MasterData (+ Microsoft.Extensions.AI)
 Npc.Gateway    ←  Contracts
 Npc.Sim        ←  Contracts, MasterData
 Npc.Host       ←  전부

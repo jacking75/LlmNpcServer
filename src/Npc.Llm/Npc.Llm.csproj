@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    [W5~] 티어 라우터 · 프롬프트 조립. P1 에서는 비어 있다.
+    [W5~] 프롬프트 조립 · 플랜 컴파일러. docs/12 §2.
     CLAUDE.md §2.7 — LLM 호출은 반드시 IChatClient 추상화를 통한다.
     특정 제공사 SDK 를 이 프로젝트 밖에서 직접 부르지 않는다.
   -->
@@ -13,10 +13,28 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Npc.Core\Npc.Core.csproj" />
+    <!--
+      프롬프트 프리픽스는 actions.json · world_flags.json · archetypes.json 에서 생성한다
+      (docs/01 §10.1, CLAUDE.md §2.4 — 마스터데이터가 단일 원천이다).
+      docs/12 §3·§6 의 시그니처도 MasterDataSet 을 그대로 받는다.
+      Npc.MasterData 는 Npc.Core 만 참조하므로 이 간선으로 순환도, 틱 루프로 가는 길도 생기지 않는다.
+    -->
+    <ProjectReference Include="..\Npc.MasterData\Npc.MasterData.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.8.1" />
+    <!-- OpenAI 호환 엔드포인트 하나로 로컬(dotLLM · llama.cpp)과 외부를 같이 부른다 (T2-08). -->
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.8.1" />
+    <PackageReference Include="OpenAI" Version="2.12.0" />
+    <!--
+      프리픽스 하한 4,096 토큰(docs/01 §10.1 V9)과 서픽스 상한 300 토큰을 재려면 토크나이저가 있어야 한다.
+      오프라인 vocab 이 패키지에 포함되어 네트워크를 타지 않는다.
+    -->
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.0" />
+    <!-- Tokenizers 2.0.0 이 끌고 오는 Bcl.Memory 9.0.4 에 GHSA-73j8-2gch-69rq 취약점이 있다. 상향 고정. -->
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.10" />
   </ItemGroup>
 
 </Project>

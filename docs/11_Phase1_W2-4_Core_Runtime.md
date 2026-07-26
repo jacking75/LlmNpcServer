@@ -27,7 +27,7 @@ NpcServer.sln
 │  ├─ Npc.MasterData/       로더 · 검증 · 인덱스             (의존: Core)
 │  ├─ Npc.Runtime/          틱 · 실행기 · 인지 스캐너         (의존: Core, MasterData, Contracts, Planning)
 │  ├─ Npc.Planning/         [W7~] 캐시 · 재계획 큐            (의존: Core, MasterData)
-│  ├─ Npc.Llm/              [W5~] 티어 라우터 · 프롬프트      (의존: Core)
+│  ├─ Npc.Llm/              [W5~] 티어 라우터 · 프롬프트      (의존: Core, MasterData)
 │  ├─ Npc.Gateway/          IGameServerLink 구현체들         (의존: Contracts)
 │  ├─ Npc.Sim/              헤드리스 월드 (게임서버 대역)     (의존: Contracts, MasterData)
 │  └─ Npc.Host/             ASP.NET 호스트 · 메트릭 · 대시보드

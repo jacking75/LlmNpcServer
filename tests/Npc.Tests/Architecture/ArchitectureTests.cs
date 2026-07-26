@@ -16,7 +16,7 @@ public sealed class ArchitectureTests
         ["Npc.MasterData"] = ["Npc.Core"],
         ["Npc.Planning"] = ["Npc.Core", "Npc.MasterData"],
         ["Npc.Runtime"] = ["Npc.Contracts", "Npc.Core", "Npc.MasterData", "Npc.Planning"],
-        ["Npc.Llm"] = ["Npc.Core"],
+        ["Npc.Llm"] = ["Npc.Core", "Npc.MasterData"],
         ["Npc.Gateway"] = ["Npc.Contracts"],
         ["Npc.Sim"] = ["Npc.Contracts", "Npc.MasterData"],
         ["Npc.Host"] =
