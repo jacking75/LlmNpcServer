@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <!-- T2-02 — 생성된 플랜 스키마를 draft 2020-12 로 실제로 평가한다. 테스트 전용이다. -->
+    <PackageReference Include="JsonSchema.Net" Version="9.3.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
