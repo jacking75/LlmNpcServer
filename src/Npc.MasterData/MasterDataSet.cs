@@ -226,6 +226,84 @@ public sealed class BucketSpace
     public WorldFlags FlagsOf(Climate climate) => _climateFlags[(int)climate];
 
     /// <summary>
+    /// 플래그에서 지역 상태를 읽는다. <see cref="FlagsOf(RegionState)"/> 의 역이다.
+    /// 재계획 요청의 버킷 키와 시간대 전환이 같이 쓴다 (docs/14 §4·§5).
+    ///
+    /// <para><b>이 역은 일대일이 아니다.</b> <c>context_buckets.json</c> 이
+    /// <c>Peace</c>·<c>Alert</c> 에 같은 <c>RegionPeaceful</c> 을,
+    /// <c>War</c>·<c>Disaster</c> 에 같은 <c>RegionUnderAttack</c> 을 준다.
+    /// 플래그만으로는 둘을 가를 수 없으므로 <b>같은 플래그를 공유하는 상태 중
+    /// <c>prebake_priority</c> 가 가장 높은 것</b>을 대표로 고른다 —
+    /// 프리베이크가 먼저 채우는 버킷을 런타임도 먼저 찾게 하는 것이 캐시 히트율의 유일한 근거다.
+    /// 가중치는 마스터데이터에서 온다 (CLAUDE.md §2.4).</para>
+    ///
+    /// <para>⚠ <b>ordinal 내림차순으로 고르면 안 된다.</b> 그러면 <c>RegionPeaceful</c> 이
+    /// 늘 <c>Alert</c>(1) 로 읽혀 평시 NPC 전원이 <c>*.Alert.*</c> 버킷을 찾는다 —
+    /// 프리베이크는 <c>Peace</c>(가중치 10)를 먼저 채우므로 <b>평시가 통째로 캐시 미스</b>가 된다.
+    /// P1 의 <c>BucketTransition.RegionOf</c> 가 그렇게 되어 있었고 T4-13 에서 이 메서드로 교체했다.</para>
+    ///
+    /// <para><b>정확한 값은 존 상태 표에서 온다</b>(T4-13 <c>ZoneStateTable</c>).
+    /// 이 메서드는 그 표가 없는 경로의 최선 추정이다 — <c>Alert</c> 와 <c>Disaster</c> 는
+    /// 여기서 절대 나오지 않는다.</para>
+    /// </summary>
+    public RegionState RegionStateOf(WorldFlags flags)
+    {
+        int best = -1;
+        int bestPriority = int.MinValue;
+
+        for (int i = 0; i < _regionFlags.Length; i++)
+        {
+            WorldFlags required = _regionFlags[i];
+
+            // 플래그가 없는 상태는 "아무 플래그로도 식별되지 않는다" 는 뜻이라 후보가 아니다.
+            if (required == WorldFlags.None || (flags & required) != required)
+            {
+                continue;
+            }
+
+            int priority = PrebakePriorityOf((RegionState)i);
+
+            // 같으면 ordinal 이 작은 쪽 — 순서가 흔들리면 같은 상태가 회차마다 다른 버킷을 찾는다.
+            if (best >= 0 && priority <= bestPriority)
+            {
+                continue;
+            }
+
+            best = i;
+            bestPriority = priority;
+        }
+
+        return best < 0 ? RegionState.Peace : (RegionState)best;
+    }
+
+    /// <summary>
+    /// 플래그에서 기후를 읽는다. <see cref="FlagsOf(Climate)"/> 의 역이다.
+    ///
+    /// <b>역시 일대일이 아니다</b> — <c>Fair</c> 와 <c>Cold</c> 는 둘 다 플래그가 없다.
+    /// 플래그가 없는 상태는 후보에서 빠지므로 결과는 <c>Fair</c>(기본) 또는 <c>Storm</c> 이다.
+    /// <c>Cold</c> 를 정확히 알아야 하면 존 상태 표(T4-13)를 봐야 한다.
+    /// </summary>
+    public Climate ClimateOf(WorldFlags flags)
+    {
+        // 기후에는 prebake_priority 가 없다. 후보가 여럿이면 ordinal 이 작은 쪽을 고른다.
+        for (int i = 0; i < _climateFlags.Length; i++)
+        {
+            WorldFlags required = _climateFlags[i];
+
+            if (required != WorldFlags.None && (flags & required) == required)
+            {
+                return (Climate)i;
+            }
+        }
+
+        return Climate.Fair;
+    }
+
+    /// <summary>지금 상태의 버킷 키. 아키타입과 시간대는 밖에서 주고 나머지는 플래그에서 읽는다.</summary>
+    public BucketKey KeyOf(ArchetypeId archetype, TimeOfDay time, WorldFlags flags) =>
+        new(archetype, time, RegionStateOf(flags), ClimateOf(flags));
+
+    /// <summary>
     /// 이 지역 상태의 프리베이크 우선순위 가중치. <c>context_buckets.json</c> 의 <c>prebake_priority</c> (docs/01 §6).
     ///
     /// 클수록 먼저 만든다 — <b>중단되어도 실제로 많이 쓰이는 버킷이 먼저 채워져야 한다</b> (docs/13 §4).

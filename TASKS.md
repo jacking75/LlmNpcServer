@@ -91,9 +91,9 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | **P1** W2–4 코어·런타임·Sim | [`docs/11_Phase1_W2-4_TASKS.md`](docs/11_Phase1_W2-4_TASKS.md) | 62 | 62 | **게이트 통과** |
 | **P2** W5–6 플랜 컴파일러 | [`docs/12_Phase2_W5-6_TASKS.md`](docs/12_Phase2_W5-6_TASKS.md) | 24 | 23 | 태스크 완료 (T2-23 은 조건 미충족 `-`) — **게이트 3/7 미달** |
 | **P3** W7–8 플랜 캐시 | [`docs/13_Phase3_W7-8_TASKS.md`](docs/13_Phase3_W7-8_TASKS.md) | 21 | 19 | 진행 중 — T3-18(사람 검수) 미착수 · T3-21 `~`. **게이트 5/9** (기제 4항목 통과, 실측 산출물 대기) |
-| **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 9 | 진행 중 |
+| **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 10 | 진행 중 |
 | **P5** W11–12 검증·평가 | [`docs/15_Phase5_W11-12_TASKS.md`](docs/15_Phase5_W11-12_TASKS.md) | 20 | 0 | 미착수 |
-| | | **164** | **121** | |
+| | | **164** | **122** | |
 
 각 Phase 문서 맨 아래의 체크리스트에서 개별 태스크 상태를 관리한다.
 
@@ -158,6 +158,8 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/13 §8` · `docs/measurements/W8_prebake.md §3` | 전수 드라이런 건당 소요 "~50ms"(추정) → **0.02ms**(실측) | T3-15. 드라이런은 10Hz 틱을 굴리지 않고 액션 소요시간만큼 게임시간을 건너뛴다. 2,880건이 병렬도 1 로도 0.04초라 T3-15 의 "미달 시 병렬도를 올리기 전에 건당 소요부터 기록" 조항은 발동하지 않는다 |
 | 2026-07-26 | `docs/03 §7` | `planstore/manifest_history.jsonl` 추가 | T3-16. §7 이 "프리베이크를 돌 때마다 보존한다" 고 했는데 `manifest.json` 만 있으면 덮어쓰기라 지난 회차 숫자를 다시 못 본다 |
 | 2026-07-26 | `CLAUDE.md §1·§5` · `docs/13 §7` | 테스트 카테고리에 **`Gate`** 추가. CI 기본 필터를 `Category!=Golden&Category!=Gate` 로 | T3-21. 게이트 9항목 중 5개(생성 완료율·wall-clock·실비용·프롬프트 캐시 적중률·검수 채택률)는 실측 산출물이 있어야 판정된다. 산출물이 없을 때 통과로 세면 게이트가 거짓이 되므로 실패시키고, 대신 기본 CI 에서 뺐다. xunit 2.9 에는 `Assert.Skip` 이 없다 |
+| 2026-07-26 | `docs/14 §4` · `docs/14` T4-10 | `ReplanWorker` 의 자리를 `Npc.Planning` -> **`Npc.Host/Replan/`** 로. 일감 공급원을 `IReplanSource` 로 갈랐다 | T4-10. 워커는 `IPlanCompiler`(Npc.Llm)와 `NpcStore`(Npc.Runtime)를 둘 다 필요로 한다. `Npc.Planning` 에 두면 `Npc.Runtime -> Npc.Planning -> Npc.Llm` 경로가 생겨 **CLAUDE.md §3 의 핵심 금지("틱 루프에 LLM 이 들어올 길")가 깨진다.** 조립 루트가 유일하게 전부를 아는 곳이다 (`Program.cs` 주석) |
+| 2026-07-26 | `masterdata` 해석 (`BucketSpace`) | 플래그 -> 지역상태 역변환에 **`prebake_priority` 타이브레이크**를 도입. `RegionStateOf`/`ClimateOf`/`KeyOf` 를 `BucketSpace` 에 신설 | T4-10. **실제 결함이다.** `context_buckets.json` 이 Peace·Alert 에 같은 `RegionPeaceful` 을, War·Disaster 에 같은 `RegionUnderAttack` 을 준다. P1 의 `BucketTransition.RegionOf` 는 ordinal 내림차순으로 골라 **평시 NPC 전원을 `Alert` 로 판정**하고 있었다 — 프리베이크는 `Peace`(가중치 10)를 먼저 채우므로 평시가 통째로 캐시 미스가 된다. **P4 게이트 히트율 98% 항목에 직결.** 정확한 값은 T4-13 의 존 상태 표에서 온다 |
 | 2026-07-26 | `docs/14 §3` | **일일 토큰·비용 캡을 T2 전용으로** 명문화 (T1 은 초당 요청만). 강등 체인 `T2 -> T1 -> None` 과 `ReplanBudget.Alarm` 추가 | T4-06. 일일 토큰 캡이 T1 까지 막으면 캡 초과 순간 T1 도 같이 막혀 곧바로 거절이 되고, **P4 게이트 항목 7("일일 토큰 캡 초과 시 T2->T1 자동 강등")을 통과할 수 없다.** 토큰 캡은 비용의 대리 지표이고 로컬 토큰에는 대응하는 비용이 없다 — §3 표도 이미 "T1 은 GPU 용량, T2 는 rate limit + 비용" 이라고 적고 있었다. T1 사용량은 `LocalTokensToday` 로 관측만 한다 |
 | 2026-07-26 | `docs/14 §3` · `CLAUDE.md §3`(신규 파일) | 예산 상한 4개를 **실측치로 확정** (T1 0.195 · T2 2.5 req/s · 15M tok · $2). `Tier` 열거형과 `IReplanBudget` 계약을 **`Npc.Core`** 에 신설 | T4-05. (1) `TieredPlanCompiler`(Npc.Llm)가 `ReplanBudget`(Npc.Planning)을 참조할 수 없다 — 형제 프로젝트다. `IDryRunValidator`(T2-13)·`IPlanReuseSource`(T2-11) 와 같은 방법으로 계약만 Core 에 뒀다. (2) §3 표의 "미정" 둘(T2 초당 요청 · 일일 비용 캡)은 T2-19 첫 회차가 이미 돌아서 실측이 있다 (`W8_prebake.md §4` 파일럿 288버킷). (3) **일일 토큰 캡의 근거가 60배 틀렸다** — "20,000건/일의 2배" 는 요청당 375토큰 가정인데 실측은 23,109 tok/요청이다. 값 15M 은 유지했다: 20,000건은 T1(무비용)이 받고 T2 는 아키타입 플랜뿐이며, 전량 프리베이크는 런타임이 아니라 `BudgetGuard`(T3-09) 소관이다 |
 | 2026-07-26 | `docs/14 §2` (코드 블록) · `docs/14` T4-02 | `ReplanScorer.Score` 가 `NpcStore` 를 받지 않게 — 네 값만 `NpcReplanState` 로 받는다. 이탈 항에 `min(1, ...)` 추가. `Weights` 에 A/B 4세트 이름을 붙였다 | T4-02. `NpcStore` 는 `Npc.Runtime` 이고 `Npc.Runtime -> Npc.Planning` 이 이미 있어 역참조는 순환이다 (CLAUDE.md §3). 이탈 항에 상한이 없으면 플래그가 9개 이상 어긋난 NPC 하나가 인터럽트 기준값(1000) 근처까지 올라간다. 쓰기 경로 두 곳(`PlanExecutor.AssignPlan` 배정 틱 · `InterruptMatcher.Handle` 긴급도)을 태스크 파일 목록에 없던 두 파일에 추가했다 |
