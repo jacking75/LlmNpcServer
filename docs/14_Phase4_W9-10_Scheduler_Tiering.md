@@ -68,30 +68,54 @@ public sealed class ReplanQueue
 
 ```csharp
 // Npc.Planning/ReplanScorer.cs
-public static float Score(int i, NpcStore s, CompiledPlan plan, Tick now, in Weights w)
+//
+// NpcStore 를 받지 않는다 — 계산에 쓰는 네 값만 값 타입으로 받는다 (아래 주의 참조).
+public readonly record struct NpcReplanState(
+    byte Lod, WorldFlags Flags, long PlanAssignedTick, byte PendingUrgency);
+
+public static float Score(in NpcReplanState s, CompiledPlan plan, Tick now, in Weights w)
 {
-    float proximity = s.Lod[i] switch { 0 => 1.0f, 1 => 0.5f, 2 => 0.1f, _ => 0.0f };
-    float staleness = MathF.Min(1f, (now.Value - s.PlanAssignedTick[i]) / (float)w.StaleTicks);
-    float deviation = BitOperations.PopCount(
-                          (ulong)((plan.RequiredFlags & ~s.Flags[i]) |
-                                  (plan.ForbiddenFlags &  s.Flags[i]))) / 8f;
-    float urgency   = s.PendingUrgency[i] / 100f;      // 인터럽트가 넣은 값
+    float proximity = s.Lod switch { 0 => 1.0f, 1 => 0.5f, 2 => 0.1f, _ => 0.0f };
+    float staleness = MathF.Min(1f, (now.Value - s.PlanAssignedTick) / (float)w.StaleTicks);
+    float deviation = MathF.Min(1f, BitOperations.PopCount(
+                          (ulong)((plan.RequiredFlags & ~s.Flags) |
+                                  (plan.ForbiddenFlags &  s.Flags))) / 8f);
+    float urgency   = s.PendingUrgency / 100f;         // 인터럽트가 넣은 값
 
     return w.W1 * proximity + w.W2 * staleness + w.W3 * deviation + w.W4 * urgency;
 }
 
 public readonly record struct Weights(float W1, float W2, float W3, float W4, int StaleTicks)
 {
-    // W10에서 튜닝. 초기값:
-    public static readonly Weights Default = new(W1: 3.0f, W2: 0.5f, W3: 2.0f, W4: 4.0f, StaleTicks: 36_000);
+    // W10(T4-17)에서 튜닝. 초기값 = B 세트:
+    public static readonly Weights Default = Baseline;
+
+    // 아래 표의 4세트. T4-17 의 A/B 가 Weights.AbSets 로 이 순서대로 돈다.
+    public static Weights ProximityFirst => new(5.0f, 0.2f, 1.5f, 4.0f, 36_000);
+    public static Weights Baseline       => new(3.0f, 0.5f, 2.0f, 4.0f, 36_000);
+    public static Weights DeviationFirst => new(2.0f, 0.3f, 4.0f, 4.0f, 36_000);
+    public static Weights Uniform        => new(1.0f, 1.0f, 1.0f, 1.0f, 36_000);
 }
 ```
 
 **`W1`(플레이어 근접도)을 크게 잡는 것이 핵심이다.** 이게 §2.2에서 지적한 "관측되지 않는 연산" 문제의 해결책이다. LOD 3(비활성) NPC는 `proximity = 0`이라 인터럽트가 없는 한 사실상 재계획되지 않는다.
 
-> **`PlanAssignedTick`·`PendingUrgency` 는 `NpcStore` 에 아직 없다.** T4-02에서 추가한다.
-> 둘 다 재계획 경로에서만 읽으므로 **콜드 영역**에 둔다 — 핫 배열에 넣으면 `HotBytesPerNpc`(현재 23B/NPC)가 늘어 `docs/11 §3`의 L2 목표가 깨진다.
-> **점수 타입도 바뀐다.** P1 스텁은 `TryEnqueue(int npc, int score)` 다. `float` 로 넓히면 호출부 3곳(`CognitionScheduler`·`InterruptMatcher`·`PlanExecutor`)을 같이 고쳐야 한다.
+네 항이 모두 [0, 1] 로 정규화되므로 점수 상한은 `W1+W2+W3+W4`(기본 9.5) 이고, 인터럽트가 넣는 `1000 + urgency` 와 겹치지 않는다. **이탈 항에도 `min(1, …)` 이 필요하다** — 없으면 플래그가 9개 이상 어긋난 NPC 하나가 인터럽트 근처까지 올라간다.
+
+> ⚠ **`Score` 는 `NpcStore` 를 받을 수 없다.** `NpcStore` 는 `Npc.Runtime` 에 있고
+> `Npc.Runtime → Npc.Planning` 이 이미 있어(CLAUDE.md §3) 역방향 참조는 순환이다.
+> `IPlanVocabulary`(T1-23)·`IDryRunValidator`(T2-13) 와 같은 방법으로 갈랐다 —
+> 계산에 실제로 쓰이는 네 값을 `NpcReplanState`(17바이트, 할당 0) 로 받고,
+> SoA 배열에서 뽑아 넘기는 것은 `CognitionScheduler`(Npc.Runtime) 가 한다.
+>
+> **`PlanAssignedTick`·`PendingUrgency` 는 T4-02 에서 `NpcStore` 에 추가했다.**
+> 둘 다 재계획 경로에서만 읽으므로 **콜드 영역**이다 — 핫 배열에 넣으면 `HotBytesPerNpc`(23B/NPC)가
+> 늘어 `docs/11 §3`의 L2 목표가 깨진다.
+> 쓰는 곳은 두 군데다: `PlanExecutor.AssignPlan`(배정 틱 기록 + 긴급도 소진)과
+> `InterruptMatcher.Handle`(긴급도 기록). 후자는 큐에도 넣지만 **큐와 별개로 남긴다** —
+> 큐에서 밀려나거나 인터럽트 슬롯 상한(T4-03)에 걸린 NPC 도 다음 스캔에서 우대받아야 한다.
+>
+> **점수 타입도 바뀌었다** (T4-01). P1 스텁은 `TryEnqueue(int npc, int score)` 였다.
 
 ### 가중치 튜닝 절차 (W10)
 

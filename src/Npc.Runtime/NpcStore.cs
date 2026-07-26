@@ -113,6 +113,22 @@ public sealed class NpcStore
     public int[] PendingPlanId = [];
 
     /// <summary>
+    /// 지금 플랜을 배정한 틱. 재계획 점수의 "노후" 항이 본다 (docs/14 §2).
+    ///
+    /// <b>콜드 영역이다.</b> 재계획 경로에서만 읽으므로 핫 배열에 넣으면
+    /// <see cref="HotBytesPerNpc"/> 가 8B 늘어 docs/11 §3 의 L2 목표가 깨진다.
+    /// </summary>
+    public long[] PlanAssignedTick = [];
+
+    /// <summary>
+    /// 인터럽트가 남긴 긴급도 0~100. 재계획 점수의 "긴급" 항이 본다 (docs/14 §2).
+    ///
+    /// <c>InterruptRule.Urgency</c> 가 0~100 이라 <see cref="byte"/> 로 충분하다.
+    /// 새 플랜이 배정되면 소진된 것으로 보고 0 으로 되돌린다.
+    /// </summary>
+    public byte[] PendingUrgency = [];
+
+    /// <summary>
     /// 마지막으로 처리한 이벤트 시퀀스. 멱등성 판정에 쓴다 (N7).
     /// NPC 단위가 아니라 링크 단위지만, NPC 별 중복 이벤트를 걸러야 해서 여기 둔다.
     /// </summary>
@@ -170,6 +186,8 @@ public sealed class NpcStore
             : throw new ArgumentOutOfRangeException(nameof(capacity), "인벤토리 배열이 int 범위를 넘는다.")];
         Recent = new RingBuffer8<RecentEvent>[capacity];
         PendingPlanId = new int[capacity];
+        PlanAssignedTick = new long[capacity];
+        PendingUrgency = new byte[capacity];
         LastEventSequence = new long[capacity];
         LastFailReason = new byte[capacity];
         StepRetries = new byte[capacity];

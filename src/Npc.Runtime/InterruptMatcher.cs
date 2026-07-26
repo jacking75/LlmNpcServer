@@ -132,6 +132,10 @@ public sealed class InterruptMatcher
 
         // 후속 재계획. 즉시 반응이 먼저고 계획은 나중이다.
         // 인터럽트는 일반 점수 범위를 넘어서게 넣는다 (docs/14 §2 의 1000 + urgency).
+        //
+        // 긴급도는 큐뿐 아니라 NpcStore 에도 남긴다 — 큐에서 밀려나거나 인터럽트 슬롯 상한(T4-03)에
+        // 걸린 NPC 도 다음 인지 스캔의 점수(ReplanScorer 의 긴급 항)에서 우대받아야 한다.
+        _store.PendingUrgency[npc] = (byte)Math.Clamp(rule.Urgency, 0, byte.MaxValue);
         queue?.TryEnqueueUrgent(npc, rule.Urgency);
 
         return true;

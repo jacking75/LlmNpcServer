@@ -29,6 +29,13 @@ public sealed class PlanExecutor
     private readonly int _timeScale;
     private readonly NpcCommand[] _batch = new NpcCommand[CommandEmitter.MaxCommandsPerStep];
 
+    /// <summary>
+    /// 마지막으로 처리한 틱. <see cref="AssignPlan"/> 이 배정 시각을 남길 때 쓴다 (docs/14 §2).
+    /// 실행기가 현재 시각을 스스로 알면 안 되므로 <see cref="Step"/> 이 들고 온 값만 기억한다 —
+    /// <c>GameClock</c> 을 참조하지 않는 이유와 같다.
+    /// </summary>
+    private long _tick;
+
     /// <summary>실행기를 만든다. 기동 시 1회.</summary>
     /// <param name="data">마스터데이터.</param>
     /// <param name="store">NPC 상태.</param>
@@ -94,6 +101,8 @@ public sealed class PlanExecutor
     {
         ArgumentNullException.ThrowIfNull(link);
 
+        _tick = tick.Value;
+
         for (int i = 0; i < _store.Count; i++)
         {
             switch ((StepStatus)_store.StepStatus[i])
@@ -145,6 +154,7 @@ public sealed class PlanExecutor
             return;
         }
 
+        _tick = tick.Value;
         _correlations.Invalidate(npc);
 
         CorrelationId correlation = _correlations.Next(npc);
@@ -163,12 +173,20 @@ public sealed class PlanExecutor
         _store.StepIssuedTick[npc] = tick.Value;
     }
 
-    /// <summary>플랜을 갈아끼운다. 스텝은 0 으로 되돌리고 상관 ID 를 무효화한다.</summary>
+    /// <summary>
+    /// 플랜을 갈아끼운다. 스텝은 0 으로 되돌리고 상관 ID 를 무효화한다.
+    ///
+    /// 배정 시각과 긴급도도 여기서 정리한다 — 재계획 점수의 "노후"·"긴급" 항의 기준점이다
+    /// (docs/14 §2). 시각은 마지막 <see cref="Step"/> 의 틱이다. 기동 시 인구 배치처럼
+    /// 틱 루프 밖에서 부르면 0 이고, 그것이 곧 "게임 시작부터 이 플랜" 이라 맞다.
+    /// </summary>
     public void AssignPlan(int npc, PlanId plan)
     {
         _store.PlanId[npc] = plan.Value;
         _store.StepIndex[npc] = 0;
         _store.StepRetries[npc] = 0;
+        _store.PlanAssignedTick[npc] = _tick;
+        _store.PendingUrgency[npc] = 0;
         _correlations.Invalidate(npc);
 
         if ((StepStatus)_store.StepStatus[npc] != StepStatus.Unspawned)

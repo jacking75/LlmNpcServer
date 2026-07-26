@@ -30,7 +30,14 @@ public sealed class CognitionScheduler
     private readonly int[] _cursor = new int[LodBandSet.BandCount];
 
     /// <summary>스캐너를 만든다. 기동 시 1회.</summary>
-    public CognitionScheduler(NpcStore store, LodBandSet bands, PlanStore plans)
+    /// <param name="store">NPC 상태.</param>
+    /// <param name="bands">LOD 밴드 멤버십.</param>
+    /// <param name="plans">플랜 스토어.</param>
+    /// <param name="weights">
+    /// 재계획 점수 가중치. 기본은 <see cref="Weights.Default"/> 다 —
+    /// T4-17 의 A/B 스크립트가 세트를 바꿔 끼우려고 옵션으로 뺐다 (docs/14 §2 튜닝 절차).
+    /// </param>
+    public CognitionScheduler(NpcStore store, LodBandSet bands, PlanStore plans, Weights? weights = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(bands);
@@ -39,7 +46,11 @@ public sealed class CognitionScheduler
         _store = store;
         _bands = bands;
         _plans = plans;
+        Weights = weights ?? Weights.Default;
     }
+
+    /// <summary>이 스캐너가 쓰는 가중치. 대시보드·A/B 리포트가 무엇으로 돌았는지 적을 때 읽는다.</summary>
+    public Weights Weights { get; }
 
     /// <summary>마지막 틱에 판정한 NPC 수. 대시보드의 "인지 스캔 대상/틱".</summary>
     public int LastScanned { get; private set; }
@@ -104,7 +115,7 @@ public sealed class CognitionScheduler
                 }
 
                 Deviations++;
-                queue.TryEnqueue(npc, Score(npc, band));
+                queue.TryEnqueue(npc, Score(npc, plan, tick));
             }
         }
 
@@ -113,12 +124,18 @@ public sealed class CognitionScheduler
     }
 
     /// <summary>
-    /// 재계획 우선순위 점수. 밴드만 본다 (가까울수록 급하다).
-    /// 정식 가중치(플레이어 근접 · 플랜 노후 · 전제 이탈 · 긴급도)는 T4-02 의 <c>ReplanScorer</c> 다.
+    /// 재계획 우선순위 점수. 네 항의 가중합이다 — 근접 · 노후 · 이탈 · 긴급 (docs/14 §2).
+    ///
+    /// 계산은 <see cref="ReplanScorer"/>(Npc.Planning) 가 한다. 여기서는 SoA 배열에서
+    /// 네 값을 뽑아 넘기기만 한다 — <c>Npc.Planning</c> 은 <c>NpcStore</c> 를 모른다 (CLAUDE.md §3).
     /// </summary>
-    private static float Score(int npc, int band)
-    {
-        _ = npc;
-        return (LodBandSet.BandCount - band) * 10f;
-    }
+    private float Score(int npc, CompiledPlan plan, Tick tick) => ReplanScorer.Score(
+        new NpcReplanState(
+            _store.Lod[npc],
+            _store.Flags[npc],
+            _store.PlanAssignedTick[npc],
+            _store.PendingUrgency[npc]),
+        plan,
+        tick,
+        Weights);
 }
