@@ -217,6 +217,65 @@ public sealed class DryRunValidatorTests
             ValidationContext.SeedOf(Bucket("blacksmith", TimeOfDay.Night)));
     }
 
+    /// <summary>
+    /// T2-14 — 흔적까지 같아야 한다. 판정만 같고 안이 흔들리면 언젠가 경계에서 갈라진다.
+    /// 폴백 40종 × 버킷 4종을 20회씩 돌린다.
+    /// </summary>
+    [Fact]
+    public void DryRun_IsDeterministic_AcrossArchetypesAndBuckets()
+    {
+        (TimeOfDay Time, RegionState Region, Climate Climate)[] contexts =
+        [
+            (TimeOfDay.Dawn, RegionState.Peace, Climate.Fair),
+            (TimeOfDay.Noon, RegionState.War, Climate.Storm),
+            (TimeOfDay.Evening, RegionState.Alert, Climate.Cold),
+            (TimeOfDay.Night, RegionState.Disaster, Climate.Fair),
+        ];
+
+        foreach (ArchetypeDef archetype in s_data.Archetypes.Archetypes)
+        {
+            CompiledPlan? fallback = s_data.Fallbacks!.For(archetype.Code);
+            Assert.NotNull(fallback);
+
+            foreach ((TimeOfDay time, RegionState region, Climate climate) in contexts)
+            {
+                var bucket = new BucketKey(archetype.Code, time, region, climate);
+                CompiledPlan plan = fallback! with { Bucket = bucket };
+
+                ValidationResult first = s_validator.Validate(plan);
+
+                for (int i = 0; i < 20; i++)
+                {
+                    Assert.Equal(first, s_validator.Validate(plan));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// T2-14 — 드라이런 경로에 시각·난수원이 없어야 한다.
+    /// "새 Random 을 만들지 않는다"는 규칙은 주석이 아니라 검사로 지킨다 (CLAUDE.md §2.3).
+    /// </summary>
+    [Theory]
+    [InlineData("src/Npc.Sim/SimWorld.Minimal.cs")]
+    [InlineData("src/Npc.Sim/Validation/DryRunValidator.cs")]
+    public void DryRun_HasNoClockOrUnseededRandom(string relativePath)
+    {
+        string source = File.ReadAllText(TestPaths.At(relativePath.Split('/')));
+
+        foreach (string banned in new[]
+        {
+            "new Random", "Random.Shared", "DateTime.", "DateTimeOffset.",
+            "Stopwatch", "Guid.NewGuid", "Environment.TickCount",
+        })
+        {
+            Assert.DoesNotContain(banned, source, StringComparison.Ordinal);
+        }
+
+        // 난수는 시드에서만 나온다.
+        Assert.Contains("Options.Seed", source, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void DryRun_AcceptsEveryFallbackPlan()
     {

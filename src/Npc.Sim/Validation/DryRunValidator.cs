@@ -23,6 +23,17 @@ public sealed class DryRunValidator(MasterDataSet data) : IDryRunValidator
     /// <summary><c>loop</c> 플랜의 한 사이클이 이보다 짧으면 <c>V4.INFINITE_LOOP</c>. docs/03 §3.</summary>
     public const int MinCycleGameHours = 24;
 
+    /// <summary>
+    /// 플랜의 버킷에서 상황을 통째로 유도해 돌린다. <b>호출자가 시드를 정할 수 없다</b> —
+    /// 시드를 밖에서 넣을 수 있으면 언젠가 시각이나 난수가 섞이고, 그 순간 골든 테스트가 흔들린다.
+    /// </summary>
+    public ValidationResult Validate(CompiledPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        return Validate(plan, ValidationContext.For(plan.Bucket, _data.InitialFlags(plan.Bucket)));
+    }
+
     /// <inheritdoc />
     public ValidationResult Validate(CompiledPlan plan, ValidationContext context)
     {
