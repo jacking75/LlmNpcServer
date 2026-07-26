@@ -64,6 +64,34 @@ public sealed class DashboardTests
     }
 
     /// <summary>
+    /// T4-20 완료 조건 — 비용 패널의 4요소(누적 토큰/비용 · 일일 캡 소진율 ·
+    /// 티어별 분해 · 프롬프트 캐시 적중률) + 프리픽스 SHA 유니크 카운트(R11 감시).
+    /// </summary>
+    [Fact]
+    public void Dashboard_HasCostPanel()
+    {
+        Assert.Contains("id=\"p-cost\"", s_html, StringComparison.Ordinal);
+
+        foreach (string field in new[]
+        {
+            "c.promptTokens", "c.completionTokens", "c.costUsd",
+            "c.tokenCapUsage", "c.costCapUsage",
+            "c.t1Calls", "c.t2Calls",
+            "c.promptCacheHitRate", "c.uniquePrefixHashes",
+        })
+        {
+            Assert.Contains(field, s_html, StringComparison.Ordinal);
+        }
+
+        // 로컬 티어는 cached_tokens 가 항상 0 이다 — 0% 로 그리면 캐시가 안 걸린 것처럼 보인다.
+        Assert.Contains("c.promptCacheReported", s_html, StringComparison.Ordinal);
+        Assert.Contains("미보고", s_html, StringComparison.Ordinal);
+
+        // 프리픽스 SHA 가 2종 이상이면 즉시 경보다.
+        Assert.Contains("c.uniquePrefixHashes > 1 ? \"bad\"", s_html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 외부 의존이 없어야 한다. 이 서버는 인터넷이 없는 사내망에서도 뜬다 —
     /// CDN 스크립트 하나가 섞이면 거기서는 빈 화면이 나온다.
     /// </summary>
@@ -119,6 +147,11 @@ public sealed class DashboardTests
                         "urgentCount", "urgentDropped", "scoreHistogram", "tiers", "staleDiscarded"]),
             ("cache", ["hitRate", "hits", "misses", "filledBuckets", "coldBuckets", "pinnedBuckets",
                        "individualTurnover", "individualLive", "worstArchetypes"]),
+            ("cost", ["enabled", "engine", "calls", "promptTokens", "completionTokens", "costUsd",
+                      "promptCacheHitRate", "promptCacheReported", "uniquePrefixHashes",
+                      "tokensToday", "localTokensToday", "tokenCapUsage", "costToday", "costCapUsage",
+                      "downgrades", "rejections", "failovers", "breakerState",
+                      "t1Calls", "t2Calls", "spillovers"]),
         ];
 
         foreach ((string panel, string[] fields) in used)

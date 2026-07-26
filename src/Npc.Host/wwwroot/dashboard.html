@@ -68,6 +68,10 @@
     <table id="p-replan-histogram"></table>
   </section>
   <section>
+    <h2>비용 · 티어</h2>
+    <table id="p-cost"></table>
+  </section>
+  <section>
     <h2>플랜 캐시</h2>
     <div id="p-cache-spark" class="spark"></div>
     <table id="p-cache"></table>
@@ -208,7 +212,42 @@ function render(m) {
 
   renderTiers(r.tiers);
   renderHistogram(r.scoreHistogram, r.queueDepth);
+  renderCost(m.cost);
   renderCache(m.cache);
+}
+
+// 비용 패널. docs/14 §8 (T4-20).
+function renderCost(c) {
+  if (!c || !c.enabled) {
+    rows($("p-cost"), [["—", "티어 꺼짐 (--tier none) · 런타임 LLM 호출 없음"]]);
+    return;
+  }
+
+  // ⚠ 로컬 티어는 cached_tokens 를 항상 0 으로 보고한다 (W1_env.md §4.4).
+  //    0% 로 그리면 "캐시가 안 걸렸다" 로 읽히므로 "미보고" 로 적는다.
+  const cacheCell = c.promptCacheReported
+    ? [(100 * c.promptCacheHitRate).toFixed(1) + " %", gradeAtLeast(c.promptCacheHitRate, 0.95)]
+    : ["미보고 (로컬 엔진)", "warn"];
+
+  rows($("p-cost"), [
+    ["엔진", c.engine],
+    ["호출", `${c.calls} (T1 ${c.t1Calls} · T2 ${c.t2Calls})`],
+    ["토큰", `입력 ${c.promptTokens.toLocaleString()} · 출력 ${c.completionTokens.toLocaleString()}`],
+    ["누적 비용", "$" + c.costUsd.toFixed(4)],
+    ["프롬프트 캐시 적중", cacheCell[0], cacheCell[1]],
+    // 프리픽스 SHA 가 2종 이상이면 프롬프트 캐시가 깨진 것이다 (docs/01 §10.2 · 리스크 R11).
+    ["프리픽스 SHA 종류", c.uniquePrefixHashes, c.uniquePrefixHashes > 1 ? "bad" : "ok"],
+    ["일일 토큰 캡", bar(c.tokenCapUsage, 1,
+      `${(100 * c.tokenCapUsage).toFixed(1)} % · ${c.tokensToday.toLocaleString()} tok`)],
+    ["일일 비용 캡", bar(c.costCapUsage, 1,
+      `${(100 * c.costCapUsage).toFixed(1)} % · $${c.costToday.toFixed(4)}`)],
+    ["로컬 토큰(캡 밖)", c.localTokensToday.toLocaleString()],
+    ["T2→T1 강등", c.downgrades, c.downgrades > 0 ? "warn" : "ok"],
+    ["거절", c.rejections, c.rejections > 0 ? "warn" : "ok"],
+    ["T2 페일오버", c.failovers, c.failovers > 0 ? "warn" : "ok"],
+    ["스필오버", c.spillovers, c.spillovers > 0 ? "warn" : "ok"],
+    ["서킷 브레이커", c.breakerState, c.breakerState === "Closed" ? "ok" : "bad"],
+  ]);
 }
 
 // 티어별 처리율. docs/14 §8 (T4-19).

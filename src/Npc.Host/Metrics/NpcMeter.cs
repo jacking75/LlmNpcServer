@@ -174,6 +174,62 @@ public readonly record struct CachePanel(
     BucketMissRow[] TopMisses,
     ArchetypeCacheRow[] WorstArchetypes);
 
+/// <summary>
+/// 비용 패널. docs/14 §8 · T4-20.
+///
+/// <b>로컬 티어는 <c>cached_tokens</c> 를 항상 0 으로 보고한다</b> (<c>W1_env.md §4.4</c>) —
+/// 그것을 0% 로 그리면 "캐시가 안 걸렸다" 로 읽힌다. 그래서
+/// <see cref="PromptCacheReported"/> 로 "잴 수 있는 값인가" 를 따로 낸다.
+/// </summary>
+/// <param name="Enabled">티어가 켜져 있는가. 꺼져 있으면 나머지는 전부 0 이다.</param>
+/// <param name="Engine">쓰고 있는 엔진 id. 티어가 꺼져 있으면 빈 문자열.</param>
+/// <param name="Calls">호출 수 (재시도 포함).</param>
+/// <param name="PromptTokens">입력 토큰 누계.</param>
+/// <param name="CompletionTokens">출력 토큰 누계.</param>
+/// <param name="CostUsd">비용 누계(USD).</param>
+/// <param name="PromptCacheHitRate">프롬프트 캐시 적중률 (입력 토큰 기준).</param>
+/// <param name="PromptCacheReported">
+/// 엔진이 캐시 적중 토큰을 실제로 보고하는가. <b>false 면 적중률을 0% 가 아니라 "미보고" 로 그린다.</b>
+/// </param>
+/// <param name="UniquePrefixHashes">
+/// 관측된 프리픽스 SHA 종류 수. <b>1 이 아니면 즉시 경보다</b> — 프롬프트 캐시가 깨졌다는 뜻이다
+/// (docs/01 §10.2 · 리스크 R11).
+/// </param>
+/// <param name="TokensToday">오늘 쓴 T2 토큰. 일일 캡의 대상이다.</param>
+/// <param name="LocalTokensToday">오늘 쓴 T1 토큰. 캡의 대상이 아니다.</param>
+/// <param name="TokenCapUsage">일일 토큰 캡 소진율 0~1.</param>
+/// <param name="CostToday">오늘 쓴 비용(USD).</param>
+/// <param name="CostCapUsage">일일 비용 캡 소진율 0~1.</param>
+/// <param name="Downgrades">T2 → T1 자동 강등 횟수.</param>
+/// <param name="Rejections">예산 소진으로 거절한 횟수.</param>
+/// <param name="Failovers">T2 장애로 T1 에 넘긴 횟수.</param>
+/// <param name="BreakerState">서킷 브레이커 상태.</param>
+/// <param name="T1Calls">T1 으로 처리한 요청 수.</param>
+/// <param name="T2Calls">T2 로 처리한 요청 수.</param>
+/// <param name="Spillovers">T1 큐 폭주로 T2 에 흘린 횟수.</param>
+public readonly record struct CostPanel(
+    bool Enabled,
+    string Engine,
+    long Calls,
+    long PromptTokens,
+    long CompletionTokens,
+    double CostUsd,
+    double PromptCacheHitRate,
+    bool PromptCacheReported,
+    int UniquePrefixHashes,
+    long TokensToday,
+    long LocalTokensToday,
+    double TokenCapUsage,
+    double CostToday,
+    double CostCapUsage,
+    long Downgrades,
+    long Rejections,
+    long Failovers,
+    string BreakerState,
+    long T1Calls,
+    long T2Calls,
+    long Spillovers);
+
 /// <summary>대시보드가 폴링하는 /metrics 한 장. docs/11 §10 의 5패널 + docs/13 §6 의 캐시 패널.</summary>
 /// <param name="Tick">틱 패널.</param>
 /// <param name="Npc">NPC 패널.</param>
@@ -181,6 +237,7 @@ public readonly record struct CachePanel(
 /// <param name="Link">링크 패널 (N6 시퀀스 갭 포함).</param>
 /// <param name="Replan">재계획 패널.</param>
 /// <param name="Cache">플랜 캐시 패널 (docs/13 §6).</param>
+/// <param name="Cost">비용 패널 (docs/14 §8).</param>
 /// <param name="LlmCalls">
 /// LLM 호출 수 (재시도 포함). 컴파일 계측기가 붙어 있지 않으면 0 이다 —
 /// <c>--no-llm</c> 으로 도는 P1 경로가 그렇다.
@@ -192,7 +249,8 @@ public readonly record struct MetricsSnapshot(
     LinkPanel Link,
     ReplanPanel Replan,
     CachePanel Cache,
-    long LlmCalls);
+    long LlmCalls,
+    CostPanel Cost = default);
 
 /// <summary>
 /// 호스트 계측. docs/11 §9 · §10.
@@ -510,7 +568,8 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
                 Tiers: TierRows(seconds),
                 StaleDiscarded: _tiers?.Individual?.Discarded ?? 0),
             Cache: CacheOf(_cache.Snapshot()),
-            LlmCalls: _compile?.Calls ?? 0);
+            LlmCalls: _compile?.Calls ?? 0,
+            Cost: CostOf());
     }
 
     /// <summary>캐시 계측. 게이트 러너가 히트율을 여기서 읽는다.</summary>
@@ -555,6 +614,49 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         EventsDrained: _loop.EventsDrained,
         EventGaps: _loop.EventGaps,
         EventBacklogs: _loop.EventBacklogs);
+
+    /// <summary>
+    /// 비용 패널. docs/14 §8 (T4-20).
+    ///
+    /// 티어가 꺼져 있으면 <c>Enabled=false</c> 하나만 의미가 있다 —
+    /// 0 으로 채운 값을 그리면 "돌고 있는데 비용 0" 으로 읽힌다.
+    /// </summary>
+    private CostPanel CostOf()
+    {
+        if (_tiers is not { Enabled: true } tiers || _compile is not { } stats)
+        {
+            return default;
+        }
+
+        ReplanBudget? budget = tiers.Budget;
+
+        // 로컬 엔진은 cached_tokens 를 항상 0 으로 보고한다 (W1_env.md §4.4).
+        // 적중률이 0 인 것과 "잴 수 없는 것" 은 다르다.
+        bool reported = stats.CachedTokens > 0 || tiers.Mode is TierMode.T2 or TierMode.All;
+
+        return new CostPanel(
+            Enabled: true,
+            Engine: tiers.EngineIds,
+            Calls: stats.Calls,
+            PromptTokens: stats.PromptTokens,
+            CompletionTokens: stats.CompletionTokens,
+            CostUsd: Math.Round(stats.CostUsd, 6),
+            PromptCacheHitRate: Math.Round(stats.CacheHitRate, 4),
+            PromptCacheReported: reported,
+            UniquePrefixHashes: stats.UniquePrefixHashes,
+            TokensToday: budget?.TokensToday ?? 0,
+            LocalTokensToday: budget?.LocalTokensToday ?? 0,
+            TokenCapUsage: Math.Round(budget?.TokenCapUsage ?? 0, 4),
+            CostToday: Math.Round(budget?.CostToday ?? 0, 6),
+            CostCapUsage: Math.Round(budget?.CostCapUsage ?? 0, 4),
+            Downgrades: budget?.Downgrades ?? 0,
+            Rejections: budget?.Rejections ?? 0,
+            Failovers: tiers.Router?.Failovers ?? 0,
+            BreakerState: (tiers.Breaker?.StateAt(_clock.Current) ?? CircuitState.Closed).ToString(),
+            T1Calls: tiers.Router?.T1Calls ?? 0,
+            T2Calls: tiers.Router?.T2Calls ?? 0,
+            Spillovers: tiers.Router?.Spillovers ?? 0);
+    }
 
     /// <summary>점수 분포. 배열은 매 스냅샷마다 새로 만든다 — 대시보드가 JSON 으로 가져간다.</summary>
     private int[] Histogram()

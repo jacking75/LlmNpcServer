@@ -52,6 +52,9 @@ internal sealed class TierWiring : IAsyncDisposable
     /// <summary>티어가 하나라도 켜졌는가.</summary>
     public bool Enabled => _workers.Count > 0;
 
+    /// <summary>쓰고 있는 엔진 id. 티어가 꺼져 있으면 빈 문자열이다. 대시보드 비용 패널이 읽는다.</summary>
+    public string EngineIds { get; private set; } = string.Empty;
+
     /// <summary>
     /// 옵션대로 조립한다. 기동 시 1회.
     ///
@@ -157,8 +160,20 @@ internal sealed class TierWiring : IAsyncDisposable
                 new ReplanWorker(wiring.Buckets, router, () => clock.Current, options.T2Workers));
         }
 
+        wiring.EngineIds = string.Join(
+            " + ",
+            new[]
+            {
+                t1 is null ? null : $"T1 {EngineIdOf(t1)}",
+                t2 is null ? null : $"T2 {EngineIdOf(t2)}",
+            }.Where(s => s is not null));
+
         return wiring;
     }
+
+    /// <summary>컴파일러가 쓰는 엔진 id. 라우터가 아닌 실제 컴파일러에서 읽는다.</summary>
+    private static string EngineIdOf(IPlanCompiler compiler) =>
+        compiler is LlmPlanCompiler llm ? llm.Engine.Id : "?";
 
     /// <summary>워커를 띄운다. 틱 루프와 다른 스레드에서 돈다 (CLAUDE.md §2.1).</summary>
     public async Task StartAsync(CancellationToken ct)
