@@ -259,7 +259,7 @@
         "count": { "type": "int", "min": 1, "max": 10, "default": 1 }
       },
       "requires": ["HasRawMaterial"],
-      "requires_any": ["AtHome", "AtTavern"],
+      "requires_any": ["AtHome", "AtTavern", "AtWorkplace"],
       "forbids": ["IsSleeping"],
       "grants": ["HasFood"],
       "clears": ["HasRawMaterial"],

@@ -16,6 +16,7 @@ string outPath = "./docs/measurements/W6_run.jsonl";
 int limit = 0;
 int concurrency = 8;
 int stride = 1;
+bool printPrefix = false;
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -49,6 +50,10 @@ for (int i = 0; i < args.Length; i++)
             concurrency = int.Parse(args[++i], CultureInfo.InvariantCulture);
             break;
 
+        case "--print-prefix":
+            printPrefix = true;
+            break;
+
         case "--help" or "-h":
             Console.WriteLine(
                 """
@@ -61,6 +66,7 @@ for (int i = 0; i < args.Length; i++)
                   --limit <n>          앞에서 n 개만 (0 = 전량 2,880)
                   --stride <n>         버킷을 n 간격으로 골라 표본을 흩는다 (기본 1)
                   --concurrency <n>    시작 동시성. 기본 8 — AIMD 로 올린다
+                  --print-prefix       프리픽스 절별 토큰 수만 찍고 끝낸다 (W6_compile_stats §1)
                 """);
             return 0;
 
@@ -72,6 +78,24 @@ for (int i = 0; i < args.Length; i++)
 
 MasterDataSet data = MasterDataLoader.Load(masterData);
 PromptPrefix prefix = PromptPrefix.Build(data, masterData);
+
+if (printPrefix)
+{
+    foreach (SchemaProfile profile in new[] { SchemaProfile.Full, SchemaProfile.Bare })
+    {
+        PromptPrefix p = PromptPrefix.Build(data, masterData, profile);
+
+        Console.WriteLine($"--- {profile}: {p.TokenCount} tok · sha {p.Sha256[..16]}");
+
+        foreach (PrefixSection section in p.Sections)
+        {
+            Console.WriteLine($"    {section.Name,-16} {section.Tokens,6}");
+        }
+    }
+
+    return 0;
+}
+
 LlmOptions options = LlmOptions.LoadDefault(Directory.GetCurrentDirectory());
 LlmEngineOptions engine = options.Engine(engineId);
 

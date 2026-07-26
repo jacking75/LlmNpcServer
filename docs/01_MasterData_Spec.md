@@ -197,7 +197,7 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags requiredA
 | | `Farm` | crop, count | AtField, HasTool | HasRawMaterial |
 | | `Fish` | count | AtField | HasFood |
 | | `Craft` | recipe, count | AtWorkplace, HasRawMaterial | HasProduct |
-| | `Cook` | recipe, count | AtHome/AtTavern, HasRawMaterial | HasFood |
+| | `Cook` | recipe, count | AtHome/AtTavern/AtWorkplace, HasRawMaterial | HasFood |
 | | `Repair` | target | AtWorkplace, HasTool | — |
 | **사회 (6)** | `Talk` | npc, topic | — | — |
 | | `Trade` | npc/poi, item, amount | HasCoin \| HasProduct | HasCoin/HasProduct |

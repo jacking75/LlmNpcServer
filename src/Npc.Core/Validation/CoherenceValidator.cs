@@ -102,6 +102,7 @@ public static class CoherenceValidator
                 return ValidationResult.Fail(
                     ValidationStage.Coherence, "V3.PRECONDITION_UNMET", i,
                     $"{step.Action} requires at least one of {WorldFlagTable.Format(flags.RequiresAny)}. "
+                    + AnyRemedy(flags.RequiresAny)
                     + $"State before this step: {WorldFlagTable.Format(state)}.");
             }
 
@@ -279,6 +280,31 @@ public static class CoherenceValidator
         }
 
         return string.Empty;
+    }
+
+    /// <summary>
+    /// OR 전제를 어떻게 세우는지. 장소 OR 전제(<c>AtHome|AtWorkplace</c> 등)는
+    /// 어느 쪽으로든 <c>MoveTo</c> 하면 되므로 후보를 그대로 적어 준다.
+    /// T2-21 실측에서 <c>Store</c>·<c>Withdraw</c>·<c>Perform</c> 이 이 안내 없이 반복 실패했다.
+    /// </summary>
+    private static string AnyRemedy(WorldFlags requiresAny)
+    {
+        var symbols = new List<string>(2);
+
+        for (int i = 1; i < PoiSymbols.Names.Length; i++)
+        {
+            var symbol = (PoiSymbol)i;
+            WorldFlags grants = GrantsOf(symbol);
+
+            if (grants != WorldFlags.None && (requiresAny & grants) != 0)
+            {
+                symbols.Add(PoiSymbols.ToText(symbol));
+            }
+        }
+
+        return symbols.Count == 0
+            ? string.Empty
+            : $"Insert a MoveTo step with poi {string.Join(" or ", symbols)} before it. ";
     }
 
     private static PoiSymbol ReadPoiSymbol(PlanStep step)

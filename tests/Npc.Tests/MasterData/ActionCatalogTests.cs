@@ -48,12 +48,15 @@ public sealed class ActionCatalogTests
     public void ActionCatalog_ParsesRequiresAny()
     {
         Assert.True(s_catalog.TryGet("Cook", out ActionDef cook));
-        Assert.Equal(WorldFlags.AtHome | WorldFlags.AtTavern, cook.RequiresAny);
+        // T2-21: AtWorkplace 가 들어 있어야 한다 — 제빵사는 빵집에서, 여관주인은 자기 여관에서 요리한다.
+        Assert.Equal(
+            WorldFlags.AtHome | WorldFlags.AtTavern | WorldFlags.AtWorkplace, cook.RequiresAny);
         Assert.Equal(WorldFlags.HasRawMaterial, cook.Requires);
 
-        // 둘 중 하나만 있어도 성립한다.
+        // 셋 중 하나만 있어도 성립한다.
         Assert.True(cook.IsSatisfiedBy(WorldFlags.HasRawMaterial | WorldFlags.AtHome));
         Assert.True(cook.IsSatisfiedBy(WorldFlags.HasRawMaterial | WorldFlags.AtTavern));
+        Assert.True(cook.IsSatisfiedBy(WorldFlags.HasRawMaterial | WorldFlags.AtWorkplace));
 
         // 둘 다 없으면 성립하지 않는다.
         Assert.False(cook.IsSatisfiedBy(WorldFlags.HasRawMaterial));

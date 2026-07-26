@@ -34,6 +34,10 @@ HARD RULES
    `AtMarket` needs `MoveTo $market`, `AtTavern` needs `MoveTo $tavern`, `AtGate`
    needs `MoveTo $gate`. Read the step's `requires` column in the flag table and put
    the matching `MoveTo` in front of it.
+   **The `requires_any` column works the same way** - you must be at one of the
+   places it lists: `Store` and `Withdraw` need `AtHome` or `AtWorkplace` (a tavern
+   or a field will not do), `Cook` needs `AtHome`, `AtTavern` or `AtWorkplace`, `Perform` needs
+   `AtMarket` or `AtTavern`, `Trade` needs something to trade with.
    A location flag from an earlier cycle does not carry over: after any `MoveTo`,
    only the flag of that destination is set.
 7. `Craft` and `Cook` need `HasRawMaterial`. There are three ways to get it, and
