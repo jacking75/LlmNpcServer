@@ -46,7 +46,13 @@ public sealed class ReplanScorerTests
         Assert.True(ReplanScorer.Proximity(2) > ReplanScorer.Proximity(3));
     }
 
-    /// <summary>LOD 3 이라도 인터럽트가 긴급도를 남기면 점수를 받는다 (docs/14 §2).</summary>
+    /// <summary>
+    /// LOD 3 이라도 인터럽트가 긴급도를 남기면 점수를 받는다 (docs/14 §2).
+    ///
+    /// <b>인터럽트의 절대 우선순위는 점수 함수가 아니라 <see cref="ReplanQueue.TryEnqueueUrgent"/>
+    /// (1000 + urgency)가 보장한다.</b> 여기서 보는 것은 그 항목이 큐에서 밀려났을 때
+    /// 다음 인지 스캔이 여전히 그 NPC 를 우대하는가다.
+    /// </summary>
     [Fact]
     public void Scorer_Lod3StillScoresWithUrgency()
     {
@@ -54,13 +60,33 @@ public sealed class ReplanScorerTests
         CompiledPlan plan = NeutralPlan();
 
         var urgent = new NpcReplanState(NpcStore.InactiveLod, WorldFlags.None, now.Value, 100);
-        var watchedIdle = new NpcReplanState(0, WorldFlags.None, now.Value, 0);
+        var idle = new NpcReplanState(NpcStore.InactiveLod, WorldFlags.None, now.Value, 0);
 
-        // 긴급도 100 (W4) 이 근접 최상위 (W1) 보다 크다 — 인터럽트가 우선이다.
+        // 비활성 NPC 는 긴급도만으로 점수를 받는다 — 근접 항이 0 이기 때문이다.
         Assert.Equal(Weights.Default.W4, ReplanScorer.Score(in urgent, plan, now, Weights.Default), 5);
+        Assert.Equal(0f, ReplanScorer.Score(in idle, plan, now, Weights.Default));
+
+        // 같은 비활성이라도 긴급도가 있으면 이긴다. 동일존(LOD 1)보다도 앞선다.
+        var sameZone = new NpcReplanState(1, WorldFlags.None, now.Value, 0);
+
         Assert.True(
             ReplanScorer.Score(in urgent, plan, now, Weights.Default)
-            > ReplanScorer.Score(in watchedIdle, plan, now, Weights.Default));
+            > ReplanScorer.Score(in sameZone, plan, now, Weights.Default));
+
+        // ⚠ 시야내(LOD 0)와는 세트에 따라 순서가 갈린다.
+        //    A-proximity 는 W1(5.0) > W4(4.0) 이라 근접이 이기고, B-baseline 은 W1(3.0) < W4(4.0) 이라
+        //    긴급이 이긴다. T4-17 A/B 가 A 를 골랐으므로 지금 기본값에서는 근접이 앞선다 —
+        //    인터럽트는 이미 ForceAction 으로 즉시 반응했고 큐에도 1000+ 로 들어가 있다.
+        var watched = new NpcReplanState(0, WorldFlags.None, now.Value, 0);
+
+        Assert.Equal(
+            Weights.Default.W1 > Weights.Default.W4,
+            ReplanScorer.Score(in watched, plan, now, Weights.Default)
+            > ReplanScorer.Score(in urgent, plan, now, Weights.Default));
+
+        Assert.True(
+            ReplanScorer.Score(in urgent, plan, now, Weights.Baseline)
+            > ReplanScorer.Score(in watched, plan, now, Weights.Baseline));
     }
 
     /// <summary>T4-02 완료 조건 — 이탈 항은 어긋난 비트 수(PopCount)에 비례한다.</summary>

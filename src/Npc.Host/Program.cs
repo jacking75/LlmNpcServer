@@ -108,6 +108,7 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly CognitionScheduler _cognition;
     private readonly InterruptMatcher _interrupts;
     private readonly ReplanQueue _replanQueue;
+    private readonly NpcStore _store;
     private readonly NpcMeter _meter;
     private readonly SimDriver? _driver;
     private readonly NullGameServerLink? _nullLink;
@@ -123,6 +124,7 @@ internal sealed class NpcHost : IAsyncDisposable
         CognitionScheduler cognition,
         InterruptMatcher interrupts,
         ReplanQueue replanQueue,
+        NpcStore store,
         NpcMeter meter,
         SimDriver? driver,
         NullGameServerLink? nullLink,
@@ -138,6 +140,7 @@ internal sealed class NpcHost : IAsyncDisposable
         _cognition = cognition;
         _interrupts = interrupts;
         _replanQueue = replanQueue;
+        _store = store;
         _meter = meter;
         _driver = driver;
         _nullLink = nullLink;
@@ -160,6 +163,18 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>재계획 티어 한 벌. 부하 하네스가 워커·예산 통계를 읽는다 (T4-15).</summary>
     public TierWiring Tiers => _tiers;
+
+    /// <summary>NPC 상태. 측정 하네스가 읽는다 — <b>쓰지 않는다</b> (T4-17·T4-21).</summary>
+    public NpcStore Store => _store;
+
+    /// <summary>재계획 큐. 가중치 A/B 가 유입·처리량을 읽는다 (T4-17).</summary>
+    public ReplanQueue ReplanQueue => _replanQueue;
+
+    /// <summary>인지 스캐너. 어느 가중치로 돌았는지 리포트에 적을 때 읽는다.</summary>
+    public CognitionScheduler Cognition => _cognition;
+
+    /// <summary>게임 시계.</summary>
+    public GameClock Clock => _clock;
 
     /// <summary>옵션대로 전부 조립한다. 기동 시 1회.</summary>
     public static NpcHost Create(HostOptions options, TextWriter log)
@@ -207,7 +222,15 @@ internal sealed class NpcHost : IAsyncDisposable
         };
 
         var bands = new LodBandSet(store);
-        var cognition = new CognitionScheduler(store, bands, plans)
+        if (!Weights.TryParse(options.Weights, out Weights weights))
+        {
+            throw new ArgumentException(
+                $"--weights '{options.Weights}' 를 모른다. "
+                + $"있는 것: {string.Join(", ", Weights.AbSets.Select(s => s.Name))}",
+                nameof(options));
+        }
+
+        var cognition = new CognitionScheduler(store, bands, plans, weights)
         {
             Snapshots = snapshots,
             ScanBudgetPerTick = options.ScanCap >= 0
@@ -295,7 +318,7 @@ internal sealed class NpcHost : IAsyncDisposable
             + $"버킷 {plans.FilledBuckets}/{BucketKey.TotalKeys} · {tiers.Describe()}");
 
         return new NpcHost(
-            options, link, loop, clock, executor, cognition, interrupts, replanQueue, meter,
+            options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, meter,
             driver, nullLink, totalTicks, npcs, tiers);
     }
 

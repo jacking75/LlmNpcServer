@@ -122,6 +122,15 @@ public sealed record HostOptions
     public int Seed { get; init; } = 20260725;
 
     /// <summary>
+    /// 재계획 점수 가중치 세트 이름. null 이면 <c>Weights.Default</c>.
+    /// <c>docs/14 §2</c> 표의 <c>A-proximity</c>·<c>B-baseline</c>·<c>C-deviation</c>·<c>D-uniform</c>
+    /// 또는 그 앞 글자(<c>a</c>~<c>d</c>)를 받는다.
+    ///
+    /// <b>T4-17 의 A/B 자동화가 쓴다</b> — 감으로 튜닝하면 재현이 안 된다 (docs/14 §10).
+    /// </summary>
+    public string? Weights { get; init; }
+
+    /// <summary>
     /// 인지 스캔 틱당 상한. 기본은 <c>CognitionScheduler.MaxScansPerTick</c>(150),
     /// <b>0 이면 상한을 푼다</b>.
     ///
@@ -169,6 +178,7 @@ public sealed record HostOptions
           --planstore <dir>       프리베이크된 플랜 스토어 (기본 ./planstore). 없으면 폴백만
           --seed N                Sim 시드 (기본 20260725)
           --port N                대시보드·메트릭 포트 (기본 5080)
+          --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
           --no-dashboard          웹 호스트를 띄우지 않는다
@@ -440,6 +450,16 @@ public sealed record HostOptions
                     }
 
                     result = result with { Port = port };
+                    break;
+
+                case "--weights":
+                    if (!TryValue(args, ref i, arg, out string? weights, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { Weights = weights };
                     break;
 
                 case "--scan-cap":

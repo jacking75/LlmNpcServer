@@ -91,9 +91,9 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | **P1** W2–4 코어·런타임·Sim | [`docs/11_Phase1_W2-4_TASKS.md`](docs/11_Phase1_W2-4_TASKS.md) | 62 | 62 | **게이트 통과** |
 | **P2** W5–6 플랜 컴파일러 | [`docs/12_Phase2_W5-6_TASKS.md`](docs/12_Phase2_W5-6_TASKS.md) | 24 | 23 | 태스크 완료 (T2-23 은 조건 미충족 `-`) — **게이트 3/7 미달** |
 | **P3** W7–8 플랜 캐시 | [`docs/13_Phase3_W7-8_TASKS.md`](docs/13_Phase3_W7-8_TASKS.md) | 21 | 19 | 진행 중 — T3-18(사람 검수) 미착수 · T3-21 `~`. **게이트 5/9** (기제 4항목 통과, 실측 산출물 대기) |
-| **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 16 | 진행 중 |
+| **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 17 | 진행 중 |
 | **P5** W11–12 검증·평가 | [`docs/15_Phase5_W11-12_TASKS.md`](docs/15_Phase5_W11-12_TASKS.md) | 20 | 0 | 미착수 |
-| | | **164** | **128** | |
+| | | **164** | **129** | |
 
 각 Phase 문서 맨 아래의 체크리스트에서 개별 태스크 상태를 관리한다.
 
@@ -158,6 +158,7 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/13 §8` · `docs/measurements/W8_prebake.md §3` | 전수 드라이런 건당 소요 "~50ms"(추정) → **0.02ms**(실측) | T3-15. 드라이런은 10Hz 틱을 굴리지 않고 액션 소요시간만큼 게임시간을 건너뛴다. 2,880건이 병렬도 1 로도 0.04초라 T3-15 의 "미달 시 병렬도를 올리기 전에 건당 소요부터 기록" 조항은 발동하지 않는다 |
 | 2026-07-26 | `docs/03 §7` | `planstore/manifest_history.jsonl` 추가 | T3-16. §7 이 "프리베이크를 돌 때마다 보존한다" 고 했는데 `manifest.json` 만 있으면 덮어쓰기라 지난 회차 숫자를 다시 못 본다 |
 | 2026-07-26 | `CLAUDE.md §1·§5` · `docs/13 §7` | 테스트 카테고리에 **`Gate`** 추가. CI 기본 필터를 `Category!=Golden&Category!=Gate` 로 | T3-21. 게이트 9항목 중 5개(생성 완료율·wall-clock·실비용·프롬프트 캐시 적중률·검수 채택률)는 실측 산출물이 있어야 판정된다. 산출물이 없을 때 통과로 세면 게이트가 거짓이 되므로 실패시키고, 대신 기본 CI 에서 뺐다. xunit 2.9 에는 `Assert.Skip` 이 없다 |
+| 2026-07-27 | `src/Npc.Planning/ReplanScorer.cs` (`Weights.Default`) | 기본 가중치를 **B-baseline -> A-proximity** 로. `--weights` 옵션 추가 | T4-17 A/B 실측(`W10_weights.md`). 네 세트의 LLM 요청 수가 전부 1,686건으로 같고 (예산 상한이 묶는다) 근처 집중도가 A 47.0% > D 45.8% > C 45.3% > B 45.1% 였다. `docs/14 §2` 의 "W1 을 크게 잡는 것이 핵심" 예측과 같은 방향이다. **차이는 1.9%p 로 근소하다** — 큐가 포화라 축출도 같은 점수로 일어나 4,096칸에 이미 상위 점수만 남는다. 부수 효과: A 는 W1(5.0) > W4(4.0) 이라 점수 함수 안에서 근접이 긴급을 이긴다. 인터럽트의 절대 우선순위는 `TryEnqueueUrgent`(1000+) 가 보장하므로 안전하고, `Scorer_Lod3StillScoresWithUrgency` 의 단언을 그에 맞게 고쳤다 |
 | 2026-07-26 | `docs/14 §6` 기대표 | **"인지 스캔 O(1)" 의 근거를 정정.** 상한을 풀면 O(n)(기울기 1.04) 이고, O(1) 을 만드는 것은 `MaxScansPerTick`(150) 이다. `--scan-cap` 옵션 추가 | T4-16 실측. 상한 해제 회차에서 NPC 500->5,000 에 스캔 58->637 (11배). `docs/11 §4` 의 612 추정과 4% 차이. "슬라이스가 고정 비율이므로" 라는 근거는 밴드 인원이 인구에 비례하지 않을 때만 성립하는데, 월드가 고정이라 NPC 를 늘리면 밀도가 올라가 플레이어 반경 안의 NPC 가 늘어난다. **설계는 맞고 근거가 틀렸다** — 상한은 안전장치가 아니라 차수를 결정하는 본체다 |
 | 2026-07-26 | `docs/14 §6` 매트릭스 | NPC **10,000(스트레스) 축이 측정되지 않는다**고 명시. CSV 에 `npcs_actual` 열 추가 | T4-16. `npc_instances.json` 에 5,000마리뿐이라 `--npcs 10000` 이 실제로 5,000 을 돌린다 (`NpcHost.Create` 의 `Math.Min`). `tools/gen_npcs.cs` 의 `Population` 이 5,000 고정이다 (`docs/01 §9`). 요청값으로 차수를 재면 존재하지 않는 규모를 근거로 삼게 된다 |
 | 2026-07-26 | `docs/14 §6` · `README §주요 실행 옵션` | `--tier none|t1|t2|all` · `--t1-workers` · `--t2-workers` · `--t1-engine` · `--t2-engine` 추가. **기본 티어를 `none` 으로.** 호스트에 재계획 티어 결선(`TierWiring`) | T4-15. 티어 축을 돌릴 옵션이 없어 "T0만"과 "T0+T1+T2"를 가를 수 없었다. 기본을 `none` 으로 둔 것은 `dotnet run` 한 번에 외부 크레딧이 나가지 않게 하기 위해서다 — P1 테스트가 적어 둔 `NoLlm=false` 기본값은 런타임에 LLM 이 없던 시절의 무의미한 값이었다. `ReplanPanel` 에 `QueueDropped`, `NpcMeter` 에 틱당 큐 깊이 표본을 추가했다 (§6 기록 지표) |

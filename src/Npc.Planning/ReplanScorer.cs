@@ -24,10 +24,19 @@ public readonly record struct Weights(float W1, float W2, float W3, float W4, in
     public const int DefaultStaleTicks = 36_000;
 
     /// <summary>
-    /// 운영 기본값. <b>T4-17 의 A/B 결과가 이 값을 정한다</b> —
-    /// 감으로 튜닝하면 재현이 안 된다 (docs/14 §10).
+    /// 운영 기본값. <b>T4-17 의 A/B 실측이 정했다</b> — 감으로 튜닝하면 재현이 안 된다 (docs/14 §10).
+    ///
+    /// <para>
+    /// 2026-07-27 회차(`docs/measurements/W10_weights.md`): 시나리오 A · NPC 5,000 · 게임 3일.
+    /// 네 세트의 LLM 요청 수가 <b>전부 1,686건으로 같고</b>(예산 상한이 묶는다),
+    /// 근처 집중도가 <c>A 47.0% &gt; D 45.8% &gt; C 45.3% &gt; B 45.1%</c> 였다.
+    /// <c>docs/14 §2</c> 가 예측한 대로 <b>W1(플레이어 근접도)을 크게 잡은 A 세트가 이겼다.</b>
+    /// </para>
+    ///
+    /// ⚠ <b>차이는 1.9%p 로 근소하다.</b> 큐가 포화 상태라 축출도 같은 점수로 일어나
+    /// 4,096칸에 이미 상위 점수만 남기 때문이다. T1 처리량이 올라가 큐가 포화를 벗어나면 다시 잰다.
     /// </summary>
-    public static readonly Weights Default = Baseline;
+    public static readonly Weights Default = ProximityFirst;
 
     /// <summary>A 세트 — 근접 우선. 플레이어 근처만 똑똑하다 (docs/14 §2 표).</summary>
     public static Weights ProximityFirst => new(5.0f, 0.2f, 1.5f, 4.0f, DefaultStaleTicks);
@@ -49,6 +58,49 @@ public readonly record struct Weights(float W1, float W2, float W3, float W4, in
         ("C-deviation", DeviationFirst),
         ("D-uniform", Uniform),
     ];
+
+    /// <summary>
+    /// 이름으로 세트를 고른다. 전체 이름(<c>A-proximity</c>)이든 앞 글자(<c>a</c>)든 받는다.
+    /// 모르는 이름이면 false — 오타가 조용히 기본값으로 떨어지면 A/B 결과가 거짓이 된다.
+    /// </summary>
+    public static bool TryParse(string? name, out Weights weights)
+    {
+        weights = Default;
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return true;
+        }
+
+        foreach ((string id, Weights set) in AbSets)
+        {
+            if (id.Equals(name, StringComparison.OrdinalIgnoreCase)
+                || id[..1].Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                weights = set;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>이 가중치의 세트 이름. 표에 없으면 <c>custom</c>.</summary>
+    public string Name
+    {
+        get
+        {
+            foreach ((string id, Weights set) in AbSets)
+            {
+                if (set == this)
+                {
+                    return id;
+                }
+            }
+
+            return "custom";
+        }
+    }
 }
 
 /// <summary>
