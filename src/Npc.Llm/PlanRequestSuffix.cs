@@ -106,11 +106,55 @@ public static class PlanRequestSuffix
     /// </summary>
     public const int MaxInventoryEntries = 8;
 
-    /// <summary>요청 하나를 서픽스 문자열로.</summary>
+    /// <summary>
+    /// 재시도 블록의 <c>detail</c> 길이 상한(문자).
+    ///
+    /// 검증기 3단의 설명은 실패 시점 상태를 통째로 펴서 넣기 때문에 길어질 수 있는데,
+    /// 그 상태는 바로 위 <c>flags</c> 에 이미 있다. 잘라도 "무엇을 고쳐야 하는가"(액션 이름 ·
+    /// 모자란 플래그 · 스텝 번호)는 문장 앞쪽에 있어 살아남는다.
+    /// 자르지 않으면 재시도 서픽스가 예산의 두 배를 넘긴다 (T2-07 실측 665 토큰).
+    /// </summary>
+    public const int MaxFailureDetailChars = 180;
+
+    /// <summary>docs/12 §3 · CLAUDE.md §2.5 의 서픽스 토큰 상한.</summary>
+    public const int TokenBudget = 300;
+
+    /// <summary>덜어내기 단계 수. <see cref="Compose"/> 의 주석에 단계별로 무엇이 빠지는지 있다.</summary>
+    private const int MaxTrimLevel = 4;
+
+    /// <summary>
+    /// 요청 하나를 서픽스 문자열로. <b>예산을 넘기면 우선순위대로 덜어낸다.</b>
+    ///
+    /// 예산 초과를 테스트로만 막으면, 실제로 넘치는 입력이 들어왔을 때 그대로 나간다.
+    /// 상황·플래그·목표는 절대 덜어내지 않는다 — 그건 플랜을 결정하는 정보다.
+    /// </summary>
     public static string Build(in PlanRequest request, MasterDataSet data)
     {
         ArgumentNullException.ThrowIfNull(data);
 
+        for (int trim = 0; ; trim++)
+        {
+            string suffix = Compose(request, data, trim);
+
+            if (trim >= MaxTrimLevel || PromptPrefix.CountTokens(suffix) <= TokenBudget)
+            {
+                return suffix;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 덜어내기 단계별 조립.
+    /// <list type="number">
+    ///   <item>0 — 전부 싣는다</item>
+    ///   <item>1 — <c>recent</c> 를 뺀다 (재시도 블록이 더 구체적이다)</item>
+    ///   <item>2 — <c>last_plan_outcome</c> 도 뺀다</item>
+    ///   <item>3 — 인벤토리를 4종으로 줄인다</item>
+    ///   <item>4 — 인벤토리를 빼고 실패 설명을 절반으로 줄인다</item>
+    /// </list>
+    /// </summary>
+    private static string Compose(in PlanRequest request, MasterDataSet data, int trim)
+    {
         ArchetypeDef archetype = data.Archetypes[request.Bucket.A];
 
         var json = new JsonObject
@@ -132,7 +176,7 @@ public static class PlanRequestSuffix
 
         if (request.Individual is { } snapshot)
         {
-            AppendIndividual(json, snapshot, data);
+            AppendIndividual(json, snapshot, data, trim);
         }
 
         var sb = new StringBuilder(2_048);
@@ -144,8 +188,9 @@ public static class PlanRequestSuffix
         if (request.PreviousFailure is { IsValid: false } failure)
         {
             // 블록을 새로 만들지 않는다 — 검증기가 만든 것을 그대로 붙인다 (docs/12 §6).
+            // 다만 detail 길이만 예산 안으로 자른다.
             sb.Append("\n# PREVIOUS ATTEMPT REJECTED\n\n");
-            sb.Append(CoherenceValidator.Explain(failure));
+            sb.Append(CoherenceValidator.Explain(failure with { Detail = Truncate(failure.Detail, trim) }));
             sb.Append("\n\nFix exactly that and output the corrected plan. JSON only.\n");
             return sb.ToString();
         }
@@ -154,8 +199,22 @@ public static class PlanRequestSuffix
         return sb.ToString();
     }
 
-    private static void AppendIndividual(JsonObject json, in NpcSnapshot snapshot, MasterDataSet data)
+    private static string Truncate(string detail, int trim)
     {
+        int limit = trim < 4 ? MaxFailureDetailChars : MaxFailureDetailChars / 2;
+
+        return detail.Length <= limit ? detail : detail[..limit] + "...";
+    }
+
+    private static void AppendIndividual(JsonObject json, in NpcSnapshot snapshot, MasterDataSet data, int trim)
+    {
+        int limit = trim switch
+        {
+            < 3 => MaxInventoryEntries,
+            3 => MaxInventoryEntries / 2,
+            _ => 0,
+        };
+
         var inventory = new JsonObject();
         int written = 0;
 
@@ -167,7 +226,7 @@ public static class PlanRequestSuffix
                 continue;
             }
 
-            if (written++ >= MaxInventoryEntries)
+            if (written++ >= limit)
             {
                 break;
             }
@@ -180,10 +239,18 @@ public static class PlanRequestSuffix
             json["inventory"] = inventory;
         }
 
-        JsonArray recent = RecentArray(snapshot.Recent);
-        if (recent.Count > 0)
+        if (trim < 1)
         {
-            json["recent"] = recent;
+            JsonArray recent = RecentArray(snapshot.Recent);
+            if (recent.Count > 0)
+            {
+                json["recent"] = recent;
+            }
+        }
+
+        if (trim >= 2)
+        {
+            return;
         }
 
         switch (snapshot.LastOutcome)
