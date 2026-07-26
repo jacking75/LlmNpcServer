@@ -276,8 +276,21 @@ public sealed class PlanStoreTests
         _ = Measure(empty, 20_000);
         _ = Measure(full, 20_000);
 
-        double emptyMs = Measure(empty, Iterations);
-        double fullMs = Measure(full, Iterations);
+        // 두 쪽을 번갈아 재고 각각 최솟값을 쓴다.
+        //
+        // 한 번씩만 재면 다른 테스트가 CPU 를 물고 있는 순간이 어느 한쪽에만 걸려
+        // 4배 슬랙을 넘긴다 (전체 실행에서 실제로 반복 관측됐다). 최솟값은 스케줄러 잡음이
+        // 가장 적게 낀 회차이고, 우리가 알고 싶은 것은 "크기가 조회 시간에 실리는가" 뿐이다.
+        const int Rounds = 5;
+
+        double emptyMs = double.MaxValue;
+        double fullMs = double.MaxValue;
+
+        for (int round = 0; round < Rounds; round++)
+        {
+            emptyMs = Math.Min(emptyMs, Measure(empty, Iterations));
+            fullMs = Math.Min(fullMs, Measure(full, Iterations));
+        }
 
         // 스토어 크기가 조회 시간에 실리면 O(1) 이 아니다. 슬랙을 크게 잡아도 4배는 안 넘는다.
         Assert.True(
