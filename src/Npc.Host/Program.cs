@@ -1,10 +1,13 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using Microsoft.Extensions.FileProviders;
 using Npc.Contracts;
+using Npc.Core;
 using Npc.Gateway;
 using Npc.Host;
 using Npc.Host.Commands;
 using Npc.Host.Metrics;
+using Npc.Llm;
 using Npc.MasterData;
 using Npc.Planning;
 using Npc.Runtime;
@@ -181,7 +184,7 @@ internal sealed class NpcHost : IAsyncDisposable
         var swapper = new PlanSwapper(store);
         var replanQueue = new ReplanQueue(npcs);
 
-        PlanStore plans = BuildPlanStore(data, out int[] fallbackOf);
+        PlanStore plans = BuildPlanStore(options, data, masterDataDir, log, out int[] fallbackOf);
 
         var executor = new PlanExecutor(data, store, plans, correlations, emitter, options.TimeScale)
         {
@@ -263,7 +266,7 @@ internal sealed class NpcHost : IAsyncDisposable
         log.WriteLine(
             $"npcs {npcs} · link {options.Link} · time-scale {options.TimeScale} · "
             + $"days {options.Days} ({(totalTicks == 0 ? "무제한" : totalTicks + " ticks")}) · "
-            + $"llm off (P1)");
+            + $"버킷 {plans.FilledBuckets}/{BucketKey.TotalKeys} · llm off (런타임 호출 없음)");
 
         return new NpcHost(
             options, link, loop, clock, executor, cognition, interrupts, replanQueue, meter,
@@ -340,26 +343,100 @@ internal sealed class NpcHost : IAsyncDisposable
         }
     }
 
-    /// <summary>폴백 40개를 스토어에 등록한다. P1 에는 이것뿐이다 (프리베이크는 P3).</summary>
-    private static PlanStore BuildPlanStore(MasterDataSet data, out int[] fallbackOf)
+    /// <summary>
+    /// 폴백 40개 + 프리베이크된 버킷 플랜을 스토어에 올린다. docs/13 §2.
+    ///
+    /// <b>폴백을 먼저 등록한다.</b> 버킷이 하나도 없어도 <c>Resolve</c> 가 유효한 플랜을 주는 것은
+    /// 폴백 때문이고, 그것이 시나리오 C(LLM 전면 차단)가 통과하는 이유다 (CLAUDE.md §2.6).
+    /// 버킷 로드는 그 위에 얹는다 — 미생성 버킷은 그대로 폴백으로 해소된다.
+    ///
+    /// 마스터데이터가 스토어보다 새로우면 <b>경고만</b> 하고 계속 간다. 기동을 막지 않는 이유는
+    /// 낡은 플랜이라도 폴백보다는 나은 경우가 있고, 재생성 판단은 사람이 할 일이기 때문이다.
+    /// </summary>
+    private static PlanStore BuildPlanStore(
+        HostOptions options, MasterDataSet data, string masterDataDir, TextWriter log, out int[] fallbackOf)
     {
         PlanStore plans = PlanStore.CreateIdleOnly(data);
         fallbackOf = new int[data.Archetypes.Count];
 
-        if (data.Fallbacks is not { } table)
+        if (data.Fallbacks is { } table)
         {
+            foreach (FallbackPlanEntry entry in table.Plans)
+            {
+                PlanId id = plans.Register(entry.Plan);
+
+                plans.SetFallback(entry.Archetype, id);
+                fallbackOf[entry.Archetype.Value] = id.Value;
+            }
+        }
+
+        string storeDir = options.ResolvePlanStore();
+
+        if (!Directory.Exists(storeDir))
+        {
+            log.WriteLine($"planstore 없음 ({storeDir}) — 폴백 {plans.FilledFallbacks}개로 돈다.");
             return plans;
         }
 
-        foreach (FallbackPlanEntry entry in table.Plans)
-        {
-            PlanId id = plans.Register(entry.Plan);
+        long started = Stopwatch.GetTimestamp();
+        PlanStoreLoadReport report = PlanStoreIo.LoadAll(storeDir, plans, data);
+        double elapsed = Stopwatch.GetElapsedTime(started).TotalSeconds;
 
-            plans.SetFallback(entry.Archetype, id);
-            fallbackOf[entry.Archetype.Value] = id.Value;
+        log.WriteLine(
+            $"planstore {storeDir} · 버킷 {report.Total}/{BucketKey.TotalKeys} "
+            + $"(pinned {report.Pinned}) · 폴백 {plans.FilledFallbacks} · {elapsed:0.###}s");
+
+        if (report.Skipped + report.Failed > 0)
+        {
+            log.WriteLine($"warn: 플랜 {report.Skipped + report.Failed}건을 못 올렸다.");
+
+            foreach (string error in report.Errors.Take(5))
+            {
+                log.WriteLine($"  {error}");
+            }
         }
 
+        if (plans.ColdBuckets > 0)
+        {
+            log.WriteLine($"warn: 미생성 버킷 {plans.ColdBuckets}건. 아키타입 폴백으로 해소된다.");
+        }
+
+        WarnIfStale(storeDir, data, masterDataDir, log);
+
         return plans;
+    }
+
+    /// <summary>
+    /// 마스터데이터·프롬프트가 스토어보다 새로우면 경고한다. 판정은 T3-06 이 한다.
+    ///
+    /// 프리픽스는 여기서만 조립한다 — <c>Npc.Runtime</c> 은 <c>Npc.Llm</c> 을 모른다 (CLAUDE.md §3).
+    /// </summary>
+    private static void WarnIfStale(
+        string storeDir, MasterDataSet data, string masterDataDir, TextWriter log)
+    {
+        Manifest? manifest = Manifest.LoadFrom(storeDir);
+
+        if (manifest is null)
+        {
+            log.WriteLine("warn: manifest.json 이 없다. 스토어가 지금 마스터데이터로 만들어진 것인지 알 수 없다.");
+            return;
+        }
+
+        InvalidationScope scope = PlanStoreValidator.Compare(
+            manifest,
+            data,
+            PromptPrefix.Build(data, masterDataDir).Sha256,
+            out ImmutableArray<string> changed);
+
+        if (scope == InvalidationScope.None)
+        {
+            return;
+        }
+
+        log.WriteLine(
+            $"warn: 플랜 스토어가 낡았다 — 무효화 {scope}"
+            + (changed.IsEmpty ? string.Empty : $" (바뀐 것: {string.Join(", ", changed)})")
+            + ". tools/Npc.Prebake 로 재생성한다.");
     }
 
     /// <summary>

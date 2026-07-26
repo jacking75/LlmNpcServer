@@ -53,7 +53,8 @@ TASKS.md                 태스크 규약 · 진행 원장
 dotnet build -c Release
 dotnet test                                    # 전체
 dotnet test --filter Category=Golden           # 골든 회귀 (LLM 호출 있음, 느림)
-dotnet test --filter Category!=Golden          # CI 기본
+dotnet test --filter Category=Gate             # 실측 산출물이 있어야 판정되는 게이트 항목
+dotnet test "--filter Category!=Golden&Category!=Gate"   # CI 기본
 dotnet format --verify-no-changes              # 스타일 검사
 ```
 
@@ -222,6 +223,7 @@ Npc.Host       ←  전부
 | `Load` | NPC 5,000 부하. 수 분 소요 | 야간 |
 | `Golden` | 골든 50건 × 3회. **LLM 호출·비용 발생** | 수동 / 릴리스 전 |
 | `FaultInjection` | 시나리오 C, 링크 장애 | 야간 |
+| `Gate` | **실측 산출물이 있어야 판정되는 게이트 항목.** `planstore/manifest.json`·검수 기록이 근거다. 산출물이 없으면 **실패한다** — 없는 것을 통과로 세면 게이트가 거짓이 된다 | 수동 / 게이트 판정 시 |
 
 골든 테스트는 **속성 단언만** 쓴다. 정확한 문자열 비교를 하지 않는다 — LLM 출력은 매번 다르고 그게 정상이다. 3회 중 2회 통과를 합격으로 본다.
 

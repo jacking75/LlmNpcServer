@@ -56,6 +56,12 @@ public sealed record HostOptions
     /// <summary>마스터데이터 디렉터리.</summary>
     public string MasterData { get; init; } = "./masterdata";
 
+    /// <summary>
+    /// 플랜 스토어 디렉터리. 기동 시 <c>plans/</c>·<c>pinned/</c> 를 로드한다 (docs/13 §2).
+    /// 없으면 폴백 40개로만 돈다 — P1 과 같은 동작이다.
+    /// </summary>
+    public string PlanStore { get; init; } = "./planstore";
+
     /// <summary><c>--link record</c> 의 출력 경로 · <c>--link replay</c> 의 입력 경로.</summary>
     public string? TracePath { get; init; }
 
@@ -98,6 +104,7 @@ public sealed record HostOptions
           --drop-rate <0~1>       Sim 의 명령 유실 주입
           --player-bots N         가상 플레이어 수 (기본 20)
           --masterdata <dir>      마스터데이터 디렉터리 (기본 ./masterdata)
+          --planstore <dir>       프리베이크된 플랜 스토어 (기본 ./planstore). 없으면 폴백만
           --seed N                Sim 시드 (기본 20260725)
           --port N                대시보드·메트릭 포트 (기본 5080)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
@@ -142,6 +149,46 @@ public sealed record HostOptions
         }
 
         throw new DirectoryNotFoundException($"마스터데이터 폴더를 찾지 못했다: {MasterData}");
+    }
+
+    /// <summary>
+    /// 플랜 스토어 폴더를 실제 경로로 푼다.
+    ///
+    /// <see cref="ResolveMasterData"/> 와 같은 이유로 위로 올라가며 찾는다 —
+    /// <c>dotnet run --project src/Npc.Host</c> 는 작업 폴더를 프로젝트 폴더로 잡는다.
+    /// <b>못 찾으면 던지지 않는다.</b> 첫 기동에는 스토어가 없고, 그때는 폴백으로 돈다.
+    /// </summary>
+    public string ResolvePlanStore()
+    {
+        if (Directory.Exists(PlanStore))
+        {
+            return PlanStore;
+        }
+
+        string name = Path.GetFileName(Path.TrimEndingDirectorySeparator(PlanStore));
+
+        if (name.Length == 0)
+        {
+            name = "planstore";
+        }
+
+        foreach (string from in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            for (var dir = new DirectoryInfo(from); dir is not null; dir = dir.Parent)
+            {
+                string candidate = Path.Combine(dir.FullName, name);
+
+                // 폴더 이름만 보면 안 된다. 스토어의 표식은 manifest 나 3계층 폴더다.
+                if (File.Exists(Path.Combine(candidate, "manifest.json"))
+                    || Directory.Exists(Path.Combine(candidate, "plans"))
+                    || Directory.Exists(Path.Combine(candidate, "pinned")))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return PlanStore;
     }
 
     /// <summary>인자를 파싱한다. 실패하면 <paramref name="error"/> 에 이유가 담긴다.</summary>
@@ -218,6 +265,16 @@ public sealed record HostOptions
                     }
 
                     result = result with { MasterData = masterData! };
+                    break;
+
+                case "--planstore":
+                    if (!TryValue(args, ref i, arg, out string? planStore, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { PlanStore = planStore! };
                     break;
 
                 case "--npcs":
