@@ -92,6 +92,56 @@ public sealed class DashboardTests
     }
 
     /// <summary>
+    /// T4-22 완료 조건 — 히트맵 렌더 · 실사용 버킷 비율(%) 표시 ·
+    /// 원자료를 T5-18 이 읽을 수 있게 덤프 가능.
+    /// </summary>
+    [Fact]
+    public async Task Dashboard_HasBucketHeatmap()
+    {
+        Assert.Contains("id=\"p-heatmap\"", s_html, StringComparison.Ordinal);
+        Assert.Contains("id=\"p-heatmap-summary\"", s_html, StringComparison.Ordinal);
+        Assert.Contains("renderHeatmap(m.heatmap)", s_html, StringComparison.Ordinal);
+        Assert.Contains("h.usedRatio", s_html, StringComparison.Ordinal);
+
+        // 선형 스케일이면 최다 버킷 하나가 나머지를 전부 검게 만든다.
+        Assert.Contains("Math.log1p", s_html, StringComparison.Ordinal);
+
+        Assert.True(
+            HostOptions.TryParse(
+                ["--loopback", "--npcs", "60", "--time-scale", "600", "--days", "1",
+                 "--max-speed", "--no-dashboard"],
+                out HostOptions options,
+                out string? error),
+            error);
+
+        await using NpcHost host = NpcHost.Create(
+            options with { MasterData = TestPaths.MasterData }, TextWriter.Null);
+
+        await host.RunAsync(CancellationToken.None);
+
+        BucketHeatmap heatmap = host.Metrics.Snapshot().Heatmap;
+
+        Assert.Equal(40, heatmap.Archetypes);
+        Assert.Equal(72, heatmap.Columns);
+        Assert.Equal(2_880, heatmap.Cells.Length);
+        Assert.Equal(40, heatmap.ArchetypeNames.Length);
+        Assert.All(heatmap.ArchetypeNames, n => Assert.NotEmpty(n));
+
+        // 하루를 돌았으면 조회된 버킷이 있어야 하고, 대부분은 비어 있어야 한다 —
+        // 그 비율이 곧 "2,880이 아니라 300이면 충분했다" 는 발견이다 (docs/14 §8).
+        Assert.True(heatmap.Used > 0, "조회된 버킷이 하나도 없다.");
+        Assert.True(heatmap.UsedRatio < 1.0, "2,880 버킷이 전부 조회됐다 — 표본이 이상하다.");
+        Assert.Equal(heatmap.Used, heatmap.Cells.Count(c => c > 0));
+        Assert.Equal(heatmap.Cells.Max(), heatmap.Peak);
+
+        // 원자료 CSV — 조회 0 인 버킷도 전부 나온다. "쓰이지 않았다" 가 이 파일의 내용이다.
+        string[] csv = host.HeatmapCsv().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.Equal("archetype,time_of_day,region_state,climate,queries,filled", csv[0].Trim());
+        Assert.Equal(2_881, csv.Length);
+    }
+
+    /// <summary>
     /// 외부 의존이 없어야 한다. 이 서버는 인터넷이 없는 사내망에서도 뜬다 —
     /// CDN 스크립트 하나가 섞이면 거기서는 빈 화면이 나온다.
     /// </summary>
@@ -112,6 +162,7 @@ public sealed class DashboardTests
         Assert.Contains("MapGet(\"/dashboard\"", program, StringComparison.Ordinal);
         Assert.Contains("dashboard.html", program, StringComparison.Ordinal);
         Assert.Contains("MapGet(\"/metrics\"", program, StringComparison.Ordinal);
+        Assert.Contains("MapGet(\"/heatmap.csv\"", program, StringComparison.Ordinal);
     }
 
     /// <summary>

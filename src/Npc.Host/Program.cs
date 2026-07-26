@@ -72,6 +72,11 @@ app.MapGet("/metrics", () => host.Metrics.Snapshot());
 // NPC 추적 (T4-21). SoA 배열을 읽기만 하고 값을 복사해 나간다 — 틱 루프를 막지 않는다.
 app.MapGet(NpcTraceEndpoint.Route, (int id) => host.Trace(id));
 
+// 버킷 히트맵 원자료 (T4-22). W12 보고서 §6 "발견" 의 원자료라 CSV 로도 뽑을 수 있게 둔다 —
+// /metrics 의 JSON 은 대시보드용이고, 이쪽은 T5-18 이 파일로 받아 가는 경로다.
+app.MapGet("/heatmap.csv", () => Results.Text(
+    host.HeatmapCsv(), "text/csv; charset=utf-8"));
+
 // 대시보드 1차. docs/11 §10. 단일 HTML 이고 /metrics 를 폴링한다.
 app.MapGet("/dashboard", () =>
 {
@@ -366,6 +371,35 @@ internal sealed class NpcHost : IAsyncDisposable
     /// </summary>
     public NpcTrace Trace(int npc) =>
         NpcTraceEndpoint.Snapshot(npc, _store, _plans, _data, _clock.Current);
+
+    /// <summary>
+    /// 버킷 히트맵 원자료 CSV (T4-22). W12 보고서 §6 "발견" 의 원자료다 (T5-18 이 읽는다).
+    ///
+    /// 열은 <c>archetype,time_of_day,region_state,climate,queries,filled</c> 이고
+    /// <b>조회가 0 인 버킷도 전부 낸다</b> — "쓰이지 않았다" 가 이 파일의 내용이다.
+    /// </summary>
+    public string HeatmapCsv()
+    {
+        var csv = new System.Text.StringBuilder(BucketKey.TotalKeys * 40);
+
+        csv.AppendLine("archetype,time_of_day,region_state,climate,queries,filled");
+
+        for (int i = 0; i < BucketKey.TotalKeys; i++)
+        {
+            BucketKey key = BucketKey.FromIndex(i);
+            long queries = _plans.HitsOf(key) + _plans.MissesOf(key);
+
+            csv.Append(_data.Archetypes[key.A].Id).Append(',')
+               .Append(key.T).Append(',')
+               .Append(key.R).Append(',')
+               .Append(key.C).Append(',')
+               .Append(queries).Append(',')
+               .Append(_plans.HasBucket(key) ? '1' : '0')
+               .AppendLine();
+        }
+
+        return csv.ToString();
+    }
 
     /// <summary>대시보드·게이트가 읽는 현재 상태.</summary>
     public HostSnapshot Snapshot() => new(

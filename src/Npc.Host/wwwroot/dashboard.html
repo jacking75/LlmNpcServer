@@ -52,6 +52,13 @@
     border-radius: 3px; padding: 3px 6px; font: inherit; width: 90px;
   }
   td.v.step-now { color: var(--ok); }
+  section.wide { grid-column: 1 / -1; }
+  /* 40 × 72 = 2,880칸. 칸 하나가 버킷 하나다 — 대부분 비어 있는 것이 정상이고 그게 발견이다. */
+  #p-heatmap { margin-top: 8px; overflow-x: auto; }
+  .heat-row { display: flex; gap: 1px; margin-bottom: 1px; align-items: center; }
+  .heat-row > b { flex: 0 0 96px; color: var(--dim); font-weight: 400; font-size: 10px;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .heat-row > i { flex: 0 0 8px; height: 8px; border-radius: 1px; }
 </style>
 </head>
 <body>
@@ -96,6 +103,11 @@
     <table id="p-cache"></table>
     <h3>아키타입별 히트율 (하위 10)</h3>
     <table id="p-cache-archetype"></table>
+  </section>
+  <section class="wide">
+    <h2>버킷 히트맵 (40 아키타입 × 72 버킷)</h2>
+    <table id="p-heatmap-summary"></table>
+    <div id="p-heatmap"></div>
   </section>
 </div>
 
@@ -233,6 +245,56 @@ function render(m) {
   renderHistogram(r.scoreHistogram, r.queueDepth);
   renderCost(m.cost);
   renderCache(m.cache);
+  renderHeatmap(m.heatmap);
+}
+
+// 버킷 히트맵. docs/14 §8 (T4-22).
+//
+// 40 아키타입 × 72 버킷 = 2,880칸. 값은 그 버킷의 조회 수(히트 + 미스)다 —
+// "채워졌는가" 가 아니라 "쓰였는가" 를 본다. 대부분 비어 있을 것이고,
+// 그 비율(실사용 %)이 곧 "2,880이 아니라 300이면 충분했다" 는 발견이다.
+function renderHeatmap(h) {
+  if (!h || !h.cells || h.cells.length === 0) {
+    rows($("p-heatmap-summary"), [["—", "히트맵 자료 없음"]]);
+    $("p-heatmap").replaceChildren();
+    return;
+  }
+
+  const total = h.archetypes * h.columns;
+
+  rows($("p-heatmap-summary"), [
+    ["실사용 버킷", bar(h.used, total, `${h.used} / ${total} · ${(100 * h.usedRatio).toFixed(1)} %`)],
+    ["플랜이 있는 버킷", bar(h.filled, total, `${h.filled} / ${total}`)],
+    ["최다 조회", h.peak],
+  ]);
+
+  const box = $("p-heatmap");
+  const rowsOut = [];
+
+  for (let a = 0; a < h.archetypes; a++) {
+    const row = document.createElement("div");
+    row.className = "heat-row";
+
+    const label = document.createElement("b");
+    label.textContent = h.archetypeNames[a] || String(a);
+    row.append(label);
+
+    for (let c = 0; c < h.columns; c++) {
+      const v = h.cells[(a * h.columns) + c];
+      const cell = document.createElement("i");
+
+      // 로그 스케일. 선형이면 최다 버킷 하나가 나머지를 전부 검게 만든다.
+      const t = v <= 0 ? 0 : Math.log1p(v) / Math.log1p(h.peak || 1);
+
+      cell.style.background = v <= 0 ? "#232733" : `rgb(${30 + 200 * t | 0}, ${60 + 120 * t | 0}, 240)`;
+      cell.title = `${h.archetypeNames[a] || a} · 열 ${c} · 조회 ${v}`;
+      row.append(cell);
+    }
+
+    rowsOut.push(row);
+  }
+
+  box.replaceChildren(...rowsOut);
 }
 
 // 비용 패널. docs/14 §8 (T4-20).

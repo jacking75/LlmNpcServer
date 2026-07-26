@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Npc.Contracts;
+using Npc.Core;
 using Npc.Core.Plan;
 using Npc.Host.Replan;
 using Npc.Llm;
@@ -230,6 +231,33 @@ public readonly record struct CostPanel(
     long T2Calls,
     long Spillovers);
 
+/// <summary>
+/// 버킷 히트맵. docs/14 §8 · T4-22.
+///
+/// <b>대부분 비어 있을 것이고, 그게 곧 발견이다</b> — "2,880이 아니라 300이면 충분했다".
+/// W12 보고서 §6 의 원자료가 될 값이라 <see cref="Cells"/> 를 통째로 낸다 (T5-18 이 읽는다).
+///
+/// <c>Cells</c> 는 <c>BucketKey.ToIndex()</c> 순서의 2,880칸이고 값은 그 버킷의 조회 수다
+/// (히트 + 미스). 40 × 72 로 접으면 행이 아키타입, 열이 (시간대 × 지역상태 × 기후) 다.
+/// </summary>
+/// <param name="Archetypes">행 수 = 40.</param>
+/// <param name="Columns">열 수 = 6 × 4 × 3 = 72.</param>
+/// <param name="Cells">버킷별 조회 수. 길이 2,880.</param>
+/// <param name="Filled">플랜이 있는 버킷 수.</param>
+/// <param name="Used">한 번이라도 조회된 버킷 수.</param>
+/// <param name="UsedRatio">실사용 버킷 비율. <b>이 숫자가 §6 "발견" 의 본문이다.</b></param>
+/// <param name="Peak">가장 많이 조회된 버킷의 조회 수. 히트맵 색 스케일의 분모다.</param>
+/// <param name="ArchetypeNames">행 이름. 길이 40.</param>
+public readonly record struct BucketHeatmap(
+    int Archetypes,
+    int Columns,
+    long[] Cells,
+    int Filled,
+    int Used,
+    double UsedRatio,
+    long Peak,
+    string[] ArchetypeNames);
+
 /// <summary>대시보드가 폴링하는 /metrics 한 장. docs/11 §10 의 5패널 + docs/13 §6 의 캐시 패널.</summary>
 /// <param name="Tick">틱 패널.</param>
 /// <param name="Npc">NPC 패널.</param>
@@ -238,6 +266,7 @@ public readonly record struct CostPanel(
 /// <param name="Replan">재계획 패널.</param>
 /// <param name="Cache">플랜 캐시 패널 (docs/13 §6).</param>
 /// <param name="Cost">비용 패널 (docs/14 §8).</param>
+/// <param name="Heatmap">버킷 히트맵 (docs/14 §8).</param>
 /// <param name="LlmCalls">
 /// LLM 호출 수 (재시도 포함). 컴파일 계측기가 붙어 있지 않으면 0 이다 —
 /// <c>--no-llm</c> 으로 도는 P1 경로가 그렇다.
@@ -250,7 +279,8 @@ public readonly record struct MetricsSnapshot(
     ReplanPanel Replan,
     CachePanel Cache,
     long LlmCalls,
-    CostPanel Cost = default);
+    CostPanel Cost = default,
+    BucketHeatmap Heatmap = default);
 
 /// <summary>
 /// 호스트 계측. docs/11 §9 · §10.
@@ -293,6 +323,9 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
 
     /// <summary>점수 히스토그램 칸. 마지막 칸이 인터럽트(1000+)다 (docs/14 §8).</summary>
     private readonly int[] _scoreBuckets = new int[ScoreBuckets];
+
+    /// <summary>히트맵 행 이름. 기동 시 1회 만든다 — 스냅샷마다 문자열을 다시 뽑을 이유가 없다.</summary>
+    private readonly string[] _archetypeNames = new string[BucketKey.ArchetypeCount];
 
     private readonly double[] _samples = new double[Window];
     private readonly double[] _sorted = new double[Window];
@@ -359,6 +392,13 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         // 카운터는 PlanStore·IndividualPlanPool 이 들고 있다. 계측기만 여기서 만든다 (docs/13 §6).
         _cache = cache ?? new CacheMetrics(plans);
         _byAction = new int[data.Actions.MaxCode + 1];
+
+        for (int code = 0; code < _archetypeNames.Length; code++)
+        {
+            _archetypeNames[code] = code < data.Archetypes.Count
+                ? data.Archetypes[new ArchetypeId((ushort)code)].Id
+                : string.Empty;
+        }
 
         _meter = new Meter(MeterName);
 
@@ -569,7 +609,8 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
                 StaleDiscarded: _tiers?.Individual?.Discarded ?? 0),
             Cache: CacheOf(_cache.Snapshot()),
             LlmCalls: _compile?.Calls ?? 0,
-            Cost: CostOf());
+            Cost: CostOf(),
+            Heatmap: HeatmapOf());
     }
 
     /// <summary>캐시 계측. 게이트 러너가 히트율을 여기서 읽는다.</summary>
@@ -656,6 +697,46 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
             T1Calls: tiers.Router?.T1Calls ?? 0,
             T2Calls: tiers.Router?.T2Calls ?? 0,
             Spillovers: tiers.Router?.Spillovers ?? 0);
+    }
+
+    /// <summary>
+    /// 버킷 히트맵. docs/14 §8 (T4-22).
+    ///
+    /// 2,880칸을 매 스냅샷마다 새로 만든다. 폴링 간격이 1초라 비용이 문제되지 않고,
+    /// <b>이 배열이 그대로 W12 보고서의 원자료</b>라 자르지 않는다 (T5-18 이 읽는다).
+    /// </summary>
+    private BucketHeatmap HeatmapOf()
+    {
+        var cells = new long[BucketKey.TotalKeys];
+        int used = 0;
+        long peak = 0;
+
+        for (int i = 0; i < cells.Length; i++)
+        {
+            BucketKey key = BucketKey.FromIndex(i);
+
+            // 조회 수 = 히트 + 미스. "쓰였는가" 를 보는 것이지 "채워졌는가" 가 아니다 —
+            // 미생성 버킷이 조회되는 것이야말로 프리베이크 우선순위의 근거다 (docs/13 §6).
+            long queries = _plans.HitsOf(key) + _plans.MissesOf(key);
+
+            cells[i] = queries;
+
+            if (queries > 0)
+            {
+                used++;
+                peak = Math.Max(peak, queries);
+            }
+        }
+
+        return new BucketHeatmap(
+            Archetypes: BucketKey.ArchetypeCount,
+            Columns: BucketKey.TotalKeys / BucketKey.ArchetypeCount,
+            Cells: cells,
+            Filled: _plans.FilledBuckets,
+            Used: used,
+            UsedRatio: Math.Round((double)used / BucketKey.TotalKeys, 4),
+            Peak: peak,
+            ArchetypeNames: _archetypeNames);
     }
 
     /// <summary>점수 분포. 배열은 매 스냅샷마다 새로 만든다 — 대시보드가 JSON 으로 가져간다.</summary>
