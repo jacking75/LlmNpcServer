@@ -31,9 +31,10 @@ public sealed class PlanRequestSuffixTests
 
         JsonElement json = RequestObjectOf(PlanRequestSuffix.Build(request, s_data));
 
+        // allowed_actions 는 T2-21 1차에서 §8 처방으로 추가됐다 (docs/12 §3).
         Assert.Equal(
             """
-            {"archetype":"blacksmith","time_of_day":"Evening","region_state":"War","climate":"Cold","flags":["AtWorkplace","HasTool","IsHungry","RegionUnderAttack","WeatherHarsh"],"traits":{"diligence":80,"sociability":40,"courage":55,"greed":50},"goals":["restock_ore","fulfill_orders","maintain_shop"]}
+            {"archetype":"blacksmith","allowed_actions":["Craft","Drink","Eat","Emote","Equip","Flee","Gather","Gossip","Greet","Mine","MoveTo","Observe","Repair","Rest","Retreat","Sleep","Store","Talk","Trade","Wait","Withdraw","Work"],"time_of_day":"Evening","region_state":"War","climate":"Cold","flags":["AtWorkplace","HasTool","IsHungry","RegionUnderAttack","WeatherHarsh"],"traits":{"diligence":80,"sociability":40,"courage":55,"greed":50},"goals":["restock_ore","fulfill_orders","maintain_shop"]}
             """,
             json.GetRawText());
     }
@@ -114,7 +115,8 @@ public sealed class PlanRequestSuffixTests
             new PlanRequest(Blacksmith(TimeOfDay.Noon, RegionState.Peace, Climate.Fair), WorldFlags.AtWorkplace),
             s_data);
 
-        foreach (string key in new[] { "archetype", "time_of_day", "region_state", "climate", "flags", "traits", "goals" })
+        foreach (string key in new[]
+                 { "archetype", "allowed_actions", "time_of_day", "region_state", "climate", "flags", "traits", "goals" })
         {
             Assert.Contains($"\"{key}\"", suffix, StringComparison.Ordinal);
         }

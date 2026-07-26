@@ -126,6 +126,13 @@ public static class CatalogRenderer
                 sb.Append(" one of {").Append(string.Join(", ", param.EnumValues)).Append('}');
             }
 
+            // npc_ref 는 열거로 못 박을 수 없다 (아키타입 40종 × 3형식). 형식만 그 자리에 적는다 —
+            // 안 적으면 모델이 `nearest:player` 같은 것을 지어낸다 (T2-21 2차 실측).
+            if (param.Type == ParamType.NpcRef)
+            {
+                sb.Append(" one of {self, nearest:<archetype id>, poi_owner:<poi symbol>}");
+            }
+
             if (param.Type == ParamType.Int && param.Min != int.MinValue && param.Max != int.MaxValue)
             {
                 sb.Append(" range ").Append(param.Min.ToString(CultureInfo.InvariantCulture))

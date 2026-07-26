@@ -66,6 +66,41 @@ public sealed class SchemaValidatorTests
     }
 
     [Fact]
+    public void Schema_TruncatesTooLongGoal()
+    {
+        const string Json = """
+            { "schema": 1, "goal": "seek_shelter_and_wait_out_disaster", "loop": true,
+              "steps": [
+                { "action": "Rest", "args": {} },
+                { "action": "Rest", "args": {} },
+                { "action": "Rest", "args": {} }
+              ] }
+            """;
+
+        ValidationResult result = SchemaValidator.Validate(Json, out PlanDocument? document);
+
+        Assert.True(result.IsValid, result.Detail);
+        Assert.Equal("seek_shelter_and_wait_out_disast", document!.Goal);
+        Assert.Equal(SchemaValidator.MaxGoalLength, document.Goal.Length);
+    }
+
+    [Fact]
+    public void Schema_StillRejectsMalformedGoal()
+    {
+        // 길이가 아니라 문자 규칙 위반은 그대로 반려한다.
+        const string Json = """
+            { "schema": 1, "goal": "Forge Batch!", "loop": true,
+              "steps": [
+                { "action": "Rest", "args": {} },
+                { "action": "Rest", "args": {} },
+                { "action": "Rest", "args": {} }
+              ] }
+            """;
+
+        Assert.Equal("V1.SCHEMA", Validate(Json).Code);
+    }
+
+    [Fact]
     public void Schema_V1_STEP_COUNT_TooFew()
     {
         const string Json = """
@@ -146,7 +181,7 @@ public sealed class SchemaValidatorTests
     }
 
     [Fact]
-    public void Schema_RejectsTooLongReasoning()
+    public void Schema_TruncatesTooLongReasoning()
     {
         string json = $$"""
             { "schema": 1, "goal": "test_goal", "loop": true,
@@ -158,7 +193,12 @@ public sealed class SchemaValidatorTests
               ] }
             """;
 
-        Assert.Equal("V1.SCHEMA", Validate(json).Code);
+        // 길이는 반려 사유가 아니다 — 런타임이 안 보는 필드이고, 반려하면 멀쩡한 플랜 하나를
+        // 버리고 재시도에 토큰을 두 배로 쓴다 (T2-21 3차). 자르고 통과시킨다.
+        ValidationResult result = SchemaValidator.Validate(json, out PlanDocument? document);
+
+        Assert.True(result.IsValid, result.Detail);
+        Assert.Equal(PlanDocument.MaxReasoningLength, document!.Reasoning!.Length);
     }
 
     [Fact]

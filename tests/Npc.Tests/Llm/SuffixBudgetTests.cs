@@ -52,15 +52,16 @@ public sealed class SuffixBudgetTests
     [Fact]
     public void Suffix_NeverDropsSituationFields()
     {
-        // 예산을 맞추려고 덜어내는 것은 개체 부가정보(recent · outcome · inventory)뿐이다.
-        // 상황·플래그·성향·목표를 덜어내면 플랜을 결정할 근거가 사라진다.
-        foreach ((string name, PlanRequest request) in StressCases(BucketKey.FromIndex(16 * 72)))
+        // 예산을 맞추려고 덜어내는 것은 개체 부가정보(recent · outcome · inventory)와,
+        // 최후에 성향·목표뿐이다. 상황·플래그·허용 액션은 유효성을 결정하므로 언제나 남는다.
+        foreach ((string name, PlanRequest request) in
+            StressCases(BucketKey.FromIndex(16 * 72)).Concat(StressCases(BucketKey.FromIndex(39 * 72))))
         {
             string suffix = PlanRequestSuffix.Build(request, s_data);
 
             foreach (string key in new[]
             {
-                "archetype", "time_of_day", "region_state", "climate", "flags", "traits", "goals",
+                "archetype", "allowed_actions", "time_of_day", "region_state", "climate", "flags",
             })
             {
                 Assert.Contains($"\"{key}\"", suffix, StringComparison.Ordinal);
@@ -90,6 +91,8 @@ public sealed class SuffixBudgetTests
         Assert.Contains("\"recent\"", suffix, StringComparison.Ordinal);
         Assert.Contains("\"last_plan_outcome\"", suffix, StringComparison.Ordinal);
         Assert.Contains("\"inventory\"", suffix, StringComparison.Ordinal);
+        Assert.Contains("\"traits\"", suffix, StringComparison.Ordinal);
+        Assert.Contains("\"goals\"", suffix, StringComparison.Ordinal);
     }
 
     [Fact]

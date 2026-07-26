@@ -63,13 +63,16 @@ public sealed class DryRunValidator(MasterDataSet data) : IDryRunValidator
                 $"The plan stops at step {trace.StalledAtStep.ToString(CultureInfo.InvariantCulture)}: {trace.StallReason}.");
         }
 
-        if (trace.GameHours > context.MaxGameHours)
+        // docs/03 §3 의 "전체 사이클이 36시간 초과" 는 <b>한 사이클</b> 기준이다.
+        // loop 플랜을 2사이클 굴리면 합계는 당연히 48시간에 가까워진다 — 합계로 재면
+        // 멀쩡한 하루 일과가 전부 걸린다 (T2-21 1차에서 실제로 그랬다).
+        if (trace.MaxCycleHours > context.MaxGameHours)
         {
             return ValidationResult.Fail(
                 ValidationStage.DryRun, "V4.TIMEOUT", -1,
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"One run takes {trace.GameHours:F1} game hours, over the {context.MaxGameHours} hour budget. Use fewer or shorter steps."));
+                    $"One cycle takes {trace.MaxCycleHours:F1} game hours, over the {context.MaxGameHours} hour budget. Use fewer or shorter steps."));
         }
 
         if (trace.StarvedResource is { } resource)

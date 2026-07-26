@@ -467,6 +467,8 @@ public sealed class CoherenceValidatorTests
 
         public string ItemName(ItemId item) => inner.ItemName(item);
 
+        public WorldFlags ItemGrants(ItemId item) => inner.ItemGrants(item);
+
         public bool ProducesItem(ActionId action) => inner.ProducesItem(action);
 
         public bool ConsumesRecipe(ActionId action) => inner.ConsumesRecipe(action);

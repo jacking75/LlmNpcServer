@@ -880,6 +880,7 @@
     },
     {
       "id": "hunter",
+      "duty_hours": ["Dawn", "Morning", "Noon", "Afternoon"],
       "code": 13,
       "name_key": "npc.hunter",
       "desc": "사냥꾼. 숲에서 짐승을 쫓아 고기와 가죽을 얻는다. 마을 밖에서 보내는 시간이 가장 긴 직업이다.",
@@ -1444,6 +1445,7 @@
     },
     {
       "id": "guard_captain",
+      "duty_hours": ["Morning", "Noon", "Afternoon", "Evening"],
       "code": 22,
       "name_key": "npc.guard_captain",
       "desc": "위병대장. 근무를 배치하고 초소를 점검한다. 지역이 공격받으면 성문으로 먼저 달려간다.",
@@ -1506,6 +1508,7 @@
     },
     {
       "id": "town_guard",
+      "duty_hours": ["Morning", "Noon", "Afternoon", "Evening"],
       "code": 23,
       "name_key": "npc.town_guard",
       "desc": "마을 위병. 거리를 돌고 초소를 지킨다. 수가 많아 마을 어디서든 한 명은 보인다.",
@@ -1568,6 +1571,7 @@
     },
     {
       "id": "gate_guard",
+      "duty_hours": ["Dawn", "Morning", "Noon", "Afternoon", "Evening"],
       "code": 24,
       "name_key": "npc.gate_guard",
       "desc": "성문 위병. 드나드는 사람을 확인하고 성문을 지킨다. 근무 위치가 고정돼 있어 이동이 적다.",
@@ -1630,6 +1634,7 @@
     },
     {
       "id": "patrol_scout",
+      "duty_hours": ["Dawn", "Morning", "Noon", "Afternoon"],
       "code": 25,
       "name_key": "npc.patrol_scout",
       "desc": "정찰병. 마을 밖 외곽을 돌며 위협을 살핀다. 숲과 언덕을 오가느라 하루 이동 거리가 가장 길다.",
@@ -1692,6 +1697,7 @@
     },
     {
       "id": "watchman",
+      "duty_hours": ["Evening", "Night", "Dawn"],
       "code": 26,
       "name_key": "npc.watchman",
       "desc": "야경꾼. 밤에 등을 밝히고 거리를 돈다. 낮에는 자고 저녁에 일어나 하루가 거꾸로 돈다.",
@@ -2442,6 +2448,7 @@
     },
     {
       "id": "caravan_leader",
+      "duty_hours": ["Dawn", "Morning", "Noon", "Afternoon", "Evening"],
       "code": 39,
       "name_key": "npc.caravan_leader",
       "desc": "대상 우두머리. 성문과 마구간을 오가며 물자를 옮긴다. 호위를 데리고 다녀 동행이 있다.",

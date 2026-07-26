@@ -2,6 +2,7 @@
   "_comment": "docs/01 §10.1 [4] few-shot. 프리픽스에 그대로 실린다 — 검증기 1·2·3단을 통과해야 한다 (PromptPrefixTests).",
   "request": {
     "archetype": "blacksmith",
+    "allowed_actions": ["Craft", "Drink", "Eat", "Emote", "Equip", "Flee", "Gather", "Gossip", "Greet", "Mine", "MoveTo", "Observe", "Repair", "Rest", "Retreat", "Sleep", "Store", "Talk", "Trade", "Wait", "Withdraw", "Work"],
     "time_of_day": "Morning",
     "region_state": "Peace",
     "climate": "Fair",

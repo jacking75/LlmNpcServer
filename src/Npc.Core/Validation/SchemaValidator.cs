@@ -63,7 +63,10 @@ public static partial class SchemaValidator
     /// <summary>on_step_fail 의 허용값.</summary>
     private static readonly string[] s_failPolicies = ["fallback", "retry_once", "skip", "replan"];
 
-    [GeneratedRegex("^[a-z][a-z0-9_]{2,31}$", RegexOptions.CultureInvariant)]
+    /// <summary>
+    /// goal 의 문자 규칙. <b>길이는 여기서 보지 않는다</b> — 너무 길면 자른다 (<see cref="Normalize"/>).
+    /// </summary>
+    [GeneratedRegex("^[a-z][a-z0-9_]{2,}$", RegexOptions.CultureInvariant)]
     private static partial Regex GoalPattern();
 
     /// <summary>JSON 문자열을 검증하고 파싱한다.</summary>
@@ -100,10 +103,40 @@ public static partial class SchemaValidator
             return ValidationResult.Fail(ValidationStage.Schema, "V1.SCHEMA", -1, ex.Message);
         }
 
-        return document is null
-            ? ValidationResult.Fail(ValidationStage.Schema, "V1.PARSE", -1, "문서가 null 이다.")
-            : ValidationResult.Ok;
+        if (document is null)
+        {
+            return ValidationResult.Fail(ValidationStage.Schema, "V1.PARSE", -1, "문서가 null 이다.");
+        }
+
+        document = Normalize(document);
+        return ValidationResult.Ok;
     }
+
+    /// <summary>
+    /// 런타임이 안 보는 두 필드의 길이를 <b>반려하지 않고 자른다</b>.
+    ///
+    /// <c>goal</c> 은 로그·검수용 식별자이고 <c>reasoning</c> 은 검수자용 주석이다 (docs/03 §1).
+    /// 둘 다 플랜의 의미에 관여하지 않는데, 길이를 넘겼다고 반려하면 <b>멀쩡한 플랜 하나를 버리고
+    /// 재시도에 토큰을 두 배로 쓴다.</b> 게다가 출력 토큰은 이미 지불된 뒤다.
+    /// T2-21 2차 실측에서 이 두 가지가 남은 실패의 4분의 1이었다.
+    /// </summary>
+    private static PlanDocument Normalize(PlanDocument document)
+    {
+        string goal = document.Goal.Length > MaxGoalLength
+            ? document.Goal[..MaxGoalLength].TrimEnd('_')
+            : document.Goal;
+
+        string? reasoning = document.Reasoning is { Length: > PlanDocument.MaxReasoningLength } text
+            ? text[..PlanDocument.MaxReasoningLength]
+            : document.Reasoning;
+
+        return ReferenceEquals(goal, document.Goal) && ReferenceEquals(reasoning, document.Reasoning)
+            ? document
+            : document with { Goal = goal, Reasoning = reasoning };
+    }
+
+    /// <summary>docs/03 §2 의 goal 길이 상한.</summary>
+    public const int MaxGoalLength = 32;
 
     private static ValidationResult ValidateStructure(JsonElement root)
     {
@@ -147,7 +180,7 @@ public static partial class SchemaValidator
         {
             return ValidationResult.Fail(
                 ValidationStage.Schema, "V1.SCHEMA", -1,
-                $"goal 이 ^[a-z][a-z0-9_]{{2,31}}$ 를 만족하지 않는다: {goal}");
+                $"goal 이 소문자 snake_case 식별자가 아니다: {goal}");
         }
 
         // --- loop ---
@@ -166,12 +199,7 @@ public static partial class SchemaValidator
                     ValidationStage.Schema, "V1.SCHEMA", -1, $"reasoning 이 문자열이 아니다: {reasoning}");
             }
 
-            if (reasoning.GetString()!.Length > PlanDocument.MaxReasoningLength)
-            {
-                return ValidationResult.Fail(
-                    ValidationStage.Schema, "V1.SCHEMA", -1,
-                    $"reasoning 이 {reasoning.GetString()!.Length}자다. {PlanDocument.MaxReasoningLength}자 이하여야 한다.");
-            }
+            // 길이는 반려 사유가 아니다 — Normalize 가 자른다.
         }
 
         // --- on_step_fail ---

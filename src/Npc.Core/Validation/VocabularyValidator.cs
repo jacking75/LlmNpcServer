@@ -48,6 +48,16 @@ public interface IPlanValidationVocabulary : IPlanVocabulary
     /// <summary>이 액션이 자원을 인벤토리에 넣는가(채집·수령). V3.RESOURCE_IMBALANCE 가 쓴다.</summary>
     bool ProducesItem(ActionId action);
 
+    /// <summary>
+    /// 이 아이템을 하나 이상 가지면 서는 플래그 (<c>items.json</c> 의 grants).
+    ///
+    /// <b>수령 액션(<c>Withdraw</c>·<c>PickUp</c>)의 효과가 아이템에 달려 있어서 필요하다.</b>
+    /// 액션 정의의 <c>grants</c> 는 아이템을 모르므로 비어 있는데, 그렇다고 아무 플래그도 안 세우면
+    /// 채집 액션이 없는 생산 아키타입(재단사·양조사)은 <c>Craft</c> 의 <c>HasRawMaterial</c> 을
+    /// 영원히 못 세운다. 런타임은 인벤토리에서 플래그를 다시 계산하므로(EventApplier) 3단도 그래야 한다.
+    /// </summary>
+    WorldFlags ItemGrants(ItemId item);
+
     /// <summary>이 액션이 레시피를 소비하는가(제작·조리). V3.RESOURCE_IMBALANCE 가 쓴다.</summary>
     bool ConsumesRecipe(ActionId action);
 }

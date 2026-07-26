@@ -336,6 +336,12 @@ static bool IsDeviated(WorldFlags cur, WorldFlags required, WorldFlags requiredA
 
       "default_goals": ["restock_ore","fulfill_orders","maintain_shop"],
 
+      // 근무 시간대. 이 시간대의 버킷에서 OnDuty 가 선다 (T2-21).
+      // Guard·Patrol 이 OnDuty 를 요구하는데 이 필드가 없으면 마스터데이터의 어느 것도
+      // 그 플래그를 세우지 않아, 치안 아키타입 5종이 자기 대표 액션을 영영 못 쓴다.
+      // 근무가 없는 아키타입은 생략한다.
+      "duty_hours": [],
+
       "initial_inventory": [                 // gen_npcs 가 NPC 인스턴스에 복사하는 기본값 (docs/11 §8)
         { "item": "smith_hammer", "count": 1 },
         { "item": "bread", "count": 2 },

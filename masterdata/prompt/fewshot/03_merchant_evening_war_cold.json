@@ -2,6 +2,7 @@
   "_comment": "docs/01 §10.1 [4] few-shot. 지역이 공격받으면 사교형 아키타입도 일과를 접는다.",
   "request": {
     "archetype": "merchant",
+    "allowed_actions": ["Drink", "Eat", "Emote", "Equip", "Flee", "Gossip", "Greet", "MoveTo", "Observe", "Perform", "PickUp", "Rest", "Sleep", "Store", "Talk", "Trade", "Wait", "Wander", "Withdraw"],
     "time_of_day": "Evening",
     "region_state": "War",
     "climate": "Cold",

@@ -215,7 +215,22 @@ public sealed class PromptPrefix
 
             sb.Append("\n## example ").Append((i + 1).ToString(CultureInfo.InvariantCulture)).Append("\n\nrequest:\n");
             sb.Append(JsonSerializer.Serialize(document.RootElement.GetProperty("request"), compact));
-            sb.Append("\n\nplan:\n");
+
+            // 반려→수정 예시. docs/12 §8 의 V3.PRECONDITION_UNMET 처방이다 —
+            // 무엇이 왜 반려됐고 어떻게 고치는지를 한 자리에서 보여 준다.
+            if (document.RootElement.TryGetProperty("rejected_plan", out JsonElement rejected))
+            {
+                sb.Append("\n\nrejected plan:\n");
+                sb.Append(JsonSerializer.Serialize(rejected, compact));
+                sb.Append("\n\nwhy it was rejected:\n");
+                sb.Append(JsonSerializer.Serialize(document.RootElement.GetProperty("rejection"), compact));
+                sb.Append("\n\ncorrected plan:\n");
+            }
+            else
+            {
+                sb.Append("\n\nplan:\n");
+            }
+
             sb.Append(JsonSerializer.Serialize(document.RootElement.GetProperty("plan"), compact));
             sb.Append('\n');
         }

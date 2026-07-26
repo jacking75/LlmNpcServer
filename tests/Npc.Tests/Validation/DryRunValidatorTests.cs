@@ -32,9 +32,10 @@ public sealed class DryRunValidatorTests
         return PlanCompiler.Compile(document!, bucket, default, s_data, sourceJson: json);
     }
 
-    private static ValidationResult Run(string json, string archetype, int maxGameHours = 36)
+    private static ValidationResult Run(
+        string json, string archetype, int maxGameHours = 36, TimeOfDay time = TimeOfDay.Morning)
     {
-        BucketKey bucket = Bucket(archetype);
+        BucketKey bucket = Bucket(archetype, time);
         var context = new ValidationContext(
             bucket, s_data.InitialFlags(bucket), ValidationContext.SeedOf(bucket), maxGameHours);
 
@@ -53,7 +54,8 @@ public sealed class DryRunValidatorTests
     [Fact]
     public void DryRun_V4_DEADLOCK()
     {
-        // 근무 배정(OnDuty)이 없는데 Guard 를 쓴다. 첫 사이클 두 번째 스텝에서 멈춘다.
+        // 근무 시간이 아닌데(town_guard 의 duty_hours 는 Morning~Evening) Guard 를 쓴다.
+        // 첫 사이클 두 번째 스텝에서 멈춘다.
         const string Json = """
             { "schema": 1, "goal": "hold_the_gate", "loop": true, "steps": [
               { "action": "MoveTo", "args": { "poi": "$gate" } },
@@ -62,7 +64,7 @@ public sealed class DryRunValidatorTests
               { "action": "Sleep", "args": { "until_time": "Morning" } } ] }
             """;
 
-        ValidationResult result = Run(Json, "town_guard");
+        ValidationResult result = Run(Json, "town_guard", time: TimeOfDay.Night);
 
         Assert.Equal(ValidationStage.DryRun, result.FailedAt);
         Assert.Equal("V4.DEADLOCK", result.Code);
@@ -113,6 +115,7 @@ public sealed class DryRunValidatorTests
 
         Assert.Equal("V4.TIMEOUT", result.Code);
         Assert.Contains("game hours", result.Detail, StringComparison.Ordinal);
+        Assert.Contains("One cycle", result.Detail, StringComparison.Ordinal);
     }
 
     [Fact]

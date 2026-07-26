@@ -12,7 +12,11 @@ namespace Npc.Sim;
 /// <param name="StalledAtStep">진행이 멈춘 스텝. -1 이면 끝까지 갔다.</param>
 /// <param name="StallReason">멈춘 이유(사람이 읽는 문장). 안 멈췄으면 빈 문자열.</param>
 /// <param name="GameHours">전체 소요 게임 시간.</param>
-/// <param name="CycleHours">한 사이클의 게임 시간. <c>loop</c> 플랜의 하루 길이 판정에 쓴다.</param>
+/// <param name="CycleHours">
+/// <b>마지막</b> 사이클의 게임 시간. 첫 사이클은 하루 중간에서 시작하는 과도기라 짧다 —
+/// "하루에 한 번 도는가"는 정상 상태(두 번째 사이클)로 봐야 한다.
+/// </param>
+/// <param name="MaxCycleHours">가장 긴 사이클의 게임 시간. 시간 예산(V4.TIMEOUT) 판정에 쓴다.</param>
 /// <param name="StarvedResource">사이클 중 바닥난 필수 자원의 이름. 없으면 null.</param>
 /// <param name="MaxPoiOscillation">같은 두 POI 를 왕복한 횟수.</param>
 /// <param name="Steps">실행한 스텝 수 (사이클 합계).</param>
@@ -21,6 +25,7 @@ public readonly record struct DryRunTrace(
     string StallReason,
     double GameHours,
     double CycleHours,
+    double MaxCycleHours,
     string? StarvedResource,
     int MaxPoiOscillation,
     int Steps);
@@ -54,10 +59,20 @@ public sealed partial class SimWorld
     {
         ArgumentNullException.ThrowIfNull(data);
 
-        _ = bucket;
+        // 시계를 버킷의 시간대에서 시작한다. 자정에서 시작하면 Noon 버킷의 플랜이
+        // "아침까지 잔다"를 19시간으로 계산해 멀쩡한 일과가 시간 예산에 걸린다.
+        (int from, int _) = data.Buckets.GameHoursOf(bucket.T);
 
-        return new SimWorld(data, capacity: 1, new SimOptions(Seed: seed, TimeScale: 1_000));
+        return new SimWorld(data, capacity: 1, new SimOptions(Seed: seed, TimeScale: 1_000))
+        {
+            _startHour = from,
+        };
     }
+
+    private int _startHour;
+
+    /// <summary>드라이런 시계의 시작 시각(게임 시). 버킷의 시간대에서 나온다.</summary>
+    public int StartHour => _startHour;
 
     /// <summary>
     /// NPC 한 마리를 집에 놓고 아키타입 기본 인벤토리를 채운다.
@@ -110,6 +125,7 @@ public sealed partial class SimWorld
 
         double seconds = 0;
         double cycleSeconds = 0;
+        double maxCycleSeconds = 0;
         int steps = 0;
         int oscillation = 0;
 
@@ -157,19 +173,23 @@ public sealed partial class SimWorld
                 if (!TryConsume(action, step, inventory, selfSupplied, out string? starved))
                 {
                     return new DryRunTrace(
-                        -1, string.Empty, seconds / 3600.0, cycleSeconds / 3600.0, starved, oscillation, steps);
+                        -1, string.Empty, seconds / 3600.0, cycleSeconds / 3600.0, maxCycleSeconds / 3600.0,
+                        starved, oscillation, steps);
                 }
 
-                double duration = DurationSeconds(action, step, PoiOf(0), target, seconds, i);
+                double duration = DurationSeconds(action, step, PoiOf(0), target, (_startHour * 3600.0) + seconds, i);
 
                 seconds += duration;
                 cycleSeconds = seconds - cycleStart;
+                maxCycleSeconds = Math.Max(maxCycleSeconds, cycleSeconds);
                 steps++;
 
-                if (seconds / 3600.0 > maxGameHours)
+                // 한 사이클이 예산의 두 배를 넘어가면 더 굴려 봐야 결론이 같다.
+                if (cycleSeconds / 3600.0 > maxGameHours * 2)
                 {
                     return new DryRunTrace(
-                        -1, string.Empty, seconds / 3600.0, cycleSeconds / 3600.0, null, oscillation, steps);
+                        -1, string.Empty, seconds / 3600.0, cycleSeconds / 3600.0, maxCycleSeconds / 3600.0,
+                        null, oscillation, steps);
                 }
 
                 // --- 효과 적용 ---
@@ -204,7 +224,8 @@ public sealed partial class SimWorld
         }
 
         return new DryRunTrace(
-            -1, string.Empty, seconds / 3600.0, cycleSeconds / 3600.0, null, oscillation, steps);
+            -1, string.Empty, seconds / 3600.0, cycleSeconds / 3600.0, maxCycleSeconds / 3600.0,
+            null, oscillation, steps);
     }
 
     /// <summary>드라이런의 시작 플래그. <see cref="RunCycles"/> 전에 넣는다.</summary>
@@ -218,7 +239,7 @@ public sealed partial class SimWorld
 
     private static DryRunTrace Stalled(
         int step, string reason, double seconds, double cycleSeconds, int oscillation, int steps) =>
-        new(step, reason, seconds / 3600.0, cycleSeconds / 3600.0, null, oscillation, steps);
+        new(step, reason, seconds / 3600.0, cycleSeconds / 3600.0, cycleSeconds / 3600.0, null, oscillation, steps);
 
     /// <summary>POI 심볼이 함의하는 장소 플래그. 3단과 같은 표를 쓴다.</summary>
     private static WorldFlags CoherenceGrantsOf(PoiSymbol symbol) =>
@@ -571,6 +592,17 @@ public sealed partial class SimWorld
         bool gathers = action.Param("resource") is not null || action.Param("crop") is not null;
 
         if (gathers && step.Item.Value != 0)
+        {
+            inventory[step.Item.Value] += count;
+            return;
+        }
+
+        // 수령 액션(Withdraw · PickUp)은 보관함에서 물건을 꺼내 온다.
+        // 3단이 이걸 인정하는데(ItemGrants) 4단이 안 하면, 재료를 꺼내 만드는 멀쩡한 플랜이
+        // 3단을 통과하고 4단에서 V4.DEADLOCK 으로 걸린다 — 두 단이 어긋나면 안 된다.
+        bool receives = (action.Forbids & WorldFlags.InventoryFull) != 0 && action.Param("item") is not null;
+
+        if (receives && step.Item.Value != 0)
         {
             inventory[step.Item.Value] += count;
         }

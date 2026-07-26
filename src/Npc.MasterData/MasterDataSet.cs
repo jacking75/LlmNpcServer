@@ -549,8 +549,23 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     public bool IsActionAllowed(ArchetypeId archetype, ActionId action) => Archetypes[archetype].Allows(action);
 
     /// <inheritdoc />
-    public WorldFlags InitialFlags(BucketKey bucket) =>
-        Buckets.InitialFlags(bucket) | Archetypes[bucket.A].BaselineFlags;
+    /// <remarks>
+    /// 버킷(시간대·지역·기후) + 아키타입 기본 인벤토리 + <b>근무 시간대</b>.
+    /// 근무 여부는 (아키타입 × 시간대)에서만 나오는 정보라 여기가 유일한 자리다 (docs/01 §5 duty_hours).
+    /// </remarks>
+    public WorldFlags InitialFlags(BucketKey bucket)
+    {
+        ArchetypeDef archetype = Archetypes[bucket.A];
+
+        WorldFlags flags = Buckets.InitialFlags(bucket) | archetype.BaselineFlags;
+
+        if (archetype.IsOnDuty(bucket.T))
+        {
+            flags |= WorldFlags.OnDuty;
+        }
+
+        return flags;
+    }
 
     /// <inheritdoc />
     public bool CompletesOnArrival(ActionId action) =>
@@ -592,6 +607,9 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
 
     /// <inheritdoc />
     public string ItemName(ItemId item) => Items[item].Id;
+
+    /// <inheritdoc />
+    public WorldFlags ItemGrants(ItemId item) => Items.GrantsOf(item);
 
     /// <inheritdoc />
     public bool TryGetRecipeInputs(ItemId recipe, out ImmutableArray<PlanRecipeInput> inputs)

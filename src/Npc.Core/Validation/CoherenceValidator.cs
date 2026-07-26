@@ -93,6 +93,7 @@ public static class CoherenceValidator
                 return ValidationResult.Fail(
                     ValidationStage.Coherence, "V3.PRECONDITION_UNMET", i,
                     $"{step.Action} requires {WorldFlagTable.Format(missing)} but no preceding step grants it. "
+                    + Remedy(missing)
                     + $"State before this step: {WorldFlagTable.Format(state)}.");
             }
 
@@ -132,6 +133,15 @@ public static class CoherenceValidator
             if (vocabulary.CompletesOnArrival(action))
             {
                 grants |= GrantsOf(poi);
+            }
+
+            // 수령 액션(Withdraw · PickUp)의 효과는 아이템에 달려 있다. 액션 정의의 grants 는
+            // 아이템을 모르므로 비어 있지만, 런타임은 인벤토리에서 플래그를 다시 계산한다.
+            // 이걸 빼면 채집 액션이 없는 생산 아키타입은 Craft 를 영원히 못 쓴다 (T2-21 3차 실측).
+            if (vocabulary.ProducesItem(action)
+                && TryReadItem(vocabulary, step, "item", out ItemId received))
+            {
+                grants |= vocabulary.ItemGrants(received);
             }
 
             state = (state & ~flags.Clears) | grants;
@@ -244,6 +254,31 @@ public static class CoherenceValidator
           .Append("}}");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// 모자란 플래그를 <b>어떻게 세우는지</b> 한 문장으로. docs/12 §5 —
+    /// "실패 이유를 자연어로" 의 다음 단계다. 장소 플래그는 고치는 방법이 하나뿐이라
+    /// (그 POI 로 <c>MoveTo</c>) 그걸 그대로 적어 준다. 재시도가 같은 실수를 반복하는 것을 줄인다.
+    /// </summary>
+    private static string Remedy(WorldFlags missing)
+    {
+        for (int i = 1; i < PoiSymbols.Names.Length; i++)
+        {
+            var symbol = (PoiSymbol)i;
+
+            if (GrantsOf(symbol) != WorldFlags.None && (missing & GrantsOf(symbol)) != 0)
+            {
+                return $"Insert a MoveTo step with poi {PoiSymbols.ToText(symbol)} before it. ";
+            }
+        }
+
+        if ((missing & WorldFlags.HasRawMaterial) != 0)
+        {
+            return "Gather/Mine/Farm/Fish it first, or Withdraw a raw material at your home or workplace. ";
+        }
+
+        return string.Empty;
     }
 
     private static PoiSymbol ReadPoiSymbol(PlanStep step)

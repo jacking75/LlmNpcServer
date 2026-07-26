@@ -92,8 +92,11 @@ public sealed class CompilerRetryTests
         Assert.Contains("previous_attempt_failed", client.UserPrompts[1], StringComparison.Ordinal);
         Assert.Contains("V3.PRECONDITION_UNMET", client.UserPrompts[1], StringComparison.Ordinal);
 
-        // 프리픽스에는 절대 실리지 않는다.
-        Assert.DoesNotContain("previous_attempt_failed", client.SystemPrompts[1], StringComparison.Ordinal);
+        // 프리픽스에도 previous_attempt_failed 는 나온다 — few-shot 의 반려→수정 예시다 (T2-21 3차).
+        // 확인할 것은 "이번 실패가 프리픽스에 섞이지 않았는가" 이므로, 두 시도의 프리픽스가
+        // 바이트 단위로 같고 조립된 프리픽스와도 같은지를 본다.
+        Assert.Equal(client.SystemPrompts[0], client.SystemPrompts[1], StringComparer.Ordinal);
+        Assert.Equal(LlmPlanCompilerTests.Prefix.Text, client.SystemPrompts[1]);
     }
 
     [Fact]

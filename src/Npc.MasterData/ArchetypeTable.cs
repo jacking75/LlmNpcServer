@@ -55,6 +55,11 @@ public enum TraitKind
 /// <see cref="InitialInventory"/> 가 세우는 <see cref="WorldFlags"/>.
 /// 로드 시점에 items.json 의 grants 로 계산한다 — 코드에 하드코딩하지 않는다.
 /// </param>
+/// <param name="DutyHours">
+/// 근무 시간대. 이 시간대의 버킷에서는 <c>OnDuty</c> 가 선다 (docs/01 §5).
+/// <b>이게 없으면 <c>Guard</c>·<c>Patrol</c> 은 어떤 플랜에서도 성립할 수 없다</b> —
+/// 두 액션은 <c>OnDuty</c> 를 요구하는데 마스터데이터의 어느 것도 그 플래그를 세우지 않았다 (T2-21 실측).
+/// </param>
 /// <param name="FallbackPlanId">fallback_plans.json 의 플랜 id.</param>
 /// <param name="CombatCapable">전투 가능 여부. 인터럽트 규칙이 본다.</param>
 /// <param name="PopulationWeight">인구 비중. 40종 합 = 1.0.</param>
@@ -72,6 +77,7 @@ public sealed record ArchetypeDef(
     ImmutableArray<string> DefaultGoals,
     ImmutableArray<InventorySlot> InitialInventory,
     WorldFlags BaselineFlags,
+    ImmutableArray<TimeOfDay> DutyHours,
     string FallbackPlanId,
     bool CombatCapable,
     double PopulationWeight)
@@ -79,6 +85,9 @@ public sealed record ArchetypeDef(
     /// <summary>이 아키타입이 그 액션을 쓸 수 있는가. 비트 검사 한 번.</summary>
     public bool Allows(ActionId action) =>
         action.Value < 64 && (AllowedMask & (1UL << action.Value)) != 0;
+
+    /// <summary>이 시간대에 근무 중인가. 근무 시간대가 비어 있으면 언제나 거짓이다.</summary>
+    public bool IsOnDuty(TimeOfDay time) => DutyHours.Contains(time);
 }
 
 /// <summary>
@@ -221,6 +230,19 @@ public sealed class ArchetypeTable
                 }
             }
 
+            var dutyHours = ImmutableArray.CreateBuilder<TimeOfDay>();
+
+            foreach (string hour in dto.DutyHours ?? [])
+            {
+                if (!Enum.TryParse(hour, out TimeOfDay time))
+                {
+                    throw new InvalidDataException(
+                        $"archetypes.json: {dto.Id} 의 duty_hours 에 모르는 시간대 '{hour}' 가 있다.");
+                }
+
+                dutyHours.Add(time);
+            }
+
             var def = new ArchetypeDef(
                 new ArchetypeId((ushort)dto.Code),
                 dto.Id,
@@ -239,6 +261,7 @@ public sealed class ArchetypeTable
                 dto.DefaultGoals is null ? [] : [.. dto.DefaultGoals],
                 inventory.ToImmutable(),
                 baseline,
+                dutyHours.ToImmutable(),
                 dto.FallbackPlan,
                 dto.CombatCapable,
                 dto.PopulationWeight);
@@ -275,6 +298,7 @@ public sealed class ArchetypeTable
         TraitDto? Traits,
         string[]? DefaultGoals,
         InventorySlotDto[]? InitialInventory,
+        string[]? DutyHours,
         string FallbackPlan,
         bool CombatCapable,
         double PopulationWeight);

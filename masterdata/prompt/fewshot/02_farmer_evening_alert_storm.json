@@ -2,6 +2,7 @@
   "_comment": "docs/01 §10.1 [4] few-shot. 같은 아키타입이라도 상황이 다르면 플랜의 모양이 달라야 한다.",
   "request": {
     "archetype": "farmer",
+    "allowed_actions": ["Drink", "Eat", "Emote", "Equip", "Farm", "Flee", "Gather", "Greet", "MoveTo", "Observe", "PickUp", "Rest", "Retreat", "Sleep", "Store", "Talk", "Trade", "Wait", "Wander", "Withdraw"],
     "time_of_day": "Evening",
     "region_state": "Alert",
     "climate": "Storm",

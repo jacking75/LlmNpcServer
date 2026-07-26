@@ -92,8 +92,9 @@ public readonly record struct PlanRequest(
 ///   <item><c>recent</c> 는 salience 상위 3개만</item>
 /// </list>
 ///
-/// 아키타입별 허용 액션은 여기 싣지 않는다. 프리픽스의 ARCHETYPES 절에 있다 —
-/// 20여 개 id 를 매 요청에 실으면 개별 재계획이 300 토큰을 넘긴다.
+/// 아키타입별 허용 액션은 <b>여기에도</b> 싣는다 (T2-21 1차). 프리픽스의 ARCHETYPES 표만으로는
+/// 모델이 자기 행을 안정적으로 찾지 못해 <c>V2.ACTION_NOT_ALLOWED</c> 가 최다 실패 원인이었다.
+/// docs/12 §8 이 제시한 두 처방 중 "서픽스에 allowed_actions 추가" 쪽이다.
 /// </summary>
 public static class PlanRequestSuffix
 {
@@ -120,13 +121,13 @@ public static class PlanRequestSuffix
     public const int TokenBudget = 300;
 
     /// <summary>덜어내기 단계 수. <see cref="Compose"/> 의 주석에 단계별로 무엇이 빠지는지 있다.</summary>
-    private const int MaxTrimLevel = 4;
+    private const int MaxTrimLevel = 5;
 
     /// <summary>
     /// 요청 하나를 서픽스 문자열로. <b>예산을 넘기면 우선순위대로 덜어낸다.</b>
     ///
     /// 예산 초과를 테스트로만 막으면, 실제로 넘치는 입력이 들어왔을 때 그대로 나간다.
-    /// 상황·플래그·목표는 절대 덜어내지 않는다 — 그건 플랜을 결정하는 정보다.
+    /// 상황·플래그·허용 액션은 절대 덜어내지 않는다 — 그건 플랜의 유효성을 결정하는 정보다.
     /// </summary>
     public static string Build(in PlanRequest request, MasterDataSet data)
     {
@@ -151,6 +152,7 @@ public static class PlanRequestSuffix
     ///   <item>2 — <c>last_plan_outcome</c> 도 뺀다</item>
     ///   <item>3 — 인벤토리를 4종으로 줄인다</item>
     ///   <item>4 — 인벤토리를 빼고 실패 설명을 절반으로 줄인다</item>
+    ///   <item>5 — 성향·목표까지 뺀다. 최후다 — 이 단계에서는 "무엇이 유효한가"가 "어떤 성격인가"를 이긴다</item>
     /// </list>
     /// </summary>
     private static string Compose(in PlanRequest request, MasterDataSet data, int trim)
@@ -160,19 +162,32 @@ public static class PlanRequestSuffix
         var json = new JsonObject
         {
             ["archetype"] = archetype.Id,
+
+            // T2-21 1차 — docs/12 §8 의 V2.ACTION_NOT_ALLOWED 처방.
+            // 프리픽스의 아키타입 표만으로는 모델이 자기 행을 안정적으로 찾지 못했다
+            // (탐침 20건에서 최다 실패 원인). 여기 실으면 눈앞에 있어 놓칠 수 없다.
+            // 아키타입당 20여 개 id 라 서픽스가 약 80토큰 늘지만 300 예산 안이다.
+            ["allowed_actions"] = AllowedActions(archetype, data),
+
             ["time_of_day"] = request.Bucket.T.ToString(),
             ["region_state"] = request.Bucket.R.ToString(),
             ["climate"] = request.Bucket.C.ToString(),
             ["flags"] = FlagArray(request.Flags),
-            ["traits"] = new JsonObject
+        };
+
+        // 성향·목표는 플랜의 "성격"을 정한다. 유효성을 정하는 것은 아니므로 마지막에 뺀다.
+        if (trim < 5)
+        {
+            json["traits"] = new JsonObject
             {
                 ["diligence"] = archetype.Traits.Diligence,
                 ["sociability"] = archetype.Traits.Sociability,
                 ["courage"] = archetype.Traits.Courage,
                 ["greed"] = archetype.Traits.Greed,
-            },
-            ["goals"] = StringArray(archetype.DefaultGoals),
-        };
+            };
+
+            json["goals"] = StringArray(archetype.DefaultGoals);
+        }
 
         if (request.Individual is { } snapshot)
         {
@@ -313,6 +328,19 @@ public static class PlanRequestSuffix
             {
                 array.Add(WorldFlagTable.Names[i]);
             }
+        }
+
+        return array;
+    }
+
+    /// <summary>이 아키타입이 쓸 수 있는 액션. archetypes.json 등장 순서 그대로.</summary>
+    private static JsonArray AllowedActions(ArchetypeDef archetype, MasterDataSet data)
+    {
+        var array = new JsonArray();
+
+        foreach (ActionId action in archetype.AllowedActions)
+        {
+            array.Add(data.ActionName(action));
         }
 
         return array;
