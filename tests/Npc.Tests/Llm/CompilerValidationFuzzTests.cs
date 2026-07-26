@@ -99,8 +99,9 @@ public sealed class CompilerValidationFuzzTests
         // 변형이 전부 실패로만 끝나면 테스트가 아무것도 지키지 못한다 — 통과 경로도 최소한 하나 돌아야 한다.
         Assert.True(compiled > 0, "통과한 조합이 하나도 없다. 시드 플랜이 이미 깨져 있다.");
 
-        // 모든 호출이 기록됐다.
-        Assert.Equal(BucketKey.ArchetypeCount * s_mutations.Length, collector.Calls);
+        // 모든 호출이 기록됐다. 통과한 건은 1회, 실패한 건은 재시도까지 2회다 (docs/12 §6).
+        int total = BucketKey.ArchetypeCount * s_mutations.Length;
+        Assert.Equal((total * 2) - compiled, collector.Calls);
         Assert.Equal(compiled, collector.Passed);
         Assert.Equal(1, collector.UniquePrefixHashes);
     }

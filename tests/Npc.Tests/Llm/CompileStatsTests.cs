@@ -36,14 +36,15 @@ public sealed class CompileStatsTests
         await Compile(new FakeChatClient(UnknownAction), collector, request);
         await Compile(new FakeChatClient(new HttpRequestException("429 Too Many Requests")), collector, request);
 
-        Assert.Equal(3, collector.Calls);
+        // 성공은 1회, 실패한 둘은 재시도까지 2회씩 = 5회 (docs/12 §6 — 재시도는 1회만).
+        Assert.Equal(5, collector.Calls);
         Assert.Equal(1, collector.Passed);
-        Assert.Equal(1, collector.CallFailures);
+        Assert.Equal(2, collector.CallFailures);
 
-        // 토큰·비용은 닿은 호출 2건분만 쌓인다.
-        Assert.Equal(24_000, collector.PromptTokens);
-        Assert.Equal(23_000, collector.CachedTokens);
-        Assert.Equal(800, collector.CompletionTokens);
+        // 토큰·비용은 서버에 닿은 3건분만 쌓인다.
+        Assert.Equal(36_000, collector.PromptTokens);
+        Assert.Equal(34_500, collector.CachedTokens);
+        Assert.Equal(1_200, collector.CompletionTokens);
         Assert.True(collector.CostUsd > 0);
         Assert.True(collector.LatencyMs >= 0);
 

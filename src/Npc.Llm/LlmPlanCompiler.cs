@@ -24,14 +24,26 @@ public sealed class LlmPlanCompiler : IPlanCompiler
     private readonly LlmEngineOptions _engine;
     private readonly IChatClient _client;
     private readonly ICompileStatsSink? _stats;
+    private readonly IDryRunValidator? _dryRun;
 
     /// <summary>컴파일러를 만든다. 프리픽스는 기동 시 1회 조립된 것을 그대로 받는다.</summary>
+    /// <param name="data">마스터데이터. 검증 어휘이자 서픽스의 재료다.</param>
+    /// <param name="prefix">기동 시 1회 조립한 프리픽스.</param>
+    /// <param name="engine">엔진 설정.</param>
+    /// <param name="client">엔진 클라이언트.</param>
+    /// <param name="stats">계측 수집기. null 이면 기록하지 않는다.</param>
+    /// <param name="dryRun">
+    /// 검증기 4단. null 이면 3단까지만 본다 —
+    /// 4단 구현은 <c>Npc.Sim</c> 에 있고 이 프로젝트는 그것을 참조하지 않는다 (CLAUDE.md §3).
+    /// 주입은 호스트·프리베이크가 한다.
+    /// </param>
     public LlmPlanCompiler(
         MasterDataSet data,
         PromptPrefix prefix,
         LlmEngineOptions engine,
         IChatClient client,
-        ICompileStatsSink? stats = null)
+        ICompileStatsSink? stats = null,
+        IDryRunValidator? dryRun = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(prefix);
@@ -43,7 +55,14 @@ public sealed class LlmPlanCompiler : IPlanCompiler
         _engine = engine;
         _client = client;
         _stats = stats;
+        _dryRun = dryRun;
     }
+
+    /// <summary>
+    /// 재시도 상한. <b>1회만이다</b> (docs/12 §6).
+    /// 2회 이상은 성공률이 거의 안 오르고 토큰만 태우며, 지연이 선형으로 늘어 런타임 재계획이 무의미해진다.
+    /// </summary>
+    public const int MaxAttempts = 2;
 
     /// <summary>쓰고 있는 엔진.</summary>
     public LlmEngineOptions Engine => _engine;
@@ -53,8 +72,26 @@ public sealed class LlmPlanCompiler : IPlanCompiler
 
     /// <inheritdoc />
     public async ValueTask<PlanCompileResult> CompileAsync(
-        PlanRequest request, CancellationToken cancellationToken) =>
-        await GenerateAndValidateAsync(request, attempt: 1, cancellationToken).ConfigureAwait(false);
+        PlanRequest request, CancellationToken cancellationToken)
+    {
+        PlanCompileResult first = await GenerateAndValidateAsync(request, attempt: 1, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (first.Validation.IsValid)
+        {
+            return first;
+        }
+
+        // 시도 2 — 실패 코드를 <b>서픽스에만</b> 피드백한다. 프리픽스는 건드리지 않는다 (캐시 유지).
+        // temperature 는 0.4 → 0.6 으로 올린다. 같은 실수를 그대로 반복하지 않게.
+        PlanCompileResult second = await GenerateAndValidateAsync(
+            request with { PreviousFailure = first.Validation },
+            attempt: 2,
+            cancellationToken).ConfigureAwait(false);
+
+        // 비용 보고는 "이 버킷 하나에 얼마 들었나"여야 한다 — 마지막 호출값이 아니다.
+        return second with { Stats = first.Stats.Accumulate(second.Stats) };
+    }
 
     /// <summary>한 번 생성하고 검증한다. 재시도 파이프라인(T2-15)이 이 메서드를 두 번 부른다.</summary>
     internal async ValueTask<PlanCompileResult> GenerateAndValidateAsync(
@@ -104,6 +141,13 @@ public sealed class LlmPlanCompiler : IPlanCompiler
             return new PlanCompileResult(null, vocabulary, stats, text);
         }
 
+        // 3단 — 정합성. 여기가 실질적으로 가장 많이 잡는다 (docs/12 §5).
+        ValidationResult coherence = CoherenceValidator.Validate(document, request.Bucket, archetype, _data);
+        if (!coherence.IsValid)
+        {
+            return new PlanCompileResult(null, coherence, stats, text);
+        }
+
         try
         {
             CompiledPlan plan = Npc.Core.Plan.PlanCompiler.Compile(
@@ -115,7 +159,14 @@ public sealed class LlmPlanCompiler : IPlanCompiler
                 version: 1,
                 sourceJson: text);
 
-            return new PlanCompileResult(plan, ValidationResult.Ok, stats, text);
+            // 4단 — 드라이런. 구현이 주입되지 않았으면 3단까지가 전부다.
+            ValidationResult dryRun = _dryRun?.Validate(
+                plan, ValidationContext.For(request.Bucket, _data.InitialFlags(request.Bucket)))
+                ?? ValidationResult.Ok;
+
+            return dryRun.IsValid
+                ? new PlanCompileResult(plan, ValidationResult.Ok, stats, text)
+                : new PlanCompileResult(null, dryRun, stats, text);
         }
         catch (PlanCompilationException ex)
         {
