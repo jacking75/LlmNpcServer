@@ -7,6 +7,7 @@ using Npc.Gateway;
 using Npc.Host;
 using Npc.Host.Commands;
 using Npc.Host.Metrics;
+using Npc.Host.Replan;
 using Npc.Llm;
 using Npc.MasterData;
 using Npc.Planning;
@@ -110,6 +111,7 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly NpcMeter _meter;
     private readonly SimDriver? _driver;
     private readonly NullGameServerLink? _nullLink;
+    private readonly TierWiring _tiers;
     private readonly long _totalTicks;
 
     private NpcHost(
@@ -125,7 +127,8 @@ internal sealed class NpcHost : IAsyncDisposable
         SimDriver? driver,
         NullGameServerLink? nullLink,
         long totalTicks,
-        int npcs)
+        int npcs,
+        TierWiring tiers)
     {
         _options = options;
         _link = link;
@@ -139,6 +142,7 @@ internal sealed class NpcHost : IAsyncDisposable
         _driver = driver;
         _nullLink = nullLink;
         _totalTicks = totalTicks;
+        _tiers = tiers;
         Npcs = npcs;
     }
 
@@ -153,6 +157,9 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>계측. /metrics 와 게이트 러너가 읽는다.</summary>
     public NpcMeter Metrics => _meter;
+
+    /// <summary>재계획 티어 한 벌. 부하 하네스가 워커·예산 통계를 읽는다 (T4-15).</summary>
+    public TierWiring Tiers => _tiers;
 
     /// <summary>옵션대로 전부 조립한다. 기동 시 1회.</summary>
     public static NpcHost Create(HostOptions options, TextWriter log)
@@ -179,12 +186,19 @@ internal sealed class NpcHost : IAsyncDisposable
 
         var clock = new GameClock(data.Buckets, options.TimeScale);
         var correlations = new CorrelationTable(npcs);
-        var applier = new EventApplier(data, store, clock, correlations);
+        var zoneStates = new ZoneStateTable(data);
+        var lodUpdater = new LodUpdater(store) { ZoneStates = zoneStates };
+        var applier = new EventApplier(data, store, clock, correlations, lodUpdater);
         var emitter = new CommandEmitter(data, new PoiBinder(data.Pois));
         var swapper = new PlanSwapper(store);
         var replanQueue = new ReplanQueue(npcs);
+        var snapshots = new ReplanSnapshots(npcs);
+        var individualPool = new IndividualPlanPool();
 
         PlanStore plans = BuildPlanStore(options, data, masterDataDir, log, out int[] fallbackOf);
+
+        // 개별 재계획 플랜은 레지스트리가 아니라 512칸 링에서 온다 (docs/13 §2 · T4-12).
+        plans.Individual = individualPool;
 
         var executor = new PlanExecutor(data, store, plans, correlations, emitter, options.TimeScale)
         {
@@ -193,8 +207,8 @@ internal sealed class NpcHost : IAsyncDisposable
         };
 
         var bands = new LodBandSet(store);
-        var cognition = new CognitionScheduler(store, bands, plans);
-        var interrupts = new InterruptMatcher(data, store);
+        var cognition = new CognitionScheduler(store, bands, plans) { Snapshots = snapshots };
+        var interrupts = new InterruptMatcher(data, store) { Snapshots = snapshots };
 
         // ── 인구 배치 ─────────────────────────────────────────────
         // --npcs 가 전체보다 작으면 균등 간격으로 뽑는다. 앞에서부터 자르면
@@ -255,27 +269,40 @@ internal sealed class NpcHost : IAsyncDisposable
             link, clock, applier, interrupts, cognition, executor, swapper, bands, replanQueue)
         {
             StopAtTick = totalTicks,
-            Transition = new BucketTransition(store, plans, data),
+            Transition = new BucketTransition(store, plans, data) { ZoneStates = zoneStates },
         };
 
+        // ── 재계획 티어 (docs/14 §4). --tier 가 결정한다 ──
+        TierWiring tiers = TierWiring.Build(
+            options, data, masterDataDir, store, plans, replanQueue, snapshots,
+            individualPool, swapper, zoneStates, clock, log);
+
         var meter = new NpcMeter(
-            store, bands, plans, replanQueue, cognition, interrupts, link, loop, clock, data);
+            store, bands, plans, replanQueue, cognition, interrupts, link, loop, clock, data,
+            tiers.Stats, new CacheMetrics(plans, individualPool));
 
         loop.Observer = meter;
 
         log.WriteLine(
             $"npcs {npcs} · link {options.Link} · time-scale {options.TimeScale} · "
             + $"days {options.Days} ({(totalTicks == 0 ? "무제한" : totalTicks + " ticks")}) · "
-            + $"버킷 {plans.FilledBuckets}/{BucketKey.TotalKeys} · llm off (런타임 호출 없음)");
+            + $"버킷 {plans.FilledBuckets}/{BucketKey.TotalKeys} · {tiers.Describe()}");
 
         return new NpcHost(
             options, link, loop, clock, executor, cognition, interrupts, replanQueue, meter,
-            driver, nullLink, totalTicks, npcs);
+            driver, nullLink, totalTicks, npcs, tiers);
     }
 
-    /// <summary>드라이버와 틱 루프를 함께 돌린다. 둘 중 하나가 끝나면 정리한다.</summary>
+    /// <summary>
+    /// 드라이버와 틱 루프를 함께 돌린다. 둘 중 하나가 끝나면 정리한다.
+    /// 재계획 워커는 <b>루프 밖</b>에서 같이 돈다 (CLAUDE.md §2.1).
+    /// </summary>
     public async Task RunAsync(CancellationToken ct)
     {
+        using var workers = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        await _tiers.StartAsync(workers.Token).ConfigureAwait(false);
+
         Task pump = Task.Run(() => PumpAsync(ct), CancellationToken.None);
         Task loop = _loop.RunAsync(ct);
 
@@ -286,6 +313,12 @@ internal sealed class NpcHost : IAsyncDisposable
         catch (OperationCanceledException)
         {
             // Ctrl-C. 정상 종료다.
+        }
+        finally
+        {
+            // 틱 루프가 멈춘 뒤 워커를 세운다 — 순서가 반대면 마지막 스왑이 유실된다.
+            await workers.CancelAsync().ConfigureAwait(false);
+            await _tiers.StopAsync().ConfigureAwait(false);
         }
     }
 
@@ -306,7 +339,7 @@ internal sealed class NpcHost : IAsyncDisposable
         InterruptsForced: _interrupts.Forced,
         ReplanQueued: _replanQueue.Count,
         EventBacklogs: _loop.EventBacklogs,
-        LlmCalls: 0,
+        LlmCalls: _tiers.Stats?.Calls ?? 0,
         Link: _link.Stats);
 
     /// <summary>종료 요약. 게이트 러너가 이 숫자를 본다.</summary>
@@ -335,6 +368,7 @@ internal sealed class NpcHost : IAsyncDisposable
     {
         _meter.Dispose();
 
+        await _tiers.DisposeAsync().ConfigureAwait(false);
         await _link.DisposeAsync().ConfigureAwait(false);
 
         if (_driver is not null)

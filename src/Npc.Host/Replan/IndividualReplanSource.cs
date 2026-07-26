@@ -86,14 +86,21 @@ internal sealed class IndividualReplanSource : IReplanSource
             WorldFlags flags = _store.Flags[npc];
 
             // 큐에 넣을 때와 상황이 크게 달라졌으면 폐기하고 지금 상태로 다시 넣는다 (T4-04).
-            if (!_snapshots.TryAccept(npc, flags, out _))
+            if (!_snapshots.TryAccept(npc, flags, out ReplanRequestSnapshot snapshot))
             {
                 Interlocked.Increment(ref _discarded);
                 _snapshots.Requeue(npc, flags, now, score, _queue);
                 continue;
             }
 
-            job = new ReplanJob(npc, BucketOf(npc, flags), flags, PlanQuality.Individual, score);
+            job = new ReplanJob(
+                npc,
+                BucketOf(npc, flags),
+                flags,
+                PlanQuality.Individual,
+                score,
+                snapshot.Exists ? snapshot.QueuedTick : -1);
+
             return true;
         }
 

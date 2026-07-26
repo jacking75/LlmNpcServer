@@ -13,12 +13,17 @@ namespace Npc.Host.Replan;
 /// <param name="Flags">일감을 집어 든 시점의 월드 플래그.</param>
 /// <param name="Quality">아키타입 플랜인가 개체 플랜인가. <b>티어 선택의 입력이다</b>.</param>
 /// <param name="Score">큐에서의 점수. 지연 통계와 재삽입에 쓴다.</param>
+/// <param name="QueuedTick">
+/// 큐에 들어간 틱. <b>-1 이면 모른다</b>(스냅샷이 없는 경로).
+/// docs/14 §6 의 "큐 평균 대기 시간" 이 이 값의 차분이다.
+/// </param>
 internal readonly record struct ReplanJob(
     int Npc,
     BucketKey Bucket,
     WorldFlags Flags,
     PlanQuality Quality,
-    float Score);
+    float Score,
+    long QueuedTick = -1);
 
 /// <summary>
 /// 워커의 일감 공급원. docs/14 §4.
@@ -83,6 +88,9 @@ internal sealed class ReplanWorker : BackgroundService
     private long _applied;
     private long _failed;
     private long _busy;
+    private long _waitTicks;
+    private long _waitSamples;
+    private long _latencyTicks;
 
     /// <summary>워커 풀을 만든다. 기동 시 1회.</summary>
     /// <param name="source">일감 공급원.</param>
@@ -129,6 +137,31 @@ internal sealed class ReplanWorker : BackgroundService
     public int Busy => (int)Interlocked.Read(ref _busy);
 
     /// <summary>
+    /// 큐에서 기다린 평균 틱. docs/14 §6 의 "큐 평균 대기 시간".
+    /// <b>이게 크면 스냅샷 낡음 판정(T4-04)이 대부분을 폐기하고 있을 것이다.</b>
+    /// </summary>
+    public double AverageWaitTicks
+    {
+        get
+        {
+            long samples = Interlocked.Read(ref _waitSamples);
+
+            return samples == 0 ? 0 : (double)Interlocked.Read(ref _waitTicks) / samples;
+        }
+    }
+
+    /// <summary>컴파일에 걸린 평균 틱. 실시간 10Hz 이므로 51 이면 5.1초다.</summary>
+    public double AverageLatencyTicks
+    {
+        get
+        {
+            long taken = Taken;
+
+            return taken == 0 ? 0 : (double)Interlocked.Read(ref _latencyTicks) / taken;
+        }
+    }
+
+    /// <summary>
     /// 워커가 돈 스레드 id 집합. <b>테스트가 "틱 루프와 다른 스레드인가" 를 여기서 본다.</b>
     /// 진단 전용이라 상한을 둔다 — 무한히 모으면 그 자체가 누수다.
     /// </summary>
@@ -153,6 +186,12 @@ internal sealed class ReplanWorker : BackgroundService
         Interlocked.Increment(ref _taken);
         RecordThread();
 
+        if (job.QueuedTick >= 0)
+        {
+            Interlocked.Add(ref _waitTicks, Math.Max(0, now.Value - job.QueuedTick));
+            Interlocked.Increment(ref _waitSamples);
+        }
+
         var request = new PlanRequest(job.Bucket, job.Flags, job.Quality);
 
         Interlocked.Increment(ref _busy);
@@ -169,6 +208,8 @@ internal sealed class ReplanWorker : BackgroundService
 
         // 반영 시점의 틱을 다시 읽는다. 호출 중에 시간이 흘렀다 — T1 실측 5.1s = 51틱이다.
         Tick applied = _now();
+
+        Interlocked.Add(ref _latencyTicks, Math.Max(0, applied.Value - now.Value));
 
         if (result.Plan is { } plan)
         {

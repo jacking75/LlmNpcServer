@@ -139,7 +139,10 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--link null\|record\|replay` | 링크 구현체 교체 |
 | `--npcs N` | NPC 수 |
 | `--time-scale N` | 시간 압축 (1=실시간, 60=1초당 게임 1분) |
-| `--no-llm` | T1·T2 비활성. 캐시 + 폴백만 |
+| `--tier none\|t1\|t2\|all` | 어느 티어까지 켤까 (기본 `none`). `t1`=로컬 개별 재계획, `t2`=외부 버킷 미스 |
+| `--no-llm` | `--tier none` 의 별칭. 캐시 + 폴백만 |
+| `--t1-workers N` / `--t2-workers N` | 워커 수 (기본 2 / 8) |
+| `--t1-engine <id>` / `--t2-engine <id>` | `appsettings.Llm.json` 의 엔진 id |
 | `--scenario <jsonl>` | 시나리오 이벤트 주입 |
 | `--fail-rate` / `--drop-rate` | Sim의 액션 실패 / 명령 유실 주입 |
 | `--trace <path>` | `--link record` 의 출력 · `--link replay` 의 입력 (jsonl) |

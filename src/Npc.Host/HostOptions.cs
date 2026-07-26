@@ -19,6 +19,26 @@ public enum LinkKind
 }
 
 /// <summary>
+/// 어느 티어까지 켤 것인가. docs/14 §6 부하 매트릭스의 "티어 구성" 축.
+///
+/// <b>P1 에는 <c>--no-llm</c> 하나뿐이라 "T0만"과 "T0+T1+T2"를 가를 수 없었다</b> (T4-15).
+/// </summary>
+public enum TierMode
+{
+    /// <summary>T0 만 — 프리베이크 캐시 + 폴백. LLM 호출이 0 이다. <c>--no-llm</c> 의 정식 이름.</summary>
+    None = 0,
+
+    /// <summary>T0 + T1 — 로컬 엔진으로 개별 재계획만 한다. 무비용.</summary>
+    T1 = 1,
+
+    /// <summary>T0 + T2 — 외부 엔진으로 아키타입 버킷 미스만 채운다.</summary>
+    T2 = 2,
+
+    /// <summary>T0 + T1 + T2 — 전부.</summary>
+    All = 3,
+}
+
+/// <summary>
 /// 호스트 실행 옵션. README §주요 실행 옵션 · docs/11 §11.
 ///
 /// <b>인자 파싱은 여기서만 한다.</b> ASP.NET 의 명령줄 설정 공급자는
@@ -41,8 +61,35 @@ public sealed record HostOptions
     /// <summary>돌릴 게임 일수. 0 이면 무제한.</summary>
     public int Days { get; init; } = 1;
 
-    /// <summary>T1·T2 비활성. 캐시 + 폴백만. P1 에는 LLM 이 없어 항상 참과 같다.</summary>
-    public bool NoLlm { get; init; }
+    /// <summary>
+    /// 어느 티어까지 켤 것인가. docs/14 §6 의 티어 축.
+    /// <c>--no-llm</c> 은 <see cref="TierMode.None"/> 의 별칭이다 (P1 게이트 스크립트가 쓴다).
+    /// </summary>
+    public TierMode Tier { get; init; } = TierMode.None;
+
+    /// <summary>T1·T2 비활성. 캐시 + 폴백만. <c>--no-llm</c> 의 상태값.</summary>
+    public bool NoLlm => Tier == TierMode.None;
+
+    /// <summary>T1 이 켜졌는가.</summary>
+    public bool UsesT1 => Tier is TierMode.T1 or TierMode.All;
+
+    /// <summary>T2 가 켜졌는가.</summary>
+    public bool UsesT2 => Tier is TierMode.T2 or TierMode.All;
+
+    /// <summary>
+    /// T1(로컬) 워커 수. 기본 2 — W1 실측에서 동시 2 에서 처리량이 최대였다
+    /// (<c>W1_concurrency.md</c>). T4-15 에서 1/2/4 를 재서 확정한다.
+    /// </summary>
+    public int T1Workers { get; init; } = 2;
+
+    /// <summary>T2(외부) 워커 수. 기본 8 — 파일럿에서 동시 24 까지 429 가 없었다.</summary>
+    public int T2Workers { get; init; } = 8;
+
+    /// <summary>T1 엔진 id. null 이면 <c>appsettings.Llm.json</c> 의 로컬 엔진 중 첫 번째.</summary>
+    public string? T1Engine { get; init; }
+
+    /// <summary>T2 엔진 id. null 이면 <c>appsettings.Llm.json</c> 의 <c>default</c>.</summary>
+    public string? T2Engine { get; init; }
 
     /// <summary>시나리오 jsonl 경로.</summary>
     public string? Scenario { get; init; }
@@ -98,7 +145,12 @@ public sealed record HostOptions
           --npcs N                NPC 수 (기본 500)
           --time-scale N          시간 압축. 1=실시간, 60=1초당 게임 1분 (기본 60)
           --days N                돌릴 게임 일수. 0=무제한 (기본 1)
-          --no-llm                T1·T2 비활성. 캐시 + 폴백만
+          --tier none|t1|t2|all   어느 티어까지 켤까 (기본 none)
+          --no-llm                --tier none 의 별칭
+          --t1-workers N          T1(로컬) 워커 수 (기본 2)
+          --t2-workers N          T2(외부) 워커 수 (기본 8)
+          --t1-engine <id>        T1 엔진 id (기본: appsettings.Llm.json 의 첫 로컬 엔진)
+          --t2-engine <id>        T2 엔진 id (기본: appsettings.Llm.json 의 default)
           --scenario <jsonl>      시나리오 이벤트 주입
           --fail-rate <0~1>       Sim 의 액션 실패 주입
           --drop-rate <0~1>       Sim 의 명령 유실 주입
@@ -214,7 +266,59 @@ public sealed record HostOptions
                     break;
 
                 case "--no-llm":
-                    result = result with { NoLlm = true };
+                    result = result with { Tier = TierMode.None };
+                    break;
+
+                case "--tier":
+                    if (!TryValue(args, ref i, arg, out string? tier, out error)
+                        || !Enum.TryParse(tier, ignoreCase: true, out TierMode tierMode))
+                    {
+                        error ??= $"--tier 값이 잘못됐다: '{tier}'. none|t1|t2|all 중 하나다.";
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { Tier = tierMode };
+                    break;
+
+                case "--t1-engine":
+                    if (!TryValue(args, ref i, arg, out string? t1Engine, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { T1Engine = t1Engine };
+                    break;
+
+                case "--t2-engine":
+                    if (!TryValue(args, ref i, arg, out string? t2Engine, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { T2Engine = t2Engine };
+                    break;
+
+                case "--t1-workers":
+                    if (!TryInt(args, ref i, arg, 1, 64, out int t1Workers, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { T1Workers = t1Workers };
+                    break;
+
+                case "--t2-workers":
+                    if (!TryInt(args, ref i, arg, 1, 64, out int t2Workers, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { T2Workers = t2Workers };
                     break;
 
                 case "--max-speed":

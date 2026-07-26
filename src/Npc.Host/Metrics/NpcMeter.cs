@@ -83,13 +83,15 @@ public readonly record struct LinkPanel(
 /// <param name="ScanPerTick">마지막 틱의 인지 스캔 수.</param>
 /// <param name="InterruptsForced">인터럽트가 즉시 발행한 액션 수.</param>
 /// <param name="InterruptsSuppressed">같은 규칙이 이어서 걸려 넘긴 수.</param>
+/// <param name="QueueDropped">큐가 포화해 버린 요청 수. docs/14 §6 의 "큐: 거절 수".</param>
 public readonly record struct ReplanPanel(
     int QueueDepth,
     double EnqueuedPerSecond,
     long Deviations,
     int ScanPerTick,
     long InterruptsForced,
-    long InterruptsSuppressed);
+    long InterruptsSuppressed,
+    long QueueDropped = 0);
 
 /// <summary>미스가 많은 버킷 하나. docs/13 §6 의 <c>top_miss</c>.</summary>
 /// <param name="Bucket"><c>blacksmith@Dawn.Peace.Fair</c> 표기.</param>
@@ -191,6 +193,11 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
 
     private readonly double[] _samples = new double[Window];
     private readonly double[] _sorted = new double[Window];
+
+    // 큐 깊이는 틱마다 찍는다 — docs/14 §6 의 "큐: 깊이 p50/p99".
+    // 대시보드 폴링 간격으로 재면 스파이크를 통째로 놓친다.
+    private readonly int[] _queueDepths = new int[Window];
+    private readonly int[] _queueSorted = new int[Window];
     private readonly int[] _byLod = new int[LodBandSet.BandCount];
     private readonly int[] _byStatus = new int[8];
     private readonly int[] _byAction;
@@ -308,6 +315,22 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
     /// <summary>틱 루프 안에서 할당한 총 바이트. 0 이 목표다.</summary>
     public long AllocatedInTicks => _allocatedInTicks;
 
+    /// <summary>관측 창의 재계획 큐 깊이 백분위. docs/14 §6 의 기록 지표다.</summary>
+    public int QueueDepthPercentile(double q)
+    {
+        int count = (int)Math.Min(_samplesWritten, Window);
+
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        Array.Copy(_queueDepths, _queueSorted, count);
+        Array.Sort(_queueSorted, 0, count);
+
+        return _queueSorted[Math.Clamp((int)Math.Ceiling(q * count) - 1, 0, count - 1)];
+    }
+
     /// <summary>관측 창의 백분위(ms).</summary>
     public double Percentile(double q)
     {
@@ -350,6 +373,7 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
             _allocatedInTicks += allocated;
         }
 
+        _queueDepths[(int)(_samplesWritten & (Window - 1))] = _replanQueue.Count;
         _samples[(int)(_samplesWritten & (Window - 1))] = ms;
         _samplesWritten++;
 
@@ -430,7 +454,8 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
                 Deviations: _cognition.Deviations,
                 ScanPerTick: _cognition.LastScanned,
                 InterruptsForced: _interrupts.Forced,
-                InterruptsSuppressed: _interrupts.Suppressed),
+                InterruptsSuppressed: _interrupts.Suppressed,
+                QueueDropped: _replanQueue.Dropped),
             Cache: CacheOf(_cache.Snapshot()),
             LlmCalls: _compile?.Calls ?? 0);
     }

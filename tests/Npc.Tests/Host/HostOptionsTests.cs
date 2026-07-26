@@ -22,10 +22,69 @@ public sealed class HostOptionsTests
         Assert.Equal(60, options.TimeScale);
         Assert.Equal(1, options.Days);
         Assert.Equal(HostOptions.DefaultPort, options.Port);
-        Assert.False(options.NoLlm);
         Assert.Equal(0, options.FailRate);
         Assert.Equal(0, options.DropRate);
         Assert.Null(options.Scenario);
+
+        // T4-15 — 기본 티어는 none 이다. LLM 을 기본으로 켜면 `dotnet run` 한 번에
+        // 외부 크레딧이 나간다. P1 은 이 값이 무의미했다(런타임에 LLM 이 없었다).
+        Assert.Equal(TierMode.None, options.Tier);
+        Assert.True(options.NoLlm);
+        Assert.False(options.UsesT1);
+        Assert.False(options.UsesT2);
+        Assert.Equal(2, options.T1Workers);
+        Assert.Equal(8, options.T2Workers);
+        Assert.Null(options.T1Engine);
+        Assert.Null(options.T2Engine);
+    }
+
+    /// <summary>T4-15 — 티어 축을 인자만으로 가른다 (docs/14 §6).</summary>
+    [Theory]
+    [InlineData("none", TierMode.None, false, false)]
+    [InlineData("t1", TierMode.T1, true, false)]
+    [InlineData("t2", TierMode.T2, false, true)]
+    [InlineData("all", TierMode.All, true, true)]
+    [InlineData("ALL", TierMode.All, true, true)]
+    public void Options_SwapTierByArgument(string text, TierMode expected, bool t1, bool t2)
+    {
+        HostOptions options = Parse("--tier", text);
+
+        Assert.Equal(expected, options.Tier);
+        Assert.Equal(t1, options.UsesT1);
+        Assert.Equal(t2, options.UsesT2);
+        Assert.Equal(expected == TierMode.None, options.NoLlm);
+    }
+
+    /// <summary><c>--no-llm</c> 은 <c>--tier none</c> 의 별칭이다. P1 게이트 스크립트가 쓴다.</summary>
+    [Fact]
+    public void Options_NoLlmIsAliasForTierNone()
+    {
+        Assert.Equal(TierMode.None, Parse("--tier", "all", "--no-llm").Tier);
+        Assert.Equal(TierMode.All, Parse("--no-llm", "--tier", "all").Tier);
+    }
+
+    [Fact]
+    public void Options_ParseWorkerCountsAndEngines()
+    {
+        HostOptions options = Parse(
+            "--tier", "all",
+            "--t1-workers", "4", "--t2-workers", "16",
+            "--t1-engine", "llamacpp-qwen3-8b", "--t2-engine", "poe-gemini-2.5-flash-lite");
+
+        Assert.Equal(4, options.T1Workers);
+        Assert.Equal(16, options.T2Workers);
+        Assert.Equal("llamacpp-qwen3-8b", options.T1Engine);
+        Assert.Equal("poe-gemini-2.5-flash-lite", options.T2Engine);
+    }
+
+    [Fact]
+    public void Options_RejectUnknownTier()
+    {
+        Assert.False(HostOptions.TryParse(["--tier", "t3"], out _, out string? error));
+        Assert.Contains("--tier", error!, StringComparison.Ordinal);
+
+        Assert.False(HostOptions.TryParse(["--t1-workers", "0"], out _, out _));
+        Assert.False(HostOptions.TryParse(["--t2-workers", "999"], out _, out _));
     }
 
     /// <summary>README 의 예제 명령이 그대로 파싱돼야 한다.</summary>
