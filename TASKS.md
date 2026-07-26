@@ -91,9 +91,9 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | **P1** W2–4 코어·런타임·Sim | [`docs/11_Phase1_W2-4_TASKS.md`](docs/11_Phase1_W2-4_TASKS.md) | 62 | 62 | **게이트 통과** |
 | **P2** W5–6 플랜 컴파일러 | [`docs/12_Phase2_W5-6_TASKS.md`](docs/12_Phase2_W5-6_TASKS.md) | 24 | 23 | 태스크 완료 (T2-23 은 조건 미충족 `-`) — **게이트 3/7 미달** |
 | **P3** W7–8 플랜 캐시 | [`docs/13_Phase3_W7-8_TASKS.md`](docs/13_Phase3_W7-8_TASKS.md) | 21 | 19 | 진행 중 — T3-18(사람 검수) 미착수 · T3-21 `~`. **게이트 5/9** (기제 4항목 통과, 실측 산출물 대기) |
-| **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 13 | 진행 중 |
+| **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 14 | 진행 중 |
 | **P5** W11–12 검증·평가 | [`docs/15_Phase5_W11-12_TASKS.md`](docs/15_Phase5_W11-12_TASKS.md) | 20 | 0 | 미착수 |
-| | | **164** | **125** | |
+| | | **164** | **126** | |
 
 각 Phase 문서 맨 아래의 체크리스트에서 개별 태스크 상태를 관리한다.
 
@@ -158,6 +158,7 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/13 §8` · `docs/measurements/W8_prebake.md §3` | 전수 드라이런 건당 소요 "~50ms"(추정) → **0.02ms**(실측) | T3-15. 드라이런은 10Hz 틱을 굴리지 않고 액션 소요시간만큼 게임시간을 건너뛴다. 2,880건이 병렬도 1 로도 0.04초라 T3-15 의 "미달 시 병렬도를 올리기 전에 건당 소요부터 기록" 조항은 발동하지 않는다 |
 | 2026-07-26 | `docs/03 §7` | `planstore/manifest_history.jsonl` 추가 | T3-16. §7 이 "프리베이크를 돌 때마다 보존한다" 고 했는데 `manifest.json` 만 있으면 덮어쓰기라 지난 회차 숫자를 다시 못 본다 |
 | 2026-07-26 | `CLAUDE.md §1·§5` · `docs/13 §7` | 테스트 카테고리에 **`Gate`** 추가. CI 기본 필터를 `Category!=Golden&Category!=Gate` 로 | T3-21. 게이트 9항목 중 5개(생성 완료율·wall-clock·실비용·프롬프트 캐시 적중률·검수 채택률)는 실측 산출물이 있어야 판정된다. 산출물이 없을 때 통과로 세면 게이트가 거짓이 되므로 실패시키고, 대신 기본 CI 에서 뺐다. xunit 2.9 에는 `Assert.Skip` 이 없다 |
+| 2026-07-26 | `docs/11 §4` 구현 · `docs/14` T4-14 | LOD 등급 산출을 `EventApplier` 에서 **`LodUpdater`** 로 분리. `LodBandSet.PendingMigrations` 추가 | T4-14. 거리 임계(50m·200m)와 전쟁 승격 규칙이 `EventApplier` 안에 흩어져 있었다 — 등급 규칙이 두 곳에 있으면 반드시 어긋난다. `EventApplier` 는 `PlayerNearby` 플래그만 정하고 등급은 위임한다. 태스크 파일 목록에 `EventApplier.cs` 가 없지만 그 코드를 옮기는 것이 태스크의 내용이다 |
 | 2026-07-26 | `docs/14 §5` · `docs/01 §6` 구현 | `ZoneStateTable`(Npc.Runtime) 신설 — 존별 지역상태·기후를 그대로 보관한다. `BucketTransition` 의 예약 구조를 카운팅 정렬 -> **슬롯 연결 리스트**로 (재예약 O(8)). 전환 계기를 `NpcServerLoop.DrainEvents` 의 `Transition.Observe` 로 | T4-13. (1) **플래그만으로는 버킷 키를 복원할 수 없다** — `Alert`/`Disaster`/`Cold` 가 플래그를 공유하거나 없다. `ZoneStateChanged.Code` 로 들어온 값을 보관해야 프리베이크한 버킷을 실제로 찾는다. (2) 카운팅 정렬은 전원을 다시 세므로 존 이벤트마다 부를 수 없다 (§5 가 지적한 그대로). (3) 계기를 볼 수 있는 곳은 모든 이벤트가 지나는 `DrainEvents` 하나뿐이다 (docs/11 §10 과 같은 논거) |
 | 2026-07-26 | `docs/13 §2` 구현 (`PlanStore`) · `docs/14` T4-12 | `PlanStore.TryFor`/`TryPeekFor` 신설 — 음수 PlanId(개별 풀 슬롯)를 런타임이 해석한다. `IndividualPlanPool.TryPeek`(LRU 미갱신) 추가 | T4-12. **결선이 빠져 있었다.** `docs/13 §2` 가 id 인코딩(`<0` = 개별 슬롯)을 정해 놓았는데 런타임 조회 경로 6곳이 전부 `_plans[planId]` 였고 그것은 음수에 최후 플랜을 돌려준다 — 즉 **워커가 만든 개별 플랜이 조용히 사라지고 NPC 는 Wait·Emote·Rest 만 반복한다.** 회수된 슬롯은 아키타입 폴백으로 되돌린다. 계측 경로는 `TryPeek` 을 쓴다 — `TryGet` 은 LRU 를 갱신해서 **대시보드 폴링이 누가 슬롯을 잃는지를 바꾼다**(리플레이 위험) |
 | 2026-07-26 | `docs/14 §4` · `docs/14` T4-10 | `ReplanWorker` 의 자리를 `Npc.Planning` -> **`Npc.Host/Replan/`** 로. 일감 공급원을 `IReplanSource` 로 갈랐다 | T4-10. 워커는 `IPlanCompiler`(Npc.Llm)와 `NpcStore`(Npc.Runtime)를 둘 다 필요로 한다. `Npc.Planning` 에 두면 `Npc.Runtime -> Npc.Planning -> Npc.Llm` 경로가 생겨 **CLAUDE.md §3 의 핵심 금지("틱 루프에 LLM 이 들어올 길")가 깨진다.** 조립 루트가 유일하게 전부를 아는 곳이다 (`Program.cs` 주석) |

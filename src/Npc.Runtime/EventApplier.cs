@@ -33,11 +33,11 @@ public sealed class EventApplier
     /// <summary>스태미나가 이 비율 아래면 IsExhausted. docs/01 §1.</summary>
     public const int ExhaustedPercent = 20;
 
-    /// <summary>LOD 0 이 되는 플레이어 거리(m). docs/11 §4.</summary>
-    public const int LodZeroDistance = 50;
+    /// <summary>LOD 0 이 되는 플레이어 거리(m). 규칙 본체는 <see cref="LodUpdater"/> 다 (T4-14).</summary>
+    public const int LodZeroDistance = LodUpdater.LodZeroDistance;
 
-    /// <summary>LOD 1 이 되는 플레이어 거리(m). docs/11 §4.</summary>
-    public const int LodOneDistance = 200;
+    /// <summary>LOD 1 이 되는 플레이어 거리(m). 규칙 본체는 <see cref="LodUpdater"/> 다 (T4-14).</summary>
+    public const int LodOneDistance = LodUpdater.LodOneDistance;
 
     /// <summary>기억에 남길 이벤트의 중요도. 0 이면 기억하지 않는다.</summary>
     private static readonly byte[] s_salience = BuildSalience();
@@ -46,11 +46,25 @@ public sealed class EventApplier
     private readonly NpcStore _store;
     private readonly GameClock _clock;
     private readonly CorrelationTable _correlations;
+    private readonly LodUpdater _lod;
 
     private long _expectedSequence = -1;
 
     /// <summary>적용기를 만든다. 기동 시 1회.</summary>
-    public EventApplier(MasterDataSet data, NpcStore store, GameClock clock, CorrelationTable correlations)
+    /// <param name="data">마스터데이터.</param>
+    /// <param name="store">NPC 상태.</param>
+    /// <param name="clock">게임 시계.</param>
+    /// <param name="correlations">상관 ID 표.</param>
+    /// <param name="lod">
+    /// LOD 등급 갱신기 (T4-14). 없으면 여기서 하나 만든다 —
+    /// 등급 규칙은 한 곳에만 있어야 하고, 호스트는 계측을 위해 같은 인스턴스를 넘긴다.
+    /// </param>
+    public EventApplier(
+        MasterDataSet data,
+        NpcStore store,
+        GameClock clock,
+        CorrelationTable correlations,
+        LodUpdater? lod = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(store);
@@ -61,7 +75,11 @@ public sealed class EventApplier
         _store = store;
         _clock = clock;
         _correlations = correlations;
+        _lod = lod ?? new LodUpdater(store);
     }
+
+    /// <summary>LOD 등급 갱신기. 대시보드가 승격·강등 수를 읽는다.</summary>
+    public LodUpdater Lod => _lod;
 
     /// <summary>처리한 이벤트 수.</summary>
     public long EventsApplied { get; private set; }
@@ -321,27 +339,22 @@ public sealed class EventApplier
         _store.Flags[npc] = (_store.Flags[npc] & ~_data.Items.AllGrants) | fromItems;
     }
 
+    /// <summary>
+    /// <c>PlayerNearby</c> 플래그만 여기서 정한다. <b>등급 산출은 <see cref="LodUpdater"/> 의 몫이다</b>
+    /// (T4-14) — 거리 임계가 두 곳에 있으면 반드시 어긋난다.
+    /// </summary>
     private void ApplyProximity(int npc, ProximityChange change, int distance)
     {
         if (change == ProximityChange.Leave)
         {
             _store.Flags[npc] &= ~WorldFlags.PlayerNearby;
-
-            // docs/11 §4 — 존 활성도에 따라 2 또는 3. 평시 존은 비활성으로 내린다.
-            // 여기서 3 으로 안 내리면 한 번이라도 플레이어를 만난 NPC 가 영원히 스캔 대상으로 남고,
-            // NPC 를 늘릴수록 틱당 스캔이 선형으로 자란다.
-            bool active = (_store.Flags[npc] & WorldFlags.RegionUnderAttack) != 0;
-            _store.Lod[npc] = active ? (byte)2 : NpcStore.InactiveLod;
-            return;
+        }
+        else
+        {
+            _store.Flags[npc] |= WorldFlags.PlayerNearby;
         }
 
-        _store.Flags[npc] |= WorldFlags.PlayerNearby;
-        _store.Lod[npc] = distance switch
-        {
-            < LodZeroDistance => (byte)0,
-            < LodOneDistance => (byte)1,
-            _ => (byte)2,
-        };
+        _lod.OnProximity(npc, change, distance);
     }
 
     private void ApplyTimeOfDay(TimeOfDay time)
@@ -366,19 +379,15 @@ public sealed class EventApplier
 
         for (int i = 0; i < _store.Count; i++)
         {
-            if (_store.ZoneCode[i] != zone.Value)
+            if (_store.ZoneCode[i] == zone.Value)
             {
-                continue;
-            }
-
-            _store.Flags[i] = (_store.Flags[i] & ~RegionFlags) | set;
-
-            // 지역이 공격받으면 그 존 전체를 LOD 1 로 승격한다 (docs/11 §4).
-            if (state is RegionState.War or RegionState.Disaster && _store.Lod[i] > 1)
-            {
-                _store.Lod[i] = 1;
+                _store.Flags[i] = (_store.Flags[i] & ~RegionFlags) | set;
             }
         }
+
+        // 지역이 공격받으면 그 존 전체를 LOD 1 로 승격한다 (docs/11 §4).
+        // 등급 규칙은 LodUpdater 한 곳에만 둔다 (T4-14).
+        _lod.OnZoneState(zone, state);
     }
 
     private void ApplyWeather(ZoneId zone, Climate climate)

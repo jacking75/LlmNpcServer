@@ -95,6 +95,31 @@ public sealed class LodBandSet
     }
 
     /// <summary>
+    /// 밴드 이동을 기다리는 NPC 수. 대시보드와 T4-14 의 상한 검증이 읽는다.
+    ///
+    /// <b>이 값이 계속 크면 등급이 바뀌는 속도가 옮기는 속도(틱당 64)를 넘는 것이다</b> —
+    /// 공성처럼 존 전체가 한꺼번에 승격되면 잠시 커지고, 그게 정상이다.
+    /// 상시로 크면 <see cref="MaxBandMigrationsPerTick"/> 을 다시 잡아야 한다.
+    /// </summary>
+    public int PendingMigrations
+    {
+        get
+        {
+            int pending = 0;
+
+            for (int npc = 0; npc < _store.Count; npc++)
+            {
+                if (_bandOf[npc] != Clamp(_store.Lod[npc]))
+                {
+                    pending++;
+                }
+            }
+
+            return pending;
+        }
+    }
+
+    /// <summary>
     /// 이번 틱의 스캔 구간. 밴드 멤버를 <c>Period</c> 개의 슬라이스로 나누고 그중 하나를 본다.
     /// 그래서 이 밴드의 NPC 한 마리는 <c>Period</c> 틱마다 정확히 한 번 판정된다.
     /// </summary>
