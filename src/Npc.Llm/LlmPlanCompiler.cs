@@ -23,13 +23,15 @@ public sealed class LlmPlanCompiler : IPlanCompiler
     private readonly PromptPrefix _prefix;
     private readonly LlmEngineOptions _engine;
     private readonly IChatClient _client;
+    private readonly ICompileStatsSink? _stats;
 
     /// <summary>컴파일러를 만든다. 프리픽스는 기동 시 1회 조립된 것을 그대로 받는다.</summary>
     public LlmPlanCompiler(
         MasterDataSet data,
         PromptPrefix prefix,
         LlmEngineOptions engine,
-        IChatClient client)
+        IChatClient client,
+        ICompileStatsSink? stats = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(prefix);
@@ -40,6 +42,7 @@ public sealed class LlmPlanCompiler : IPlanCompiler
         _prefix = prefix;
         _engine = engine;
         _client = client;
+        _stats = stats;
     }
 
     /// <summary>쓰고 있는 엔진.</summary>
@@ -60,16 +63,24 @@ public sealed class LlmPlanCompiler : IPlanCompiler
         (string text, CompileStats stats) = await GenerateAsync(request, attempt, cancellationToken)
             .ConfigureAwait(false);
 
-        if (stats.Error is { } error)
-        {
-            return new PlanCompileResult(
+        PlanCompileResult result = stats.Error is { } error
+            ? new PlanCompileResult(
                 null,
                 ValidationResult.Fail(ValidationStage.Schema, "V0.CALL_FAILED", -1, error),
                 stats,
-                text);
+                text)
+            : Validate(request, text, stats);
+
+        // 모든 호출에서 기록한다 — 실패만 빠지면 통과율 분모가 조용히 줄어든다 (docs/12 §2).
+        if (_stats is { } sink)
+        {
+            CompileStats recorded = result.Stats;
+            ValidationResult validation = result.Validation;
+
+            sink.Record(request.Bucket, in recorded, in validation);
         }
 
-        return Validate(request, text, stats);
+        return result;
     }
 
     /// <summary>

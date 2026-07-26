@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Npc.Contracts;
 using Npc.Core.Plan;
+using Npc.Llm;
 using Npc.MasterData;
 using Npc.Planning;
 using Npc.Runtime;
@@ -96,7 +97,10 @@ public readonly record struct ReplanPanel(
 /// <param name="Actions">액션 Top 10.</param>
 /// <param name="Link">링크 패널 (N6 시퀀스 갭 포함).</param>
 /// <param name="Replan">재계획 패널.</param>
-/// <param name="LlmCalls">LLM 호출 수. P1 에서는 항상 0 이다.</param>
+/// <param name="LlmCalls">
+/// LLM 호출 수 (재시도 포함). 컴파일 계측기가 붙어 있지 않으면 0 이다 —
+/// <c>--no-llm</c> 으로 도는 P1 경로가 그렇다.
+/// </param>
 public readonly record struct MetricsSnapshot(
     TickPanel Tick,
     NpcPanel Npc,
@@ -137,6 +141,7 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
     private readonly NpcServerLoop _loop;
     private readonly GameClock _clock;
     private readonly MasterDataSet _data;
+    private readonly CompileStatsCollector? _compile;
 
     private readonly double[] _samples = new double[Window];
     private readonly double[] _sorted = new double[Window];
@@ -166,7 +171,8 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         IGameServerLink link,
         NpcServerLoop loop,
         GameClock clock,
-        MasterDataSet data)
+        MasterDataSet data,
+        CompileStatsCollector? compile = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(bands);
@@ -189,6 +195,7 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         _loop = loop;
         _clock = clock;
         _data = data;
+        _compile = compile;
         _byAction = new int[data.Actions.MaxCode + 1];
 
         _meter = new Meter(MeterName);
@@ -216,6 +223,13 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
             "npc.link.events_drained", () => _loop.EventsDrained, description: "배수한 이벤트");
         _meter.CreateObservableCounter(
             "npc.link.event_gaps", () => _loop.EventGaps, description: "시퀀스 갭 (N6)");
+
+        // 프리픽스 해시가 2종 이상이면 프롬프트 캐시가 깨진 것이다 (docs/01 §10.2).
+        // 상시 감시 대상이라 대시보드가 아니라 계측기에 둔다.
+        _meter.CreateObservableGauge(
+            "npc.llm.unique_prefix_hashes",
+            () => _compile?.UniquePrefixHashes ?? 0,
+            description: "관측된 프리픽스 SHA 종류 수. 1 이 아니면 경보");
     }
 
     /// <summary>예산을 넘긴 틱 수.</summary>
@@ -347,7 +361,7 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
                 ScanPerTick: _cognition.LastScanned,
                 InterruptsForced: _interrupts.Forced,
                 InterruptsSuppressed: _interrupts.Suppressed),
-            LlmCalls: 0);
+            LlmCalls: _compile?.Calls ?? 0);
     }
 
     /// <inheritdoc />
