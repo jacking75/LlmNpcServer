@@ -45,6 +45,13 @@
     display: flex; align-items: flex-end; gap: 1px; overflow: hidden; padding: 2px;
   }
   .spark > i { flex: 1 1 0; min-width: 1px; border-radius: 1px; }
+  .trace-input { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .trace-input label { color: var(--dim); }
+  .trace-input input {
+    background: #232733; color: var(--fg); border: 1px solid var(--line);
+    border-radius: 3px; padding: 3px 6px; font: inherit; width: 90px;
+  }
+  td.v.step-now { color: var(--ok); }
 </style>
 </head>
 <body>
@@ -70,6 +77,18 @@
   <section>
     <h2>비용 · 티어</h2>
     <table id="p-cost"></table>
+  </section>
+  <section>
+    <h2>NPC 추적</h2>
+    <div class="trace-input">
+      <label for="trace-id">NPC id</label>
+      <input id="trace-id" type="number" min="0" step="1" value="0" size="6">
+    </div>
+    <table id="p-trace"></table>
+    <h3>플랜 스텝</h3>
+    <table id="p-trace-steps"></table>
+    <h3>최근 사건</h3>
+    <table id="p-trace-events"></table>
   </section>
   <section>
     <h2>플랜 캐시</h2>
@@ -308,6 +327,64 @@ function renderCache(c) {
       ]));
 }
 
+// NPC 추적 패널. docs/14 §8 (T4-21).
+// 별도 엔드포인트다 — /metrics 는 전원 집계라 한 마리의 플랜·스텝·기억을 담을 자리가 없다.
+async function pollTrace() {
+  const id = Number($("trace-id").value);
+
+  if (!Number.isInteger(id) || id < 0) {
+    rows($("p-trace"), [["—", "NPC id 를 입력한다"]]);
+    return;
+  }
+
+  let t;
+
+  try {
+    const res = await fetch(`/npc/${id}`, { cache: "no-store" });
+    if (!res.ok) { throw new Error("HTTP " + res.status); }
+    t = await res.json();
+  } catch (e) {
+    rows($("p-trace"), [["—", "추적 실패: " + e.message]]);
+    return;
+  }
+
+  if (!t.found) {
+    rows($("p-trace"), [["—", `NPC ${id} 가 없다`]]);
+    rows($("p-trace-steps"), []);
+    rows($("p-trace-events"), []);
+    return;
+  }
+
+  rows($("p-trace"), [
+    ["아키타입", t.archetype],
+    ["위치", `${t.poi || "—"} · ${t.zone || "—"}`],
+    ["집 / 일터", `${t.homePoi || "—"} / ${t.workPoi || "—"}`],
+    ["LOD", `${t.lod} ${LOD_NAMES[t.lod] ?? ""}`],
+    ["HP / 스태미나", `${t.hp} / ${t.stamina}`],
+    ["스텝 상태", t.stepStatus],
+    ["플랜", `${t.planGoal} (${t.planKind}${t.planLoop ? " · loop" : ""})`,
+      t.planKind.startsWith("fallback") ? "warn" : "ok"],
+    ["플랜 버킷", t.planBucket || "—"],
+    ["플랜 나이", t.planAgeTicks + " 틱"],
+    ["대기 중 플랜", t.pendingPlanId === 0 ? "—" : t.pendingPlanId],
+    ["긴급도", t.pendingUrgency, t.pendingUrgency > 0 ? "warn" : "ok"],
+    ["플래그", t.flags.join(" ")],
+    ["인벤토리", t.inventory.length === 0 ? "—" : t.inventory.join(" · ")],
+  ]);
+
+  rows($("p-trace-steps"), t.steps.length === 0
+    ? [["—", "스텝 없음"]]
+    : t.steps.map((s) => [
+        `${s.current ? "▶" : " "} ${s.index}. ${s.action}`,
+        [s.poi, s.count > 0 ? `×${s.count}` : "", `${s.timeoutSeconds}s`].filter(Boolean).join(" · "),
+        s.current ? "step-now" : "",
+      ]));
+
+  rows($("p-trace-events"), t.recent.length === 0
+    ? [["—", "기억 없음"]]
+    : t.recent.map((e) => [e.kind, `${e.agoTicks} 틱 전 · 대상 ${e.subject} · 중요도 ${e.salience}`]));
+}
+
 async function poll() {
   const state = $("state");
 
@@ -322,6 +399,8 @@ async function poll() {
     state.textContent = "끊김 — " + e.message;
     state.className = "dead";
   }
+
+  await pollTrace();
 }
 
 poll();

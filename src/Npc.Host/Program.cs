@@ -5,6 +5,7 @@ using Npc.Contracts;
 using Npc.Core;
 using Npc.Gateway;
 using Npc.Host;
+using Npc.Host.Api;
 using Npc.Host.Commands;
 using Npc.Host.Metrics;
 using Npc.Host.Replan;
@@ -68,6 +69,9 @@ app.MapGet("/", () => Results.Redirect("/dashboard"));
 app.MapGet("/status", () => host.Snapshot());
 app.MapGet("/metrics", () => host.Metrics.Snapshot());
 
+// NPC 추적 (T4-21). SoA 배열을 읽기만 하고 값을 복사해 나간다 — 틱 루프를 막지 않는다.
+app.MapGet(NpcTraceEndpoint.Route, (int id) => host.Trace(id));
+
 // 대시보드 1차. docs/11 §10. 단일 HTML 이고 /metrics 를 폴링한다.
 app.MapGet("/dashboard", () =>
 {
@@ -109,6 +113,8 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly InterruptMatcher _interrupts;
     private readonly ReplanQueue _replanQueue;
     private readonly NpcStore _store;
+    private readonly PlanStore _plans;
+    private readonly MasterDataSet _data;
     private readonly NpcMeter _meter;
     private readonly SimDriver? _driver;
     private readonly NullGameServerLink? _nullLink;
@@ -125,6 +131,8 @@ internal sealed class NpcHost : IAsyncDisposable
         InterruptMatcher interrupts,
         ReplanQueue replanQueue,
         NpcStore store,
+        PlanStore plans,
+        MasterDataSet data,
         NpcMeter meter,
         SimDriver? driver,
         NullGameServerLink? nullLink,
@@ -141,6 +149,8 @@ internal sealed class NpcHost : IAsyncDisposable
         _interrupts = interrupts;
         _replanQueue = replanQueue;
         _store = store;
+        _plans = plans;
+        _data = data;
         _meter = meter;
         _driver = driver;
         _nullLink = nullLink;
@@ -318,8 +328,8 @@ internal sealed class NpcHost : IAsyncDisposable
             + $"버킷 {plans.FilledBuckets}/{BucketKey.TotalKeys} · {tiers.Describe()}");
 
         return new NpcHost(
-            options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, meter,
-            driver, nullLink, totalTicks, npcs, tiers);
+            options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
+            meter, driver, nullLink, totalTicks, npcs, tiers);
     }
 
     /// <summary>
@@ -350,6 +360,12 @@ internal sealed class NpcHost : IAsyncDisposable
             await _tiers.StopAsync().ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// NPC 한 마리의 추적 스냅샷 (T4-21). <b>틱 루프를 막지 않는다</b> — 읽기와 값 복사뿐이다.
+    /// </summary>
+    public NpcTrace Trace(int npc) =>
+        NpcTraceEndpoint.Snapshot(npc, _store, _plans, _data, _clock.Current);
 
     /// <summary>대시보드·게이트가 읽는 현재 상태.</summary>
     public HostSnapshot Snapshot() => new(
