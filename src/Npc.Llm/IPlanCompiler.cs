@@ -1,3 +1,4 @@
+using Npc.Core;
 using Npc.Core.Plan;
 using Npc.Core.Validation;
 
@@ -73,6 +74,18 @@ public readonly record struct PlanCompileResult(
     ValidationResult Validation,
     CompileStats Stats,
     string ResponseText);
+
+/// <summary>
+/// 인접 버킷 재사용의 공급원. docs/12 §6·§7.
+///
+/// 구현(<c>BucketNeighbors</c>·<c>PlanStore</c>)은 <c>Npc.Planning</c> 에 있고
+/// 이 프로젝트는 그것을 참조하지 않는다 (CLAUDE.md §3). <see cref="IDryRunValidator"/> 와 같은 방법이다.
+/// </summary>
+public interface IPlanReuseSource
+{
+    /// <summary>이 버킷을 채울 만한 인접 버킷 플랜이 있으면 준다. <b>이미 재검증된 것이어야 한다.</b></summary>
+    bool TryReuse(BucketKey target, out CompiledPlan? plan, out BucketKey source);
+}
 
 /// <summary>
 /// 플랜 생성 계약. docs/12 §2.

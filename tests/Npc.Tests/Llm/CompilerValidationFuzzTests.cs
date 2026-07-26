@@ -81,14 +81,18 @@ public sealed class CompilerValidationFuzzTests
 
                 string where = $"{bucket} [{name}]";
 
-                // (2) 통과하지 못한 산출물에서 플랜이 나오면 안 된다. 통과했으면 반드시 나와야 한다.
-                Assert.Equal(result.Validation.IsValid, result.Plan is not null);
+                // (2) 플랜은 언제나 나온다 (T2-17). 통과하지 못한 산출물이 그대로 나가지는 않는다 —
+                //     그 경우 돌아오는 것은 아키타입 폴백이다.
+                Assert.NotNull(result.Plan);
 
                 if (result.Validation.IsValid)
                 {
+                    Assert.Equal(Npc.Core.Plan.PlanOrigin.Runtime, result.Plan!.Origin);
                     compiled++;
                     continue;
                 }
+
+                Assert.Equal(Npc.Core.Plan.PlanOrigin.Fallback, result.Plan!.Origin);
 
                 // (3) 실패에는 반드시 코드가 붙는다.
                 Assert.False(string.IsNullOrEmpty(result.Validation.Code), where);

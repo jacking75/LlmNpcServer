@@ -25,6 +25,7 @@ public sealed class LlmPlanCompiler : IPlanCompiler
     private readonly IChatClient _client;
     private readonly ICompileStatsSink? _stats;
     private readonly IDryRunValidator? _dryRun;
+    private readonly IPlanReuseSource? _reuse;
 
     /// <summary>컴파일러를 만든다. 프리픽스는 기동 시 1회 조립된 것을 그대로 받는다.</summary>
     /// <param name="data">마스터데이터. 검증 어휘이자 서픽스의 재료다.</param>
@@ -37,13 +38,17 @@ public sealed class LlmPlanCompiler : IPlanCompiler
     /// 4단 구현은 <c>Npc.Sim</c> 에 있고 이 프로젝트는 그것을 참조하지 않는다 (CLAUDE.md §3).
     /// 주입은 호스트·프리베이크가 한다.
     /// </param>
+    /// <param name="reuse">
+    /// 인접 버킷 재사용 공급원. null 이면 두 번 실패한 뒤 곧장 아키타입 폴백으로 간다.
+    /// </param>
     public LlmPlanCompiler(
         MasterDataSet data,
         PromptPrefix prefix,
         LlmEngineOptions engine,
         IChatClient client,
         ICompileStatsSink? stats = null,
-        IDryRunValidator? dryRun = null)
+        IDryRunValidator? dryRun = null,
+        IPlanReuseSource? reuse = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(prefix);
@@ -56,6 +61,7 @@ public sealed class LlmPlanCompiler : IPlanCompiler
         _client = client;
         _stats = stats;
         _dryRun = dryRun;
+        _reuse = reuse;
     }
 
     /// <summary>
@@ -90,7 +96,43 @@ public sealed class LlmPlanCompiler : IPlanCompiler
             cancellationToken).ConfigureAwait(false);
 
         // 비용 보고는 "이 버킷 하나에 얼마 들었나"여야 한다 — 마지막 호출값이 아니다.
-        return second with { Stats = first.Stats.Accumulate(second.Stats) };
+        CompileStats total = first.Stats.Accumulate(second.Stats);
+
+        if (second.Validation.IsValid)
+        {
+            return second with { Stats = total };
+        }
+
+        return Rescue(request, second with { Stats = total });
+    }
+
+    /// <summary>
+    /// 두 번 다 실패했을 때의 마지막 경로. docs/12 §6.
+    ///
+    /// <b><see cref="PlanCompileResult.Plan"/> 은 여기서 절대 null 이 되지 않는다.</b>
+    /// <c>PlanStore.Resolve</c> 가 T1-39 부터 갖고 있는 보장을 컴파일러도 갖는다 —
+    /// 시나리오 C(LLM 전면 차단)가 통과하는 이유가 이것이다 (CLAUDE.md §2.6).
+    ///
+    /// <see cref="PlanCompileResult.Validation"/> 은 <b>실패한 채로 남는다.</b>
+    /// 무엇 때문에 폴백으로 떨어졌는지가 통과율 집계의 원자료이기 때문이다 —
+    /// 돌려받은 플랜의 출처는 <see cref="CompiledPlan.Origin"/> 이 말해 준다.
+    /// </summary>
+    private PlanCompileResult Rescue(in PlanRequest request, in PlanCompileResult failed)
+    {
+        // (1) 인접 버킷 재사용 — 같은 아키타입의 비슷한 상황. 이미 재검증된 것만 온다.
+        if (_reuse is { } reuse
+            && reuse.TryReuse(request.Bucket, out CompiledPlan? borrowed, out _)
+            && borrowed is not null)
+        {
+            return failed with { Plan = borrowed };
+        }
+
+        // (2) 아키타입 폴백. V7 이 기동 시점에 40개 전부의 존재와 4단 통과를 보장한다 (docs/01 §11).
+        CompiledPlan? fallback = _data.Fallbacks?.For(request.Bucket.A);
+
+        return fallback is null
+            ? failed
+            : failed with { Plan = fallback with { Bucket = request.Bucket, Origin = PlanOrigin.Fallback } };
     }
 
     /// <summary>한 번 생성하고 검증한다. 재시도 파이프라인(T2-15)이 이 메서드를 두 번 부른다.</summary>

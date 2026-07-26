@@ -103,7 +103,10 @@ public sealed class LlmPlanCompilerTests
 
         Assert.False(result.Validation.IsValid);
         Assert.Equal("V0.CALL_FAILED", result.Validation.Code);
-        Assert.Null(result.Plan);
+
+        // 호출이 안 돼도 플랜은 나온다 — 아키타입 폴백이다 (T2-17).
+        Assert.NotNull(result.Plan);
+        Assert.Equal(PlanOrigin.Fallback, result.Plan!.Origin);
         Assert.Contains("429", result.Stats.Error!, StringComparison.Ordinal);
     }
 
@@ -138,7 +141,7 @@ public sealed class LlmPlanCompilerTests
         PlanCompileResult result = await CompilerWith(client).CompileAsync(Request(), CancellationToken.None);
 
         Assert.Equal(expectedCode, result.Validation.Code);
-        Assert.Null(result.Plan);
+        Assert.Equal(PlanOrigin.Fallback, result.Plan!.Origin);
 
         // 실패해도 원문은 보존된다 — planstore/rejected/ 가 이것을 쓴다.
         Assert.Equal(response.Trim(), result.ResponseText);

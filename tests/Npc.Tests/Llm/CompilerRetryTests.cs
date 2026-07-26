@@ -147,7 +147,7 @@ public sealed class CompilerRetryTests
 
         Assert.Equal(ValidationStage.DryRun, result.Validation.FailedAt);
         Assert.Equal("V4.INFINITE_LOOP", result.Validation.Code);
-        Assert.Null(result.Plan);
+        Assert.Equal(Npc.Core.Plan.PlanOrigin.Fallback, result.Plan!.Origin);
     }
 
     [Fact]
