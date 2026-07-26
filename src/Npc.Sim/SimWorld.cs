@@ -28,7 +28,7 @@ public sealed record SimOptions(
 /// 모든 이벤트에 순증 <c>Sequence</c> 를 붙인다 (N6). 시각은 <c>Tick</c> 뿐이다 (N4).
 /// 난수는 전부 시드 고정이라 같은 입력이면 같은 세계가 나온다.
 /// </summary>
-public sealed class SimWorld : IAsyncDisposable
+public sealed partial class SimWorld : IAsyncDisposable
 {
     private readonly MasterDataSet _data;
     private readonly Channel<GameEvent> _events;

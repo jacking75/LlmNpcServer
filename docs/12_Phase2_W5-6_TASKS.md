@@ -220,7 +220,7 @@ W5 ── 기반 · 단건 생성
 [x] T2-09 LlmPlanCompiler   [x] T2-10 CompileStats     [x] T2-11 검증1·2단결선
 
 W6 ── 검증기완성 · 실패처리 · 개선루프
-[x] T2-12 Explain보강       [ ] T2-13 DryRunValidator  [ ] T2-14 드라이런결정론
+[x] T2-12 Explain보강       [x] T2-13 DryRunValidator  [ ] T2-14 드라이런결정론
 [ ] T2-15 재시도(1회)       [ ] T2-16 인접버킷재사용   [ ] T2-17 폴백경로
 [ ] T2-18 rejected보존
 [ ] T2-19 전량생성러너      [ ] T2-20 실패집계리포트   [ ] T2-21 개선루프 ★
