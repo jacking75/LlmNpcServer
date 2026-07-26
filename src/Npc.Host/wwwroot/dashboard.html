@@ -39,6 +39,12 @@
   .bar > i { position: absolute; inset: 0 auto 0 0; background: #3b82f6; }
   .bar > span { position: relative; padding-left: 6px; font-size: 11px; line-height: 14px; }
   .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  h3 { font-size: 11px; margin: 12px 0 6px; color: var(--dim); font-weight: 400; }
+  .spark {
+    height: 44px; margin-bottom: 8px; background: #232733; border-radius: 3px;
+    display: flex; align-items: flex-end; gap: 1px; overflow: hidden; padding: 2px;
+  }
+  .spark > i { flex: 1 1 0; min-width: 1px; border-radius: 1px; }
 </style>
 </head>
 <body>
@@ -54,6 +60,13 @@
   <section><h2>액션 Top 10</h2><table id="p-action"></table></section>
   <section><h2>링크</h2><table id="p-link"></table></section>
   <section><h2>재계획</h2><table id="p-replan"></table></section>
+  <section>
+    <h2>플랜 캐시</h2>
+    <div id="p-cache-spark" class="spark"></div>
+    <table id="p-cache"></table>
+    <h3>아키타입별 히트율 (하위 10)</h3>
+    <table id="p-cache-archetype"></table>
+  </section>
 </div>
 
 <script>
@@ -96,6 +109,41 @@ function grade(value, budget) {
   if (value > budget) { return "bad"; }
   if (value > budget * 0.75) { return "warn"; }
   return "ok";
+}
+
+// 하한을 넘겨야 좋은 지표용 (히트율 등). grade 와 부호가 반대다.
+function gradeAtLeast(value, floor) {
+  if (value >= floor) { return "ok"; }
+  if (value >= floor * 0.9) { return "warn"; }
+  return "bad";
+}
+
+const SPARK_LEN = 120;   // 1초 폴링 × 120 = 2분 창
+const series = {};
+
+// 시계열 스파크라인. 서버는 스냅샷만 주므로 창은 클라이언트가 들고 있는다 —
+// 새로고침하면 지워지는 것이 맞다. 지속 보관은 OpenTelemetry 수집기의 일이다.
+//
+// SVG 가 아니라 div 막대다. createElementNS 는 SVG 네임스페이스를 URL 문자열로 요구하는데,
+// 이 파일은 URL 이 하나도 없어야 한다 (Dashboard_IsSelfContained).
+// 규칙에 예외를 내느니 그리는 방법을 바꾼다 — 어차피 값 하나짜리 시계열이다.
+function spark(id, value, floor) {
+  const box = $(id);
+  if (!box) { return; }
+
+  const buf = series[id] ??= [];
+  buf.push(value);
+  if (buf.length > SPARK_LEN) { buf.shift(); }
+
+  box.replaceChildren(...buf.map((v) => {
+    const col = document.createElement("i");
+    col.style.height = (100 * Math.max(0, Math.min(1, v))).toFixed(1) + "%";
+    col.style.background = (floor === undefined || v >= floor) ? "#4ade80" : "#f87171";
+    return col;
+  }));
+
+  box.title = `최근 ${buf.length}회 · 현재 ${(100 * value).toFixed(2)} %`
+    + (floor === undefined ? "" : ` · 하한 ${(100 * floor).toFixed(0)} %`);
 }
 
 function render(m) {
@@ -147,6 +195,34 @@ function render(m) {
     ["인터럽트 억제", r.interruptsSuppressed],
     ["LLM 호출", m.llmCalls, m.llmCalls > 0 ? "warn" : "ok"],
   ]);
+
+  renderCache(m.cache);
+}
+
+// 캐시 패널. docs/13 §6 · docs/14 §8 (T4-18).
+// 게이트 하한은 히트율 98% 다 — 하한 지표라 grade 가 아니라 gradeAtLeast 를 쓴다.
+const CACHE_HIT_FLOOR = 0.98;
+const TOTAL_BUCKETS = 2880;   // docs/01 §6
+
+function renderCache(c) {
+  spark("p-cache-spark", c.hitRate, CACHE_HIT_FLOOR);
+
+  rows($("p-cache"), [
+    ["히트율", (100 * c.hitRate).toFixed(2) + " %", gradeAtLeast(c.hitRate, CACHE_HIT_FLOOR)],
+    ["히트 / 미스", `${c.hits} / ${c.misses}`],
+    ["채워진 버킷", bar(c.filledBuckets, TOTAL_BUCKETS, `${c.filledBuckets} / ${TOTAL_BUCKETS}`)],
+    ["콜드 버킷", c.coldBuckets, c.coldBuckets > 0 ? "warn" : "ok"],
+    ["pinned", c.pinnedBuckets],
+    ["개별 플랜 살아있음", c.individualLive],
+    ["개별 풀 회전율", c.individualTurnover.toFixed(3), grade(c.individualTurnover, 1)],
+  ]);
+
+  rows($("p-cache-archetype"), c.worstArchetypes.length === 0
+    ? [["—", "조회된 아키타입 없음"]]
+    : c.worstArchetypes.map((a) => [
+        a.archetype,
+        bar(a.hitRate, 1, `${(100 * a.hitRate).toFixed(1)} % · 콜드 ${a.coldBuckets}`),
+      ]));
 }
 
 async function poll() {

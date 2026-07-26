@@ -25,6 +25,25 @@ public sealed class DashboardTests
     }
 
     /// <summary>
+    /// T4-18 완료 조건 — 캐시 패널의 3요소(히트율 시계열 · 콜드 버킷 수 · 아키타입별 히트율).
+    /// </summary>
+    [Fact]
+    public void Dashboard_HasCachePanel()
+    {
+        Assert.Contains("id=\"p-cache\"", s_html, StringComparison.Ordinal);
+        Assert.Contains("id=\"p-cache-spark\"", s_html, StringComparison.Ordinal);
+        Assert.Contains("id=\"p-cache-archetype\"", s_html, StringComparison.Ordinal);
+
+        // 히트율은 하한 지표다 — grade(넘으면 나쁨)가 아니라 gradeAtLeast 를 써야 한다.
+        Assert.Contains("gradeAtLeast(c.hitRate", s_html, StringComparison.Ordinal);
+        Assert.Contains("CACHE_HIT_FLOOR = 0.98", s_html, StringComparison.Ordinal);
+
+        // 시계열은 클라이언트가 창을 들고 있는다. 서버는 스냅샷만 준다.
+        Assert.Contains("SPARK_LEN", s_html, StringComparison.Ordinal);
+        Assert.Contains("spark(\"p-cache-spark\"", s_html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 외부 의존이 없어야 한다. 이 서버는 인터넷이 없는 사내망에서도 뜬다 —
     /// CDN 스크립트 하나가 섞이면 거기서는 빈 화면이 나온다.
     /// </summary>
@@ -77,6 +96,8 @@ public sealed class DashboardTests
                       "eventsDrained", "eventGaps", "eventBacklogs"]),
             ("replan", ["queueDepth", "enqueuedPerSecond", "scanPerTick", "deviations",
                         "interruptsForced", "interruptsSuppressed"]),
+            ("cache", ["hitRate", "hits", "misses", "filledBuckets", "coldBuckets", "pinnedBuckets",
+                       "individualTurnover", "individualLive", "worstArchetypes"]),
         ];
 
         foreach ((string panel, string[] fields) in used)
