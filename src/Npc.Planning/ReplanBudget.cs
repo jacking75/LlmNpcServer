@@ -316,9 +316,8 @@ public sealed class ReplanBudget : IReplanBudget
     public void Settle(Tier tier, int actualTokens, double actualCostUsd) =>
         Charge(tier, actualTokens, actualCostUsd);
 
-    /// <summary>
-    /// 추정 토큰을 비용으로 환산한다. T1(로컬)은 항상 0 이다 — 전기값은 이 캡의 관심사가 아니다.
-    /// </summary>
+    /// <inheritdoc />
+    /// <remarks>T1(로컬)은 항상 0 이다 — 전기값은 이 캡의 관심사가 아니다.</remarks>
     public double EstimateCost(Tier tier, int tokens) =>
         tier == Tier.T2 ? tokens / 1_000_000.0 * _limits.T2CostPerMillionTokens : 0.0;
 

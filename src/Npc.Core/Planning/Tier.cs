@@ -48,6 +48,9 @@ public interface IReplanBudget
     /// <summary>소비하지 않고 확인만 한다.</summary>
     bool Peek(Tier tier, int estimatedTokens, Tick now);
 
+    /// <summary>추정 토큰의 비용. T1(로컬)은 항상 0 이다. 정산 시 차액을 내는 데 쓴다.</summary>
+    double EstimateCost(Tier tier, int tokens);
+
     /// <summary>
     /// 호출이 끝난 뒤 실제 사용량을 반영한다. 추정과 실측의 차이를 여기서 정산한다 —
     /// 추정만으로 캡을 세면 실제 비용이 캡을 넘길 수 있다.
