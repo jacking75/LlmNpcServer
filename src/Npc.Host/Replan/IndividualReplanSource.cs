@@ -60,6 +60,12 @@ internal sealed class IndividualReplanSource : IReplanSource
         _timeOfDay = timeOfDay;
     }
 
+    /// <summary>
+    /// 존 상태 표. 붙이면 버킷 키의 지역상태·기후가 정확해진다 (T4-13).
+    /// 없으면 플래그에서 추정하므로 <c>Alert</c>·<c>Disaster</c>·<c>Cold</c> 버킷을 찾지 못한다.
+    /// </summary>
+    public ZoneStateTable? ZoneStates { get; init; }
+
     /// <inheritdoc />
     public string Name => "individual";
 
@@ -87,18 +93,31 @@ internal sealed class IndividualReplanSource : IReplanSource
                 continue;
             }
 
-            job = new ReplanJob(
-                npc,
-                _data.Buckets.KeyOf(new ArchetypeId(_store.ArchetypeCode[npc]), _timeOfDay(), flags),
-                flags,
-                PlanQuality.Individual,
-                score);
-
+            job = new ReplanJob(npc, BucketOf(npc, flags), flags, PlanQuality.Individual, score);
             return true;
         }
 
         job = default;
         return false;
+    }
+
+    /// <summary>
+    /// 이 NPC 의 버킷 키. 아키타입과 시간대는 밖에서 오고, 지역상태·기후는 존 상태 표가 있으면
+    /// 그쪽이 정확하다 — 플래그만으로는 <c>Alert</c>·<c>Disaster</c>·<c>Cold</c> 를 가를 수 없다.
+    /// </summary>
+    private BucketKey BucketOf(int npc, WorldFlags flags)
+    {
+        var archetype = new ArchetypeId(_store.ArchetypeCode[npc]);
+        TimeOfDay time = _timeOfDay();
+
+        if (ZoneStates is not { } states)
+        {
+            return _data.Buckets.KeyOf(archetype, time, flags);
+        }
+
+        var zone = new ZoneId(_store.ZoneCode[npc]);
+
+        return new BucketKey(archetype, time, states.RegionOf(zone), states.ClimateOf(zone));
     }
 
     /// <inheritdoc />

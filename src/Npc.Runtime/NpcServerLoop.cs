@@ -176,6 +176,11 @@ public sealed class NpcServerLoop
             }
 
             _applier.Apply(in ev);
+
+            // 존 상태·기후가 바뀌면 그 존만 버킷 전환을 예약한다 (docs/14 §5 · T4-13).
+            // 모든 이벤트가 지나는 곳은 여기 하나뿐이라 검출도 여기서 한다.
+            Transition?.Observe(in ev, _clock);
+
             _interrupts.Handle(in ev, _clock.Current, _executor, _link, _replanQueue);
             drained++;
         }
