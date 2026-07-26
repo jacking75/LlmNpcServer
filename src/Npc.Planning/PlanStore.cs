@@ -57,6 +57,8 @@ public sealed class PlanStore
     private readonly CompiledPlan[]?[] _chunks = new CompiledPlan[]?[MaxChunks];
     private readonly CompiledPlan _idle;
     private int _count;   // Interlocked 로만 올린다
+    private long _individualHits;
+    private long _individualLost;
 
     private PlanStore(CompiledPlan idle)
     {
@@ -365,6 +367,74 @@ public sealed class PlanStore
     {
         Array.Clear(_hits);
         Array.Clear(_misses);
+    }
+
+    /// <summary>
+    /// 개별 오버라이드 플랜 풀. <b>기동 시 1회만 붙인다.</b> docs/13 §2 의 세 번째 표다.
+    /// 붙이지 않으면 음수 id 는 최후 플랜으로 읽힌다 — 즉 워커가 만든 개별 플랜이 조용히 사라진다.
+    /// </summary>
+    public IndividualPlanPool? Individual { get; set; }
+
+    /// <summary>개별 플랜을 실제로 찾아 쓴 횟수.</summary>
+    public long IndividualHits => Volatile.Read(ref _individualHits);
+
+    /// <summary>슬롯이 회수돼 개별 플랜을 잃은 횟수. 크면 풀 회전율이 과하다 (docs/13 §6).</summary>
+    public long IndividualLost => Volatile.Read(ref _individualLost);
+
+    /// <summary>
+    /// 이 NPC 가 지금 실행해야 할 플랜. docs/13 §2 의 id 인코딩을 여기서 푼다.
+    ///
+    /// <list type="bullet">
+    ///   <item><c>&gt;= 0</c> — 레지스트리 id. 그대로 조회한다</item>
+    ///   <item><c>&lt; 0</c> — 개별 풀 슬롯. 주인이 맞으면 그 플랜, LRU 로 회수됐으면 <b>false</b></item>
+    /// </list>
+    ///
+    /// <b>false 를 받은 호출부는 버킷 플랜으로 되돌아가야 한다</b>
+    /// (<see cref="IndividualPlanPool"/> 주석). 여기서 아키타입 폴백을 고를 수 없는 이유는
+    /// 스토어가 NPC 의 아키타입을 모르기 때문이다 — 그것은 런타임의 <c>NpcStore</c> 에 있다.
+    /// </summary>
+    /// <param name="npc">NpcStore 첨자. 개별 슬롯의 주인 확인에 쓴다.</param>
+    /// <param name="planId"><c>NpcStore.PlanId</c> 값.</param>
+    /// <param name="tick">현재 틱. 개별 풀의 LRU 기준을 갱신한다.</param>
+    /// <param name="plan">찾은 플랜. false 여도 <b>절대 null 이 아니다</b> (최후 플랜).</param>
+    public bool TryFor(int npc, int planId, long tick, out CompiledPlan plan)
+    {
+        if (!IndividualPlanPool.IsIndividual(planId))
+        {
+            plan = this[planId];
+            return true;
+        }
+
+        if (Individual is { } pool && pool.TryGet(planId, npc, tick, out plan))
+        {
+            Interlocked.Increment(ref _individualHits);
+            return true;
+        }
+
+        Interlocked.Increment(ref _individualLost);
+        plan = _idle;
+        return false;
+    }
+
+    /// <summary>
+    /// <see cref="TryFor"/> 와 같지만 <b>개별 풀의 LRU 를 갱신하지 않는다.</b>
+    /// 계측·대시보드처럼 상태를 바꾸면 안 되는 경로가 쓴다 (<see cref="IndividualPlanPool.TryPeek"/>).
+    /// </summary>
+    public bool TryPeekFor(int npc, int planId, out CompiledPlan plan)
+    {
+        if (!IndividualPlanPool.IsIndividual(planId))
+        {
+            plan = this[planId];
+            return true;
+        }
+
+        if (Individual is { } pool && pool.TryPeek(planId, npc, out plan))
+        {
+            return true;
+        }
+
+        plan = _idle;
+        return false;
     }
 
     /// <summary>PlanId 로 조회. 첨자 두 번. 할당 0.</summary>

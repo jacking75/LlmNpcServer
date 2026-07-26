@@ -148,6 +148,29 @@ public sealed class IndividualPlanPool
         return true;
     }
 
+    /// <summary>
+    /// 개별 플랜을 <b>LRU 를 갱신하지 않고</b> 본다.
+    ///
+    /// 계측·대시보드 경로가 쓴다. <see cref="TryGet"/> 를 쓰면 <c>/metrics</c> 를 폴링하는 것만으로
+    /// LRU 순서가 바뀌어 <b>어느 NPC 가 슬롯을 잃는지가 대시보드 열람 여부에 달리게 된다</b> —
+    /// 리플레이 100% 일치(W11 게이트)를 깨는 길이다 (CLAUDE.md §2.3).
+    /// </summary>
+    public bool TryPeek(int planId, int npc, out CompiledPlan plan)
+    {
+        int slot = SlotOf(planId);
+
+        if (!IsIndividual(planId) || (uint)slot >= Capacity || Volatile.Read(ref _owner[slot]) != npc)
+        {
+            plan = null!;
+            return false;
+        }
+
+        CompiledPlan? found = Volatile.Read(ref _plans[slot]);
+
+        plan = found!;
+        return found is not null;
+    }
+
     /// <summary>플랜이 끝났다. 슬롯을 비운다. 주인이 아니면 아무 일도 하지 않는다.</summary>
     public bool Release(int planId, int npc)
     {

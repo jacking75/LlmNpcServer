@@ -112,7 +112,12 @@ public sealed class CognitionScheduler
                     continue;
                 }
 
-                CompiledPlan plan = _plans[_store.PlanId[npc]];
+                // 개별 풀 슬롯이 회수됐으면 판정을 건너뛴다 — 같은 틱의 실행기가
+                // 곧바로 아키타입 폴백으로 되돌린다 (PlanExecutor.PlanOf).
+                if (!_plans.TryFor(npc, _store.PlanId[npc], tick.Value, out CompiledPlan plan))
+                {
+                    continue;
+                }
 
                 // 이탈 판정. 비트 연산 한 번 (docs/01 §1 · docs/03 §5).
                 if (!plan.NeedsReplan(_store.Flags[npc]))

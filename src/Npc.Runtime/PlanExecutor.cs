@@ -182,12 +182,21 @@ public sealed class PlanExecutor
     /// </summary>
     public void AssignPlan(int npc, PlanId plan)
     {
+        int previous = _store.PlanId[npc];
+
         _store.PlanId[npc] = plan.Value;
         _store.StepIndex[npc] = 0;
         _store.StepRetries[npc] = 0;
         _store.PlanAssignedTick[npc] = _tick;
         _store.PendingUrgency[npc] = 0;
         _correlations.Invalidate(npc);
+
+        // 개별 플랜에서 벗어나면 슬롯을 즉시 놓아준다. LRU 회수만 믿으면 512칸이
+        // 죽은 플랜으로 차서 새 재계획이 남의 슬롯을 뺏는다 (docs/13 §6 풀 회전율).
+        if (previous != plan.Value && IndividualPlanPool.IsIndividual(previous))
+        {
+            _plans.Individual?.Release(previous, npc);
+        }
 
         if ((StepStatus)_store.StepStatus[npc] != StepStatus.Unspawned)
         {
@@ -196,6 +205,23 @@ public sealed class PlanExecutor
     }
 
     // ---------------------------------------------------------------- 내부
+
+    /// <summary>
+    /// 이 NPC 의 현재 플랜. 개별 풀 슬롯(음수 id)이 회수됐으면 아키타입 폴백으로 되돌린다.
+    ///
+    /// <b>되돌리는 것이 이 메서드의 요점이다.</b> 개별 플랜은 512칸 링이라 LRU 로 회수되는데
+    /// (docs/13 §2), 예전 주인이 회수된 슬롯을 계속 읽으면 최후 플랜(Wait·Emote·Rest)에 갇힌다.
+    /// </summary>
+    private CompiledPlan PlanOf(int npc)
+    {
+        if (_plans.TryFor(npc, _store.PlanId[npc], _tick, out CompiledPlan plan))
+        {
+            return plan;
+        }
+
+        SwitchToFallback(npc);
+        return _plans[_store.PlanId[npc]];
+    }
 
     private void AdvanceStep(int npc)
     {
@@ -210,7 +236,7 @@ public sealed class PlanExecutor
             return;
         }
 
-        CompiledPlan plan = _plans[_store.PlanId[npc]];
+        CompiledPlan plan = PlanOf(npc);
         int next = _store.StepIndex[npc] + 1;
 
         if (next < plan.Steps.Length)
@@ -233,7 +259,7 @@ public sealed class PlanExecutor
 
     private void ApplyFailPolicy(int npc)
     {
-        CompiledPlan plan = _plans[_store.PlanId[npc]];
+        CompiledPlan plan = PlanOf(npc);
 
         switch (plan.OnFail)
         {
@@ -277,7 +303,7 @@ public sealed class PlanExecutor
 
     private void Emit(int npc, Tick tick, IGameServerLink link)
     {
-        CompiledPlan plan = _plans[_store.PlanId[npc]];
+        CompiledPlan plan = PlanOf(npc);
 
         if (plan.Steps.IsEmpty)
         {
@@ -321,7 +347,7 @@ public sealed class PlanExecutor
     /// <returns>타임아웃이 발생해 스텝이 실패로 바뀌었으면 true.</returns>
     private bool SynthesizeTimeout(int npc, Tick tick)
     {
-        CompiledPlan plan = _plans[_store.PlanId[npc]];
+        CompiledPlan plan = PlanOf(npc);
 
         if (plan.Steps.IsEmpty)
         {

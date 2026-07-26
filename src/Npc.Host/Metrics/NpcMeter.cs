@@ -387,7 +387,10 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
                 continue;
             }
 
-            CompiledPlan plan = _plans[_store.PlanId[i]];
+            // 계측은 상태를 바꾸지 않는다 — LRU 도 건드리지 않고, 회수된 개별 슬롯이면
+            // 최후 플랜으로 세고 넘어간다.
+            _plans.TryPeekFor(i, _store.PlanId[i], out CompiledPlan plan);
+
             int step = Math.Min(_store.StepIndex[i], plan.Steps.Length - 1);
 
             if (step >= 0)
