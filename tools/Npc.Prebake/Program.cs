@@ -4,93 +4,37 @@ using Microsoft.Extensions.AI;
 using Npc.Core;
 using Npc.Llm;
 using Npc.MasterData;
+using Npc.Planning;
 using Npc.Prebake;
 
-// T2-19 전량 생성 러너의 실행 진입점.
-// P3(T3-08)에서 정식 프리베이크 CLI 로 승격된다 — 지금은 회차를 돌리고 집계를 남기는 데 필요한 만큼만 있다.
+// 프리베이크 CLI. docs/13 §4.
+//
+// T2-19 의 전량 생성 러너가 여기로 승격됐다. 옵션 파싱은 PrebakeOptions 가 하고
+// 이 파일은 조립만 한다 — 흐름은 docs/13 §4 의 8단계 그대로다.
 
-string masterData = "./masterdata";
-string? engineId = null;
-string planStore = "./planstore";
-string outPath = "./docs/measurements/W6_run.jsonl";
-int limit = 0;
-int concurrency = 8;
-int stride = 1;
-bool printPrefix = false;
-int archetypes = 0;
-
-for (int i = 0; i < args.Length; i++)
+if (!PrebakeOptions.TryParse(args, out PrebakeOptions options, out string? parseError))
 {
-    switch (args[i])
-    {
-        case "--masterdata" when i + 1 < args.Length:
-            masterData = args[++i];
-            break;
-
-        case "--engine" when i + 1 < args.Length:
-            engineId = args[++i];
-            break;
-
-        case "--planstore" when i + 1 < args.Length:
-            planStore = args[++i];
-            break;
-
-        case "--out" when i + 1 < args.Length:
-            outPath = args[++i];
-            break;
-
-        case "--limit" when i + 1 < args.Length:
-            limit = int.Parse(args[++i], CultureInfo.InvariantCulture);
-            break;
-
-        case "--stride" when i + 1 < args.Length:
-            stride = int.Parse(args[++i], CultureInfo.InvariantCulture);
-            break;
-
-        case "--concurrency" when i + 1 < args.Length:
-            concurrency = int.Parse(args[++i], CultureInfo.InvariantCulture);
-            break;
-
-        case "--archetypes" when i + 1 < args.Length:
-            archetypes = int.Parse(args[++i], CultureInfo.InvariantCulture);
-            break;
-
-        case "--print-prefix":
-            printPrefix = true;
-            break;
-
-        case "--help" or "-h":
-            Console.WriteLine(
-                """
-                Npc.Prebake — 전량 생성 러너 (T2-19)
-
-                  --masterdata <dir>   기본 ./masterdata
-                  --engine <id>        appsettings.Llm.json 의 엔진 id. 없으면 default
-                  --planstore <dir>    산출물 위치. 기본 ./planstore
-                  --out <file>         버킷별 결과 JSONL. 기본 ./docs/measurements/W6_run.jsonl
-                  --limit <n>          앞에서 n 개만 (0 = 전량 2,880)
-                  --stride <n>         버킷을 n 간격으로 골라 표본을 흩는다 (기본 1)
-                  --concurrency <n>    시작 동시성. 기본 8 — AIMD 로 올린다
-                  --archetypes <n>     앞 n 개 아키타입의 72버킷을 전부 (연속 슬라이스).
-                                       인접 버킷 재사용을 실제로 태우려면 연속이어야 한다
-                  --print-prefix       프리픽스 절별 토큰 수만 찍고 끝낸다 (W6_compile_stats §1)
-                """);
-            return 0;
-
-        default:
-            Console.Error.WriteLine($"모르는 인자: {args[i]}");
-            return 2;
-    }
+    Console.Error.WriteLine(parseError);
+    Console.Error.WriteLine();
+    Console.Error.WriteLine(PrebakeOptions.Usage);
+    return 2;
 }
 
-MasterDataSet data = MasterDataLoader.Load(masterData);
-PromptPrefix prefix = PromptPrefix.Build(data, masterData);
+if (options.Help)
+{
+    Console.Out.WriteLine(PrebakeOptions.Usage);
+    return 0;
+}
 
-if (printPrefix)
+// 1. 마스터데이터 로드 + V1~V11 검증 (로더가 검증까지 한다)
+MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+PromptPrefix prefix = PromptPrefix.Build(data, options.MasterData);
+
+if (options.PrintPrefix)
 {
     foreach (SchemaProfile profile in new[] { SchemaProfile.Full, SchemaProfile.Bare })
     {
-        PromptPrefix p = PromptPrefix.Build(data, masterData, profile);
+        PromptPrefix p = PromptPrefix.Build(data, options.MasterData, profile);
 
         Console.WriteLine($"--- {profile}: {p.TokenCount} tok · sha {p.Sha256[..16]}");
 
@@ -103,8 +47,46 @@ if (printPrefix)
     return 0;
 }
 
-LlmOptions options = LlmOptions.LoadDefault(Directory.GetCurrentDirectory());
-LlmEngineOptions engine = options.Engine(engineId);
+// 2. 기존 manifest 와 비교 → 무효화 범위 판정
+Manifest? previous = Manifest.LoadFrom(options.Out);
+InvalidationScope scope = PlanStoreValidator.Compare(
+    previous, data, prefix.Sha256, out var changedFiles);
+
+Console.WriteLine($"masterdata : {options.MasterData}");
+Console.WriteLine($"planstore  : {options.Out}");
+Console.WriteLine($"prefix     : {prefix.TokenCount} tok · {prefix.Sha256[..16]}");
+Console.WriteLine(
+    $"무효화     : {scope}"
+    + (changedFiles.IsEmpty ? string.Empty : $" (바뀐 파일: {string.Join(", ", changedFiles)})"));
+
+// 3. 생성 대상 버킷 목록 산출
+List<BucketKey> buckets = SelectBuckets(options, data, previous, scope);
+
+Console.WriteLine($"대상       : {buckets.Count} 버킷");
+
+if (options.Plan)
+{
+    foreach (BucketKey bucket in buckets.Take(40))
+    {
+        Console.WriteLine($"  {bucket.Format(data.Archetypes[bucket.A].Id)}");
+    }
+
+    if (buckets.Count > 40)
+    {
+        Console.WriteLine($"  … 그리고 {buckets.Count - 40} 개 더");
+    }
+
+    return 0;
+}
+
+if (buckets.Count == 0)
+{
+    Console.WriteLine("생성할 것이 없다.");
+    return 0;
+}
+
+LlmOptions llm = LlmOptions.LoadDefault(Directory.GetCurrentDirectory());
+LlmEngineOptions engine = llm.Engine(options.Model);
 
 if (!engine.IsConfigured)
 {
@@ -112,40 +94,20 @@ if (!engine.IsConfigured)
     return 2;
 }
 
-List<BucketKey> buckets = [.. BulkRunner.AllBuckets()];
-
-if (stride > 1)
-{
-    // 2,880 과 서로소인 stride 를 주면 표본이 전 아키타입에 흩어진다. 난수를 쓰지 않는다.
-    buckets = [.. Enumerable.Range(0, BucketKey.TotalKeys)
-        .Select(i => BucketKey.FromIndex(i * stride % BucketKey.TotalKeys))
-        .Distinct()];
-}
-
-// 연속 슬라이스. 인접 버킷(같은 아키타입의 다른 상황)이 스토어에 들어와야
-// 재사용 경로가 동작한다 — 흩어진 표본으로는 폴백 비율을 잴 수 없다.
-if (archetypes > 0)
-{
-    int perArchetype = BucketKey.TimeOfDayCount * BucketKey.RegionStateCount * BucketKey.ClimateCount;
-
-    buckets = [.. Enumerable.Range(0, Math.Min(archetypes, BucketKey.ArchetypeCount) * perArchetype)
-        .Select(BucketKey.FromIndex)];
-}
-
-if (limit > 0 && limit < buckets.Count)
-{
-    buckets = [.. buckets.Take(limit)];
-}
-
 Console.WriteLine($"engine     : {engine.Id} (forced={engine.ForceJsonSchema})");
-Console.WriteLine($"prefix     : {prefix.TokenCount} tok · {prefix.Sha256[..16]}");
-Console.WriteLine($"buckets    : {buckets.Count}");
-Console.WriteLine($"concurrency: {concurrency} (AIMD)");
+Console.WriteLine($"concurrency: {options.Concurrency} (AIMD, 상한 {options.MaxConcurrency})");
+Console.WriteLine($"budget     : ${options.BudgetUsd:F2}");
 Console.WriteLine();
 
 var runner = new BulkRunner(
-    data, prefix, engine,
-    new BulkRunOptions(Concurrency: concurrency, PlanStoreDirectory: planStore));
+    data,
+    prefix,
+    engine,
+    new BulkRunOptions(
+        Concurrency: options.Concurrency,
+        MaxConcurrency: options.MaxConcurrency,
+        PlanStoreDirectory: options.Out,
+        DryRunSample: options.DryRunSample));
 
 BulkRunReport report = await runner.RunAsync(
     buckets,
@@ -159,7 +121,10 @@ BulkRunReport report = await runner.RunAsync(
     },
     CancellationToken.None);
 
-WriteJsonl(outPath, report, data);
+// 7. 통과한 것을 plans/ 에 쓴다. pinned 는 건드리지 않는다
+int written = PlanStoreIo.SaveAll(options.Out, runner.Store, data);
+
+WriteJsonl(options.Report, report, data);
 
 Console.WriteLine();
 Console.WriteLine($"통과율        : {report.Passed}/{report.Total} ({report.PassRate:P1})");
@@ -172,9 +137,49 @@ Console.WriteLine($"비용          : ${report.CostUsd:F4}");
 Console.WriteLine($"소요          : {report.WallClockSeconds:F1}s");
 Console.WriteLine($"429 최초 동시성: {report.FirstRateLimitConcurrency} (총 {report.RateLimitHits}회, 최대 동시성 {report.PeakConcurrency})");
 Console.WriteLine($"프리픽스 해시  : {runner.Stats.UniquePrefixHashes} 종");
-Console.WriteLine($"결과          : {outPath}");
+Console.WriteLine($"저장          : {written} 건 → {Path.Combine(options.Out, "plans")}");
+Console.WriteLine($"결과          : {options.Report}");
 
 return report.PassRate >= 0.90 ? 0 : 1;
+
+// --- 대상 버킷 산출. 정식 구현은 T3-09 의 TargetSelector 가 맡는다 ---
+static List<BucketKey> SelectBuckets(
+    PrebakeOptions options, MasterDataSet data, Manifest? previous, InvalidationScope scope)
+{
+    _ = previous;
+    _ = scope;
+
+    List<BucketKey> buckets = [.. BulkRunner.AllBuckets()];
+
+    if (options.Stride > 1)
+    {
+        // 2,880 과 서로소인 stride 를 주면 표본이 전 아키타입에 흩어진다. 난수를 쓰지 않는다.
+        buckets = [.. Enumerable.Range(0, BucketKey.TotalKeys)
+            .Select(i => BucketKey.FromIndex(i * options.Stride % BucketKey.TotalKeys))
+            .Distinct()];
+    }
+
+    // 연속 슬라이스. 인접 버킷(같은 아키타입의 다른 상황)이 스토어에 들어와야
+    // 재사용 경로가 동작한다 — 흩어진 표본으로는 폴백 비율을 잴 수 없다.
+    if (options.Archetypes > 0)
+    {
+        int perArchetype = BucketKey.TimeOfDayCount * BucketKey.RegionStateCount * BucketKey.ClimateCount;
+
+        buckets = [.. Enumerable.Range(0, options.Archetypes * perArchetype).Select(BucketKey.FromIndex)];
+    }
+
+    if (!options.Only.IsEmpty)
+    {
+        buckets = [.. buckets.Where(b => options.IncludesBucket(b.Format(data.Archetypes[b.A].Id)))];
+    }
+
+    if (options.Limit > 0 && options.Limit < buckets.Count)
+    {
+        buckets = [.. buckets.Take(options.Limit)];
+    }
+
+    return buckets;
+}
 
 static void WriteJsonl(string path, BulkRunReport report, MasterDataSet data)
 {

@@ -116,11 +116,13 @@ dotnet run -c Release --project src/Npc.Host -- \
 # 4) 로컬 추론 기동 (별도 터미널)
 .\tools\dotllm\dotllm.exe serve --model .\models\Qwen3-8B-Q4_K_M.gguf --port 8080 --gpu-layers 99
 
-# 5) 플랜 프리베이크 (외부 API, 약 3분 / 약 $0.3)
-$env:OPENAI_API_KEY = "..."
+# 5) 플랜 프리베이크 (외부 API)
+#    --concurrency 는 AIMD 초기값이다. 8 에서 시작해 올린다 —
+#    "동시 32" 는 상위 계획의 추정이고 실측이 아니다 (docs/measurements/W6_compile_stats.md §6)
+$env:OPENROUTER_API_KEY = "..."
 dotnet run -c Release --project tools/Npc.Prebake -- \
     --masterdata ./masterdata --out ./planstore \
-    --tier T2 --model gpt-5-nano --concurrency 32 --budget-usd 5.00
+    --tier T2 --model openrouter-gpt-5-nano --concurrency 8 --budget-usd 5.00
 
 # 6) 전체 구동 + 대시보드
 dotnet run -c Release --project src/Npc.Host -- \
