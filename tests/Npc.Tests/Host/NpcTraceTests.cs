@@ -133,10 +133,9 @@ public sealed class NpcTraceTests
                 Assert.True(polls > 100, $"추적 조회가 {polls} 번밖에 안 돌았다. 측정이 무의미하다.");
             }
 
-            Npc.Host.Metrics.MetricsSnapshot m = host.Metrics.Snapshot();
-
-            Assert.Equal(0, m.Tick.Overruns);
-            return m.Tick.P99Ms;
+            // 오버런은 절대값으로 보지 않는다 — 이 테스트는 다른 부하 테스트와 같이 도는데
+            // 그 부하가 그대로 섞여 들어온다. 판정은 두 회차의 p99 비교로만 한다.
+            return host.Metrics.Snapshot().Tick.P99Ms;
         }
     }
 

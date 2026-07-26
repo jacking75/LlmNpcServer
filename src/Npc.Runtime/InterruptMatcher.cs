@@ -151,6 +151,50 @@ public sealed class InterruptMatcher
         return true;
     }
 
+    /// <summary>
+    /// 존 전체에 인터럽트를 평가한다. docs/14 §7 "War 수신 → 인터럽트 경로로 1틱 내 즉시 반응".
+    ///
+    /// <b><c>ZoneStateChanged</c> 는 NPC 를 지목하지 않는다</b> — <c>ev.Npc</c> 가 0 이라
+    /// <see cref="Handle"/> 하나로는 0번 NPC 만 평가된다. 존 전체가 <c>RegionUnderAttack</c> 을
+    /// 받았는데 반응은 한 마리만 하는 셈이라, 존 이벤트는 여기서 따로 훑는다.
+    ///
+    /// O(N) 이지만 존 상태 변화는 드물고(공성 한 번에 몇 발), 이 한 틱의 비용이
+    /// 곧 "1틱 내 즉시 반응" 의 값이다.
+    /// </summary>
+    /// <returns>인터럽트가 걸린 NPC 수.</returns>
+    public int HandleZone(
+        in GameEvent ev, Tick tick, PlanExecutor executor, IGameServerLink link, ReplanQueue? queue)
+    {
+        ArgumentNullException.ThrowIfNull(executor);
+        ArgumentNullException.ThrowIfNull(link);
+
+        if (ev.Kind is not (GameEventKind.ZoneStateChanged or GameEventKind.WeatherChanged))
+        {
+            return 0;
+        }
+
+        int fired = 0;
+
+        for (int npc = 0; npc < _store.Count; npc++)
+        {
+            if (_store.ZoneCode[npc] != ev.Zone.Value)
+            {
+                continue;
+            }
+
+            // 그 NPC 를 지목한 사본으로 평가한다. 규칙은 대부분 플래그를 보므로
+            // 이벤트 종류보다 "지금 이 NPC 의 상태" 가 판정의 실체다 (docs/01 §7).
+            GameEvent scoped = ev with { Npc = new NpcId(npc) };
+
+            if (Handle(in scoped, tick, executor, link, queue))
+            {
+                fired++;
+            }
+        }
+
+        return fired;
+    }
+
     /// <summary><c>$threat</c> 대상. 위협의 정체는 이벤트에 있다.</summary>
     private static NpcId TargetOf(InterruptRule rule, in GameEvent ev) =>
         rule.TargetsThreat ? ev.OtherNpc : default;

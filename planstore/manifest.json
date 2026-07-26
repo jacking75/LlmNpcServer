@@ -2,34 +2,34 @@
   "schema": 1,
   "masterdata_hash": "f37c02926c0b3d26582c4f47a4d393c6548fe921e5b6bc74f04c31ce2cb53218",
   "prefix_hash": "56a0c601f48392e0c332d62d3180bf479cdb3e9c785341fb3916be3f05108ddf",
-  "generated_at": "2026-07-26T-W8-pilot288",
+  "generated_at": "2026-07-27T-W10-scenarioB-fill",
   "partial": false,
   "generated_by": {
     "tier": "T2",
     "model": "poe-gemini-2.5-flash-lite",
     "temperature": 0.4000000059604645,
-    "concurrency": 8,
-    "peak_concurrency": 24,
+    "concurrency": 6,
+    "peak_concurrency": 6,
     "first_rate_limit_concurrency": 0
   },
   "counts": {
     "total": 2880,
-    "generated": 195,
+    "generated": 9,
     "pinned": 0,
-    "fallback": 32,
-    "reused": 61
+    "fallback": 0,
+    "reused": 3
   },
   "validation": {
-    "pass": 195,
-    "fail_schema": 3,
-    "fail_vocab": 20,
-    "fail_coherence": 67,
-    "fail_dryrun": 3,
+    "pass": 9,
+    "fail_schema": 0,
+    "fail_vocab": 3,
+    "fail_coherence": 0,
+    "fail_dryrun": 0,
     "fail_call": 0
   },
-  "cost_usd": 0.511942,
-  "wall_clock_s": 115,
-  "cache_hit_rate": 0.4256,
+  "cost_usd": 0.030807,
+  "wall_clock_s": 10.6,
+  "cache_hit_rate": 0.0454,
   "file_hashes": [
     {
       "file": "actions.json",

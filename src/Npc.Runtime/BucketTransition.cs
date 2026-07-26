@@ -11,12 +11,15 @@ namespace Npc.Runtime;
 ///
 /// 전환 계기 한 번에 대상 NPC 가 동시에 버킷 플랜을 갈아탄다.
 /// LLM 호출이 아니라 순수 배열 쓰기지만, 5,000회를 한 틱에 하면 스파이크가 생긴다.
-/// NPC 별로 <c>(Hash(npcId) % 601) - 300</c> 틱(게임시간 ±5분)만큼 흩어 실행한다.
+/// NPC 별로 <c>Hash(npcId)</c> 지터만큼 흩어 실행한다.
 ///
 /// <b>지터는 결정론이다.</b> <c>Random</c> 을 쓰면 리플레이가 깨진다 (CLAUDE.md §2.3).
 ///
-/// 전환 시각은 경계에서야 알 수 있으므로 실제 예약은 <c>경계 + 300 + 지터</c> —
-/// 즉 <c>[경계, 경계+600]</c> 구간이다. 흩어지는 폭(601틱)은 사양과 같고 중심만 뒤로 밀린다.
+/// 전환 시각은 경계에서야 알 수 있으므로 실제 예약은 <c>경계 + spread + 지터</c> —
+/// 즉 <c>[경계, 경계 + 2×spread]</c> 구간이다. 흩어지는 폭은 사양과 같고 중심만 뒤로 밀린다.
+///
+/// <b>폭이 계기마다 다르다</b> — 시간대 전환은 <see cref="JitterSpread"/>(±300, 실시간 60초 창),
+/// 존 이벤트는 <see cref="ZoneJitterSpread"/>(±14, 2.9초 창)다. 이유는 그 상수 주석에 있다.
 ///
 /// <para><b>계기가 셋이다</b> (T4-13):</para>
 /// <list type="bullet">
@@ -36,11 +39,27 @@ namespace Npc.Runtime;
 /// </summary>
 public sealed class BucketTransition
 {
-    /// <summary>지터 폭(틱). ±300 = 게임시간 ±5분 (docs/14 §5).</summary>
+    /// <summary>시간대 전환의 지터 폭(틱). ±300 (docs/14 §5).</summary>
     public const int JitterSpread = 300;
 
     /// <summary>지터가 흩어지는 구간 길이(틱).</summary>
     public const int JitterWindow = (JitterSpread * 2) + 1;
+
+    /// <summary>
+    /// 존 이벤트의 지터 폭(틱). ±14 → 29틱 창 = <b>실시간 2.9초</b>.
+    ///
+    /// <b>시간대 전환과 폭이 다른 것이 핵심이다.</b> §5 의 ±300 은 5,000마리가 한꺼번에
+    /// 갈아타는 <b>정기</b> 전환의 스파이크를 없애려는 값이고, 그 창은 실시간 60초다.
+    /// 그런데 <c>docs/14 §7</c> 은 공성에서 "<b>3초 내</b> 마을 전체 플랜 스왑 완료" 를 요구한다 —
+    /// 같은 폭으로는 두 요구가 양립하지 않는다.
+    ///
+    /// 존 이벤트는 (1) 대상이 그 존뿐이라 인원이 훨씬 적고 (2) 긴급하다. 그래서 좁게 흩는다.
+    /// 존 인원 500마리 기준 틱당 약 17건이고, 그 정도는 스파이크가 아니다.
+    /// </summary>
+    public const int ZoneJitterSpread = 14;
+
+    /// <summary>존 전환이 흩어지는 구간 길이(틱). 실시간 2.9초.</summary>
+    public const int ZoneJitterWindow = (ZoneJitterSpread * 2) + 1;
 
     /// <summary>해시 솔트. 다른 지터와 같은 수열이 나오지 않게 한다.</summary>
     private const int Salt = 0x5457;   // 'TW'
@@ -115,9 +134,19 @@ public sealed class BucketTransition
     /// <summary>docs/14 §5 의 지터. <c>[-300, +300]</c>.</summary>
     public static int JitterTicks(NpcId npc) => PlanHash.Jitter(npc, Salt, JitterSpread);
 
-    /// <summary>이 NPC 가 실제로 갈아탈 틱.</summary>
+    /// <summary>주어진 폭의 지터. <c>[-spread, +spread]</c>.</summary>
+    public static int JitterTicks(NpcId npc, int spread) => PlanHash.Jitter(npc, Salt, spread);
+
+    /// <summary>이 NPC 가 실제로 갈아탈 틱 (시간대 전환).</summary>
     public static long DueTick(long boundaryTick, NpcId npc) =>
-        boundaryTick + JitterSpread + JitterTicks(npc);
+        DueTick(boundaryTick, npc, JitterSpread);
+
+    /// <summary>
+    /// 이 NPC 가 실제로 갈아탈 틱. 예약은 <c>[경계, 경계 + 2×spread]</c> 구간이다 —
+    /// 전환 시각은 경계에서야 알 수 있으므로 중심을 <c>+spread</c> 만큼 뒤로 민다.
+    /// </summary>
+    public static long DueTick(long boundaryTick, NpcId npc, int spread) =>
+        boundaryTick + spread + JitterTicks(npc, spread);
 
     /// <summary>
     /// 한 틱. 시간대가 바뀌면 전원을 예약하고, 이번 틱 몫의 예약을 실행한다.
@@ -157,7 +186,7 @@ public sealed class BucketTransition
                     return false;
                 }
 
-                ScheduleZone(clock.Current, clock.TimeOfDay, ev.Zone);
+                ScheduleZone(NextTick(clock), clock.TimeOfDay, ev.Zone);
                 return true;
 
             case GameEventKind.WeatherChanged:
@@ -166,13 +195,22 @@ public sealed class BucketTransition
                     return false;
                 }
 
-                ScheduleZone(clock.Current, clock.TimeOfDay, ev.Zone);
+                ScheduleZone(NextTick(clock), clock.TimeOfDay, ev.Zone);
                 return true;
 
             default:
                 return false;
         }
     }
+
+    /// <summary>
+    /// 이벤트로 예약할 때의 경계 틱. <b>다음 틱이다.</b>
+    ///
+    /// <see cref="Observe"/> 는 <c>DrainEvents</c> 에서 불리고, 그 뒤에 시계가 한 틱 나아가
+    /// <see cref="Apply"/> 가 처음 돈다. 지금 틱으로 예약하면 지터가 최솟값(-spread)인 NPC 의
+    /// 예약 시각이 <b>이미 지나간 틱</b>이 되어 다음 한 바퀴(601틱)까지 처리되지 않는다.
+    /// </summary>
+    private static Tick NextTick(GameClock clock) => new(clock.Current.Value + 1);
 
     /// <summary>전원을 지터에 따라 예약한다. O(N).</summary>
     public void Schedule(Tick boundary, TimeOfDay target)
@@ -181,7 +219,7 @@ public sealed class BucketTransition
 
         for (int npc = 0; npc < count; npc++)
         {
-            Reserve(npc, boundary.Value, target);
+            Reserve(npc, boundary.Value, target, JitterSpread);
         }
 
         Transitions++;
@@ -207,7 +245,8 @@ public sealed class BucketTransition
                 continue;
             }
 
-            Reserve(npc, boundary.Value, target);
+            // 존 이벤트는 좁게 흩는다 — §7 이 "3초 내 마을 전체 스왑" 을 요구한다.
+            Reserve(npc, boundary.Value, target, ZoneJitterSpread);
             scheduled++;
         }
 
@@ -275,9 +314,9 @@ public sealed class BucketTransition
     /// 이 NPC 의 예약을 걸거나 옮긴다. 이미 예약이 있으면 <b>덮어쓴다</b> —
     /// 두 계기가 겹치면 나중 것이 이긴다. 어느 쪽이든 갈아탈 버킷은 지금 상태에서 다시 계산된다.
     /// </summary>
-    private void Reserve(int npc, long boundary, TimeOfDay target)
+    private void Reserve(int npc, long boundary, TimeOfDay target, int spread)
     {
-        long due = DueTick(boundary, new NpcId(npc));
+        long due = DueTick(boundary, new NpcId(npc), spread);
         int slot = SlotOf(due);
         int current = _slotOf[npc];
 

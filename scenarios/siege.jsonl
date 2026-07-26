@@ -1,12 +1,16 @@
-{"_comment": "docs/02 §5 의 시나리오 스크립트. at_tick 에 이벤트를 주입한다. 존 id 는 masterdata/zones.json 의 것이어야 한다."}
-{"at_tick": 1800, "event": "ZoneStateChanged", "zone": "town_center", "code": "Alert"}
-{"at_tick": 1800, "event": "WeatherChanged", "zone": "town_center", "code": "Storm"}
-{"at_tick": 2400, "event": "ZoneStateChanged", "zone": "town_center", "code": "War"}
-{"at_tick": 2400, "event": "ZoneStateChanged", "zone": "gate_east", "code": "War"}
-{"at_tick": 2400, "event": "ZoneStateChanged", "zone": "town_east_market", "code": "Alert"}
-{"at_tick": 3000, "event": "KillSwitch", "target": "T2"}
-{"at_tick": 3600, "event": "KillSwitch", "target": "T1"}
-{"at_tick": 5400, "event": "ZoneStateChanged", "zone": "town_center", "code": "Peace"}
-{"at_tick": 5400, "event": "ZoneStateChanged", "zone": "gate_east", "code": "Peace"}
-{"at_tick": 5400, "event": "ZoneStateChanged", "zone": "town_east_market", "code": "Peace"}
-{"at_tick": 5400, "event": "WeatherChanged", "zone": "town_center", "code": "Fair"}
+{"_comment": "시나리오 B 공성. docs/00 §2 · docs/14 §7. at_tick 에 이벤트를 주입한다. 존 id 는 masterdata/zones.json 의 것이어야 한다."}
+{"_comment": "타임라인은 --time-scale 600 기준이다. 그때 1틱 = 게임 60초이고 시작 시각은 06:00(Dawn) 이다."}
+{"_comment": "tick 100 = 07:40 Morning. town_guard·farmer·blacksmith 가 전부 평시 플랜으로 도는 구간에서 공성이 시작된다."}
+{"at_tick": 100, "event": "ZoneStateChanged", "zone": "town_center", "code": "Alert"}
+{"at_tick": 200, "event": "ZoneStateChanged", "zone": "town_center", "code": "War"}
+{"at_tick": 200, "event": "ZoneStateChanged", "zone": "gate_east", "code": "War"}
+{"at_tick": 200, "event": "ZoneStateChanged", "zone": "town_east_market", "code": "Alert"}
+{"at_tick": 240, "event": "WeatherChanged", "zone": "town_center", "code": "Storm"}
+{"_comment": "T2 를 끊어도 캐시와 폴백으로 계속 돌아야 한다 (시나리오 C 와 같은 논거). P5 가 이 목록을 본다."}
+{"at_tick": 400, "event": "KillSwitch", "target": "T2"}
+{"at_tick": 500, "event": "KillSwitch", "target": "T1"}
+{"_comment": "tick 700 = 17:40 Afternoon. 평화 복귀 — 원래 버킷 플랜으로 돌아와야 한다."}
+{"at_tick": 700, "event": "ZoneStateChanged", "zone": "town_center", "code": "Peace"}
+{"at_tick": 700, "event": "ZoneStateChanged", "zone": "gate_east", "code": "Peace"}
+{"at_tick": 700, "event": "ZoneStateChanged", "zone": "town_east_market", "code": "Peace"}
+{"at_tick": 700, "event": "WeatherChanged", "zone": "town_center", "code": "Fair"}

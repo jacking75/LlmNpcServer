@@ -181,7 +181,17 @@ public sealed class NpcServerLoop
             // 모든 이벤트가 지나는 곳은 여기 하나뿐이라 검출도 여기서 한다.
             Transition?.Observe(in ev, _clock);
 
-            _interrupts.Handle(in ev, _clock.Current, _executor, _link, _replanQueue);
+            // 존 이벤트는 NPC 를 지목하지 않는다 (ev.Npc = 0). 그 존 전원을 평가해야
+            // "War 수신 → 1틱 내 즉시 반응" 이 성립한다 (docs/14 §7 · T4-23).
+            if (ev.Kind is GameEventKind.ZoneStateChanged or GameEventKind.WeatherChanged)
+            {
+                _interrupts.HandleZone(in ev, _clock.Current, _executor, _link, _replanQueue);
+            }
+            else
+            {
+                _interrupts.Handle(in ev, _clock.Current, _executor, _link, _replanQueue);
+            }
+
             drained++;
         }
 

@@ -37,7 +37,14 @@ internal readonly record struct WeightAbResult(
     double NearFreshnessTicks,
     double FarFreshnessTicks,
     double NearShare,
-    double TickP99Ms);
+    double TickP99Ms)
+{
+    /// <summary>회차 간 근처 집중도의 폭(최대 − 최소). <b>세트 간 차이와 이 값을 같이 봐야 한다.</b></summary>
+    public double NearShareSpread { get; init; }
+
+    /// <summary>평균에 들어간 회차 수. 1 이면 평균이 아니다.</summary>
+    public int Runs { get; init; } = 1;
+}
 
 /// <summary>
 /// 가중치 A/B 자동화. docs/14 §2 튜닝 절차 · T4-17.
@@ -237,17 +244,56 @@ internal static class WeightAbHarness
             m.Tick.P99Ms);
     }
 
-    /// <summary>4세트를 순서대로 돌린다.</summary>
+    /// <summary>
+    /// 회차 수. <b>1회로는 세트를 가를 수 없다</b> — 실측에서 같은 세트의 회차 간 변동(45.0~47.3%)이
+    /// 한 회차 안의 세트 간 차이(~2%p)만큼 컸다. 평균을 내야 판정이 재현된다 (docs/14 §10).
+    /// </summary>
+    public const int Repeats = 3;
+
+    /// <summary>4세트를 <see cref="Repeats"/> 회씩 돌려 평균을 낸다.</summary>
     public static async Task<WeightAbResult[]> RunAllAsync(CancellationToken ct)
     {
-        var results = new List<WeightAbResult>(Weights.AbSets.Length);
+        var runs = new Dictionary<string, List<WeightAbResult>>(StringComparer.Ordinal);
 
-        foreach ((string name, Weights weights) in Weights.AbSets)
+        for (int round = 0; round < Repeats; round++)
         {
-            results.Add(await RunAsync(name, weights, ct).ConfigureAwait(false));
+            foreach ((string name, Weights weights) in Weights.AbSets)
+            {
+                WeightAbResult result = await RunAsync(name, weights, ct).ConfigureAwait(false);
+
+                if (!runs.TryGetValue(name, out List<WeightAbResult>? list))
+                {
+                    list = [];
+                    runs[name] = list;
+                }
+
+                list.Add(result);
+            }
         }
 
-        return [.. results];
+        return [.. Weights.AbSets.Select(s => Mean(s.Name, s.Weights, runs[s.Name]))];
+    }
+
+    /// <summary>세트 하나의 회차 평균. 근처 집중도의 회차 간 폭도 같이 담는다.</summary>
+    public static WeightAbResult Mean(string name, Weights weights, List<WeightAbResult> runs)
+    {
+        ArgumentNullException.ThrowIfNull(runs);
+
+        return new WeightAbResult(
+            name,
+            weights,
+            (long)runs.Average(r => r.Enqueued),
+            (long)runs.Average(r => r.Requests),
+            (long)runs.Average(r => r.Dropped),
+            runs.Average(r => r.CacheHitRate),
+            Math.Round(runs.Average(r => r.NearFreshnessTicks), 1),
+            Math.Round(runs.Average(r => r.FarFreshnessTicks), 1),
+            Math.Round(runs.Average(r => r.NearShare), 4),
+            Math.Round(runs.Average(r => r.TickP99Ms), 3))
+        {
+            NearShareSpread = Math.Round(runs.Max(r => r.NearShare) - runs.Min(r => r.NearShare), 4),
+            Runs = runs.Count,
+        };
     }
 
     /// <summary>
@@ -287,6 +333,7 @@ internal static class WeightAbHarness
         text.AppendLine("> **`tools/run_weight_ab.ps1` 이 생성한다 — 손으로 고치지 않는다.**");
         text.AppendLine();
         text.AppendLine($"회차: 시나리오 A(살아있는 마을) · NPC {Npcs} · 배속 60 · 게임 {Days}일 · 플레이어 봇 20");
+        text.AppendLine($"· 세트당 **{results[0].Runs}회 평균**");
         text.AppendLine();
         text.AppendLine("## 왜 실 LLM 을 쓰지 않는가");
         text.AppendLine();
@@ -300,8 +347,8 @@ internal static class WeightAbHarness
         text.AppendLine("## 결과");
         text.AppendLine();
         text.AppendLine("| 세트 | W1 | W2 | W3 | W4 | 큐 유입 | **LLM 요청** | 큐 거절 | 캐시 히트율 "
-            + "| **근처 신선도**(틱) | 먼 쪽(틱) | **근처 집중도** | 틱 p99 | 점수 |");
-        text.AppendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
+            + "| **근처 신선도**(틱) | 먼 쪽(틱) | **근처 집중도** | 회차 폭 | 틱 p99 | 점수 |");
+        text.AppendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
 
         foreach (WeightAbResult r in results)
         {
@@ -311,7 +358,7 @@ internal static class WeightAbHarness
                 $"| {mark}{r.Name}{mark} | {r.Weights.W1} | {r.Weights.W2} | {r.Weights.W3} | {r.Weights.W4} "
                 + $"| {r.Enqueued} | {r.Requests} | {r.Dropped} | {r.CacheHitRate:F4} "
                 + $"| {r.NearFreshnessTicks:F1} | {r.FarFreshnessTicks:F1} | {r.NearShare:P1} "
-                + $"| {r.TickP99Ms:F3} | {Score(in r, baseline):F2} |");
+                + $"| ±{r.NearShareSpread:P1} | {r.TickP99Ms:F3} | {Score(in r, baseline):F2} |");
         }
 
         text.AppendLine();
@@ -341,11 +388,36 @@ internal static class WeightAbHarness
         text.AppendLine("> **이 표는 \"가중치가 별로 안 중요하다\" 가 아니라 \"지금은 예산이 병목이다\" 를 말한다.**");
         text.AppendLine("> T1 처리량이 올라가(로컬 모델 확정 · 워커 증설) 큐가 포화를 벗어나면 다시 재야 한다.");
         text.AppendLine();
+        text.AppendLine("> ⚠ **회차 변동이 세트 간 차이만큼 크다.** T4-23 의 `OnDuty` 수정 직후 회차에서는");
+        text.AppendLine("> `A 45.0% < D 47.6%` 로 순위가 뒤집혔다가 다음 회차에 돌아왔다.");
+        text.AppendLine("> 이 표 하나로 세트를 확정하지 말고, 병목이 예산에서 벗어난 뒤 다시 재서 확인한다.");
+        text.AppendLine();
+        bool separated = SeparatedByMargin(results);
+
         text.AppendLine($"## 선정 — `{chosen}`");
         text.AppendLine();
-        text.AppendLine("`Weights.Default` 를 이 세트로 둔다 (`src/Npc.Planning/ReplanScorer.cs`).");
-        text.AppendLine("`docs/14 §2` 가 \"`W1`(플레이어 근접도)을 크게 잡는 것이 핵심\" 이라고 한 예측과 같은 방향이다 —");
-        text.AppendLine("다만 위 관측대로 **차이는 근소하다.**");
+
+        if (separated)
+        {
+            text.AppendLine("1위가 2위를 **회차 폭보다 크게** 이겼다. `Weights.Default` 를 이 세트로 둔다");
+            text.AppendLine("(`src/Npc.Planning/ReplanScorer.cs`).");
+        }
+        else
+        {
+            WeightAbResult top = results.MaxBy(r => Score(in r, baseline));
+
+            text.AppendLine($"⚠ **A/B 가 세트를 가르지 못했다.** 이번 회차 1위는 `{top.Name}`"
+                + $"(근처 집중도 {top.NearShare:P1}) 이지만,");
+            text.AppendLine($"1·2위 차이가 회차 간 변동 폭(±{results.Max(r => r.NearShareSpread):P1})보다 작다.");
+            text.AppendLine();
+            text.AppendLine("그 상태에서 1위를 기본값으로 승격하면 **잡음을 기본값으로 올리는 것**이고,");
+            text.AppendLine("그게 바로 `docs/14 §10` 이 말한 \"재현 불가\" 의 다른 얼굴이다.");
+            text.AppendLine($"그래서 `Weights.Default` 는 `docs/14 §2` 표의 기본값 `{SpecDefaultName}` 를 유지한다.");
+            text.AppendLine();
+            text.AppendLine("**다시 재야 할 시점**: T1 처리량이 올라가 큐가 포화를 벗어났을 때 —");
+            text.AppendLine("그때는 가중치가 \"누구를 먼저\" 가 아니라 \"몇 명을\" 까지 정하게 되어 차이가 커진다.");
+        }
+
         text.AppendLine();
 
         return text.ToString();
@@ -358,26 +430,42 @@ internal static class WeightAbHarness
         File.WriteAllText(path, Report(results, chosen), new UTF8Encoding(false));
     }
 
-    /// <summary>점수가 가장 높은 세트.</summary>
+    /// <summary>
+    /// 선정. <b>회차 잡음을 넘는 차이가 없으면 사양 기본값(B)을 유지한다.</b>
+    ///
+    /// 실측에서 같은 세트의 회차 간 근처 집중도 변동(45.0~47.3%)이 한 회차 안의 세트 간
+    /// 차이(~2%p)만큼 컸다 — 그 상태에서 1위를 골라 <c>Weights.Default</c> 에 반영하면
+    /// <b>잡음을 기본값으로 승격</b>하는 것이다. 그것이 §10 이 말한 "재현 불가" 의 다른 얼굴이다.
+    ///
+    /// 그래서 1위가 2위를 <b>회차 폭보다 크게</b> 이겼을 때만 갈아탄다.
+    /// </summary>
     public static string Choose(WeightAbResult[] results)
     {
         ArgumentNullException.ThrowIfNull(results);
 
         long baseline = results.FirstOrDefault(r => r.Name.StartsWith('B')).Requests;
-        string best = results[0].Name;
-        double bestScore = double.MinValue;
 
-        foreach (WeightAbResult r in results)
-        {
-            double score = Score(in r, baseline);
+        WeightAbResult[] ranked = [.. results.OrderByDescending(r => Score(in r, baseline))];
+        double spread = results.Max(r => r.NearShareSpread);
 
-            if (score > bestScore)
-            {
-                bestScore = score;
-                best = r.Name;
-            }
-        }
+        // 점수 차이를 근처 집중도 눈금으로 환산한다 — 점수는 집중도에 비례하므로
+        // 1위와 2위의 집중도 차이를 회차 폭과 직접 비교하면 된다.
+        double margin = ranked[0].NearShare - ranked[1].NearShare;
 
-        return best;
+        return margin > spread ? ranked[0].Name : SpecDefaultName;
+    }
+
+    /// <summary>docs/14 §2 표가 "(기본)" 이라고 적은 세트.</summary>
+    public const string SpecDefaultName = "B-baseline";
+
+    /// <summary>선정이 잡음을 넘었는가. 리포트가 이유를 적을 때 쓴다.</summary>
+    public static bool SeparatedByMargin(WeightAbResult[] results)
+    {
+        ArgumentNullException.ThrowIfNull(results);
+
+        long baseline = results.FirstOrDefault(r => r.Name.StartsWith('B')).Requests;
+        WeightAbResult[] ranked = [.. results.OrderByDescending(r => Score(in r, baseline))];
+
+        return ranked[0].NearShare - ranked[1].NearShare > results.Max(r => r.NearShareSpread);
     }
 }

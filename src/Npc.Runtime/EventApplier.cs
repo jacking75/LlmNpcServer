@@ -252,6 +252,28 @@ public sealed class EventApplier
             _ => WorldFlags.IsDay,
         };
         _store.Flags[npc] |= WorldFlags.RegionPeaceful | WorldFlags.IsRested;
+
+        ApplyDuty(npc, def, _clock.TimeOfDay);
+    }
+
+    /// <summary>
+    /// 근무 플래그. <c>archetypes.json</c> 의 <c>duty_hours</c> 가 유일한 출처다 (docs/01 §5).
+    ///
+    /// <b>런타임이 이걸 세우지 않으면 <c>Guard</c>·<c>Patrol</c> 을 쓰는 플랜이 전부 깨진다.</b>
+    /// 두 액션은 <c>OnDuty</c> 를 요구하고, 검증기 3단은 <c>MasterDataSet.InitialFlags</c> 에서
+    /// 이 플래그를 세워 두고 판정한다 — 그래서 검증은 통과하는데 런타임에서는 인지 스캔이
+    /// 매번 이탈로 읽어 재계획 큐가 포화한다 (T4-23 실측: 5,000마리 하루에 이탈 29,535건).
+    /// </summary>
+    private void ApplyDuty(int npc, ArchetypeDef archetype, TimeOfDay time)
+    {
+        if (archetype.IsOnDuty(time))
+        {
+            _store.Flags[npc] |= WorldFlags.OnDuty;
+        }
+        else
+        {
+            _store.Flags[npc] &= ~WorldFlags.OnDuty;
+        }
     }
 
     // ---------------------------------------------------------------- 개별 반영
@@ -370,6 +392,9 @@ public sealed class EventApplier
         for (int i = 0; i < _store.Count; i++)
         {
             _store.Flags[i] = (_store.Flags[i] & ~TimeFlags) | set;
+
+            // 근무는 (아키타입 × 시간대)에서 나온다. 시간대가 바뀌면 같이 바뀐다 (docs/01 §5).
+            ApplyDuty(i, _data.Archetypes[new ArchetypeId(_store.ArchetypeCode[i])], time);
         }
     }
 

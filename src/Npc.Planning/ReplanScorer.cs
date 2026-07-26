@@ -24,19 +24,32 @@ public readonly record struct Weights(float W1, float W2, float W3, float W4, in
     public const int DefaultStaleTicks = 36_000;
 
     /// <summary>
-    /// 운영 기본값. <b>T4-17 의 A/B 실측이 정했다</b> — 감으로 튜닝하면 재현이 안 된다 (docs/14 §10).
+    /// 운영 기본값. <b>T4-17 의 A/B 가 세트를 가르지 못해 사양의 기본값(B)을 유지한다.</b>
     ///
     /// <para>
-    /// 2026-07-27 회차(`docs/measurements/W10_weights.md`): 시나리오 A · NPC 5,000 · 게임 3일.
-    /// 네 세트의 LLM 요청 수가 <b>전부 1,686건으로 같고</b>(예산 상한이 묶는다),
-    /// 근처 집중도가 <c>A 47.0% &gt; D 45.8% &gt; C 45.3% &gt; B 45.1%</c> 였다.
-    /// <c>docs/14 §2</c> 가 예측한 대로 <b>W1(플레이어 근접도)을 크게 잡은 A 세트가 이겼다.</b>
+    /// 2026-07-27 회차(`docs/measurements/W10_weights.md`): 시나리오 A · NPC 5,000 · 게임 3일 ·
+    /// 세트당 3회 평균. 네 세트의 LLM 요청 수가 <b>전부 1,686건으로 같다</b> — 예산 상한이 묶기 때문이고,
+    /// 가중치는 거기에 관여하지 않는다. 남는 차이는 "그 1,686건을 누구에게 쓰는가"(근처 집중도)뿐인데,
+    /// <b>같은 세트의 회차 간 변동(45.0~47.3%)이 한 회차 안의 세트 간 차이(~2%p)만큼 크다.</b>
+    /// 네 회차에서 1위가 A → D → A → D 로 뒤바뀌었다.
     /// </para>
     ///
-    /// ⚠ <b>차이는 1.9%p 로 근소하다.</b> 큐가 포화 상태라 축출도 같은 점수로 일어나
-    /// 4,096칸에 이미 상위 점수만 남기 때문이다. T1 처리량이 올라가 큐가 포화를 벗어나면 다시 잰다.
+    /// <para>
+    /// 그 상태에서 1위를 기본값으로 올리면 <b>잡음을 기본값으로 승격</b>하는 것이고,
+    /// 그게 <c>docs/14 §10</c> 이 말한 "감으로 튜닝하면 재현 불가" 의 다른 얼굴이다.
+    /// 그래서 <c>WeightAbHarness.Choose</c> 는 1위가 2위를 회차 폭보다 크게 이겼을 때만 갈아탄다.
+    /// </para>
+    ///
+    /// <para>
+    /// 원인은 큐 포화다 — 축출도 같은 점수로 일어나 4,096칸에 이미 상위 점수만 남으므로,
+    /// 그 안에서 순서를 바꿔 봐야 여지가 좁다. <b>T1 처리량이 올라가 큐가 포화를 벗어나면 다시 잰다.</b>
+    /// 그때는 가중치가 "누구를 먼저" 가 아니라 "몇 명을" 까지 정하게 된다.
+    /// </para>
+    ///
+    /// ⚠ <c>docs/14 §2</c> 의 설계 논거("W1 을 크게 잡는 것이 핵심")는 <b>반증되지 않았다.</b>
+    /// 지금 예산에서는 확인도 반증도 못 한다는 것이 이 회차의 결론이다.
     /// </summary>
-    public static readonly Weights Default = ProximityFirst;
+    public static readonly Weights Default = Baseline;
 
     /// <summary>A 세트 — 근접 우선. 플레이어 근처만 똑똑하다 (docs/14 §2 표).</summary>
     public static Weights ProximityFirst => new(5.0f, 0.2f, 1.5f, 4.0f, DefaultStaleTicks);

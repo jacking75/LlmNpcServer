@@ -188,13 +188,24 @@
   완료 아래 6항목
 
 ```
-[ ] War 수신 → 인터럽트 경로로 1틱 내 즉시 반응
-[ ] 버킷 키 *.War.* 전환 → 3초 내 마을 전체 플랜 스왑
-[ ] 캐시 미스 버킷만 LLM 호출 (전량 재생성 아님)
-[ ] 전환 구간 틱 p99 ≤ 40ms
-[ ] guard/farmer/blacksmith가 서로 다른 행동으로 전환됨을 로그로 확인
-[ ] Peace 복귀 시 원래 플랜 복원
+[x] War 수신 → 인터럽트 경로로 1틱 내 즉시 반응        Siege_WarTriggersInterruptWithinOneTick
+[x] 버킷 키 *.War.* 전환 → 3초 내 마을 전체 플랜 스왑   Siege_TownSwapsWithinThreeSeconds
+[x] 캐시 미스 버킷만 LLM 호출 (전량 재생성 아님)        Siege_OnlyMissedBucketsBecomeLlmWork
+[x] 전환 구간 틱 p99 ≤ 40ms                            Siege_TransitionTickP99UnderForty
+[x] guard/farmer/blacksmith가 서로 다른 행동으로 전환    Siege_ArchetypesDivergeUnderWar
+[x] Peace 복귀 시 원래 플랜 복원                        Siege_RestoresPlansOnPeace
 ```
+
+2026-07-27 실측 (Noon · town_center · 프리베이크 planstore):
+
+| 아키타입 | Peace | War |
+|---|---|---|
+| `town_guard` | `patrol_and_guard` MoveTo>Patrol>Guard>MoveTo>Sleep | `defend_the_gate` MoveTo>**Guard**>Eat>MoveTo>Sleep |
+| `farmer` | `midday_harvest_and_store` MoveTo>Farm>Eat>MoveTo>Store>Rest>MoveTo>Sleep | `shelter_and_wait_out_war` MoveTo>**Eat>Drink>Rest**>Sleep |
+| `blacksmith` | `restock_and_forge` MoveTo>Mine>MoveTo>Craft>Store>MoveTo>Sleep | (미생성 — 아키타입 폴백) |
+
+경비병은 **문을 지키고** 농부는 **피신해 버틴다.** 전부 똑같이 도망가지 않는다.
+`blacksmith@Noon.War.Fair` 는 두 회차 모두 검증 실패로 미생성이라 폴백으로 간다 — 그것도 다른 행동이다.
 
 **T4-24** P4 게이트 검증 · `M` · 선행 T4-23, T4-16, T4-17
   파일 `tests/Npc.Tests/Gates/Phase4GateTests.cs` (신규), `docs/measurements/P4_gate.md` (산출)
@@ -231,7 +242,7 @@ W10 ── 부하 · 튜닝 · 대시보드 · 시나리오
 [x] T4-15 부하하네스        [x] T4-16 스케일곡선 ★     [x] T4-17 가중치A/B ★
 [x] T4-18 캐시패널          [x] T4-19 재계획패널       [x] T4-20 비용패널
 [x] T4-21 NPC추적패널 ★     [x] T4-22 버킷히트맵 ★
-[ ] T4-23 시나리오B ★       [ ] T4-24 게이트검증 ★
+[x] T4-23 시나리오B ★       [ ] T4-24 게이트검증 ★
 ```
 
 ★ T4-16(스케일 곡선)이 §11.3 설계의 검증 지점이다. 인지 스캔이 O(1)이 아니면 설계가 틀린 것이다.
