@@ -219,6 +219,12 @@ int written = PlanStoreIo.SaveAll(options.Out, runner.Store, data);
 
 WriteJsonl(options.Report, report, data);
 
+// 9. manifest 작성. 회차마다 이력에 한 줄 쌓인다 (docs/03 §7)
+Manifest manifest = ManifestWriter.Build(
+    data, prefix, engine, options.Tier.ToString(), report, dryRun, runner.Store, options.GeneratedAt);
+
+string manifestPath = ManifestWriter.Save(options.Out, manifest, dryRun);
+
 Console.WriteLine();
 
 if (report.StoppedByBudget)
@@ -238,6 +244,10 @@ Console.WriteLine($"429 최초 동시성: {report.FirstRateLimitConcurrency} (�
 Console.WriteLine($"프리픽스 해시  : {runner.Stats.UniquePrefixHashes} 종");
 Console.WriteLine($"저장          : {written} 건 → {Path.Combine(options.Out, "plans")}");
 Console.WriteLine($"결과          : {options.Report}");
+Console.WriteLine(
+    $"manifest      : {manifestPath} (생성 {manifest.Counts.Generated} · pinned {manifest.Counts.Pinned}"
+    + $" · 폴백 {manifest.Counts.Fallback} · {manifest.Counts.GeneratedRate:P1}"
+    + (manifest.Partial ? " · 부분" : string.Empty) + ")");
 
 return report.PassRate >= 0.90 ? 0 : 1;
 

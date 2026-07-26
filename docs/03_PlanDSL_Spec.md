@@ -335,6 +335,7 @@ public sealed class PlanExecutor
 ```
 planstore/
   manifest.json                    // 마스터데이터 ContentHash, 생성 시각(외부 주입), 모델/버전
+  manifest_history.jsonl           // 회차별 요약 한 줄씩. 덮어쓰기만 하면 지난 회차 숫자를 못 본다
   plans/
     blacksmith@Dawn.Peace.Fair.json
     blacksmith@Dawn.Peace.Cold.json
