@@ -175,22 +175,79 @@ public sealed class PlanStore
     /// 버킷 플랜을 건다. 프리베이크·재계획 워커만 부른다. 원자 교체다.
     ///
     /// docs/13 §2 의 <c>Publish</c> 와 같은 것이다 — 이름은 P1 스텁이 이미 쓰던 이 쪽으로 통일했다.
+    ///
+    /// <b><see cref="PlanOrigin.Pinned"/> 은 덮어쓰지 않는다</b> (docs/13 §2·§5) —
+    /// 사람이 검수·수정한 플랜이 재프리베이크로 날아가면 검수 작업이 통째로 사라진다.
     /// </summary>
-    public void SetBucket(BucketKey key, PlanId plan)
+    /// <returns>실제로 걸린 PlanId. pinned 라 거절됐으면 이미 걸려 있던 것.</returns>
+    public PlanId SetBucket(BucketKey key, PlanId plan)
     {
         int index = key.ToIndex();
 
+        if (IsPinned(index))
+        {
+            return new PlanId(Volatile.Read(ref _byBucket[index]));
+        }
+
         Volatile.Write(ref _byBucket[index], plan.Value);
         Volatile.Write(ref _origin[index], (int)this[plan].Origin);
+
+        return plan;
     }
 
-    /// <summary>플랜을 등록하고 그 버킷에 건다. 호출부가 매번 두 줄을 쓰지 않게 하는 편의 오버로드다.</summary>
+    /// <summary>
+    /// 플랜을 등록하고 그 버킷에 건다. 호출부가 매번 두 줄을 쓰지 않게 하는 편의 오버로드다.
+    /// pinned 버킷이면 <b>등록조차 하지 않는다</b> — 레지스트리에 쓰레기를 남기지 않는다.
+    /// </summary>
     public PlanId SetBucket(BucketKey key, CompiledPlan plan)
     {
-        PlanId id = Register(plan);
+        int index = key.ToIndex();
 
-        SetBucket(key, id);
+        if (IsPinned(index))
+        {
+            return new PlanId(Volatile.Read(ref _byBucket[index]));
+        }
+
+        return SetBucket(key, Register(plan));
+    }
+
+    /// <summary>
+    /// pinned 를 무시하고 강제로 건다. <b>pinned 플랜 자체를 올릴 때만</b> 쓴다 —
+    /// <c>planstore/pinned/</c> 로드(T3-07)와 승격 도구(T3-19)가 유일한 호출자다.
+    /// </summary>
+    public PlanId Pin(BucketKey key, CompiledPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        PlanId id = Register(plan with { Origin = PlanOrigin.Pinned });
+        int index = key.ToIndex();
+
+        Volatile.Write(ref _byBucket[index], id.Value);
+        Volatile.Write(ref _origin[index], (int)PlanOrigin.Pinned);
+
         return id;
+    }
+
+    /// <summary>이 버킷이 사람이 고정한 플랜인가.</summary>
+    public bool IsPinned(BucketKey key) => IsPinned(key.ToIndex());
+
+    /// <summary>pinned 버킷 수. manifest 의 <c>counts.pinned</c> 다 (docs/03 §7).</summary>
+    public int PinnedBuckets
+    {
+        get
+        {
+            int pinned = 0;
+
+            for (int i = 0; i < _origin.Length; i++)
+            {
+                if (IsPinned(i))
+                {
+                    pinned++;
+                }
+            }
+
+            return pinned;
+        }
     }
 
     /// <summary>
@@ -323,6 +380,10 @@ public sealed class PlanStore
             return Volatile.Read(ref chunk[planId & ChunkMask]) ?? _idle;
         }
     }
+
+    private bool IsPinned(int bucketIndex) =>
+        (PlanOrigin)Volatile.Read(ref _origin[bucketIndex]) == PlanOrigin.Pinned
+        && Volatile.Read(ref _byBucket[bucketIndex]) != IdlePlanId;
 
     private static long Sum(long[] counters)
     {

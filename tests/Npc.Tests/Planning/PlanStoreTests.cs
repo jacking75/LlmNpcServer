@@ -134,6 +134,52 @@ public sealed class PlanStoreTests
     }
 
     /// <summary>
+    /// T3-02 완료 조건 — pinned 는 프리베이크가 덮어쓰지 않는다 (docs/13 §2·§5).
+    /// 사람이 검수·수정한 플랜이 재프리베이크로 날아가면 검수 작업이 통째로 사라진다.
+    /// </summary>
+    [Fact]
+    public void PlanStore_PinnedIsNotOverwritten()
+    {
+        PlanStore store = PlanStore.CreateIdleOnly(s_data);
+        Assert.True(s_data.Archetypes.TryGet("blacksmith", out ArchetypeDef smith));
+
+        var bucket = new BucketKey(smith.Code, TimeOfDay.Evening, RegionState.War, Climate.Cold);
+
+        // 프리베이크가 먼저 한 번 채운다 — 이건 덮어써도 된다.
+        store.SetBucket(bucket, SamplePlan("blacksmith") with { Goal = "prebaked_v1" });
+        Assert.Equal("prebaked_v1", store.Resolve(bucket).Goal);
+        Assert.False(store.IsPinned(bucket));
+
+        store.SetBucket(bucket, SamplePlan("blacksmith") with { Goal = "prebaked_v2" });
+        Assert.Equal("prebaked_v2", store.Resolve(bucket).Goal);
+
+        // 사람이 검수해서 고정한다.
+        PlanId pinned = store.Pin(bucket, SamplePlan("blacksmith") with { Goal = "human_reviewed" });
+
+        Assert.True(store.IsPinned(bucket));
+        Assert.Equal(1, store.PinnedBuckets);
+        Assert.Equal(PlanOrigin.Pinned, store.OriginOf(bucket));
+
+        // 재프리베이크. 두 오버로드 다 거절되어야 한다.
+        int countBefore = store.Count;
+
+        Assert.Equal(pinned, store.SetBucket(bucket, SamplePlan("blacksmith") with { Goal = "prebaked_v3" }));
+        Assert.Equal(pinned, store.SetBucket(bucket, store.Register(SamplePlan("blacksmith"))));
+
+        Assert.Equal("human_reviewed", store.Resolve(bucket, out PlanOrigin origin).Goal);
+        Assert.Equal(PlanOrigin.Pinned, origin);
+
+        // CompiledPlan 오버로드는 등록조차 하지 않는다 — 레지스트리에 쓰레기를 남기지 않는다.
+        // PlanId 오버로드는 호출부가 이미 등록해 버린 것이라 +1 이다.
+        Assert.Equal(countBefore + 1, store.Count);
+
+        // 다른 버킷은 영향이 없다.
+        var other = bucket with { C = Climate.Fair };
+        store.SetBucket(other, SamplePlan("blacksmith") with { Goal = "prebaked_other" });
+        Assert.Equal("prebaked_other", store.Resolve(other).Goal);
+    }
+
+    /// <summary>
     /// T3-01 완료 조건 — 락이 없다. 동시 읽기 1M 회 중 예외가 하나도 나지 않는다.
     /// 쓰는 쪽이 동시에 등록·교체를 하는 동안에도 읽는 쪽은 항상 유효한 플랜을 본다.
     /// </summary>
