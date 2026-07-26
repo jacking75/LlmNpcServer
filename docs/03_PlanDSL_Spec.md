@@ -350,17 +350,29 @@ planstore/
 {
   "schema": 1,
   "masterdata_hash": "sha256:9f3a...",
-  "prefix_hash": "sha256:c41b...",
-  "generated_by": { "tier": "T2", "model": "gpt-5-nano", "temperature": 0.4 },
-  "counts": { "total": 2880, "generated": 2841, "pinned": 12, "fallback": 27 },
+  "prefix_hash": "c41b...",
+  "generated_at": "",                  // 외부 주입. 비우면 결정론적 산출물이 된다
+  "partial": false,                    // --budget-usd 캡에 걸려 중단됐는가 (--resume 이 본다)
+  "generated_by": { "tier": "T2", "model": "gpt-5-nano", "temperature": 0.4,
+                    "concurrency": 8, "peak_concurrency": 18,
+                    "first_rate_limit_concurrency": 0 },
+  "counts": { "total": 2880, "generated": 2841, "pinned": 12, "fallback": 27, "reused": 0 },
   "validation": { "pass": 2841, "fail_schema": 3, "fail_vocab": 11,
-                  "fail_coherence": 22, "fail_dryrun": 3 },
+                  "fail_coherence": 22, "fail_dryrun": 3, "fail_call": 0 },
   "cost_usd": 0.23,
-  "wall_clock_s": 187
+  "wall_clock_s": 187,
+  "cache_hit_rate": 0.96,              // 입력 토큰 기준. P3 게이트는 ≥ 0.95
+  "file_hashes": [                     // 부분 무효화 판정의 입력 (docs/13 §3)
+    { "file": "actions.json", "sha256": "..." }
+  ]
 }
 ```
 
 `manifest.json`이 곧 R&D 보고서의 원자료다. 프리베이크를 돌 때마다 보존한다.
+
+**`generated_at`은 외부에서 주입한다.** 만드는 쪽이 `DateTime.Now`를 부르면 같은 입력이 같은 파일을 내지 못한다 (CLAUDE.md §2.3).
+`file_hashes`가 없으면 부분 무효화를 판정할 수 없어 POI 하나 추가에도 2,880건 전량 재생성이 된다.
+`concurrency` 3필드는 "동시 32 / 5분"의 근거를 실측으로 남기기 위한 것이다 (docs/13 T3-12).
 
 ---
 
