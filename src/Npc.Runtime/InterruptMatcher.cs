@@ -47,6 +47,12 @@ public sealed class InterruptMatcher
     public long Suppressed { get; private set; }
 
     /// <summary>
+    /// 큐 삽입 시점의 플래그 스냅샷 표. 없으면 낡음 판정을 하지 않는다 (docs/14 §10).
+    /// 인터럽트 경로는 특히 필요하다 — 전투가 끝난 뒤 도착한 "도망 계획" 은 쓸 데가 없다.
+    /// </summary>
+    public ReplanSnapshots? Snapshots { get; init; }
+
+    /// <summary>
     /// 이벤트에 걸리는 규칙을 찾는다. 없으면 false.
     /// 할당 0 — 틱 루프의 이벤트 배수 구간에서 돈다.
     /// </summary>
@@ -136,7 +142,11 @@ public sealed class InterruptMatcher
         // 긴급도는 큐뿐 아니라 NpcStore 에도 남긴다 — 큐에서 밀려나거나 인터럽트 슬롯 상한(T4-03)에
         // 걸린 NPC 도 다음 인지 스캔의 점수(ReplanScorer 의 긴급 항)에서 우대받아야 한다.
         _store.PendingUrgency[npc] = (byte)Math.Clamp(rule.Urgency, 0, byte.MaxValue);
-        queue?.TryEnqueueUrgent(npc, rule.Urgency);
+
+        if (queue?.TryEnqueueUrgent(npc, rule.Urgency) == true)
+        {
+            Snapshots?.Capture(npc, _store.Flags[npc], tick, ReplanQueue.UrgentBase + rule.Urgency);
+        }
 
         return true;
     }

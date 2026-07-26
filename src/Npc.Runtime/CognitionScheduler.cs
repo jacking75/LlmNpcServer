@@ -52,6 +52,12 @@ public sealed class CognitionScheduler
     /// <summary>이 스캐너가 쓰는 가중치. 대시보드·A/B 리포트가 무엇으로 돌았는지 적을 때 읽는다.</summary>
     public Weights Weights { get; }
 
+    /// <summary>
+    /// 큐 삽입 시점의 플래그 스냅샷 표. 없으면 낡음 판정을 하지 않는다 (docs/14 §10).
+    /// 워커가 꺼낼 때 이 값과 지금 플래그를 비교해 낡은 요청을 폐기한다.
+    /// </summary>
+    public ReplanSnapshots? Snapshots { get; init; }
+
     /// <summary>마지막 틱에 판정한 NPC 수. 대시보드의 "인지 스캔 대상/틱".</summary>
     public int LastScanned { get; private set; }
 
@@ -115,7 +121,13 @@ public sealed class CognitionScheduler
                 }
 
                 Deviations++;
-                queue.TryEnqueue(npc, Score(npc, plan, tick));
+
+                float score = Score(npc, plan, tick);
+
+                if (queue.TryEnqueue(npc, score))
+                {
+                    Snapshots?.Capture(npc, _store.Flags[npc], tick, score);
+                }
             }
         }
 
