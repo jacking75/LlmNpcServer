@@ -43,6 +43,7 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     private long _t2Calls;
     private long _rejected;
     private long _failovers;
+    private long _spillovers;
 
     /// <summary>라우터를 만든다. 기동 시 1회.</summary>
     /// <param name="local">T1 — 로컬 엔진 컴파일러.</param>
@@ -94,6 +95,18 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     public long Failovers => Interlocked.Read(ref _failovers);
 
     /// <summary>
+    /// T1 큐 폭주로 T2 로 흘린 횟수 (docs/14 §4 표 5행).
+    ///
+    /// <b>이게 T2 호출 수의 상당 부분이면 T1 워커가 모자란다.</b> 개별 재계획은 1회용이라
+    /// 원래 T2 로 갈 성질이 아니고, 스필오버는 "늦게 오는 것보다 비싸게 오는 게 낫다" 는
+    /// 임시 조치다 — 상시로 발동하면 워커 수(T4-10)나 예산(T4-05)을 다시 잡아야 한다.
+    /// </summary>
+    public long Spillovers => Interlocked.Read(ref _spillovers);
+
+    /// <summary>지금 T1 큐가 임계를 넘었는가. 없는 공급자면 항상 거짓이다.</summary>
+    public bool IsSpilling => LocalQueueDepth is { } depth && depth() > SpilloverThreshold;
+
+    /// <summary>
     /// docs/14 §4 의 티어 선택 규칙. <b>예산은 보지 않는다</b> —
     /// 예산 판정과 강등은 <see cref="IReplanBudget.Acquire"/> 의 몫이다.
     /// </summary>
@@ -117,6 +130,13 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     {
         Tick now = _now();
         Tier wanted = SelectTier(in request);
+
+        // 개별 요청이 T2 로 갔다 = 스필오버다. 아키타입 요청은 원래 T2 라 세지 않는다.
+        if (wanted == Tier.T2 && request.Quality != PlanQuality.Archetype)
+        {
+            Interlocked.Increment(ref _spillovers);
+        }
+
         Tier granted = _budget.Acquire(wanted, Estimate(in request), now);
 
         if (granted == Tier.None)

@@ -241,6 +241,75 @@ public sealed class TieredPlanCompilerTests
         Assert.Equal(0, router.Failovers);
     }
 
+    /// <summary>
+    /// T4-08 완료 조건 — T1 큐 깊이가 임계를 넘으면 개별 재계획도 T2 로 흘린다 (docs/14 §4).
+    ///
+    /// T1 지연이 실측 5.1s 이므로 64건이 밀려 있으면 마지막 건은 5분 뒤다.
+    /// 그 시점에는 스냅샷 낡음 판정(T4-04)이 거의 확실히 폐기한다 — 헛일이 될 요청이다.
+    /// </summary>
+    [Fact]
+    public async Task Tier_SpillsOverOnLocalBacklog()
+    {
+        var t1 = new StubCompiler("local");
+        var t2 = new StubCompiler("external");
+        int depth = 0;
+        TieredPlanCompiler router = New(t1, t2, new OpenBudget(), () => depth);
+
+        // 큐가 비어 있으면 개별 재계획은 T1 이다.
+        await router.CompileAsync(Individual(), CancellationToken.None);
+        Assert.Equal(1, t1.Calls);
+        Assert.Equal(0, t2.Calls);
+        Assert.Equal(0, router.Spillovers);
+        Assert.False(router.IsSpilling);
+
+        // 임계(64)는 "초과" 다 — 딱 64 면 아직 T1 이다.
+        depth = 64;
+        await router.CompileAsync(Individual(), CancellationToken.None);
+        Assert.Equal(2, t1.Calls);
+        Assert.Equal(0, router.Spillovers);
+
+        // 65 부터 T2 로 흘린다.
+        depth = 65;
+        Assert.True(router.IsSpilling);
+        await router.CompileAsync(Individual(), CancellationToken.None);
+        Assert.Equal(2, t1.Calls);
+        Assert.Equal(1, t2.Calls);
+        Assert.Equal(1, router.Spillovers);
+
+        // 아키타입 요청은 원래 T2 라 스필오버로 세지 않는다.
+        await router.CompileAsync(Archetype(), CancellationToken.None);
+        Assert.Equal(2, t2.Calls);
+        Assert.Equal(1, router.Spillovers);
+
+        // 큐가 빠지면 다시 T1 이다.
+        depth = 0;
+        await router.CompileAsync(Individual(), CancellationToken.None);
+        Assert.Equal(3, t1.Calls);
+        Assert.Equal(1, router.Spillovers);
+    }
+
+    /// <summary>임계는 설정값이다. 공급자를 안 주면 스필오버 판정을 하지 않는다.</summary>
+    [Fact]
+    public void Tier_SpilloverThresholdIsConfigurable()
+    {
+        var t1 = new StubCompiler("local");
+        var t2 = new StubCompiler("external");
+
+        var tight = new TieredPlanCompiler(t1, t2, new OpenBudget(), () => new Tick(0))
+        {
+            LocalQueueDepth = () => 5,
+            SpilloverThreshold = 4,
+        };
+
+        Assert.Equal(Tier.T2, tight.SelectTier(Individual()));
+        Assert.True(tight.IsSpilling);
+
+        // 공급자가 없으면 큐 깊이를 모르므로 늘 T1 이다.
+        TieredPlanCompiler blind = New(t1, t2, new OpenBudget());
+        Assert.Equal(Tier.T1, blind.SelectTier(Individual()));
+        Assert.False(blind.IsSpilling);
+    }
+
     /// <summary>기본 토큰 추정치는 실측 23,109 tok/요청이다 (W8_prebake.md §4).</summary>
     [Fact]
     public void Tier_DefaultTokenEstimateComesFromMeasurement()
