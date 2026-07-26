@@ -1,0 +1,28 @@
+{
+  "_comment": "docs/01 §10.1 [4] few-shot. 지역이 공격받으면 사교형 아키타입도 일과를 접는다.",
+  "request": {
+    "archetype": "merchant",
+    "time_of_day": "Evening",
+    "region_state": "War",
+    "climate": "Cold",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsEvening", "RegionUnderAttack"],
+    "traits": { "diligence": 70, "sociability": 80, "courage": 35, "greed": 70 },
+    "goals": ["open_stall", "haggle", "restock"]
+  },
+  "plan": {
+    "schema": 1,
+    "goal": "clear_stock_then_shelter",
+    "reasoning": "under attack and low courage; sell the perishable stock fast, warn the watch, then shelter at home for the night",
+    "steps": [
+      { "action": "MoveTo", "args": { "poi": "$market", "speed": "run" }, "timeout_s": 600 },
+      { "action": "Trade", "args": { "item": "bread", "amount": 5 }, "timeout_s": 600 },
+      { "action": "Talk", "args": { "npc": "nearest:town_guard", "topic": "warning" }, "timeout_s": 300 },
+      { "action": "MoveTo", "args": { "poi": "$home", "speed": "run" }, "timeout_s": 600 },
+      { "action": "Store", "args": { "item": "coin", "count": 20 }, "timeout_s": 120 },
+      { "action": "Eat", "args": {}, "timeout_s": 300 },
+      { "action": "Sleep", "args": { "until_time": "Morning" } }
+    ],
+    "on_step_fail": "fallback",
+    "loop": true
+  }
+}

@@ -89,11 +89,11 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 |---|---|---|---|---|
 | **P0** W1 스파이크 | [`docs/10_Phase0_W1_TASKS.md`](docs/10_Phase0_W1_TASKS.md) | 13 | 8 | 진행 중 — **게이트 1/4 통과** (T0-09~T0-12 `~`, T0-13 미착수) |
 | **P1** W2–4 코어·런타임·Sim | [`docs/11_Phase1_W2-4_TASKS.md`](docs/11_Phase1_W2-4_TASKS.md) | 62 | 62 | **게이트 통과** |
-| **P2** W5–6 플랜 컴파일러 | [`docs/12_Phase2_W5-6_TASKS.md`](docs/12_Phase2_W5-6_TASKS.md) | 24 | 3 | 진행 중 |
+| **P2** W5–6 플랜 컴파일러 | [`docs/12_Phase2_W5-6_TASKS.md`](docs/12_Phase2_W5-6_TASKS.md) | 24 | 4 | 진행 중 |
 | **P3** W7–8 플랜 캐시 | [`docs/13_Phase3_W7-8_TASKS.md`](docs/13_Phase3_W7-8_TASKS.md) | 21 | 0 | 미착수 (W1 실측 반영 완료) |
 | **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 0 | 미착수 (W1 실측 반영 완료) |
 | **P5** W11–12 검증·평가 | [`docs/15_Phase5_W11-12_TASKS.md`](docs/15_Phase5_W11-12_TASKS.md) | 20 | 0 | 미착수 |
-| | | **164** | **73** | |
+| | | **164** | **74** | |
 
 각 Phase 문서 맨 아래의 체크리스트에서 개별 태스크 상태를 관리한다.
 
@@ -141,6 +141,7 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/11 §5` | `GameClock` 시간 환산 주석 정정 | T1-29. "게임 1분 = 1 tick @ scale 60" 은 같은 문단의 "TimeScale 60이면 실시간 24분" 과 10배 어긋난다. 실제로는 scale 60 에서 1틱 = 6 게임초다 |
 | 2026-07-26 | `docs/11 §4` | 인지 스캔의 슬라이스 선택을 `tick % period` 로 정정 | T1-36. `tick % period != 0` 로 거른 뒤 다시 `(tick / period) % period` 로 슬라이스를 고르면 LOD1 의 NPC 가 10틱이 아니라 100틱마다 판정된다. Period 의 뜻과 어긋난다 |
 | 2026-07-26 | `docs/03 §5` | `CompiledPlan` 을 `sealed class` → `sealed record` 로 | T1-39. `PlanStore.Register` 가 등록 시점에 `Id` 를 박아야 하는데, 그것 하나 때문에 세터를 열면 런타임 중에 플랜이 바뀔 수 있게 된다. `with` 로 새 인스턴스를 만든다 |
+| 2026-07-26 | `docs/01 §10.1` · `CLAUDE.md §2.5` | 프리픽스 예산 4,200~4,500 → **하한 4,096 만 남기고 상한 삭제.** 조립 절을 4개 → 5개로 (아키타입 표 추가) | T2-04. 정식 카탈로그로 조립한 실측이 **11,967 tok** 이다 (`W6_compile_stats.md §1`). 4,409 tok 은 액션 12·플래그 16 축소판 값이었다. 여기에 통과율 처방 셋(액션별 플래그 표·레시피 입출력·아키타입 허용 액션)이 더 붙는데, 서픽스 예산이 300 토큰이라 셋 다 프리픽스에 둘 수밖에 없다 |
 | 2026-07-26 | `CLAUDE.md §3` · `docs/11 §2` · `docs/12` T2-01 | `Npc.Llm` 의존에 `Npc.MasterData` 추가 | T2-01. 프리픽스는 `actions.json`·`world_flags.json`·`archetypes.json` 에서 **생성**되고(`docs/01 §10.1`, `CLAUDE.md §2.4`), `docs/12 §3` 의 `Build(in PlanRequest, MasterDataSet)` 과 `§6` 의 `_md.Fallbacks[...]` 가 이미 `MasterDataSet` 을 받는다. `Npc.MasterData → Npc.Core` 뿐이라 순환도 없고, `Npc.Runtime ↛ Npc.Llm` 금지는 그대로다 |
 
 #### P2~P5 재검토 (§5 가 예고한 "W1 완료 시점의 재검토")

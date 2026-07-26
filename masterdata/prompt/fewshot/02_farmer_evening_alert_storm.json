@@ -1,0 +1,28 @@
+{
+  "_comment": "docs/01 §10.1 [4] few-shot. 같은 아키타입이라도 상황이 다르면 플랜의 모양이 달라야 한다.",
+  "request": {
+    "archetype": "farmer",
+    "time_of_day": "Evening",
+    "region_state": "Alert",
+    "climate": "Storm",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsEvening", "RegionPeaceful", "WeatherHarsh"],
+    "traits": { "diligence": 85, "sociability": 50, "courage": 40, "greed": 40 },
+    "goals": ["tend_fields", "harvest", "sell_produce"]
+  },
+  "plan": {
+    "schema": 1,
+    "goal": "salvage_harvest_before_storm",
+    "reasoning": "storm at dusk; run out for a short harvest, put it away at home and recover early instead of working the usual block",
+    "steps": [
+      { "action": "MoveTo", "args": { "poi": "$nearest_field", "speed": "run" }, "timeout_s": 600 },
+      { "action": "Farm", "args": { "crop": "wheat", "count": 6 }, "timeout_s": 1200 },
+      { "action": "MoveTo", "args": { "poi": "$home", "speed": "run" }, "timeout_s": 600 },
+      { "action": "Store", "args": { "item": "wheat", "count": 6 }, "timeout_s": 120 },
+      { "action": "Eat", "args": {}, "timeout_s": 300 },
+      { "action": "Rest", "args": { "duration_s": 900 }, "timeout_s": 1200 },
+      { "action": "Sleep", "args": { "until_time": "Dawn" } }
+    ],
+    "on_step_fail": "fallback",
+    "loop": true
+  }
+}
