@@ -131,7 +131,8 @@ public sealed class InterruptMatcher
         Forced++;
 
         // 후속 재계획. 즉시 반응이 먼저고 계획은 나중이다.
-        queue?.TryEnqueue(npc, rule.Urgency);
+        // 인터럽트는 일반 점수 범위를 넘어서게 넣는다 (docs/14 §2 의 1000 + urgency).
+        queue?.TryEnqueueUrgent(npc, rule.Urgency);
 
         return true;
     }

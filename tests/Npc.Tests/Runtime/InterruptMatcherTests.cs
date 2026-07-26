@@ -58,8 +58,9 @@ public sealed class InterruptMatcherTests
         Assert.NotEqual(0, fled.TargetPoi.Value);
 
         // 후속 재계획이 큐에 들어간다 — 먼저 도망치고 계획은 나중이다.
+        // 점수는 1000 + urgency 다. 인터럽트가 일반 재계획에 밀리면 반응이 늦는다 (docs/14 §2).
         Assert.True(timid.Queue.Contains(0));
-        Assert.Equal(100, timid.Queue.ScoreOf(0));
+        Assert.Equal(ReplanQueue.UrgentBase + 100, timid.Queue.ScoreOf(0));
 
         // 용감한 전투 가능 아키타입은 맞선다.
         Rig brave = NewRig("town_guard");
@@ -158,7 +159,7 @@ public sealed class InterruptMatcherTests
         NpcCommand waited = Assert.Single(r.H.Link.Commands);
         Assert.Equal(NpcCommandKind.SetVisualState, waited.Kind);
         Assert.Equal(VisualState.Idle, waited.Visual);
-        Assert.Equal(70, r.Queue.ScoreOf(0));
+        Assert.Equal(ReplanQueue.UrgentBase + 70, r.Queue.ScoreOf(0));
     }
 
     [Fact]

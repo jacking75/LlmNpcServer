@@ -113,12 +113,12 @@ public sealed class CognitionScheduler
     }
 
     /// <summary>
-    /// 재계획 우선순위 점수. P1 은 LOD 만 본다 (가까울수록 급하다).
-    /// 정식 가중치(플레이어 근접 · 플랜 노후 · 전제 이탈 · 긴급도)는 T4-01 이 넣는다.
+    /// 재계획 우선순위 점수. 밴드만 본다 (가까울수록 급하다).
+    /// 정식 가중치(플레이어 근접 · 플랜 노후 · 전제 이탈 · 긴급도)는 T4-02 의 <c>ReplanScorer</c> 다.
     /// </summary>
-    private static int Score(int npc, int band)
+    private static float Score(int npc, int band)
     {
         _ = npc;
-        return (LodBandSet.BandCount - band) * 10;
+        return (LodBandSet.BandCount - band) * 10f;
     }
 }

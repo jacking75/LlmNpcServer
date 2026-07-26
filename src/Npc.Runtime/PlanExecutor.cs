@@ -13,6 +13,14 @@ namespace Npc.Runtime;
 /// </summary>
 public sealed class PlanExecutor
 {
+    /// <summary>
+    /// <c>on_step_fail = replan</c> 로 큐에 넣을 때의 점수.
+    ///
+    /// 인지 스캔의 이탈 판정(최대 40)보다는 급하고 인터럽트(<see cref="ReplanQueue.UrgentBase"/> 이상)보다는
+    /// 느긋하다 — 플랜이 실제로 실패한 NPC 는 "곧 이탈할지도 모르는" NPC 보다 먼저 봐야 한다.
+    /// </summary>
+    public const float ReplanOnFailScore = 50f;
+
     private readonly NpcStore _store;
     private readonly PlanStore _plans;
     private readonly CorrelationTable _correlations;
@@ -218,7 +226,7 @@ public sealed class PlanExecutor
 
             case StepFailPolicy.Replan:
                 ReplansRequested++;
-                ReplanQueue?.TryEnqueue(npc, 50);
+                ReplanQueue?.TryEnqueue(npc, ReplanOnFailScore);
                 AdvanceStep(npc);
                 return;
 

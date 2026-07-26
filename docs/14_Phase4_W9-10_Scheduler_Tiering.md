@@ -24,31 +24,45 @@
 public sealed class ReplanQueue
 {
     // 고정 크기 이진 힙. 할당 없음. 중복 삽입은 점수 갱신으로 처리.
-    private readonly int[]   _heap;          // npc index
+    private readonly int[]   _heap;          // heap 위치 → npc index
     private readonly float[] _score;         // npc index → 현재 점수
     private readonly int[]   _heapPos;       // npc index → heap 위치 (-1 = 미포함)
     private int _count;
-    private readonly int _capacity = 4096;
+    private readonly int _capacity;          // 기본 min(npcCapacity, 4096)
 
+    // 반환값은 "새 항목이 들어갔는가" 다. 중복은 점수만 갱신하고 false.
     public bool TryEnqueue(int npc, float score)
     {
-        if (_heapPos[npc] >= 0) { UpdateScore(npc, MathF.Max(_score[npc], score)); return true; }
+        if (_heapPos[npc] >= 0) { UpdateScore(npc, MathF.Max(_score[npc], score)); Deduplicated++; return false; }
         if (_count == _capacity)
         {
-            if (score <= _score[_heap[_count - 1]]) return false;   // 최하위보다 낮으면 거절
-            EvictLowest();
+            int lowest = LowestSlot();                              // 최솟값은 반드시 잎이다
+            if (!Precedes(npc, score, _heap[lowest])) return false;  // 최하위보다 낮으면 거절
+            RemoveAt(lowest);
         }
         Insert(npc, score);
         return true;
     }
 
-    public void TryEnqueueUrgent(int npc, float urgency) => TryEnqueue(npc, 1000f + urgency);
+    public bool TryEnqueueUrgent(int npc, float urgency) => TryEnqueue(npc, 1000f + urgency);
 
     public int DequeueMax();
+    public bool TryDequeueMax(out int npc);
 }
 ```
 
 **용량 4096으로 상한을 둔다.** 큐가 무한히 자라면 오래된 요청이 쌓여서 "이미 상황이 바뀐 NPC를 재계획"하게 된다. 넘치면 낮은 점수부터 버린다 — 버려진 NPC는 기존 플랜을 계속 쓰므로 안전하다.
+
+> **T4-01 에서 초안 세 곳을 고쳤다.**
+>
+> | 초안 | 실제 | 이유 |
+> |---|---|---|
+> | 중복 삽입에 `return true` | `return false` | 호출부가 "몇 마리가 새로 대기하게 됐나" 를 셀 수 없다. P1 의 `Deduplicated` 카운터와 대시보드의 "초당 유입"이 이 구분에 기대고 있다 |
+> | `_score[_heap[_count - 1]]` 을 최하위로 | 잎 구간을 훑어 실제 최솟값 | 최대 힙에서 `_heap[_count-1]` 은 *어떤* 잎일 뿐 최솟값이 아니다. 그대로 두면 급한 요청이 낮은 점수에 밀린다. 잎 스캔은 **포화 상태에서만** 돈다 |
+> | 동점 처리 없음 | npc 첨자 오름차순 | 힙 구조에 순서를 맡기면 같은 점수의 처리 순서가 삽입 이력에 따라 달라져 리플레이가 깨진다 (CLAUDE.md §2.3) |
+>
+> 인터럽트 경로(`InterruptMatcher`)는 `TryEnqueueUrgent` 를 쓴다 — `rule.Urgency` 를 그대로 넣으면
+> 최댓값 100 이라 일반 재계획(이탈 판정 40 · 스텝 실패 50)과 뒤섞인다.
 
 ### 점수 함수
 
