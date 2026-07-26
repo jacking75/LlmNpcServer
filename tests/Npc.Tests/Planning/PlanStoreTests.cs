@@ -133,6 +133,202 @@ public sealed class PlanStoreTests
         Assert.Equal("idle_fallback", store[new PlanId(-1)].Goal);
     }
 
+    /// <summary>
+    /// T3-01 완료 조건 — 락이 없다. 동시 읽기 1M 회 중 예외가 하나도 나지 않는다.
+    /// 쓰는 쪽이 동시에 등록·교체를 하는 동안에도 읽는 쪽은 항상 유효한 플랜을 본다.
+    /// </summary>
+    [Fact]
+    public async Task PlanStore_IsLockFree()
+    {
+        PlanStore store = PlanStore.CreateIdleOnly(s_data);
+
+        const int Readers = 4;
+        const int ReadsPerReader = 250_000;   // 4 × 250k = 1M
+
+        var exceptions = new List<Exception>();
+        var gate = new Lock();
+        using var stop = new CancellationTokenSource();
+
+        // 쓰는 쪽 — 읽는 동안 계속 등록하고 버킷을 갈아 끼운다.
+        var writer = Task.Run(() =>
+        {
+            try
+            {
+                int index = 0;
+
+                while (!stop.Token.IsCancellationRequested)
+                {
+                    BucketKey bucket = BucketKey.FromIndex(index++ % BucketKey.TotalKeys);
+
+                    store.SetBucket(bucket, SamplePlan("blacksmith") with { Goal = "hot_swap" });
+                }
+            }
+            catch (Exception ex)
+            {
+                lock (gate)
+                {
+                    exceptions.Add(ex);
+                }
+            }
+        });
+
+        Task[] readers = [.. Enumerable.Range(0, Readers).Select(worker => Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < ReadsPerReader; i++)
+                {
+                    BucketKey bucket = BucketKey.FromIndex((i + (worker * 7)) % BucketKey.TotalKeys);
+
+                    CompiledPlan plan = store.Resolve(bucket, out PlanOrigin origin);
+
+                    // null 도, 빈 플랜도, 범위 밖도 없다.
+                    Assert.NotNull(plan);
+                    Assert.NotEmpty(plan.Steps);
+                    Assert.True(Enum.IsDefined(origin));
+                    Assert.NotNull(store[plan.Id]);
+                }
+            }
+            catch (Exception ex)
+            {
+                lock (gate)
+                {
+                    exceptions.Add(ex);
+                }
+            }
+        }))];
+
+        await Task.WhenAll(readers);
+        await stop.CancelAsync();
+        await writer;
+
+        Assert.Empty(exceptions);
+        Assert.Equal(Readers * ReadsPerReader, store.Hits + store.Misses);
+    }
+
+    /// <summary>
+    /// T3-01 완료 조건 — 조회가 O(1) 이다.
+    /// 2,880 버킷을 전부 채워도 빈 스토어와 같은 시간에 답해야 한다. 첨자 두 번이면 그렇다.
+    /// </summary>
+    [Fact]
+    public void PlanStore_ResolveIsO1()
+    {
+        const int Iterations = 200_000;
+
+        PlanStore empty = PlanStore.CreateIdleOnly(s_data);
+        PlanStore full = PlanStore.CreateIdleOnly(s_data);
+
+        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        {
+            full.SetBucket(BucketKey.FromIndex(index), SamplePlan("blacksmith"));
+        }
+
+        Assert.Equal(BucketKey.TotalKeys, full.FilledBuckets);
+        Assert.Equal(0, full.ColdBuckets);
+
+        // 워밍업 — JIT 티어 승격을 두 쪽 다 끝낸다.
+        _ = Measure(empty, 20_000);
+        _ = Measure(full, 20_000);
+
+        double emptyMs = Measure(empty, Iterations);
+        double fullMs = Measure(full, Iterations);
+
+        // 스토어 크기가 조회 시간에 실리면 O(1) 이 아니다. 슬랙을 크게 잡아도 4배는 안 넘는다.
+        Assert.True(
+            fullMs <= (emptyMs * 4) + 5,
+            $"빈 스토어 {emptyMs:F2}ms · 2,880 채운 스토어 {fullMs:F2}ms — 크기에 비례한다.");
+
+        static double Measure(PlanStore store, int iterations)
+        {
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+
+            for (int i = 0; i < iterations; i++)
+            {
+                _ = store.Resolve(BucketKey.FromIndex(i % BucketKey.TotalKeys));
+            }
+
+            return System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        }
+    }
+
+    /// <summary>미스 상위 버킷과 아키타입별 분해. docs/13 §6.</summary>
+    [Fact]
+    public void PlanStore_TracksHitsAndMisses()
+    {
+        PlanStore store = PlanStore.CreateIdleOnly(s_data);
+        Assert.True(s_data.Archetypes.TryGet("blacksmith", out ArchetypeDef smith));
+
+        var hot = new BucketKey(smith.Code, TimeOfDay.Dawn, RegionState.Peace, Climate.Fair);
+        var cold = new BucketKey(smith.Code, TimeOfDay.Night, RegionState.War, Climate.Storm);
+
+        store.SetBucket(hot, SamplePlan("blacksmith"));
+
+        for (int i = 0; i < 10; i++)
+        {
+            _ = store.Resolve(hot);
+        }
+
+        for (int i = 0; i < 3; i++)
+        {
+            _ = store.Resolve(cold);
+        }
+
+        Assert.Equal(10, store.Hits);
+        Assert.Equal(3, store.Misses);
+        Assert.Equal(10 / 13.0, store.HitRate, 6);
+        Assert.Equal(10, store.HitsOf(hot));
+        Assert.Equal(3, store.MissesOf(cold));
+
+        Assert.Equal(cold, Assert.Single(store.TopMisses(10)).Bucket);
+
+        Span<long> hits = new long[BucketKey.ArchetypeCount];
+        Span<long> misses = new long[BucketKey.ArchetypeCount];
+        store.HitsByArchetype(hits, misses);
+
+        Assert.Equal(10, hits[smith.Code.Value]);
+        Assert.Equal(3, misses[smith.Code.Value]);
+
+        store.ResetCounters();
+        Assert.Equal(0, store.Hits);
+        Assert.Equal(0, store.Misses);
+    }
+
+    /// <summary>등록 id 는 여러 워커가 동시에 불러도 겹치지 않는다.</summary>
+    [Fact]
+    public void PlanStore_RegisterIsThreadSafe()
+    {
+        PlanStore store = PlanStore.CreateIdleOnly(s_data);
+        CompiledPlan plan = SamplePlan("blacksmith");
+
+        const int Workers = 8;
+        const int PerWorker = 200;
+
+        var ids = new PlanId[Workers][];
+
+        Parallel.For(0, Workers, worker =>
+        {
+            var mine = new PlanId[PerWorker];
+
+            for (int i = 0; i < PerWorker; i++)
+            {
+                mine[i] = store.Register(plan);
+            }
+
+            ids[worker] = mine;
+        });
+
+        var all = ids.SelectMany(x => x).Select(id => id.Value).ToList();
+
+        Assert.Equal(Workers * PerWorker, all.Distinct().Count());
+        Assert.Equal((Workers * PerWorker) + 1, store.Count);
+
+        foreach (int id in all)
+        {
+            Assert.Equal("sample_plan", store[id].Goal);
+            Assert.Equal(id, store[id].Id.Value);
+        }
+    }
+
     [Fact]
     public void PlanStore_ResolveDoesNotAllocate()
     {

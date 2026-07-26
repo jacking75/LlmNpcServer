@@ -26,13 +26,15 @@ public sealed class PlanStore
 {
     // [1] 버킷 → PlanId. 2,880 고정 배열. 해시맵 불필요 — BucketKey.ToIndex()가 O(1)
     private readonly int[]        _byBucket    = new int[2880];   // 0 = 미생성
-    private readonly PlanOrigin[] _origin      = new PlanOrigin[2880];
+    private readonly int[]        _origin      = new int[2880];   // PlanOrigin. Volatile.Write 에 enum 오버로드가 없다
     private readonly long[]       _hits        = new long[2880];
     private readonly long[]       _misses      = new long[2880];
 
-    // [2] PlanId → 플랜. 런타임의 조회 경로. 첨자 한 번, 할당 0
-    private readonly List<CompiledPlan> _plans;                   // [0] = 최후 플랜
-    private readonly int[]              _byArchetype;             // 아키타입 폴백의 PlanId
+    // [2] PlanId → 플랜. 런타임의 조회 경로. 첨자 두 번, 할당 0
+    //   List<T> 가 아니라 청크 배열이다 — 내부 배열 교체와 Count 갱신 사이에 창이 열려
+    //   읽는 쪽이 범위 밖을 볼 수 있다. 청크는 자란다고 기존 청크를 건드리지 않는다
+    private readonly CompiledPlan[]?[] _chunks;                   // [0][0] = 최후 플랜
+    private readonly int[]             _byArchetype;              // 아키타입 폴백의 PlanId
 
     public CompiledPlan Resolve(BucketKey key, out PlanOrigin origin)
     {
@@ -48,12 +50,18 @@ public sealed class PlanStore
     public CompiledPlan this[PlanId id] { get; }   // 런타임이 매 틱 쓴다
 
     // 재계획 워커·프리베이크만 호출. 원자 교체.
-    public void Publish(BucketKey key, CompiledPlan plan)
+    // docs 초안의 Publish 와 같은 것이다 — 이름은 P1 스텁이 이미 쓰던 SetBucket 으로 통일했다.
+    public PlanId SetBucket(BucketKey key, CompiledPlan plan)
     {
         int idx = key.ToIndex();
-        if (_origin[idx] == PlanOrigin.Pinned) return;    // 사람이 고정한 플랜은 덮지 않는다
-        Volatile.Write(ref _byBucket[idx], Register(plan).Value);
-        _origin[idx] = plan.Origin;
+
+        // 사람이 고정한 플랜은 덮지 않는다. 이미 걸려 있는 것을 그대로 돌려준다
+        if ((PlanOrigin)_origin[idx] == PlanOrigin.Pinned) return new PlanId(_byBucket[idx]);
+
+        PlanId id = Register(plan);
+        Volatile.Write(ref _byBucket[idx], id.Value);
+        Volatile.Write(ref _origin[idx], (int)plan.Origin);
+        return id;
     }
 }
 ```
