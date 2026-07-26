@@ -107,6 +107,12 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     public bool IsSpilling => LocalQueueDepth is { } depth && depth() > SpilloverThreshold;
 
     /// <summary>
+    /// T2 서킷 브레이커 (T4-09). 없으면 항상 닫혀 있다고 본다.
+    /// 차단 중이면 T2 를 시도하지 않고 곧바로 T1 으로 간다 — 외부 장애에 지연을 태우지 않는다.
+    /// </summary>
+    public CircuitBreaker? Breaker { get; init; }
+
+    /// <summary>
     /// docs/14 §4 의 티어 선택 규칙. <b>예산은 보지 않는다</b> —
     /// 예산 판정과 강등은 <see cref="IReplanBudget.Acquire"/> 의 몫이다.
     /// </summary>
@@ -137,6 +143,13 @@ public sealed class TieredPlanCompiler : IPlanCompiler
             Interlocked.Increment(ref _spillovers);
         }
 
+        // 브레이커가 차단 중이면 시도하지 않는다. 무한 재시도는 외부 장애 시 지연을 폭발시킨다
+        // (docs/14 §10). 예산도 여기서 아껴진다 — 죽은 엔드포인트에 T2 예산을 쓰지 않는다.
+        if (wanted == Tier.T2 && Breaker is { } breaker && !breaker.TryEnter(now))
+        {
+            wanted = Tier.T1;
+        }
+
         Tier granted = _budget.Acquire(wanted, Estimate(in request), now);
 
         if (granted == Tier.None)
@@ -159,17 +172,20 @@ public sealed class TieredPlanCompiler : IPlanCompiler
             // 검증 실패는 외부 장애가 아니라 모델 품질 문제라 페일오버 대상이 아니다.
             if (result.Stats.Reached)
             {
+                Breaker?.RecordSuccess();
                 return result;
             }
 
+            Breaker?.RecordFailure(now);
             return await FailoverAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            throw;   // 종료 신호는 페일오버 대상이 아니다
+            throw;   // 종료 신호는 페일오버 대상이 아니다. 브레이커에도 세지 않는다
         }
         catch (Exception)
         {
+            Breaker?.RecordFailure(now);
             return await FailoverAsync(request, cancellationToken).ConfigureAwait(false);
         }
     }

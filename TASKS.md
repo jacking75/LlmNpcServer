@@ -91,9 +91,9 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | **P1** W2–4 코어·런타임·Sim | [`docs/11_Phase1_W2-4_TASKS.md`](docs/11_Phase1_W2-4_TASKS.md) | 62 | 62 | **게이트 통과** |
 | **P2** W5–6 플랜 컴파일러 | [`docs/12_Phase2_W5-6_TASKS.md`](docs/12_Phase2_W5-6_TASKS.md) | 24 | 23 | 태스크 완료 (T2-23 은 조건 미충족 `-`) — **게이트 3/7 미달** |
 | **P3** W7–8 플랜 캐시 | [`docs/13_Phase3_W7-8_TASKS.md`](docs/13_Phase3_W7-8_TASKS.md) | 21 | 19 | 진행 중 — T3-18(사람 검수) 미착수 · T3-21 `~`. **게이트 5/9** (기제 4항목 통과, 실측 산출물 대기) |
-| **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 8 | 진행 중 |
+| **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 9 | 진행 중 |
 | **P5** W11–12 검증·평가 | [`docs/15_Phase5_W11-12_TASKS.md`](docs/15_Phase5_W11-12_TASKS.md) | 20 | 0 | 미착수 |
-| | | **164** | **120** | |
+| | | **164** | **121** | |
 
 각 Phase 문서 맨 아래의 체크리스트에서 개별 태스크 상태를 관리한다.
 

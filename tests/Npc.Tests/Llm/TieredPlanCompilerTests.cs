@@ -310,6 +310,56 @@ public sealed class TieredPlanCompilerTests
         Assert.False(blind.IsSpilling);
     }
 
+    /// <summary>
+    /// T4-09 결선 — 브레이커가 차단 중이면 T2 를 시도조차 하지 않고 곧바로 T1 으로 간다.
+    /// 죽은 엔드포인트에 T2 예산과 타임아웃 지연을 태우지 않는다 (docs/14 §10).
+    /// </summary>
+    [Fact]
+    public async Task Tier_ShortCircuitsToLocalWhenBreakerOpen()
+    {
+        var t1 = new StubCompiler("local");
+        var t2 = new StubCompiler("external", throws: true);
+        var breaker = new CircuitBreaker(failureThreshold: 2, cooldownSeconds: 10);
+        var budget = new OpenBudget();
+
+        var router = new TieredPlanCompiler(t1, t2, budget, () => new Tick(0)) { Breaker = breaker };
+
+        // 두 번 실패하면 브레이커가 열린다. 그 두 번은 페일오버로 T1 이 받는다.
+        await router.CompileAsync(Archetype(), CancellationToken.None);
+        await router.CompileAsync(Archetype(), CancellationToken.None);
+
+        Assert.Equal(2, t2.Calls);
+        Assert.Equal(2, t1.Calls);
+        Assert.Equal(2, router.Failovers);
+        Assert.Equal(CircuitState.Open, breaker.StateAt(new Tick(0)));
+
+        // 이제는 T2 를 부르지 않는다. 예산 요청도 T1 으로만 나간다.
+        await router.CompileAsync(Archetype(), CancellationToken.None);
+
+        Assert.Equal(2, t2.Calls);          // 늘지 않았다
+        Assert.Equal(3, t1.Calls);
+        Assert.Equal(2, router.Failovers);  // 페일오버도 아니다 — 애초에 T1 으로 갔다
+        Assert.Equal(1, breaker.ShortCircuits);
+        Assert.Equal([Tier.T2, Tier.T1, Tier.T2, Tier.T1, Tier.T1], budget.Acquired);
+    }
+
+    /// <summary>브레이커가 없으면 늘 닫혀 있다고 본다 — 결선하지 않은 경로가 막히면 안 된다.</summary>
+    [Fact]
+    public async Task Tier_WorksWithoutBreaker()
+    {
+        var t1 = new StubCompiler("local");
+        var t2 = new StubCompiler("external", throws: true);
+        TieredPlanCompiler router = New(t1, t2, new OpenBudget());
+
+        for (int i = 0; i < 10; i++)
+        {
+            await router.CompileAsync(Archetype(), CancellationToken.None);
+        }
+
+        Assert.Equal(10, t2.Calls);
+        Assert.Equal(10, router.Failovers);
+    }
+
     /// <summary>기본 토큰 추정치는 실측 23,109 tok/요청이다 (W8_prebake.md §4).</summary>
     [Fact]
     public void Tier_DefaultTokenEstimateComesFromMeasurement()
