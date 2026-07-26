@@ -441,12 +441,27 @@ public static class MasterDataLoader
             gameHours[i] = (span[0], span[1]);
         }
 
+        // prebake_priority — 프리베이크 순서의 가중치 (docs/01 §6). 없는 값은 0 이다.
+        var priority = new int[region.Values.Length];
+
+        foreach (PrebakePriorityDto entry in file.PrebakePriority ?? [])
+        {
+            if (!Enum.TryParse(entry.RegionState, out RegionState state) || !Enum.IsDefined(state))
+            {
+                throw new InvalidDataException(
+                    $"context_buckets.json: prebake_priority 의 '{entry.RegionState}' 가 region_state 값이 아니다.");
+            }
+
+            priority[(int)state] = entry.Weight;
+        }
+
         return new BucketSpace(
             FlagsFor(time, "time_of_day"),
             FlagsFor(region, "region_state"),
             FlagsFor(climate, "climate"),
             gameHours,
-            file.TotalKeys);
+            file.TotalKeys,
+            priority);
 
         static DimensionDto Dimension(BucketsFile file, string name) =>
             file.Dimensions.TryGetValue(name, out DimensionDto? d)

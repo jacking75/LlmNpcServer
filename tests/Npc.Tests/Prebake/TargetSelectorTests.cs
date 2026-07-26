@@ -217,6 +217,63 @@ public sealed class TargetSelectorTests
         Assert.True(strided.Buckets.Select(b => b.A).Distinct().Count() >= 15);
     }
 
+    /// <summary>
+    /// T3-10 완료 조건 — 정렬 결과의 앞 25% 가 전부 <see cref="RegionState.Peace"/> 다.
+    ///
+    /// Peace 는 4개 지역 상태 중 하나라 정확히 25%(720개)이고 가중치가 가장 높다(10).
+    /// 중단되어도 실제로 많이 쓰이는 버킷이 먼저 채워져 있어야 한다.
+    /// </summary>
+    [Fact]
+    public void Target_SortsPeaceFirst()
+    {
+        ImmutableArray<BucketKey> sorted =
+            TargetSelector.Select(Options(), s_data, null, InvalidationScope.Full).Buckets;
+
+        Assert.Equal(BucketKey.TotalKeys, sorted.Length);
+
+        int quarter = BucketKey.TotalKeys / 4;
+
+        for (int i = 0; i < quarter; i++)
+        {
+            Assert.Equal(RegionState.Peace, sorted[i].R);
+        }
+
+        // 그 뒤는 가중치 순 — Alert(3) → War(2) → Disaster(1).
+        Assert.Equal(RegionState.Alert, sorted[quarter].R);
+        Assert.Equal(RegionState.War, sorted[quarter * 2].R);
+        Assert.Equal(RegionState.Disaster, sorted[quarter * 3].R);
+
+        // 가중치는 마스터데이터에서 온다. 코드에 하드코딩하지 않는다.
+        Assert.Equal(10, s_data.Buckets.PrebakePriorityOf(RegionState.Peace));
+        Assert.Equal(3, s_data.Buckets.PrebakePriorityOf(RegionState.Alert));
+        Assert.Equal(2, s_data.Buckets.PrebakePriorityOf(RegionState.War));
+        Assert.Equal(1, s_data.Buckets.PrebakePriorityOf(RegionState.Disaster));
+
+        // 같은 가중치 안에서는 버킷 인덱스 오름차순 — 회차 간 diff 가 의미를 가져야 한다.
+        for (int i = 1; i < quarter; i++)
+        {
+            Assert.True(sorted[i - 1].ToIndex() < sorted[i].ToIndex());
+        }
+    }
+
+    /// <summary>부분 집합도 같은 순서 규칙을 따른다.</summary>
+    [Fact]
+    public void Target_SortsSubsetsByPriorityToo()
+    {
+        ImmutableArray<BucketKey> smiths =
+            TargetSelector.Select(Options("--only", "blacksmith@*"), s_data, null, InvalidationScope.Full).Buckets;
+
+        Assert.Equal(72, smiths.Length);
+
+        // 아키타입 하나는 6 × 3 = 18 개의 Peace 버킷을 갖는다.
+        for (int i = 0; i < 18; i++)
+        {
+            Assert.Equal(RegionState.Peace, smiths[i].R);
+        }
+
+        Assert.NotEqual(RegionState.Peace, smiths[18].R);
+    }
+
     /// <summary>대상 순서가 결정론이다. 두 번 부르면 같은 목록이 나온다.</summary>
     [Fact]
     public void Target_IsDeterministic()

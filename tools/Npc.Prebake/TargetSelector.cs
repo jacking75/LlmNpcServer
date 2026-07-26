@@ -26,7 +26,7 @@ public enum TargetMode
 }
 
 /// <summary>대상 산출 결과.</summary>
-/// <param name="Buckets">생성 순서대로의 대상. 버킷 인덱스 오름차순이다 (정렬은 T3-10 이 얹는다).</param>
+/// <param name="Buckets">생성 순서대로의 대상. <see cref="TargetSelector.SortByPriority"/> 순이다.</param>
 /// <param name="Mode">어떻게 골랐나.</param>
 /// <param name="Scope">무효화 판정 결과.</param>
 /// <param name="SkippedPinned">사람이 고정해서 건너뛴 수.</param>
@@ -121,9 +121,33 @@ public static class TargetSelector
         // 측정 회차용 축소. 전량 회차에서는 셋 다 기본값이라 아무 일도 하지 않는다.
         chosen = Narrow(chosen, options);
 
-        // 순서는 버킷 인덱스 오름차순이다 — 흔들리면 회차 간 diff 가 의미를 잃는다.
-        // prebake_priority 정렬은 T3-10 이 얹는다.
-        return new TargetSelection([.. chosen], mode, scope, skippedPinned);
+        return new TargetSelection(SortByPriority(chosen, data), mode, scope, skippedPinned);
+    }
+
+    /// <summary>
+    /// <c>prebake_priority</c> 순 정렬. docs/01 §6 · docs/13 §4.
+    ///
+    /// <b>Peace 계열이 먼저다.</b> 중단되어도(예산 캡·429·Ctrl-C) 실제로 많이 쓰이는 버킷이
+    /// 먼저 채워져 있어야 한다. 가중치는 <c>context_buckets.json</c> 에서 온다 —
+    /// 코드에 하드코딩하지 않는다 (CLAUDE.md §2.4).
+    ///
+    /// 같은 가중치면 버킷 인덱스 오름차순이다. 순서가 흔들리면 회차 간 diff 가 의미를 잃는다.
+    /// </summary>
+    public static ImmutableArray<BucketKey> SortByPriority(IEnumerable<BucketKey> buckets, MasterDataSet data)
+    {
+        ArgumentNullException.ThrowIfNull(buckets);
+        ArgumentNullException.ThrowIfNull(data);
+
+        var sorted = new List<BucketKey>(buckets);
+
+        sorted.Sort((a, b) =>
+        {
+            int byWeight = data.Buckets.PrebakePriorityOf(b.R).CompareTo(data.Buckets.PrebakePriorityOf(a.R));
+
+            return byWeight != 0 ? byWeight : a.ToIndex().CompareTo(b.ToIndex());
+        });
+
+        return [.. sorted];
     }
 
     /// <summary>어느 모드로 도는가. <c>--only</c> 가 가장 세다.</summary>

@@ -191,18 +191,21 @@ public sealed class BucketSpace
     private readonly WorldFlags[] _regionFlags;
     private readonly WorldFlags[] _climateFlags;
     private readonly (int From, int To)[] _gameHours;
+    private readonly int[] _prebakePriority;
 
     internal BucketSpace(
         WorldFlags[] timeFlags,
         WorldFlags[] regionFlags,
         WorldFlags[] climateFlags,
         (int From, int To)[] gameHours,
-        int declaredTotalKeys)
+        int declaredTotalKeys,
+        int[] prebakePriority)
     {
         _timeFlags = timeFlags;
         _regionFlags = regionFlags;
         _climateFlags = climateFlags;
         _gameHours = gameHours;
+        _prebakePriority = prebakePriority;
         DeclaredTotalKeys = declaredTotalKeys;
     }
 
@@ -221,6 +224,15 @@ public sealed class BucketSpace
 
     /// <summary>이 기후가 세우는 플래그.</summary>
     public WorldFlags FlagsOf(Climate climate) => _climateFlags[(int)climate];
+
+    /// <summary>
+    /// 이 지역 상태의 프리베이크 우선순위 가중치. <c>context_buckets.json</c> 의 <c>prebake_priority</c> (docs/01 §6).
+    ///
+    /// 클수록 먼저 만든다 — <b>중단되어도 실제로 많이 쓰이는 버킷이 먼저 채워져야 한다</b> (docs/13 §4).
+    /// 파일에 없는 값은 0 이다. 코드에 가중치를 하드코딩하지 않는다 (CLAUDE.md §2.4).
+    /// </summary>
+    public int PrebakePriorityOf(RegionState state) =>
+        (uint)(int)state < (uint)_prebakePriority.Length ? _prebakePriority[(int)state] : 0;
 
     /// <summary>게임 시각(0~23)이 속한 시간대.</summary>
     public TimeOfDay TimeOfDayAt(int gameHour)
@@ -1015,7 +1027,10 @@ internal sealed record OpenHoursDto(string From, string To);
 
 internal sealed record BucketsFile(
     Dictionary<string, DimensionDto> Dimensions,
-    int TotalKeys);
+    int TotalKeys,
+    PrebakePriorityDto[]? PrebakePriority);
+
+internal sealed record PrebakePriorityDto(string RegionState, int Weight);
 
 internal sealed record DimensionDto(
     string[] Values,
