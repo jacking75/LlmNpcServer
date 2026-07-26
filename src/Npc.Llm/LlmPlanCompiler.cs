@@ -26,6 +26,7 @@ public sealed class LlmPlanCompiler : IPlanCompiler
     private readonly ICompileStatsSink? _stats;
     private readonly IDryRunValidator? _dryRun;
     private readonly IPlanReuseSource? _reuse;
+    private readonly RejectedStore? _rejected;
 
     /// <summary>컴파일러를 만든다. 프리픽스는 기동 시 1회 조립된 것을 그대로 받는다.</summary>
     /// <param name="data">마스터데이터. 검증 어휘이자 서픽스의 재료다.</param>
@@ -41,6 +42,10 @@ public sealed class LlmPlanCompiler : IPlanCompiler
     /// <param name="reuse">
     /// 인접 버킷 재사용 공급원. null 이면 두 번 실패한 뒤 곧장 아키타입 폴백으로 간다.
     /// </param>
+    /// <param name="rejected">
+    /// 검증 실패 산출물 보존소. null 이면 보존하지 않는다 —
+    /// 프리베이크·품질 개선 회차에서는 <b>반드시</b> 넣는다 (docs/13 §8).
+    /// </param>
     public LlmPlanCompiler(
         MasterDataSet data,
         PromptPrefix prefix,
@@ -48,7 +53,8 @@ public sealed class LlmPlanCompiler : IPlanCompiler
         IChatClient client,
         ICompileStatsSink? stats = null,
         IDryRunValidator? dryRun = null,
-        IPlanReuseSource? reuse = null)
+        IPlanReuseSource? reuse = null,
+        RejectedStore? rejected = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(prefix);
@@ -62,6 +68,7 @@ public sealed class LlmPlanCompiler : IPlanCompiler
         _stats = stats;
         _dryRun = dryRun;
         _reuse = reuse;
+        _rejected = rejected;
     }
 
     /// <summary>
@@ -157,6 +164,15 @@ public sealed class LlmPlanCompiler : IPlanCompiler
             ValidationResult validation = result.Validation;
 
             sink.Record(request.Bucket, in recorded, in validation);
+        }
+
+        // 실패 산출물은 시도별로 남긴다. 조용히 버리면 품질 개선의 원자료가 사라진다 (docs/13 §8).
+        if (_rejected is { } store && !result.Validation.IsValid)
+        {
+            CompileStats saved = result.Stats;
+            ValidationResult failure = result.Validation;
+
+            store.Save(request.Bucket, in saved, in failure, result.ResponseText);
         }
 
         return result;
