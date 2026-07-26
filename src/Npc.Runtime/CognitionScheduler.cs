@@ -24,6 +24,9 @@ public sealed class CognitionScheduler
     /// <summary>틱당 판정 상한. docs/11 §4 · §9 의 수용 기준이 그대로 코드에 있다.</summary>
     public const int MaxScansPerTick = 150;
 
+    /// <summary>상한을 푼 상태를 뜻하는 값.</summary>
+    public const int Unlimited = 0;
+
     private readonly NpcStore _store;
     private readonly LodBandSet _bands;
     private readonly PlanStore _plans;
@@ -53,6 +56,16 @@ public sealed class CognitionScheduler
     public Weights Weights { get; }
 
     /// <summary>
+    /// 틱당 판정 상한. 기본은 <see cref="MaxScansPerTick"/> 이고
+    /// <see cref="Unlimited"/>(0) 이면 상한을 풀어 밴드 슬라이스 전량을 본다.
+    ///
+    /// <b>상한이 걸린 채로는 차수를 판정할 수 없다</b> — 무엇을 넣어도 150 에서 잘려 O(1) 로 보인다.
+    /// T4-16 의 스케일 곡선은 상한을 푼 회차로 잰다 (docs/14 §6).
+    /// 운영에서는 절대 풀지 않는다 — 그것이 틱 예산을 지키는 장치다.
+    /// </summary>
+    public int ScanBudgetPerTick { get; init; } = MaxScansPerTick;
+
+    /// <summary>
     /// 큐 삽입 시점의 플래그 스냅샷 표. 없으면 낡음 판정을 하지 않는다 (docs/14 §10).
     /// 워커가 꺼낼 때 이 값과 지금 플래그를 비교해 낡은 요청을 폐기한다.
     /// </summary>
@@ -75,7 +88,8 @@ public sealed class CognitionScheduler
         ArgumentNullException.ThrowIfNull(queue);
 
         int scanned = 0;
-        int budget = MaxScansPerTick;
+        bool capped = ScanBudgetPerTick > Unlimited;
+        int budget = capped ? ScanBudgetPerTick : int.MaxValue;
 
         for (int band = 0; band < LodBandSet.BandCount && budget > 0; band++)
         {
@@ -99,7 +113,11 @@ public sealed class CognitionScheduler
 
             // 커서는 폭으로 접어 둔다. 그냥 더하면 오래 돌린 서버에서 int 가 넘친다.
             _cursor[band] = (offset + take) % width;
-            budget -= take;
+
+            if (capped)
+            {
+                budget -= take;
+            }
 
             for (int t = 0; t < take; t++)
             {

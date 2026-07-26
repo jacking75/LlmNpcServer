@@ -22,6 +22,10 @@ namespace Npc.Tests.Load;
 /// 페이싱을 끄는가. <b>틱 지연 매트릭스는 페이싱을 켜고 잰다</b> —
 /// <c>--max-speed</c> 는 처리량 측정용이다 (<c>P1_gate.md §4</c>).
 /// </param>
+/// <param name="ScanCap">
+/// 인지 스캔 틱당 상한. -1 이면 기본(150), <b>0 이면 상한 해제</b>.
+/// 차수 판정은 상한을 푼 회차로만 의미가 있다 (docs/14 §6).
+/// </param>
 internal readonly record struct LoadCell(
     int Npcs,
     int TimeScale,
@@ -29,12 +33,17 @@ internal readonly record struct LoadCell(
     int PlayerBots,
     int Days = 1,
     int T1Workers = 2,
-    bool MaxSpeed = true)
+    bool MaxSpeed = true,
+    int ScanCap = -1)
 {
+    /// <summary>인지 스캔 상한이 풀린 셀인가.</summary>
+    public bool ScanUncapped => ScanCap == 0;
+
     /// <summary>CSV 의 <c>cell</c> 열. 사람이 읽고 스크립트가 grep 한다.</summary>
     public string Id =>
         $"n{Npcs}-x{TimeScale}-{Tier.ToString().ToLowerInvariant()}-b{PlayerBots}-w{T1Workers}"
-        + (MaxSpeed ? "-max" : "-paced");
+        + (MaxSpeed ? "-max" : "-paced")
+        + (ScanUncapped ? "-uncapped" : string.Empty);
 
     /// <summary>이 셀을 재현하는 명령줄.</summary>
     public string[] Args() =>
@@ -46,6 +55,7 @@ internal readonly record struct LoadCell(
         "--player-bots", PlayerBots.ToString(CultureInfo.InvariantCulture),
         "--tier", Tier.ToString().ToLowerInvariant(),
         "--t1-workers", T1Workers.ToString(CultureInfo.InvariantCulture),
+        .. ScanCap >= 0 ? new[] { "--scan-cap", ScanCap.ToString(CultureInfo.InvariantCulture) } : [],
         .. MaxSpeed ? new[] { "--max-speed" } : [],
         "--no-dashboard",
     ];
@@ -63,6 +73,14 @@ internal sealed record LoadResult
 
     /// <summary>완주했는가. 타임아웃이면 false 이고 그 행의 나머지는 참고값이다.</summary>
     public required bool Completed { get; init; }
+
+    /// <summary>
+    /// <b>실제로 돌린 NPC 수.</b> <c>npc_instances.json</c> 에 있는 수를 넘길 수 없으므로
+    /// (<c>NpcHost.Create</c> 가 <c>Math.Min</c> 한다) 요청값과 다를 수 있다.
+    ///
+    /// <b>차수 판정은 이 값으로 한다.</b> 요청값으로 하면 존재하지 않는 규모를 근거로 삼는다.
+    /// </summary>
+    public required int NpcsActual { get; init; }
 
     /// <summary>벽시계 소요(초). 처리량 판정의 분모다.</summary>
     public required double WallClockSeconds { get; init; }
@@ -225,6 +243,17 @@ internal static class LoadHarness
     ];
 
     /// <summary>
+    /// 인지 스캔 상한을 푼 셀. <b>차수 판정(T4-16)은 이 셀들로만 한다.</b>
+    ///
+    /// 상한이 걸린 회차는 무엇을 넣어도 150 에서 잘려 O(1) 로 보인다 (docs/14 §6).
+    /// <c>docs/11 §4</c> 의 "상한이 없으면 612 까지 간다" 추정과 대조하는 것이 이 회차의 목적이다.
+    /// </summary>
+    public static LoadCell[] UncappedCells() =>
+    [
+        .. NpcLevels.Select(n => new LoadCell(n, 600, TierMode.None, 20, ScanCap: 0)),
+    ];
+
+    /// <summary>
     /// 스모크 매트릭스. <b>기본값이다</b> — 전량은 20분을 넘으므로 사람이 명시적으로 켠다.
     /// 축마다 최소 2점을 남겨 스케일 판정(T4-16)이 성립한다.
     /// </summary>
@@ -242,13 +271,16 @@ internal static class LoadHarness
         // 틱 지연은 페이싱을 켜고 잰다 (P1_gate.md §4). 배속 600 · 게임 하루 = 1,440틱 = 실시간 144초.
         // P1 기준선(5,000 NPC p99 2.375ms)과 비교할 수 있는 셀은 이것뿐이다.
         new(5_000, 600, TierMode.None, 20, MaxSpeed: false),
+
+        // 차수 판정용 — 상한을 풀어야 인지 스캔의 O(1) 여부가 보인다 (T4-16).
+        .. UncappedCells(),
     ];
 
     /// <summary>환경변수가 고른 매트릭스.</summary>
     public static LoadCell[] SelectedMatrix() =>
         string.Equals(
             Environment.GetEnvironmentVariable(MatrixVariable), "full", StringComparison.OrdinalIgnoreCase)
-            ? [.. FullMatrix(), .. PacedCells()]
+            ? [.. FullMatrix(), .. PacedCells(), .. UncappedCells()]
             : SmokeMatrix();
 
     /// <summary>CSV 산출 경로.</summary>
@@ -290,6 +322,7 @@ internal static class LoadHarness
         {
             Cell = cell,
             Completed = !deadline.IsCancellationRequested,
+            NpcsActual = m.Npc.Total,
             WallClockSeconds = Math.Round(seconds, 3),
 
             Ticks = m.Tick.Ticks,
@@ -337,7 +370,7 @@ internal static class LoadHarness
 
     /// <summary>CSV 헤더. 열 순서는 <see cref="LoadResult"/> 선언 순서다.</summary>
     public static string CsvHeader() =>
-        "cell,npcs,time_scale,tier,player_bots,t1_workers,max_speed,completed,wall_clock_s,"
+        "cell,npcs,npcs_actual,scan_cap,time_scale,tier,player_bots,t1_workers,max_speed,completed,wall_clock_s,"
         + "ticks,tick_p50_ms,tick_p95_ms,tick_p99_ms,tick_max_ms,tick_overruns,"
         + "scan_per_tick,band_migrations,"
         + "queue_p50,queue_p99,queue_dropped,queue_avg_wait_ticks,"
@@ -358,6 +391,8 @@ internal static class LoadHarness
             ',',
             r.Cell.Id,
             r.Cell.Npcs.ToString(invariant),
+            r.NpcsActual.ToString(invariant),
+            r.Cell.ScanCap.ToString(invariant),
             r.Cell.TimeScale.ToString(invariant),
             r.Cell.Tier.ToString().ToLowerInvariant(),
             r.Cell.PlayerBots.ToString(invariant),

@@ -38,8 +38,15 @@ public sealed class LoadMatrixTests
         Assert.All(LoadHarness.PacedCells(), c => Assert.False(c.MaxSpeed));
         Assert.All(full, c => Assert.True(c.MaxSpeed));
 
+        // 상한을 푼 셀은 차수 판정용이다 (T4-16).
+        Assert.All(LoadHarness.UncappedCells(), c => Assert.True(c.ScanUncapped));
+        Assert.All(full, c => Assert.False(c.ScanUncapped));
+
         // 셀 id 가 유일해야 CSV 를 grep 할 수 있다.
-        string[] ids = [.. full.Concat(LoadHarness.PacedCells()).Select(c => c.Id)];
+        string[] ids =
+        [
+            .. full.Concat(LoadHarness.PacedCells()).Concat(LoadHarness.UncappedCells()).Select(c => c.Id),
+        ];
         Assert.Equal(ids.Length, ids.Distinct().Count());
     }
 
@@ -47,7 +54,9 @@ public sealed class LoadMatrixTests
     [Fact]
     public void Load_EveryCellParses()
     {
-        foreach (LoadCell cell in LoadHarness.FullMatrix().Concat(LoadHarness.PacedCells()))
+        foreach (LoadCell cell in LoadHarness.FullMatrix()
+            .Concat(LoadHarness.PacedCells())
+            .Concat(LoadHarness.UncappedCells()))
         {
             Assert.True(
                 HostOptions.TryParse(cell.Args(), out HostOptions options, out string? error),
@@ -58,6 +67,7 @@ public sealed class LoadMatrixTests
             Assert.Equal(cell.Tier, options.Tier);
             Assert.Equal(cell.PlayerBots, options.PlayerBots);
             Assert.Equal(cell.MaxSpeed, options.MaxSpeed);
+            Assert.Equal(cell.ScanCap, options.ScanCap);
             Assert.True(options.NoDashboard);
         }
     }
@@ -78,6 +88,7 @@ public sealed class LoadMatrixTests
 
         foreach (string needle in new[]
         {
+            "npcs_actual", "scan_cap",                 // 0. 셀 실제값
             "tick_p99_ms", "tick_overruns",           // 1. 틱
             "scan_per_tick", "band_migrations",        // 2. 인지
             "queue_p99", "queue_dropped", "queue_avg_wait_ticks",   // 3. 큐
@@ -172,6 +183,7 @@ public sealed class LoadMatrixTests
     {
         Cell = new LoadCell(500, 600, TierMode.None, 20),
         Completed = true,
+        NpcsActual = 500,
         WallClockSeconds = 1.5,
         Ticks = 1_440,
         TickP50Ms = 0.1,

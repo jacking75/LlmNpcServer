@@ -122,6 +122,16 @@ public sealed record HostOptions
     public int Seed { get; init; } = 20260725;
 
     /// <summary>
+    /// 인지 스캔 틱당 상한. 기본은 <c>CognitionScheduler.MaxScansPerTick</c>(150),
+    /// <b>0 이면 상한을 푼다</b>.
+    ///
+    /// <b>측정 전용이다</b> — 상한이 걸린 채로는 차수를 판정할 수 없다(무엇을 넣어도 150 에서 잘려
+    /// O(1) 로 보인다). T4-16 의 스케일 곡선이 이 옵션을 쓴다 (docs/14 §6).
+    /// 운영에서 풀면 그것이 틱 예산을 지키는 장치를 없애는 것이다.
+    /// </summary>
+    public int ScanCap { get; init; } = -1;
+
+    /// <summary>
     /// 10Hz 실시간 페이싱을 끄고 최대 속도로 돈다. 부하·게이트 측정용.
     /// 켜면 벽시계를 보지만 <b>게임 로직은 여전히 Tick 만 본다</b> — 리플레이는 깨지지 않는다.
     /// </summary>
@@ -159,6 +169,7 @@ public sealed record HostOptions
           --planstore <dir>       프리베이크된 플랜 스토어 (기본 ./planstore). 없으면 폴백만
           --seed N                Sim 시드 (기본 20260725)
           --port N                대시보드·메트릭 포트 (기본 5080)
+          --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
           --no-dashboard          웹 호스트를 띄우지 않는다
           -h, --help              이 도움말
@@ -429,6 +440,16 @@ public sealed record HostOptions
                     }
 
                     result = result with { Port = port };
+                    break;
+
+                case "--scan-cap":
+                    if (!TryInt(args, ref i, arg, 0, 1_000_000, out int scanCap, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { ScanCap = scanCap };
                     break;
 
                 case "--seed":

@@ -207,7 +207,13 @@ internal sealed class NpcHost : IAsyncDisposable
         };
 
         var bands = new LodBandSet(store);
-        var cognition = new CognitionScheduler(store, bands, plans) { Snapshots = snapshots };
+        var cognition = new CognitionScheduler(store, bands, plans)
+        {
+            Snapshots = snapshots,
+            ScanBudgetPerTick = options.ScanCap >= 0
+                ? options.ScanCap
+                : CognitionScheduler.MaxScansPerTick,
+        };
         var interrupts = new InterruptMatcher(data, store) { Snapshots = snapshots };
 
         // ── 인구 배치 ─────────────────────────────────────────────
