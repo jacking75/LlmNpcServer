@@ -93,6 +93,9 @@ public sealed class NpcMeterTests
             "\"eventsDrained\"", "\"eventGaps\"", "\"eventBacklogs\"",
             "\"replan\"", "\"queueDepth\"", "\"enqueuedPerSecond\"", "\"deviations\"",
             "\"scanPerTick\"", "\"interruptsForced\"",
+            // 캐시 패널 — docs/13 §6 의 4개 지표 + 아키타입별 분해
+            "\"cache\"", "\"hitRate\"", "\"coldBuckets\"", "\"topMisses\"", "\"individualTurnover\"",
+            "\"filledBuckets\"", "\"pinnedBuckets\"", "\"worstArchetypes\"",
             "\"llmCalls\"",
         })
         {
@@ -101,6 +104,52 @@ public sealed class NpcMeterTests
 
         // N4 — 어디에도 벽시계 문자열이 없다.
         Assert.DoesNotContain("DateTime", json, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// T3-04 완료 조건 — <c>/metrics</c> 에 docs/13 §6 의 4개 지표가 있고 아키타입별로 분해된다.
+    ///
+    /// P1 경로(<c>--no-llm</c>·프리베이크 없음)에서는 2,880 버킷이 전부 비어 있으므로
+    /// 히트율 0 · 콜드 2,880 이 <b>정상</b>이다. 채워진 뒤의 값은 T3-21 게이트가 본다.
+    /// </summary>
+    [Fact]
+    public async Task Metrics_HaveCachePanel()
+    {
+        MetricsSnapshot m = await RunAsync(
+            "--loopback", "--npcs", "200", "--time-scale", "600", "--days", "1",
+            "--max-speed", "--no-dashboard");
+
+        // (1) 히트율 (2) 콜드 버킷 수 (3) 미스 상위 버킷 (4) 개별 풀 회전율
+        Assert.InRange(m.Cache.HitRate, 0, 1);
+        Assert.Equal(2_880, m.Cache.ColdBuckets + m.Cache.FilledBuckets);
+        Assert.NotNull(m.Cache.TopMisses);
+        Assert.True(m.Cache.TopMisses.Length <= 10);
+        Assert.Equal(0, m.Cache.IndividualTurnover);   // 개별 풀은 P4 에서 결선한다
+
+        // 프리베이크 전이므로 전 버킷이 비어 있고 조회는 전부 폴백으로 해소된다.
+        Assert.Equal(2_880, m.Cache.ColdBuckets);
+        Assert.Equal(0, m.Cache.PinnedBuckets);
+        Assert.Equal(0, m.Cache.Hits);
+        Assert.True(m.Cache.Misses > 0, "버킷 전환이 한 번도 안 일어났다 — 미스조차 세지 못했다.");
+
+        // 아키타입별 분해가 된다. 조회가 있었던 아키타입만 올라온다.
+        Assert.NotEmpty(m.Cache.WorstArchetypes);
+        Assert.All(m.Cache.WorstArchetypes, row =>
+        {
+            Assert.False(string.IsNullOrEmpty(row.Archetype));
+            Assert.InRange(row.HitRate, 0, 1);
+            Assert.True(row.Hits + row.Misses > 0);
+            Assert.InRange(row.ColdBuckets, 0, 72);
+        });
+
+        // 미스 상위는 내림차순이어야 대시보드가 안 깜빡인다.
+        for (int i = 1; i < m.Cache.TopMisses.Length; i++)
+        {
+            Assert.True(m.Cache.TopMisses[i - 1].Misses >= m.Cache.TopMisses[i].Misses);
+        }
+
+        // 버킷 표기는 blacksmith@Dawn.Peace.Fair 형식이다 (docs/03 §7).
+        Assert.All(m.Cache.TopMisses, row => Assert.Contains("@", row.Bucket, StringComparison.Ordinal));
     }
 
     /// <summary>docs/11 §9 — 인지 스캔 대상은 틱당 150 이하여야 한다.</summary>

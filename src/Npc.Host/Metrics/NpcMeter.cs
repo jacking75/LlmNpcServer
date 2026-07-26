@@ -91,12 +91,56 @@ public readonly record struct ReplanPanel(
     long InterruptsForced,
     long InterruptsSuppressed);
 
-/// <summary>대시보드가 폴링하는 /metrics 한 장. docs/11 §10 의 5패널.</summary>
+/// <summary>미스가 많은 버킷 하나. docs/13 §6 의 <c>top_miss</c>.</summary>
+/// <param name="Bucket"><c>blacksmith@Dawn.Peace.Fair</c> 표기.</param>
+/// <param name="Misses">미스 수.</param>
+public readonly record struct BucketMissRow(string Bucket, long Misses);
+
+/// <summary>아키타입 하나의 캐시 성적. docs/13 §6.</summary>
+/// <param name="Archetype">아키타입 id 문자열.</param>
+/// <param name="HitRate">히트율.</param>
+/// <param name="Hits">히트 수.</param>
+/// <param name="Misses">미스 수.</param>
+/// <param name="ColdBuckets">72버킷 중 미생성 수.</param>
+public readonly record struct ArchetypeCacheRow(
+    string Archetype,
+    double HitRate,
+    long Hits,
+    long Misses,
+    int ColdBuckets);
+
+/// <summary>
+/// 캐시 패널. docs/13 §6 의 4개 지표 + 아키타입별 분해. 패널을 그리는 것은 T4-18 이다.
+/// </summary>
+/// <param name="HitRate">전체 히트율. P3 게이트는 시나리오 A 에서 ≥ 0.98 이다.</param>
+/// <param name="Hits">버킷 히트 누계.</param>
+/// <param name="Misses">폴백으로 해소된 미스 누계.</param>
+/// <param name="FilledBuckets">채워진 버킷 수 (2,880 중).</param>
+/// <param name="ColdBuckets">미생성 버킷 수. 0 이 아니면 <c>--resume</c> 으로 마저 생성한다.</param>
+/// <param name="PinnedBuckets">사람이 고정한 버킷 수.</param>
+/// <param name="IndividualTurnover">개별 플랜 풀 회전율. 크면 개별 재계획이 과다하다.</param>
+/// <param name="IndividualLive">살아 있는 개별 플랜 수.</param>
+/// <param name="TopMisses">미스 상위 10 버킷.</param>
+/// <param name="WorstArchetypes">히트율 최하위 아키타입 10종 (조회가 있었던 것만).</param>
+public readonly record struct CachePanel(
+    double HitRate,
+    long Hits,
+    long Misses,
+    int FilledBuckets,
+    int ColdBuckets,
+    int PinnedBuckets,
+    double IndividualTurnover,
+    int IndividualLive,
+    BucketMissRow[] TopMisses,
+    ArchetypeCacheRow[] WorstArchetypes);
+
+/// <summary>대시보드가 폴링하는 /metrics 한 장. docs/11 §10 의 5패널 + docs/13 §6 의 캐시 패널.</summary>
 /// <param name="Tick">틱 패널.</param>
 /// <param name="Npc">NPC 패널.</param>
 /// <param name="Actions">액션 Top 10.</param>
 /// <param name="Link">링크 패널 (N6 시퀀스 갭 포함).</param>
 /// <param name="Replan">재계획 패널.</param>
+/// <param name="Cache">플랜 캐시 패널 (docs/13 §6).</param>
 /// <param name="LlmCalls">
 /// LLM 호출 수 (재시도 포함). 컴파일 계측기가 붙어 있지 않으면 0 이다 —
 /// <c>--no-llm</c> 으로 도는 P1 경로가 그렇다.
@@ -107,6 +151,7 @@ public readonly record struct MetricsSnapshot(
     ActionCount[] Actions,
     LinkPanel Link,
     ReplanPanel Replan,
+    CachePanel Cache,
     long LlmCalls);
 
 /// <summary>
@@ -142,6 +187,7 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
     private readonly GameClock _clock;
     private readonly MasterDataSet _data;
     private readonly CompileStatsCollector? _compile;
+    private readonly CacheMetrics _cache;
 
     private readonly double[] _samples = new double[Window];
     private readonly double[] _sorted = new double[Window];
@@ -172,7 +218,8 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         NpcServerLoop loop,
         GameClock clock,
         MasterDataSet data,
-        CompileStatsCollector? compile = null)
+        CompileStatsCollector? compile = null,
+        CacheMetrics? cache = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(bands);
@@ -196,6 +243,9 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         _clock = clock;
         _data = data;
         _compile = compile;
+
+        // 카운터는 PlanStore·IndividualPlanPool 이 들고 있다. 계측기만 여기서 만든다 (docs/13 §6).
+        _cache = cache ?? new CacheMetrics(plans);
         _byAction = new int[data.Actions.MaxCode + 1];
 
         _meter = new Meter(MeterName);
@@ -223,6 +273,23 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
             "npc.link.events_drained", () => _loop.EventsDrained, description: "배수한 이벤트");
         _meter.CreateObservableCounter(
             "npc.link.event_gaps", () => _loop.EventGaps, description: "시퀀스 갭 (N6)");
+
+        // ── 플랜 캐시. docs/13 §6 의 4개 지표 ──
+        //
+        // 상위 미스 버킷은 게이지 하나에 담을 수 없어(값이 배열이다) 1위의 미스 수만 낸다.
+        // 목록 전체는 /metrics 의 캐시 패널에 있다.
+        _meter.CreateObservableGauge(
+            "npc.plan.cache.hit_ratio", () => _cache.HitRate, description: "버킷 캐시 히트율. 게이트는 ≥ 0.98");
+        _meter.CreateObservableGauge(
+            "npc.plan.cache.cold_buckets", () => _cache.ColdBuckets, description: "미생성 버킷 수 (2,880 중)");
+        _meter.CreateObservableGauge(
+            "npc.plan.cache.top_miss",
+            () => _cache.TopMisses(1) is [{ Misses: var top }, ..] ? top : 0,
+            description: "가장 많이 미스한 버킷의 미스 수");
+        _meter.CreateObservableGauge(
+            "npc.plan.individual.turnover",
+            () => _cache.IndividualTurnover,
+            description: "개별 플랜 풀 회전율. 크면 개별 재계획이 과다하다");
 
         // 프리픽스 해시가 2종 이상이면 프롬프트 캐시가 깨진 것이다 (docs/01 §10.2).
         // 상시 감시 대상이라 대시보드가 아니라 계측기에 둔다.
@@ -361,11 +428,43 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
                 ScanPerTick: _cognition.LastScanned,
                 InterruptsForced: _interrupts.Forced,
                 InterruptsSuppressed: _interrupts.Suppressed),
+            Cache: CacheOf(_cache.Snapshot()),
             LlmCalls: _compile?.Calls ?? 0);
     }
 
+    /// <summary>캐시 계측. 게이트 러너가 히트율을 여기서 읽는다.</summary>
+    public CacheMetrics Cache => _cache;
+
     /// <inheritdoc />
     public void Dispose() => _meter.Dispose();
+
+    /// <summary>
+    /// 버킷 code 를 사람이 읽는 표기로 바꾼다. 아키타입 문자열 id 를 아는 곳은 여기뿐이라
+    /// <c>Npc.Planning</c> 의 집계를 호스트에서 한 번 옮긴다.
+    /// </summary>
+    private CachePanel CacheOf(CacheStats stats) => new(
+        HitRate: Math.Round(stats.HitRate, 4),
+        Hits: stats.Hits,
+        Misses: stats.Misses,
+        FilledBuckets: stats.FilledBuckets,
+        ColdBuckets: stats.ColdBuckets,
+        PinnedBuckets: stats.PinnedBuckets,
+        IndividualTurnover: Math.Round(stats.IndividualTurnover, 4),
+        IndividualLive: stats.IndividualLive,
+        TopMisses:
+        [
+            .. stats.TopMisses.Select(m => new BucketMissRow(
+                m.Bucket.Format(_data.Archetypes[m.Bucket.A].Id), m.Misses)),
+        ],
+        WorstArchetypes:
+        [
+            .. stats.WorstArchetypes.Select(a => new ArchetypeCacheRow(
+                _data.Archetypes[a.Archetype].Id,
+                Math.Round(a.HitRate, 4),
+                a.Hits,
+                a.Misses,
+                a.ColdBuckets)),
+        ]);
 
     private LinkPanel LinkOf(LinkStats stats) => new(
         CommandsEnqueued: stats.CommandsEnqueued,
