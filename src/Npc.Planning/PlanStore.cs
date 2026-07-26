@@ -286,6 +286,17 @@ public sealed class PlanStore
     /// <summary>이 버킷이 캐시에 있는가. 히트/미스를 세지 않는다.</summary>
     public bool HasBucket(BucketKey key) => Volatile.Read(ref _byBucket[key.ToIndex()]) != IdlePlanId;
 
+    /// <summary>
+    /// 버킷 플랜을 <b>세지 않고</b> 본다. 미생성이면 null.
+    /// 저장(T3-07)·manifest 집계처럼 히트율에 실려서는 안 되는 경로가 쓴다.
+    /// </summary>
+    public CompiledPlan? PeekBucket(BucketKey key)
+    {
+        int planId = Volatile.Read(ref _byBucket[key.ToIndex()]);
+
+        return planId == IdlePlanId ? null : this[planId];
+    }
+
     /// <summary>이 버킷 플랜의 출처. 미생성이면 <see cref="PlanOrigin.Fallback"/>.</summary>
     public PlanOrigin OriginOf(BucketKey key)
     {
