@@ -43,7 +43,29 @@
 
 ## 2. 디코딩 모드별 통과율 (T2-09 · T2-19)
 
-*T2-19 첫 회차에서 채운다.* `response_format=json_schema`(forced) 와 프롬프트 모드를 같은 조건으로 잰다.
+### 2.1 프롬프트 모드 1차 실측 (T2-09, 2026-07-26)
+
+`Compiler_ProducesValidJson` — 임의 버킷 20건(결정론 표본, stride 991), 재시도 없음.
+
+| 엔진 | 디코딩 | 유효 JSON | 비고 |
+|---|---|---:|---|
+| `gemini-3.5-flash-lite` | prompt | **20/20** | 소요 30초. 1·2단 통과는 0 초과만 확인 |
+
+W1 스파이크의 같은 모델이 94/100 이었던 것과 비교하면 프리픽스 보강(플래그 표·레시피·아키타입 표)이 유효 JSON 비율을 끌어올렸다. **다만 20건은 표본이 작다** — 확정은 T2-19 전량 회차다.
+
+### 2.2 forced 모드는 아직 못 쟀다 — 무료 등급 일일 한도
+
+**2026-07-26 실측: Gemini 무료 등급은 모델마다 하루 500건이다.**
+
+```
+quotaId : GenerateRequestsPerDayPerProjectPerModel-FreeTier
+metric  : generativelanguage.googleapis.com/generate_content_free_tier_requests
+limit   : 500  (model: gemini-3.1-flash-lite)
+```
+
+이날 `gemini-3.1-flash-lite`·`gemini-3.5-flash-lite`·`gemini-3.5-flash` 셋 다 429 로 막혔다(W1 스파이크가 이미 상당량을 썼다). 그래서 forced 모드 20건을 잇달아 돌리지 못했다.
+
+**이것은 T2-19(2,880 버킷 전량 생성)의 전제를 바꾼다.** 무료 등급 하루치로는 한 모델당 500건이라 전량 1회차조차 하루에 끝나지 않는다. 선택지는 `TASKS.md §3` 의 결정 대기 항목에 적었다.
 
 ## 3. 통과율 — 전체 / 아키타입별 / 버킷 차원별 (T2-19 · T2-21)
 
