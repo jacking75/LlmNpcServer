@@ -108,6 +108,50 @@ if (!engine.IsConfigured)
     return 2;
 }
 
+// T3-11 실측 — 워밍업 유무 비용 차이. 두 회차의 프리픽스를 소금으로 갈라 둘 다 콜드로 만든다.
+if (options.WarmupExperiment > 0)
+{
+    using IChatClient probe = ChatClientFactory.Create(engine);
+
+    BucketKey sample = buckets[0];
+    string suffix = PlanRequestSuffix.Build(new PlanRequest(sample, data.InitialFlags(sample)), data);
+
+    Console.WriteLine($"engine     : {engine.Id}");
+    Console.WriteLine($"실험       : 동시 {options.WarmupExperiment} · 버킷 {sample.Format(data.Archetypes[sample.A].Id)}");
+    Console.WriteLine();
+
+    // 소금에 --generated-at 을 섞는다. 회차마다 다른 값을 주지 않으면 두 번째 실행이
+    // 첫 번째가 만들어 둔 캐시를 물려받아 "워밍업 없음" 쪽이 이겨 버린다 (실측으로 확인했다).
+    string run = options.GeneratedAt.Length > 0 ? options.GeneratedAt : "default";
+
+    if (options.GeneratedAt.Length == 0)
+    {
+        Console.WriteLine("warn: --generated-at 를 주지 않았다. 같은 소금이라 두 번째 실행부터 캐시가 오염된다.");
+    }
+
+    WarmupExperiment without = await Warmup.MeasureAsync(
+        probe, engine, prefix.Text, prefix.Schema, suffix,
+        options.WarmupExperiment, withWarmup: false, salt: $"// prebake warmup experiment {run}: A\n");
+
+    WarmupExperiment with = await Warmup.MeasureAsync(
+        probe, engine, prefix.Text, prefix.Schema, suffix,
+        options.WarmupExperiment, withWarmup: true, salt: $"// prebake warmup experiment {run}: B\n");
+
+    Console.WriteLine($"워밍업 없음 : 동시 {without.Concurrency} · 캐시 {without.WaveCachedTokens}/{without.WavePromptTokens} tok"
+        + $" ({without.WaveCacheHitRate:P1}) · ${without.TotalCostUsd:F6}");
+    Console.WriteLine($"워밍업 있음 : 단건 1 + 동시 {with.Concurrency} · 캐시 {with.WaveCachedTokens}/{with.WavePromptTokens} tok"
+        + $" ({with.WaveCacheHitRate:P1}) · ${with.TotalCostUsd:F6}");
+
+    double saved = without.TotalCostUsd - with.TotalCostUsd;
+
+    Console.WriteLine(
+        $"차이       : ${saved:F6}"
+        + (without.TotalCostUsd > 0 ? $" ({saved / without.TotalCostUsd:P1})" : string.Empty)
+        + $" · 요청 {without.Concurrency} vs {with.Concurrency + 1}");
+
+    return 0;
+}
+
 Console.WriteLine($"engine     : {engine.Id} (forced={engine.ForceJsonSchema})");
 Console.WriteLine($"concurrency: {options.Concurrency} (AIMD, 상한 {options.MaxConcurrency})");
 Console.WriteLine($"budget     : ${options.BudgetUsd:F2}");
@@ -123,17 +167,30 @@ var runner = new BulkRunner(
         PlanStoreDirectory: options.Out,
         DryRunSample: options.DryRunSample));
 
-BulkRunReport report = await runner.RunAsync(
-    buckets,
-    () => ChatClientFactory.Create(engine),
-    (done, total, message) =>
-    {
-        if (done % 25 == 0 || done == total)
+// 5. 프리픽스 워밍업 1회 → 6. 동시 N 워커.
+//    순서가 뒤집히면 캐시 write 를 동시성 수만큼 낸다 (docs/13 §4 · §8).
+using IChatClient warmupClient = ChatClientFactory.Create(engine);
+
+(WarmupResult warmup, BulkRunReport report) = await Warmup.RunThenAsync(
+    ct => Warmup.RunAsync(warmupClient, engine, prefix, data, buckets[0], cancellationToken: ct),
+    ct => runner.RunAsync(
+        buckets,
+        () => ChatClientFactory.Create(engine),
+        (done, total, message) =>
         {
-            Console.WriteLine($"  [{done,5}/{total}] {message}");
-        }
-    },
+            if (done % 25 == 0 || done == total)
+            {
+                Console.WriteLine($"  [{done,5}/{total}] {message}");
+            }
+        },
+        ct),
     CancellationToken.None);
+
+Console.WriteLine(
+    warmup.Attempted
+        ? $"워밍업        : {(warmup.Succeeded ? "성공" : "실패 — " + warmup.Error)} · "
+            + $"{warmup.LatencyMs:F0}ms · {warmup.CachedTokens}/{warmup.PromptTokens} tok 캐시 · ${warmup.CostUsd:F6}"
+        : "워밍업        : 건너뜀 (로컬 엔진은 cached_tokens 를 보고하지 않는다)");
 
 // 7. 통과한 것을 plans/ 에 쓴다. pinned 는 건드리지 않는다
 int written = PlanStoreIo.SaveAll(options.Out, runner.Store, data);

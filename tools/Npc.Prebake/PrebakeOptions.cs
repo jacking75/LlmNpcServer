@@ -91,6 +91,12 @@ public sealed record PrebakeOptions
     /// <summary>LLM 을 부르지 않고 대상 산출까지만 한다. 대상 목록·무효화 판정 확인용.</summary>
     public bool Plan { get; init; }
 
+    /// <summary>
+    /// 워밍업 유무 비용 차이만 실측하고 끝낸다 (T3-11). 값은 회차당 동시 요청 수다.
+    /// <b>외부 엔진에서만 의미가 있다</b> — 로컬은 <c>cached_tokens</c> 를 항상 0 으로 보고한다.
+    /// </summary>
+    public int WarmupExperiment { get; init; }
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -116,6 +122,7 @@ public sealed record PrebakeOptions
           --archetypes N         앞 N 개 아키타입의 72버킷을 연속으로 (측정 회차용)
           --print-prefix         프리픽스 절별 토큰 수만 찍고 끝낸다
           --plan                 LLM 을 부르지 않고 대상 산출까지만 (무효화 판정 확인)
+          --warmup-experiment N  워밍업 유무 비용 차이만 실측하고 끝낸다 (T3-11). N = 동시 요청 수
           -h, --help             이 도움말
         """;
 
@@ -308,6 +315,16 @@ public sealed record PrebakeOptions
                     }
 
                     result = result with { MaxConcurrency = maxConcurrency };
+                    break;
+
+                case "--warmup-experiment":
+                    if (!TryInt(args, ref i, arg, 1, 64, out int experiment, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { WarmupExperiment = experiment };
                     break;
 
                 case "--limit":
