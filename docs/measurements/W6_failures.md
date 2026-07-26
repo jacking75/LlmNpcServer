@@ -17,61 +17,60 @@
 | 8 | `W6_round7.jsonl` | 60 | 47 | 78.3 % | 35 | 13 | 0.1084 |
 | 9 | `W6_round8.jsonl` | 60 | 47 | 78.3 % | 31 | 13 | 0.1249 |
 | 10 | `W6_round10.jsonl` | 60 | 47 | 78.3 % | 27 | 13 | 0.1240 |
+| 11 | `W6_slice288.jsonl` | 288 | 186 | 64.6 % | 107 | 45 | 0.4595 |
 
 ## 2. 상위 실패 원인 Top 5 (마지막 차수)
 
 | 순위 | stage | code | 건수 | 비중 | 처방 (docs/12 §8) |
 |---:|---|---|---:|---:|---|
-| 1 | Coherence | `V3.PRECONDITION_UNMET` | 7 | 11.7 % | requires/grants 관계 미이해. 액션 카탈로그에 플래그 표, few-shot 에 수정 예시. |
-| 2 | Vocabulary | `V2.RANGE` | 3 | 5.0 % | 정수 범위 위반. 카탈로그의 range 표기를 강조한다. |
-| 3 | Vocabulary | `V2.TYPE_MISMATCH` | 1 | 1.7 % | 인자 타입 불일치. 열거값 목록을 카탈로그에 명시한다. |
-| 4 | Coherence | `V3.DEGENERATE` | 1 | 1.7 % | 같은 액션 3연속. few-shot 에 다양한 모양을 넣는다. |
-| 5 | DryRun | `V4.INFINITE_LOOP` | 1 | 1.7 % | 사이클이 하루보다 짧다. Sleep until 로 하루를 채우게 한다. |
+| 1 | Coherence | `V3.PRECONDITION_UNMET` | 58 | 20.1 % | requires/grants 관계 미이해. 액션 카탈로그에 플래그 표, few-shot 에 수정 예시. |
+| 2 | Coherence | `V3.RESOURCE_IMBALANCE` | 19 | 6.6 % | 수량 계산 실패. 레시피 입출력을 싣거나 count 를 심볼화한다 (T2-23). |
+| 3 | Vocabulary | `V2.RANGE` | 8 | 2.8 % | 정수 범위 위반. 카탈로그의 range 표기를 강조한다. |
+| 4 | Schema | `V1.STEP_COUNT` | 6 | 2.1 % | 스텝 수가 3~10 밖. system_rules 의 스텝 수 규칙을 강조한다. |
+| 5 | DryRun | `V4.RESOURCE_STARVE` | 5 | 1.7 % | 자기가 모은 자원이 바닥난다. 채집량을 늘리거나 소비를 줄이게 한다. |
 
 ## 3. 단계별 (마지막 차수)
 
 | stage | 건수 |
 |---|---:|
-| Coherence | 8 |
-| Vocabulary | 4 |
-| DryRun | 1 |
+| Coherence | 77 |
+| Vocabulary | 12 |
+| DryRun | 7 |
+| Schema | 6 |
 
 ## 4. 아키타입별 (마지막 차수, 실패 많은 순 상위 15)
 
 | 아키타입 | 시도 | 통과 | 통과율 | 가장 흔한 실패 |
 |---|---:|---:|---:|---|
-| healer | 2 | 0 | 0 % | V3.PRECONDITION_UNMET (2) |
-| hunter | 1 | 0 | 0 % | V2.RANGE (1) |
-| scribe | 2 | 0 | 0 % | V2.RANGE (1) |
-| stablemaster | 1 | 0 | 0 % | V2.TYPE_MISMATCH (1) |
-| tailor | 1 | 0 | 0 % | V2.RANGE (1) |
-| wandering_bard | 1 | 0 | 0 % | V3.PRECONDITION_UNMET (1) |
-| alchemist | 2 | 1 | 50 % | V3.PRECONDITION_UNMET (1) |
-| brewer | 2 | 1 | 50 % | V3.PRECONDITION_UNMET (1) |
-| carpenter | 2 | 1 | 50 % | V3.PRECONDITION_UNMET (1) |
-| innkeeper | 2 | 1 | 50 % | V3.DEGENERATE (1) |
-| jeweler | 2 | 1 | 50 % | V4.INFINITE_LOOP (1) |
-| acolyte | 1 | 1 | 100 % | - |
-| baker | 1 | 1 | 100 % | - |
-| banker | 2 | 2 | 100 % | - |
-| beggar | 1 | 1 | 100 % | - |
+| alchemist | 72 | 41 | 57 % | V3.RESOURCE_IMBALANCE (15) |
+| blacksmith | 72 | 48 | 67 % | V3.PRECONDITION_UNMET (16) |
+| tailor | 72 | 48 | 67 % | V3.PRECONDITION_UNMET (15) |
+| carpenter | 72 | 49 | 68 % | V3.PRECONDITION_UNMET (15) |
 
 ## 5. (stage, code, archetype) 3축 (마지막 차수, 상위 20)
 
 | stage | code | 아키타입 | 건수 |
 |---|---|---|---:|
-| Coherence | `V3.PRECONDITION_UNMET` | healer | 2 |
-| Vocabulary | `V2.RANGE` | hunter | 1 |
-| Vocabulary | `V2.RANGE` | scribe | 1 |
+| Coherence | `V3.PRECONDITION_UNMET` | blacksmith | 16 |
+| Coherence | `V3.PRECONDITION_UNMET` | carpenter | 15 |
+| Coherence | `V3.PRECONDITION_UNMET` | tailor | 15 |
+| Coherence | `V3.RESOURCE_IMBALANCE` | alchemist | 15 |
+| Coherence | `V3.PRECONDITION_UNMET` | alchemist | 12 |
+| Vocabulary | `V2.RANGE` | blacksmith | 3 |
+| DryRun | `V4.RESOURCE_STARVE` | carpenter | 3 |
+| Schema | `V1.STEP_COUNT` | carpenter | 2 |
+| Schema | `V1.STEP_COUNT` | tailor | 2 |
+| Vocabulary | `V2.ACTION_NOT_ALLOWED` | blacksmith | 2 |
+| Vocabulary | `V2.ACTION_NOT_ALLOWED` | tailor | 2 |
+| Vocabulary | `V2.RANGE` | alchemist | 2 |
+| Vocabulary | `V2.RANGE` | carpenter | 2 |
+| Coherence | `V3.RESOURCE_IMBALANCE` | tailor | 2 |
+| DryRun | `V4.RESOURCE_STARVE` | tailor | 2 |
+| Schema | `V1.STEP_COUNT` | alchemist | 1 |
+| Schema | `V1.STEP_COUNT` | blacksmith | 1 |
 | Vocabulary | `V2.RANGE` | tailor | 1 |
-| Vocabulary | `V2.TYPE_MISMATCH` | stablemaster | 1 |
-| Coherence | `V3.DEGENERATE` | innkeeper | 1 |
-| Coherence | `V3.PRECONDITION_UNMET` | alchemist | 1 |
-| Coherence | `V3.PRECONDITION_UNMET` | brewer | 1 |
-| Coherence | `V3.PRECONDITION_UNMET` | carpenter | 1 |
-| Coherence | `V3.PRECONDITION_UNMET` | scribe | 1 |
-| Coherence | `V3.PRECONDITION_UNMET` | wandering_bard | 1 |
-| DryRun | `V4.INFINITE_LOOP` | jeweler | 1 |
+| Coherence | `V3.RESOURCE_IMBALANCE` | blacksmith | 1 |
+| Coherence | `V3.RESOURCE_IMBALANCE` | carpenter | 1 |
 
 ## 6. 판단
 

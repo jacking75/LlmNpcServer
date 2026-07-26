@@ -17,6 +17,7 @@ int limit = 0;
 int concurrency = 8;
 int stride = 1;
 bool printPrefix = false;
+int archetypes = 0;
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -50,6 +51,10 @@ for (int i = 0; i < args.Length; i++)
             concurrency = int.Parse(args[++i], CultureInfo.InvariantCulture);
             break;
 
+        case "--archetypes" when i + 1 < args.Length:
+            archetypes = int.Parse(args[++i], CultureInfo.InvariantCulture);
+            break;
+
         case "--print-prefix":
             printPrefix = true;
             break;
@@ -66,6 +71,8 @@ for (int i = 0; i < args.Length; i++)
                   --limit <n>          앞에서 n 개만 (0 = 전량 2,880)
                   --stride <n>         버킷을 n 간격으로 골라 표본을 흩는다 (기본 1)
                   --concurrency <n>    시작 동시성. 기본 8 — AIMD 로 올린다
+                  --archetypes <n>     앞 n 개 아키타입의 72버킷을 전부 (연속 슬라이스).
+                                       인접 버킷 재사용을 실제로 태우려면 연속이어야 한다
                   --print-prefix       프리픽스 절별 토큰 수만 찍고 끝낸다 (W6_compile_stats §1)
                 """);
             return 0;
@@ -113,6 +120,16 @@ if (stride > 1)
     buckets = [.. Enumerable.Range(0, BucketKey.TotalKeys)
         .Select(i => BucketKey.FromIndex(i * stride % BucketKey.TotalKeys))
         .Distinct()];
+}
+
+// 연속 슬라이스. 인접 버킷(같은 아키타입의 다른 상황)이 스토어에 들어와야
+// 재사용 경로가 동작한다 — 흩어진 표본으로는 폴백 비율을 잴 수 없다.
+if (archetypes > 0)
+{
+    int perArchetype = BucketKey.TimeOfDayCount * BucketKey.RegionStateCount * BucketKey.ClimateCount;
+
+    buckets = [.. Enumerable.Range(0, Math.Min(archetypes, BucketKey.ArchetypeCount) * perArchetype)
+        .Select(BucketKey.FromIndex)];
 }
 
 if (limit > 0 && limit < buckets.Count)
