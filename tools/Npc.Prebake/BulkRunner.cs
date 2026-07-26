@@ -21,7 +21,10 @@ namespace Npc.Prebake;
 /// 이만큼 연속 성공하면 동시성을 1 올린다 (additive increase). docs/13 §4 의 16 이다.
 /// </param>
 /// <param name="MaxRateLimitRetries">429 로 물러난 버킷을 다시 던지는 횟수 상한.</param>
-/// <param name="BackoffMs">429 를 만났을 때 물러나는 시간. 재시도마다 2배가 된다.</param>
+/// <param name="BackoffMs">
+/// 429 를 만났을 때 물러나는 기본 시간. 실제 지연은 <see cref="RetryPolicy.DelayMs"/> 가
+/// 지수 + 결정론 지터로 계산한다. 테스트는 0 을 줘서 기다리지 않게 한다.
+/// </param>
 /// <param name="PlanStoreDirectory">산출물을 쓸 곳. null 이면 파일을 쓰지 않는다.</param>
 /// <param name="DryRunSample">드라이런(4단)을 돌릴 비율. 1.0 이면 전수 (docs/13 §8).</param>
 public sealed record BulkRunOptions(
@@ -226,20 +229,28 @@ public sealed class BulkRunner
                 .ConfigureAwait(false);
 
             bool sawRateLimit = false;
+            int backoffMs = 0;
 
             for (int i = 0; i < wave.Count; i++)
             {
                 (int index, int retries) = wave[i];
                 PlanCompileResult result = results[i];
 
-                if (IsRateLimited(result))
+                if (RetryPolicy.IsRateLimited(result.Stats.Error))
                 {
                     sawRateLimit = true;
 
                     // 아직 여유가 있으면 다시 던진다. 물러난 것은 결과로 세지 않는다.
-                    if (retries < _options.MaxRateLimitRetries)
+                    if (RetryPolicy.ShouldRetry(retries, _options.MaxRateLimitRetries))
                     {
                         pending.Enqueue((index, retries + 1));
+
+                        // 물결 안에서 가장 오래 기다려야 하는 만큼 물러난다.
+                        // 지터는 (버킷 인덱스, 시도) 해시라 결정론이다 (CLAUDE.md §2.3).
+                        backoffMs = Math.Max(
+                            backoffMs,
+                            RetryPolicy.DelayMs(buckets[index].ToIndex(), retries + 1, _options.BackoffMs));
+
                         continue;
                     }
                 }
@@ -253,7 +264,11 @@ public sealed class BulkRunner
             {
                 aimd.OnThrottled();   // multiplicative decrease
 
-                await Task.Delay(_options.BackoffMs, cancellationToken).ConfigureAwait(false);
+                if (backoffMs > 0)
+                {
+                    await Task.Delay(backoffMs, cancellationToken).ConfigureAwait(false);
+                }
+
                 continue;
             }
 
@@ -305,9 +320,6 @@ public sealed class BulkRunner
             plan?.Goal ?? string.Empty,
             actions);
     }
-
-    private static bool IsRateLimited(in PlanCompileResult result) =>
-        result.Stats.Error is { } error && error.Contains("429", StringComparison.Ordinal);
 
     private string Describe(BucketKey bucket, in PlanCompileResult result) =>
         result.Validation.IsValid

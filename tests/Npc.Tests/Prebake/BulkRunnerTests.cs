@@ -123,6 +123,38 @@ public sealed class BulkRunnerTests
         Assert.Equal(16, report.Passed);
     }
 
+    /// <summary>
+    /// T3-13 완료 조건 — 429 를 계속 주입해도 전량 완주한다.
+    ///
+    /// 세 번에 한 번씩 429 를 던진다. 백오프가 물러나고 AIMD 가 동시성을 접으면서도
+    /// 버킷 하나도 빠뜨리지 않아야 한다 — 빠지면 그 버킷은 영구 미생성으로 남는다.
+    /// </summary>
+    [Fact]
+    public async Task Run_CompletesEveryBucketUnderSustainedRateLimits()
+    {
+        int calls = 0;
+
+        BulkRunReport report = await Runner(
+            new BulkRunOptions(Concurrency: 8, BackoffMs: 0, MaxRateLimitRetries: 8)).RunAsync(
+            BlacksmithBuckets(24),
+            () => new FakeChatClient(_ =>
+                Interlocked.Increment(ref calls) % 3 == 0
+                    ? throw new HttpRequestException("Service request failed. Status: 429 (Too Many Requests)")
+                    : ValidPlan.Replace("$recipe", "iron_sword", StringComparison.Ordinal)));
+
+        Assert.True(report.RateLimitHits > 0, "429 가 한 번도 주입되지 않았다.");
+        Assert.Equal(24, report.Total);
+        Assert.Equal(24, report.Passed);
+
+        // 결과 배열에 구멍이 없다 — 버킷 순서도 입력 순서 그대로다.
+        ImmutableArray<BucketKey> expected = BlacksmithBuckets(24);
+
+        for (int i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(expected[i], report.Outcomes[i].Bucket);
+        }
+    }
+
     [Fact]
     public async Task Run_WritesRejectedArtifacts()
     {
