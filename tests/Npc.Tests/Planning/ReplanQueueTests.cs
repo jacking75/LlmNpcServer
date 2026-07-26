@@ -338,6 +338,34 @@ public sealed class ReplanQueueTests
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
     }
 
+    /// <summary>T4-19 — 점수 분포. 마지막 칸이 인터럽트 전용이다 (docs/14 §8).</summary>
+    [Fact]
+    public void ReplanQueue_ScoreHistogramSeparatesUrgent()
+    {
+        var queue = new ReplanQueue(100);
+        Span<int> buckets = stackalloc int[11];
+
+        // 빈 큐는 전부 0 이다.
+        Assert.Equal(0, queue.ScoreHistogram(buckets));
+        Assert.Equal(0, buckets.ToArray().Sum());
+
+        queue.TryEnqueue(1, 5f);        // 0~100 칸
+        queue.TryEnqueue(2, 9.5f);      // 0~100 칸 (일반 점수 상한)
+        queue.TryEnqueue(3, 250f);      // 200~300 칸
+        queue.TryEnqueueUrgent(4, 0);   // 인터럽트
+        queue.TryEnqueueUrgent(5, 100); // 인터럽트
+
+        Assert.Equal(5, queue.ScoreHistogram(buckets));
+
+        Assert.Equal(2, buckets[0]);    // [0, 100)
+        Assert.Equal(1, buckets[2]);    // [200, 300)
+        Assert.Equal(2, buckets[^1]);   // 1000+
+        Assert.Equal(5, buckets.ToArray().Sum());
+
+        // 칸이 2개 미만이면 그리지 않는다.
+        Assert.Equal(0, queue.ScoreHistogram(stackalloc int[1]));
+    }
+
     [Fact]
     public void ReplanQueue_ClearEmptiesEverything()
     {

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Npc.Contracts;
 using Npc.Core.Plan;
+using Npc.Host.Replan;
 using Npc.Llm;
 using Npc.MasterData;
 using Npc.Planning;
@@ -76,7 +77,30 @@ public readonly record struct LinkPanel(
     long EventGaps,
     long EventBacklogs);
 
-/// <summary>재계획 패널. docs/11 §10.</summary>
+/// <summary>티어 하나의 처리율. docs/14 §8 재계획 패널.</summary>
+/// <param name="Tier">티어 이름.</param>
+/// <param name="Source">일감 공급원 이름 (<c>individual</c>·<c>bucket</c>).</param>
+/// <param name="Workers">워커 수.</param>
+/// <param name="Busy">지금 LLM 호출 중인 워커 수.</param>
+/// <param name="Depth">공급원의 대기 수.</param>
+/// <param name="Taken">꺼낸 일감 누계.</param>
+/// <param name="Applied">반영한 플랜 누계.</param>
+/// <param name="Failed">플랜을 못 만든 누계.</param>
+/// <param name="PerSecond">초당 처리율.</param>
+/// <param name="AvgWaitTicks">큐에서 기다린 평균 틱.</param>
+public readonly record struct TierThroughputRow(
+    string Tier,
+    string Source,
+    int Workers,
+    int Busy,
+    int Depth,
+    long Taken,
+    long Applied,
+    long Failed,
+    double PerSecond,
+    double AvgWaitTicks);
+
+/// <summary>재계획 패널. docs/11 §10 · docs/14 §8 (T4-19).</summary>
 /// <param name="QueueDepth">큐 깊이.</param>
 /// <param name="EnqueuedPerSecond">초당 유입.</param>
 /// <param name="Deviations">이탈 판정 누적.</param>
@@ -84,6 +108,14 @@ public readonly record struct LinkPanel(
 /// <param name="InterruptsForced">인터럽트가 즉시 발행한 액션 수.</param>
 /// <param name="InterruptsSuppressed">같은 규칙이 이어서 걸려 넘긴 수.</param>
 /// <param name="QueueDropped">큐가 포화해 버린 요청 수. docs/14 §6 의 "큐: 거절 수".</param>
+/// <param name="QueueDepthP99">관측 창의 큐 깊이 p99.</param>
+/// <param name="UrgentCount">큐에 있는 인터럽트 항목 수. 상한은 용량의 50% 다 (T4-03).</param>
+/// <param name="UrgentDropped">인터럽트 슬롯 상한에 걸려 거절한 수.</param>
+/// <param name="ScoreHistogram">
+/// 점수 분포. 마지막 칸이 인터럽트(1000+)이고 앞 칸들이 <c>[0, 1000)</c> 을 균등 분할한다.
+/// </param>
+/// <param name="Tiers">티어별 처리율. 티어가 꺼져 있으면 빈 배열이다.</param>
+/// <param name="StaleDiscarded">낡아서 폐기하고 재삽입한 요청 수 (T4-04).</param>
 public readonly record struct ReplanPanel(
     int QueueDepth,
     double EnqueuedPerSecond,
@@ -91,7 +123,13 @@ public readonly record struct ReplanPanel(
     int ScanPerTick,
     long InterruptsForced,
     long InterruptsSuppressed,
-    long QueueDropped = 0);
+    long QueueDropped = 0,
+    int QueueDepthP99 = 0,
+    int UrgentCount = 0,
+    long UrgentDropped = 0,
+    int[]? ScoreHistogram = null,
+    TierThroughputRow[]? Tiers = null,
+    long StaleDiscarded = 0);
 
 /// <summary>미스가 많은 버킷 하나. docs/13 §6 의 <c>top_miss</c>.</summary>
 /// <param name="Bucket"><c>blacksmith@Dawn.Peace.Fair</c> 표기.</param>
@@ -174,6 +212,9 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
     /// <summary>백분위를 계산할 관측 창(틱 수). 2의 거듭제곱.</summary>
     public const int Window = 4_096;
 
+    /// <summary>점수 히스토그램 칸 수. 마지막 칸은 인터럽트 전용이다 (docs/14 §8).</summary>
+    public const int ScoreBuckets = 11;
+
     private readonly Meter _meter;
     private readonly Histogram<double> _tickDuration;
     private readonly Counter<long> _overruns;
@@ -190,6 +231,10 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
     private readonly MasterDataSet _data;
     private readonly CompileStatsCollector? _compile;
     private readonly CacheMetrics _cache;
+    private readonly TierWiring? _tiers;
+
+    /// <summary>점수 히스토그램 칸. 마지막 칸이 인터럽트(1000+)다 (docs/14 §8).</summary>
+    private readonly int[] _scoreBuckets = new int[ScoreBuckets];
 
     private readonly double[] _samples = new double[Window];
     private readonly double[] _sorted = new double[Window];
@@ -226,7 +271,8 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         GameClock clock,
         MasterDataSet data,
         CompileStatsCollector? compile = null,
-        CacheMetrics? cache = null)
+        CacheMetrics? cache = null,
+        TierWiring? tiers = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(bands);
@@ -250,6 +296,7 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         _clock = clock;
         _data = data;
         _compile = compile;
+        _tiers = tiers;
 
         // 카운터는 PlanStore·IndividualPlanPool 이 들고 있다. 계측기만 여기서 만든다 (docs/13 §6).
         _cache = cache ?? new CacheMetrics(plans);
@@ -455,7 +502,13 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
                 ScanPerTick: _cognition.LastScanned,
                 InterruptsForced: _interrupts.Forced,
                 InterruptsSuppressed: _interrupts.Suppressed,
-                QueueDropped: _replanQueue.Dropped),
+                QueueDropped: _replanQueue.Dropped,
+                QueueDepthP99: QueueDepthPercentile(0.99),
+                UrgentCount: _replanQueue.UrgentCount,
+                UrgentDropped: _replanQueue.UrgentDropped,
+                ScoreHistogram: Histogram(),
+                Tiers: TierRows(seconds),
+                StaleDiscarded: _tiers?.Individual?.Discarded ?? 0),
             Cache: CacheOf(_cache.Snapshot()),
             LlmCalls: _compile?.Calls ?? 0);
     }
@@ -502,6 +555,47 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         EventsDrained: _loop.EventsDrained,
         EventGaps: _loop.EventGaps,
         EventBacklogs: _loop.EventBacklogs);
+
+    /// <summary>점수 분포. 배열은 매 스냅샷마다 새로 만든다 — 대시보드가 JSON 으로 가져간다.</summary>
+    private int[] Histogram()
+    {
+        _replanQueue.ScoreHistogram(_scoreBuckets);
+
+        return [.. _scoreBuckets];
+    }
+
+    /// <summary>
+    /// 티어별 처리율. 티어가 꺼져 있으면 빈 배열이다 — 0 으로 채운 행을 내면
+    /// "돌고 있는데 처리량이 0" 으로 읽힌다.
+    /// </summary>
+    private TierThroughputRow[] TierRows(double seconds)
+    {
+        if (_tiers is not { Enabled: true })
+        {
+            return [];
+        }
+
+        var rows = new List<TierThroughputRow>(_tiers.Workers.Count);
+
+        foreach (ReplanWorker worker in _tiers.Workers)
+        {
+            bool individual = worker.Name == "individual";
+
+            rows.Add(new TierThroughputRow(
+                Tier: individual ? "T1" : "T2",
+                Source: worker.Name,
+                Workers: worker.Workers,
+                Busy: worker.Busy,
+                Depth: individual ? _replanQueue.Count : _tiers.Buckets?.Depth ?? 0,
+                Taken: worker.Taken,
+                Applied: worker.Applied,
+                Failed: worker.Failed,
+                PerSecond: seconds <= 0 ? 0 : Math.Round(worker.Taken / seconds, 3),
+                AvgWaitTicks: Math.Round(worker.AverageWaitTicks, 1)));
+        }
+
+        return [.. rows];
+    }
 
     private ActionCount[] TopActions(int take)
     {

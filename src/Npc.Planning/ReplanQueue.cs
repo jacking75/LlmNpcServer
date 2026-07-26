@@ -176,6 +176,43 @@ public sealed class ReplanQueue
     public float ScoreOf(int npc) =>
         (uint)npc < (uint)_heapPos.Length && _heapPos[npc] >= 0 ? _score[npc] : -1f;
 
+    /// <summary>
+    /// 대기 중인 항목의 점수 분포. docs/14 §8 재계획 패널의 히스토그램.
+    ///
+    /// 마지막 칸은 <b>인터럽트 전용</b>이다 (<see cref="UrgentBase"/> 이상).
+    /// 그 앞 칸들이 <c>[0, UrgentBase)</c> 를 균등 분할한다 — 일반 점수 상한은 가중치 합(약 9.5)이라
+    /// 실제로는 앞쪽 한두 칸에 몰린다. 그 쏠림 자체가 봐야 할 그림이다.
+    ///
+    /// <b>할당 0.</b> 대시보드가 부르지만 큐 크기(≤ 4096)만 훑는다.
+    /// </summary>
+    /// <param name="buckets">채울 칸. 2칸 이상이어야 한다.</param>
+    /// <returns>센 항목 수.</returns>
+    public int ScoreHistogram(Span<int> buckets)
+    {
+        if (buckets.Length < 2)
+        {
+            return 0;
+        }
+
+        buckets.Clear();
+
+        int normal = buckets.Length - 1;
+        float width = UrgentBase / normal;
+
+        for (int slot = 0; slot < _count; slot++)
+        {
+            float score = _score[_heap[slot]];
+
+            int bucket = IsUrgent(score)
+                ? normal
+                : Math.Clamp((int)(score / width), 0, normal - 1);
+
+            buckets[bucket]++;
+        }
+
+        return _count;
+    }
+
     /// <summary>전부 비운다.</summary>
     public void Clear()
     {

@@ -59,7 +59,14 @@
   <section><h2>NPC</h2><table id="p-npc"></table></section>
   <section><h2>액션 Top 10</h2><table id="p-action"></table></section>
   <section><h2>링크</h2><table id="p-link"></table></section>
-  <section><h2>재계획</h2><table id="p-replan"></table></section>
+  <section>
+    <h2>재계획</h2>
+    <table id="p-replan"></table>
+    <h3>티어별 처리율</h3>
+    <table id="p-replan-tier"></table>
+    <h3>점수 분포</h3>
+    <table id="p-replan-histogram"></table>
+  </section>
   <section>
     <h2>플랜 캐시</h2>
     <div id="p-cache-spark" class="spark"></div>
@@ -187,8 +194,11 @@ function render(m) {
   ]);
 
   rows($("p-replan"), [
-    ["큐 깊이", r.queueDepth],
+    ["큐 깊이", `${r.queueDepth} (p99 ${r.queueDepthP99})`],
     ["초당 유입", r.enqueuedPerSecond.toFixed(2)],
+    ["거절", r.queueDropped, r.queueDropped > 0 ? "warn" : "ok"],
+    ["인터럽트 슬롯", r.urgentCount + (r.urgentDropped > 0 ? ` (거절 ${r.urgentDropped})` : "")],
+    ["낡아서 폐기", r.staleDiscarded, r.staleDiscarded > 0 ? "warn" : "ok"],
     ["인지 스캔/틱", r.scanPerTick, grade(r.scanPerTick, SCAN_BUDGET)],
     ["이탈 판정", r.deviations],
     ["인터럽트 발동", r.interruptsForced],
@@ -196,7 +206,41 @@ function render(m) {
     ["LLM 호출", m.llmCalls, m.llmCalls > 0 ? "warn" : "ok"],
   ]);
 
+  renderTiers(r.tiers);
+  renderHistogram(r.scoreHistogram, r.queueDepth);
   renderCache(m.cache);
+}
+
+// 티어별 처리율. docs/14 §8 (T4-19).
+// 티어가 꺼져 있으면 행이 없다 — 0 으로 채운 행을 그리면 "돌고 있는데 처리량 0" 으로 읽힌다.
+function renderTiers(tiers) {
+  rows($("p-replan-tier"), !tiers || tiers.length === 0
+    ? [["—", "티어 꺼짐 (--tier none)"]]
+    : tiers.map((t) => [
+        `${t.tier} ${t.source}`,
+        `${t.perSecond.toFixed(2)}/s · 워커 ${t.busy}/${t.workers} · 대기 ${t.depth}`
+        + ` · 반영 ${t.applied}` + (t.failed > 0 ? ` · 실패 ${t.failed}` : "")
+        + (t.avgWaitTicks > 0 ? ` · 대기 ${t.avgWaitTicks}틱` : ""),
+        t.failed > t.applied ? "bad" : "ok",
+      ]));
+}
+
+// 점수 분포. 마지막 칸이 인터럽트(1000+)다.
+// 일반 점수 상한은 가중치 합(약 9.5)이라 첫 칸에 몰리는 것이 정상이고, 그 쏠림 자체가 그림이다.
+function renderHistogram(buckets, depth) {
+  if (!buckets || buckets.length === 0) {
+    rows($("p-replan-histogram"), [["—", "대기 중인 요청 없음"]]);
+    return;
+  }
+
+  const last = buckets.length - 1;
+  const step = 1000 / last;
+  const peak = Math.max(1, ...buckets);
+
+  rows($("p-replan-histogram"), buckets
+    .map((c, i) => [i === last ? "인터럽트 1000+" : `${(i * step).toFixed(0)}~${((i + 1) * step).toFixed(0)}`, c, i])
+    .filter(([, c], i) => c > 0 || i === last)
+    .map(([k, c]) => [k, bar(c, peak, `${c}${depth > 0 ? ` (${(100 * c / depth).toFixed(0)}%)` : ""}`)]));
 }
 
 // 캐시 패널. docs/13 §6 · docs/14 §8 (T4-18).

@@ -308,7 +308,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
         var meter = new NpcMeter(
             store, bands, plans, replanQueue, cognition, interrupts, link, loop, clock, data,
-            tiers.Stats, new CacheMetrics(plans, individualPool));
+            tiers.Stats, new CacheMetrics(plans, individualPool), tiers);
 
         loop.Observer = meter;
 

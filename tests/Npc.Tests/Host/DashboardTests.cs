@@ -44,6 +44,26 @@ public sealed class DashboardTests
     }
 
     /// <summary>
+    /// T4-19 완료 조건 — 재계획 패널의 4요소
+    /// (큐 깊이 · 티어별 처리율 · 점수 분포 히스토그램 · 거절 수).
+    /// </summary>
+    [Fact]
+    public void Dashboard_HasReplanPanelWithFourElements()
+    {
+        Assert.Contains("id=\"p-replan\"", s_html, StringComparison.Ordinal);
+        Assert.Contains("id=\"p-replan-tier\"", s_html, StringComparison.Ordinal);
+        Assert.Contains("id=\"p-replan-histogram\"", s_html, StringComparison.Ordinal);
+
+        Assert.Contains("r.queueDepth", s_html, StringComparison.Ordinal);
+        Assert.Contains("r.queueDropped", s_html, StringComparison.Ordinal);
+        Assert.Contains("renderTiers(r.tiers)", s_html, StringComparison.Ordinal);
+        Assert.Contains("renderHistogram(r.scoreHistogram", s_html, StringComparison.Ordinal);
+
+        // 티어가 꺼져 있으면 0 행을 그리지 않는다 — "돌고 있는데 처리량 0" 으로 읽힌다.
+        Assert.Contains("티어 꺼짐", s_html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 외부 의존이 없어야 한다. 이 서버는 인터넷이 없는 사내망에서도 뜬다 —
     /// CDN 스크립트 하나가 섞이면 거기서는 빈 화면이 나온다.
     /// </summary>
@@ -95,7 +115,8 @@ public sealed class DashboardTests
             ("link", ["commandsEnqueued", "commandsFlushed", "commandsDropped", "pendingCommands",
                       "eventsDrained", "eventGaps", "eventBacklogs"]),
             ("replan", ["queueDepth", "enqueuedPerSecond", "scanPerTick", "deviations",
-                        "interruptsForced", "interruptsSuppressed"]),
+                        "interruptsForced", "interruptsSuppressed", "queueDropped", "queueDepthP99",
+                        "urgentCount", "urgentDropped", "scoreHistogram", "tiers", "staleDiscarded"]),
             ("cache", ["hitRate", "hits", "misses", "filledBuckets", "coldBuckets", "pinnedBuckets",
                        "individualTurnover", "individualLive", "worstArchetypes"]),
         ];
