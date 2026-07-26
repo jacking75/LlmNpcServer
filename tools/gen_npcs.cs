@@ -5,12 +5,12 @@
 //     dotnet run tools/gen_npcs.cs --seed 20260725 --out C:\tmp\npcs.json
 //
 // 무엇을 만드는가
-//   NPC 5,000마리. archetypes.json 의 population_weight 로 인원을 나누고,
+//   NPC 5,000마리(--population 으로 변경 가능). archetypes.json 의 population_weight 로 인원을 나누고,
 //   pois.json 의 capacity 를 넘지 않게 일터와 집을 배정한다.
 //   npc_instances.json 은 산출물이다 — 손으로 편집하지 않는다 (docs/01 §9).
 //
 // 순서 (docs/11 §8)
-//   1) population_weight × 5,000 을 최대잔여법으로 나눠 합이 정확히 5,000 이 되게 한다
+//   1) population_weight × 인구를 최대잔여법으로 나눠 합이 정확히 인구가 되게 한다
 //   2) 일터가 있는 아키타입을 먼저 배정한다 — 시골 전문직이 자기 일터 근처 집을 먼저 가져가야 한다
 //   3) 집은 일터 존에서 존 그래프 홉이 가까운 순으로 찾는다. 일터가 없으면 잔여 정원이 가장 많은 집
 //   4) trait_offsets 는 seed 고정 해시로 ±15
@@ -25,10 +25,13 @@ using System.Buffers;
 using System.Globalization;
 using System.Text.Json;
 
-const int Population = 5_000;
+// docs/01 §9 가 정한 인구. --population 으로 바꿀 수 있지만 masterdata/npc_instances.json 은
+// 이 값으로 유지한다 — P1 게이트와 docs/01 §9 가 5,000 을 인용한다.
+const int DefaultPopulation = 5_000;
 const int TraitSpread = 15;   // trait_offsets 범위 ±15 (docs/01 §9)
 
 int seed = 20260725;
+int population = DefaultPopulation;
 string? outArg = null;
 
 for (int i = 0; i < args.Length; i++)
@@ -42,6 +45,16 @@ for (int i = 0; i < args.Length; i++)
             break;
         case "--out" when i + 1 < args.Length:
             outArg = args[++i];
+            break;
+        // 부하 매트릭스의 10,000(스트레스) 축을 재려면 그만큼의 인스턴스가 있어야 한다
+        // (docs/14 §6 · T4-16 에서 --npcs 10000 이 조용히 5,000 으로 줄던 문제).
+        // 기본값을 바꾸지 않고 --out 으로 별도 파일에 뽑는 용도다.
+        //
+        // 상한은 pois.json 의 총 정원 9,238 이고 일터별로는 훨씬 적다 — 10,000 은
+        // 'smithy' 배정에서 멈춘다. 월드가 5,000 인구로 설계돼 있다는 뜻이므로
+        // 그 위를 재려면 pois.json 부터 늘려야 한다 (SSOT 변경 · CLAUDE.md §2.4).
+        case "--population" when i + 1 < args.Length:
+            population = int.Parse(args[++i], CultureInfo.InvariantCulture);
             break;
         default:
             throw new ArgumentException($"모르는 인자다: {args[i]}");
@@ -128,11 +141,11 @@ Archetype[] archetypes = [.. archetypesDoc.RootElement.GetProperty("archetypes")
         a.GetProperty("initial_inventory")))
     .OrderBy(a => a.Code)];
 
-int[] quota = Apportion(archetypes, Population);
+int[] quota = Apportion(archetypes, population);
 
 // ---------------------------------------------------------------- 배정
 
-var npcs = new Npc[Population];
+var npcs = new Npc[population];
 int next = 0;
 
 foreach (Archetype archetype in archetypes)
@@ -144,9 +157,9 @@ foreach (Archetype archetype in archetypes)
     }
 }
 
-if (next != Population)
+if (next != population)
 {
-    throw new InvalidDataException($"인구 배분이 {next} 다. {Population} 이어야 한다.");
+    throw new InvalidDataException($"인구 배분이 {next} 다. {population} 이어야 한다.");
 }
 
 // 1차 — 일터가 있는 NPC. 일터를 먼저 잡고 그 존에서 가까운 집을 찾는다.
