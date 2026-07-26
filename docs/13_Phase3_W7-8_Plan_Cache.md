@@ -99,18 +99,18 @@ private readonly IndividualPlanPool _individual;   // 링 버퍼. 최대 512개,
 // Npc.Planning/PlanStoreValidator.cs
 public enum InvalidationScope { None, Partial, Full }
 
-public static InvalidationScope Compare(Manifest old, MasterDataSet cur)
+// prefixHash 를 인자로 받는다 — MasterDataSet 은 PromptPrefix 를 들고 있지 않다.
+// 프리픽스는 Npc.Llm 에 있고 Npc.MasterData → Npc.Llm 참조는 CLAUDE.md §3 이 금지한다.
+public static InvalidationScope Compare(Manifest? old, MasterDataSet cur, string prefixHash)
 {
-    if (old.MasterdataHash == cur.ContentHash) return InvalidationScope.None;
-    if (old.PrefixHash     != cur.Prefix.Sha256) return InvalidationScope.Full;   // 프롬프트가 바뀜
+    if (old is null) return InvalidationScope.Full;                              // 스토어가 없다
+    bool prefixChanged = old.PrefixHash != prefixHash;
 
-    var diff = FileDiff(old.FileHashes, cur.FileHashes);
-    // 전체 무효화 대상
-    if (diff.Changed(("world_flags.json", "actions.json", "archetypes.json", "context_buckets.json")))
-        return InvalidationScope.Full;
-    // 부분 무효화 허용
-    if (diff.OnlyAdditions("pois.json", "items.json")) return InvalidationScope.Partial;
-    return InvalidationScope.Full;
+    if (!prefixChanged && old.MasterdataHash == cur.ContentHash) return InvalidationScope.None;
+    if (prefixChanged) return InvalidationScope.Full;                            // 프롬프트가 바뀜
+
+    // 바뀐 파일들의 범위 중 가장 큰 것. 표는 아래.
+    return ChangedFiles(old, cur).Max(ScopeOf);
 }
 ```
 
@@ -123,11 +123,20 @@ public static InvalidationScope Compare(Manifest old, MasterDataSet cur)
 | `prompt/**` | **Full** | 프리픽스 해시 변경 |
 | `pois.json` (추가만) | Partial | 기존 플랜은 유효. 새 POI를 쓰는 플랜만 재생성 |
 | `items.json` (추가만) | Partial | 동일 |
+| `zones.json` (추가만) | Partial | 플랜에 존 id가 안 들어가지만 3단의 장소 판정이 존을 본다 |
+| `poi_distances.bin` | **None** | 실행 시점의 이동 시간만 바뀐다. 플랜의 유효성과 무관 |
 | `npc_instances.json` | **None** | 플랜은 개체에 안 묶인다 |
 | `fallback_plans.json` | **None** | 폴백은 별도 저장 |
 | `interrupts.json` | **None** | 플랜에 인터럽트가 없다 (§03 §1) |
+| 표에 없는 파일 | **Full** | 모르는 입력이 바뀌었으면 안전한 쪽으로 |
 
 **이 표가 개발 속도를 좌우한다.** POI를 하나 추가할 때마다 전량 재생성하면 W8 이후 작업이 지옥이 된다.
+
+> **"추가만"은 코드가 검증하지 않는다.** 파일 해시 하나로는 추가와 수정을 가를 수 없다.
+> 대신 세 가지가 그것을 받쳐 준다 — (1) `code`·`bit` 번호는 절대 재배치하지 않고 추가는 뒤에만 한다 (`CLAUDE.md §2.4`),
+> (2) 플랜에는 절대 POI id 가 들어가지 않는다 (`$home`·`$workplace` 심볼만),
+> (3) `items.json` 의 레시피는 프리픽스에 실려 있어 내용이 바뀌면 **프리픽스 해시 검사에서 먼저 걸린다.**
+> 그래서 `items.json`의 Partial 행은 프리픽스에 실리지 않는 필드(`stack` 등)만 바뀐 경우에 닿는다.
 
 ---
 
