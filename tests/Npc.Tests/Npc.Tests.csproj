@@ -25,6 +25,8 @@
     <ProjectReference Include="..\..\src\Npc.Gateway\Npc.Gateway.csproj" />
     <ProjectReference Include="..\..\src\Npc.Sim\Npc.Sim.csproj" />
     <ProjectReference Include="..\..\src\Npc.Host\Npc.Host.csproj" />
+    <!-- 프로젝트가 sln 밖에 있거나 참조가 없으면 dotnet test 가 완료 조건의 테스트를 아예 안 본다. -->
+    <ProjectReference Include="..\..\tools\Npc.Prebake\Npc.Prebake.csproj" />
   </ItemGroup>
 
   <ItemGroup>

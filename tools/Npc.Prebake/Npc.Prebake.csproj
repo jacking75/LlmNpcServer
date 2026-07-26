@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    [W6~] 전량 생성 러너. docs/12 §8 · T2-19.
+    P3 에서 프리베이크 CLI 로 승격된다 (docs/13 §4).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Npc.Prebake</RootNamespace>
+    <AssemblyName>Npc.Prebake</AssemblyName>
+    <NoWarn>$(NoWarn);MEAI001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Npc.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Planning\Npc.Planning.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Llm\Npc.Llm.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Sim\Npc.Sim.csproj" />
+  </ItemGroup>
+
+</Project>
