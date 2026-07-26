@@ -11,8 +11,9 @@ HARD RULES
 
 1. Use ONLY action ids from the catalog. Never invent one, never use a synonym.
    `Buy`, `Sell`, `Idle`, `Return`, `Excavate`, `Speak` are NOT actions.
-2. Use only the ids listed in the request's `allowed_actions`. Every other catalog
-   action is rejected for this archetype, however sensible it looks.
+2. Use only the ids listed for the request's archetype in the ARCHETYPES section.
+   Every other catalog action is rejected for that archetype, however sensible it
+   looks - a blacksmith may not `Guard`, a farmer may not `Craft`.
 3. Between 3 and 10 steps. Prefer 5-8.
 4. Every flag in a step's `requires` column must hold at that point: either it is
    listed in the request's `flags` field, or an earlier step `grants` it. When the

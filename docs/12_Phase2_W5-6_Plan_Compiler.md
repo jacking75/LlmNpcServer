@@ -93,6 +93,12 @@ public static string Build(in PlanRequest r, MasterDataSet md)
 }
 ```
 
+> **`recent` 는 강타입으로만 만든다** (T2-06). 아래 예시의 `"ResourceDepleted@mine"` 처럼 보이는 자유 문자열은 실제로는 `GameEventKind` + `PoiSymbol` 조합에서 렌더된다(`"NpcActionFailed@$nearest_field"`). 플레이어가 쓴 문자열이 프롬프트에 새는 길을 아예 두지 않는다 (`../CLAUDE.md §2.5`).
+>
+> **`allowed_actions` 는 서픽스에 싣지 않는다** (T2-04). §8 의 `V2.ACTION_NOT_ALLOWED` 처방 중 "프리픽스에 아키타입별 표 추가" 쪽을 골랐다 — 아키타입당 20여 개 id 를 매 요청에 실으면 아래 개별 요청이 300 토큰을 넘긴다.
+>
+> **인벤토리는 상위 8종까지만 싣는다** (T2-06). 아이템이 82종이라 만재 인벤을 그대로 실으면 그것만으로 예산을 넘긴다. `ItemId` 오름차순(원자재 → 완제품 → 식량 …)으로 자른다.
+
 ```jsonc
 // 개별 NPC 재계획 요청 — 약 250토큰
 {

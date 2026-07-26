@@ -215,7 +215,7 @@
 ```
 W5 ── 기반 · 단건 생성
 [x] T2-01 Llm프로젝트배선   [x] T2-02 SchemaProvider   [x] T2-03 카탈로그렌더러
-[x] T2-04 PromptPrefix정식  [x] T2-05 프리픽스불변성   [ ] T2-06 서픽스조립기
+[x] T2-04 PromptPrefix정식  [x] T2-05 프리픽스불변성   [x] T2-06 서픽스조립기
 [ ] T2-07 서픽스예산테스트  [ ] T2-08 ChatClientFactory
 [ ] T2-09 LlmPlanCompiler   [ ] T2-10 CompileStats     [ ] T2-11 검증1·2단결선
 
