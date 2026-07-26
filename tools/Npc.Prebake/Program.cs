@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.AI;
@@ -59,10 +60,23 @@ Console.WriteLine(
     $"무효화     : {scope}"
     + (changedFiles.IsEmpty ? string.Empty : $" (바뀐 파일: {string.Join(", ", changedFiles)})"));
 
-// 3. 생성 대상 버킷 목록 산출
-List<BucketKey> buckets = SelectBuckets(options, data, previous, scope);
+// 3. 생성 대상 버킷 목록 산출. --resume·Partial 은 기존 스토어를 봐야 한다
+PlanStore existing = PlanStore.CreateIdleOnly(data);
+PlanStoreLoadReport loaded = PlanStoreIo.LoadAll(options.Out, existing, data);
 
-Console.WriteLine($"대상       : {buckets.Count} 버킷");
+if (loaded.Total > 0 || loaded.Errors.Length > 0)
+{
+    Console.WriteLine(
+        $"기존 스토어: {loaded.Loaded} + pinned {loaded.Pinned}"
+        + (loaded.Skipped + loaded.Failed > 0 ? $" · 건너뜀 {loaded.Skipped} · 실패 {loaded.Failed}" : string.Empty));
+}
+
+TargetSelection selection = TargetSelector.Select(options, data, existing, scope);
+ImmutableArray<BucketKey> buckets = selection.Buckets;
+
+Console.WriteLine(
+    $"대상       : {selection.Count} 버킷 ({selection.Mode})"
+    + (selection.SkippedPinned > 0 ? $" · pinned {selection.SkippedPinned} 건 제외" : string.Empty));
 
 if (options.Plan)
 {
@@ -71,15 +85,15 @@ if (options.Plan)
         Console.WriteLine($"  {bucket.Format(data.Archetypes[bucket.A].Id)}");
     }
 
-    if (buckets.Count > 40)
+    if (buckets.Length > 40)
     {
-        Console.WriteLine($"  … 그리고 {buckets.Count - 40} 개 더");
+        Console.WriteLine($"  … 그리고 {buckets.Length - 40} 개 더");
     }
 
     return 0;
 }
 
-if (buckets.Count == 0)
+if (buckets.Length == 0)
 {
     Console.WriteLine("생성할 것이 없다.");
     return 0;
@@ -141,45 +155,6 @@ Console.WriteLine($"저장          : {written} 건 → {Path.Combine(options.Ou
 Console.WriteLine($"결과          : {options.Report}");
 
 return report.PassRate >= 0.90 ? 0 : 1;
-
-// --- 대상 버킷 산출. 정식 구현은 T3-09 의 TargetSelector 가 맡는다 ---
-static List<BucketKey> SelectBuckets(
-    PrebakeOptions options, MasterDataSet data, Manifest? previous, InvalidationScope scope)
-{
-    _ = previous;
-    _ = scope;
-
-    List<BucketKey> buckets = [.. BulkRunner.AllBuckets()];
-
-    if (options.Stride > 1)
-    {
-        // 2,880 과 서로소인 stride 를 주면 표본이 전 아키타입에 흩어진다. 난수를 쓰지 않는다.
-        buckets = [.. Enumerable.Range(0, BucketKey.TotalKeys)
-            .Select(i => BucketKey.FromIndex(i * options.Stride % BucketKey.TotalKeys))
-            .Distinct()];
-    }
-
-    // 연속 슬라이스. 인접 버킷(같은 아키타입의 다른 상황)이 스토어에 들어와야
-    // 재사용 경로가 동작한다 — 흩어진 표본으로는 폴백 비율을 잴 수 없다.
-    if (options.Archetypes > 0)
-    {
-        int perArchetype = BucketKey.TimeOfDayCount * BucketKey.RegionStateCount * BucketKey.ClimateCount;
-
-        buckets = [.. Enumerable.Range(0, options.Archetypes * perArchetype).Select(BucketKey.FromIndex)];
-    }
-
-    if (!options.Only.IsEmpty)
-    {
-        buckets = [.. buckets.Where(b => options.IncludesBucket(b.Format(data.Archetypes[b.A].Id)))];
-    }
-
-    if (options.Limit > 0 && options.Limit < buckets.Count)
-    {
-        buckets = [.. buckets.Take(options.Limit)];
-    }
-
-    return buckets;
-}
 
 static void WriteJsonl(string path, BulkRunReport report, MasterDataSet data)
 {
