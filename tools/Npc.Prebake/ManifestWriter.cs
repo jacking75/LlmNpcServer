@@ -118,7 +118,11 @@ public static class ManifestWriter
             """);
         line.Append('\n');
 
-        File.AppendAllText(Path.Combine(planStoreDirectory, HistoryFileName), line.ToString(), Encoding.UTF8);
+        // BOM 없이 쓴다. jsonl 첫 줄에 BOM 이 붙으면 jq 가 첫 글자에서 걸린다.
+        File.AppendAllText(
+            Path.Combine(planStoreDirectory, HistoryFileName),
+            line.ToString(),
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 
     /// <summary>

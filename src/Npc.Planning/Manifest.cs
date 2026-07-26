@@ -180,7 +180,8 @@ public sealed record Manifest
             Directory.CreateDirectory(directory);
         }
 
-        File.WriteAllText(path, ToJson(), Encoding.UTF8);
+        // BOM 없이 쓴다. Encoding.UTF8 은 BOM 을 붙이고, 그러면 jq 같은 외부 도구가 첫 글자에서 걸린다.
+        File.WriteAllText(path, ToJson(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 
     /// <summary>파일에서 읽는다. 없으면 null — 첫 프리베이크에는 manifest 가 없다.</summary>

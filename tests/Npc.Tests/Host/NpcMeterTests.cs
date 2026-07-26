@@ -11,7 +11,13 @@ public sealed class NpcMeterTests
     {
         Assert.True(HostOptions.TryParse(args, out HostOptions options, out string? error), error);
 
-        return options with { MasterData = TestPaths.MasterData };
+        // 저장소의 planstore/ 를 보지 않는다. 프리베이크를 돌린 기계에서만 값이 달라지면
+        // 이 테스트가 무엇을 재는지 알 수 없다 — 스토어 로드는 PlanStoreWiringTests 가 본다.
+        return options with
+        {
+            MasterData = TestPaths.MasterData,
+            PlanStore = Path.Combine(Path.GetTempPath(), "npc-no-store-" + Guid.NewGuid().ToString("N")[..8]),
+        };
     }
 
     private static async Task<MetricsSnapshot> RunAsync(params string[] args)

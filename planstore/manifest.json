@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "masterdata_hash": "f37c02926c0b3d26582c4f47a4d393c6548fe921e5b6bc74f04c31ce2cb53218",
+  "prefix_hash": "56a0c601f48392e0c332d62d3180bf479cdb3e9c785341fb3916be3f05108ddf",
+  "generated_at": "2026-07-26T-W8-pilot288",
+  "partial": false,
+  "generated_by": {
+    "tier": "T2",
+    "model": "poe-gemini-2.5-flash-lite",
+    "temperature": 0.4000000059604645,
+    "concurrency": 8,
+    "peak_concurrency": 24,
+    "first_rate_limit_concurrency": 0
+  },
+  "counts": {
+    "total": 2880,
+    "generated": 195,
+    "pinned": 0,
+    "fallback": 32,
+    "reused": 61
+  },
+  "validation": {
+    "pass": 195,
+    "fail_schema": 3,
+    "fail_vocab": 20,
+    "fail_coherence": 67,
+    "fail_dryrun": 3,
+    "fail_call": 0
+  },
+  "cost_usd": 0.511942,
+  "wall_clock_s": 115,
+  "cache_hit_rate": 0.4256,
+  "file_hashes": [
+    {
+      "file": "actions.json",
+      "sha256": "059aa327768d286d44fe9d197b2831ece062bdffd0cfa7b082004c521ac6ea19"
+    },
+    {
+      "file": "archetypes.json",
+      "sha256": "a7d604aa729893c45d312c82383ed0f2d74309b3f9c2b03763ede659270c3f19"
+    },
+    {
+      "file": "context_buckets.json",
+      "sha256": "58bd3c874ec4069d338590a8de5478d9619b0ae1fc350270918431c17b301e47"
+    },
+    {
+      "file": "fallback_plans.json",
+      "sha256": "3b01c1968234820ec0515cdc1347a59b16664a4a607d0cde5db623352616f457"
+    },
+    {
+      "file": "interrupts.json",
+      "sha256": "8ed0ca5831b9e411e11c399fbcc2d90f864c0fdd0162faa37228d5c5a17413bb"
+    },
+    {
+      "file": "items.json",
+      "sha256": "0fb2c682285b9794f46d53975b4d17ea3c770da41c5b72dc08fb7418099db033"
+    },
+    {
+      "file": "poi_distances.bin",
+      "sha256": "e5bfced613ba3f27bdae10685f105fc05cbe5857f90e19098d8ca2bbb0decf27"
+    },
+    {
+      "file": "pois.json",
+      "sha256": "93b998b9f7e6d169d0fad6a8903a8b66bc5902d3f7bc9ed5f418c59a503b07b4"
+    },
+    {
+      "file": "world_flags.json",
+      "sha256": "d78098e80a5e82a15b48ab3770d8d1e55c0a906c4e84757329c8d4712d074045"
+    },
+    {
+      "file": "zones.json",
+      "sha256": "84d32acb1d5a9c9175abf967d1b8b53fd53b0de8d4c852bfe92e0e60404ba54d"
+    }
+  ]
+}

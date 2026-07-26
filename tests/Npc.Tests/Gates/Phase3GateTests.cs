@@ -31,7 +31,11 @@ namespace Npc.Tests.Gates;
 /// 기제(mechanism)만 보는 나머지 항목은 상시 돈다.
 /// </para>
 /// </summary>
-public sealed class Phase3GateTests
+/// <param name="output">
+/// 게이트 실측치를 남긴다. <c>dotnet test --logger "console;verbosity=detailed"</c> 로 볼 수 있고
+/// 그 값이 <c>docs/measurements/P3_gate.md</c> 의 근거다.
+/// </param>
+public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     /// <summary>생성 완료율 하한. docs/13 §7.</summary>
     private const double MinGeneratedRate = 0.95;
@@ -129,7 +133,7 @@ public sealed class Phase3GateTests
     [Trait("Category", "Gate")]
     public void Gate_PrebakeFinishesWithinFiveMinutes()
     {
-        Manifest manifest = RequireManifest();
+        Manifest manifest = RequireFullRun(RequireManifest());
 
         Assert.True(
             manifest.WallClockSeconds <= MaxWallClockSeconds,
@@ -145,7 +149,7 @@ public sealed class Phase3GateTests
     [Trait("Category", "Gate")]
     public void Gate_PrebakeCostsAtMostFiveDollars()
     {
-        Manifest manifest = RequireManifest();
+        Manifest manifest = RequireFullRun(RequireManifest());
 
         Assert.True(
             manifest.CostUsd <= MaxCostUsd,
@@ -164,7 +168,7 @@ public sealed class Phase3GateTests
     [Trait("Category", "Gate")]
     public void Gate_PromptCacheHitRateIsAtLeast95Percent()
     {
-        Manifest manifest = RequireManifest();
+        Manifest manifest = RequireFullRun(RequireManifest());
 
         // 로컬 엔진은 cached_tokens 를 항상 0 으로 보고한다. 그 회차에는 이 항목이 성립하지 않는다.
         Assert.False(
@@ -209,6 +213,10 @@ public sealed class Phase3GateTests
 
             Assert.Equal(7, m.Tick.GameDay);
             Assert.True(m.Cache.Hits + m.Cache.Misses > 0, "버킷 조회가 한 번도 일어나지 않았다.");
+
+            output.WriteLine(
+                $"시나리오 A: 히트율 {m.Cache.HitRate:P2} · 히트 {m.Cache.Hits} · 미스 {m.Cache.Misses} · "
+                + $"채운 버킷 {m.Cache.FilledBuckets} · 콜드 {m.Cache.ColdBuckets} · 틱 {m.Tick.Ticks}");
 
             Assert.True(
                 m.Cache.HitRate >= MinRuntimeHitRate,
@@ -499,6 +507,24 @@ public sealed class Phase3GateTests
             + "tools/Npc.Prebake 로 전량 회차를 돌려야 이 항목을 판정할 수 있다.");
 
         return manifest!;
+    }
+
+    /// <summary>
+    /// 전량 회차의 manifest 를 요구한다.
+    ///
+    /// <b>부분 회차로는 wall-clock·비용·캐시 적중률을 판정할 수 없다.</b> 288버킷 파일럿의
+    /// 115초는 상한 300초 안이지만 2,880 회차의 값이 아니다 — 그것을 통과로 세면 게이트가 거짓이 된다.
+    /// </summary>
+    private static Manifest RequireFullRun(Manifest manifest)
+    {
+        Assert.True(
+            manifest.Counts.GeneratedRate >= MinGeneratedRate,
+            $"부분 회차의 manifest 다 (생성 완료율 {manifest.Counts.GeneratedRate:P1}). "
+            + $"이 항목은 전량 {BucketKey.TotalKeys} 회차에서만 판정된다 — "
+            + $"지금 값(wall-clock {manifest.WallClockSeconds:F0}s · ${manifest.CostUsd:F4} · "
+            + $"캐시 {manifest.CacheHitRate:P1})은 외삽의 근거일 뿐이다 (docs/measurements/P3_gate.md).");
+
+        return manifest;
     }
 }
 

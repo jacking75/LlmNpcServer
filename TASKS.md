@@ -90,10 +90,10 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | **P0** W1 스파이크 | [`docs/10_Phase0_W1_TASKS.md`](docs/10_Phase0_W1_TASKS.md) | 13 | 8 | 진행 중 — **게이트 1/4 통과** (T0-09~T0-12 `~`, T0-13 미착수) |
 | **P1** W2–4 코어·런타임·Sim | [`docs/11_Phase1_W2-4_TASKS.md`](docs/11_Phase1_W2-4_TASKS.md) | 62 | 62 | **게이트 통과** |
 | **P2** W5–6 플랜 컴파일러 | [`docs/12_Phase2_W5-6_TASKS.md`](docs/12_Phase2_W5-6_TASKS.md) | 24 | 23 | 태스크 완료 (T2-23 은 조건 미충족 `-`) — **게이트 3/7 미달** |
-| **P3** W7–8 플랜 캐시 | [`docs/13_Phase3_W7-8_TASKS.md`](docs/13_Phase3_W7-8_TASKS.md) | 21 | 0 | 미착수 (W1 실측 반영 완료) |
+| **P3** W7–8 플랜 캐시 | [`docs/13_Phase3_W7-8_TASKS.md`](docs/13_Phase3_W7-8_TASKS.md) | 21 | 19 | 진행 중 — T3-18(사람 검수) 미착수 · T3-21 `~`. **게이트 5/9** (기제 4항목 통과, 실측 산출물 대기) |
 | **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 0 | 미착수 (W1 실측 반영 완료) |
 | **P5** W11–12 검증·평가 | [`docs/15_Phase5_W11-12_TASKS.md`](docs/15_Phase5_W11-12_TASKS.md) | 20 | 0 | 미착수 |
-| | | **164** | **93** | |
+| | | **164** | **112** | |
 
 각 Phase 문서 맨 아래의 체크리스트에서 개별 태스크 상태를 관리한다.
 
@@ -152,6 +152,10 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/03 §7` | manifest 에 `file_hashes`·`cache_hit_rate`·`partial`·`generated_by.concurrency` 3필드 추가 | T3-05. `file_hashes` 가 없으면 `docs/13 §3` 의 부분 무효화를 판정할 수 없어 POI 추가마다 전량 재생성이 된다. `cache_hit_rate` 는 P3 게이트가 manifest 에서 읽는 값이고, `partial` 은 `--resume` 이 보는 값이다 |
 | 2026-07-26 | `docs/13 §3` | `Compare` 시그니처에 `prefixHash` 인자 추가. 표에 `zones.json`(Partial)·`poi_distances.bin`(None)·미지의 파일(Full) 행 추가. "추가만" 을 코드가 검증하지 않는 이유 명문화 | T3-06. §3 초안의 `cur.Prefix.Sha256` 은 성립하지 않는다 — `MasterDataSet` 은 `PromptPrefix` 를 들고 있지 않고 그 사실이 그 타입 주석에 이미 적혀 있다(`Npc.MasterData → Npc.Llm` 은 CLAUDE.md §3 금지). 파일 해시 하나로는 추가와 수정을 가를 수 없다 |
 | 2026-07-26 | `docs/01 §6` 구현 · `README §빠른 시작` | `context_buckets.json` 의 `prebake_priority` 를 **로더가 읽는다** (`BucketSpace.PrebakePriorityOf`). README 의 `--concurrency 32` → `8` | T3-10. §6 이 `prebake_priority` 를 선언해 놓았는데 로더가 읽지 않아 T3-10 의 정렬이 가중치를 코드에 하드코딩할 수밖에 없었다 — CLAUDE.md §2.4 위반이다. 32 는 추정치이고 실측 근거가 없다(`W6_compile_stats.md §6`) |
+| 2026-07-26 | `docs/13 §4·§8` · `docs/measurements/W8_prebake.md §1` | 워밍업의 **비용 논거를 실측으로 정정.** "캐시 write 를 32번 지불, 비용 3배" → Gemini 암시적 캐싱에서는 손해가 없다 | T3-11. 실측에서 전제 둘이 다 틀렸다 — 파동 안에서 먼저 도착한 요청이 캐시를 만들어 나머지가 물려받고(동시 32에서 워밍업 없이 68.6% 적중), 암시적 캐싱에는 write 할증이 없다. 동시 32 에서는 워밍업이 10~17% **더 비쌌다.** 그래도 기본으로 켜 두는 이유는 Anthropic 명시적 캐싱과 예비 점검이다 |
+| 2026-07-26 | `docs/13 §8` · `docs/measurements/W8_prebake.md §3` | 전수 드라이런 건당 소요 "~50ms"(추정) → **0.02ms**(실측) | T3-15. 드라이런은 10Hz 틱을 굴리지 않고 액션 소요시간만큼 게임시간을 건너뛴다. 2,880건이 병렬도 1 로도 0.04초라 T3-15 의 "미달 시 병렬도를 올리기 전에 건당 소요부터 기록" 조항은 발동하지 않는다 |
+| 2026-07-26 | `docs/03 §7` | `planstore/manifest_history.jsonl` 추가 | T3-16. §7 이 "프리베이크를 돌 때마다 보존한다" 고 했는데 `manifest.json` 만 있으면 덮어쓰기라 지난 회차 숫자를 다시 못 본다 |
+| 2026-07-26 | `CLAUDE.md §1·§5` · `docs/13 §7` | 테스트 카테고리에 **`Gate`** 추가. CI 기본 필터를 `Category!=Golden&Category!=Gate` 로 | T3-21. 게이트 9항목 중 5개(생성 완료율·wall-clock·실비용·프롬프트 캐시 적중률·검수 채택률)는 실측 산출물이 있어야 판정된다. 산출물이 없을 때 통과로 세면 게이트가 거짓이 되므로 실패시키고, 대신 기본 CI 에서 뺐다. xunit 2.9 에는 `Assert.Skip` 이 없다 |
 | 2026-07-26 | `CLAUDE.md §3` · `docs/11 §2` · `docs/12` T2-01 | `Npc.Llm` 의존에 `Npc.MasterData` 추가 | T2-01. 프리픽스는 `actions.json`·`world_flags.json`·`archetypes.json` 에서 **생성**되고(`docs/01 §10.1`, `CLAUDE.md §2.4`), `docs/12 §3` 의 `Build(in PlanRequest, MasterDataSet)` 과 `§6` 의 `_md.Fallbacks[...]` 가 이미 `MasterDataSet` 을 받는다. `Npc.MasterData → Npc.Core` 뿐이라 순환도 없고, `Npc.Runtime ↛ Npc.Llm` 금지는 그대로다 |
 
 #### P2~P5 재검토 (§5 가 예고한 "W1 완료 시점의 재검토")
