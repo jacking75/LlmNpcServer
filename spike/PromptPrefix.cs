@@ -156,8 +156,10 @@ internal sealed class PromptPrefix
     /// <summary>docs/03 §2 의 스키마를 사람이 읽는 형태로 요약한다. 스키마 본문도 같이 싣는다.</summary>
     private static string RenderDsl(MinCatalog c)
     {
-        var schema = SchemaGen.Build(c.Actions.Select(a => a.Id), SchemaOptions.Full)
-            .Replace("\r\n", "\n");
+        // 실제로 강제되는 스키마를 그대로 싣는다. 들여쓰기는 토큰 낭비라 압축한다.
+        var schema = System.Text.Json.Nodes.JsonNode
+            .Parse(SchemaGen.BuildFromCatalog(SchemaOptions.Full))!
+            .ToJsonString(new JsonSerializerOptions { WriteIndented = false });
 
         // $$"""…""" — 중괄호가 잔뜩 나오는 본문이라 보간 구멍을 {{…}} 로 둔다.
         return $$"""

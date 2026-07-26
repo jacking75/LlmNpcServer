@@ -36,25 +36,49 @@ internal static class Program
             case "validate":
                 return Validate.Run();
 
+            case "schemacheck":
+                return await RunSchemaCheck.RunAsync(rest);
+
+            case "bench":
+                return await Bench.RunAsync(rest);
+
+            case "concurrency":
+                return await BenchConcurrency.RunAsync(rest);
+
+            case "quality":
+                return await Quality.RunAsync(rest);
+
             default:
                 Console.Error.WriteLine($"unknown command: {cmd}");
-                Console.Error.WriteLine("usage: spike [ready|clients|schema|prefix|suffix|validate]");
+                Console.Error.WriteLine(
+                    "usage: spike [ready|clients|schema|prefix|suffix|validate|schemacheck|bench|concurrency|quality]");
                 return 2;
         }
     }
 
-    /// <summary>실행 위치(bin/…)에서 위로 올라가며 Spike.csproj 가 있는 폴더를 찾는다.</summary>
+    /// <summary>
+    /// Spike.csproj 가 있는 폴더를 찾는다. 실행 위치에서 위로, 그 다음 현재 디렉터리에서 위로,
+    /// 마지막으로 &lt;cwd&gt;/spike 를 본다 — 빌드 출력을 저장소 밖에 두고 돌릴 때가 있다.
+    /// </summary>
     private static string FindSpikeRoot()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
+        foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
         {
-            if (File.Exists(Path.Combine(dir.FullName, "Spike.csproj")))
+            var dir = new DirectoryInfo(start);
+            while (dir is not null)
             {
-                return dir.FullName;
-            }
+                if (File.Exists(Path.Combine(dir.FullName, "Spike.csproj")))
+                {
+                    return dir.FullName;
+                }
 
-            dir = dir.Parent;
+                if (File.Exists(Path.Combine(dir.FullName, "spike", "Spike.csproj")))
+                {
+                    return Path.Combine(dir.FullName, "spike");
+                }
+
+                dir = dir.Parent;
+            }
         }
 
         return Directory.GetCurrentDirectory();

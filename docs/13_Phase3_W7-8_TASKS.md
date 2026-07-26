@@ -12,26 +12,28 @@
 **T3-01** `PlanStore` 배열 + Resolve/Publish · `M` · 선행 T1-39, T1-17
   파일 `src/Npc.Planning/PlanStore.cs` (수정 — P1 스텁 교체)
   사양 `docs/13 §2`
-  내용 `CompiledPlan?[2880]` 고정 배열. `BucketKey.ToIndex()`로 O(1). **락 없음** — `Volatile` 읽기/쓰기 + 원자 참조 교체. 히트/미스 카운터.
-  완료 `PlanStore_ResolveNeverNull` 통과 · `PlanStore_IsLockFree` (동시 읽기 1M회 중 예외 0) · `PlanStore_ResolveIsO1`
+  내용 ⚠ **`docs/13 §2`의 `CompiledPlan?[2880]` 하나로는 부족하다.** P1 런타임이 이미 `NpcStore.PlanId(int)` → `CompiledPlan` 조회를 쓴다 (`PlanExecutor` 4곳 · `CognitionScheduler` 1곳). 따라서 두 표가 필요하다 — **버킷 → planId(`int[2880]`)** 와 **planId → 플랜(레지스트리)**. 조회는 여전히 `BucketKey.ToIndex()` + 첨자 두 번이다.
+  내용 P1 스텁의 공개 시그니처(`Register`·`SetBucket`·`SetFallback`·`Resolve`·`HasBucket`·`this[PlanId]`)를 **바꾸지 않는다.** `Publish`는 `SetBucket`의 §2식 이름이므로 둘 중 하나로 통일하고 호출부를 맞춘다. **락 없음** — `Volatile` 읽기/쓰기 + 원자 참조 교체. 히트/미스 카운터 추가.
+  완료 `PlanStore_ResolveNeverNull` 통과 · `PlanStore_IsLockFree` (동시 읽기 1M회 중 예외 0) · `PlanStore_ResolveIsO1` · P1의 `PlanStoreTests` 전부 그대로 통과
 
 **T3-02** `PlanOrigin` + pinned 보호 · `S` · 선행 T3-01
   파일 `src/Npc.Planning/PlanStore.cs` (수정)
   사양 `docs/13 §2, §5`
-  내용 `Prebaked | Runtime | Fallback | Pinned`. **Pinned는 `Publish`가 덮어쓰지 않는다.**
+  내용 `PlanOrigin`(`Prebaked | Runtime | Fallback | Pinned`)은 T1-23에서 이미 `Npc.Core/Plan/CompiledPlan.cs`에 있다. **새로 정의하지 않는다.** 이 태스크는 보호 로직뿐이다 — **Pinned는 `Publish`가 덮어쓰지 않는다.**
   완료 `PlanStore_PinnedIsNotOverwritten` 통과
 
 **T3-03** `IndividualPlanPool` · `M` · 선행 T3-01
   파일 `src/Npc.Planning/IndividualPlanPool.cs` (신규)
   사양 `docs/13 §2`
   내용 링 버퍼 512개, LRU 회수. `NpcStore.PlanId`가 음수면 `~value`가 풀 인덱스.
-  완료 `IndividualPool_LruEvicts` 통과 · `IndividualPool_NegativeIdRoundTrip` 통과 · 회전율 메트릭 노출
+  내용 ⚠ **`docs/13 §2` 주석의 "`>= 0` : 버킷 플랜 인덱스(0..2879)"는 구현과 다르다.** `NpcStore.PlanId`는 버킷 인덱스가 아니라 **`PlanStore` 레지스트리 id** 이고, `0`은 최후 플랜(`PlanStore.IdlePlanId`)이다. `PendingPlanId`도 `0 = 없음`이라 개별 슬롯은 반드시 음수여야 한다 — `~slot`이면 슬롯 0이 `-1`이 되어 충돌하지 않는다.
+  완료 `IndividualPool_LruEvicts` 통과 · `IndividualPool_NegativeIdRoundTrip` 통과 (슬롯 0 포함) · 회전율 메트릭 노출
 
 **T3-04** 캐시 메트릭 · `S` · 선행 T3-01, T1-58
-  파일 `src/Npc.Planning/CacheMetrics.cs` (신규)
+  파일 `src/Npc.Planning/CacheMetrics.cs` (신규), `src/Npc.Host/Metrics/NpcMeter.cs` (수정)
   사양 `docs/13 §6`
-  내용 히트율(전체·아키타입별) · 콜드 버킷 수 · 미스 상위 10 버킷 · 개별 풀 회전율.
-  완료 `/metrics`에 4개 지표 존재 · 아키타입별 분해 가능
+  내용 히트율(전체·아키타입별) · 콜드 버킷 수 · 미스 상위 10 버킷 · 개별 풀 회전율. **`NpcMeter`는 `Npc.Host`의 `internal` 타입이다** — `Npc.Planning`에서 직접 못 쓴다. 카운터는 `CacheMetrics`가 들고, `NpcMeter`가 `ObservableGauge`로 읽어 간다(`MetricsSnapshot`에 캐시 패널 추가).
+  완료 `/metrics`에 4개 지표 존재 · 아키타입별 분해 가능 · 대시보드 스냅샷에 노출(T4-18이 그린다)
 
 ---
 
@@ -40,7 +42,7 @@
 **T3-05** `Manifest` 모델 · `S` · 선행 T3-01
   파일 `src/Npc.Planning/Manifest.cs` (신규)
   사양 `docs/03 §7`
-  내용 masterdata_hash · prefix_hash · generated_by · counts · validation · cost_usd · wall_clock_s. **생성 시각은 외부에서 인자로 주입**(`DateTime.Now` 금지).
+  내용 masterdata_hash · prefix_hash · generated_by · counts · validation · cost_usd · wall_clock_s. **생성 시각은 외부에서 인자로 주입**(`DateTime.Now` 금지). `masterdata_hash`는 T1-19의 `MasterDataSet.ContentHash`를 그대로 쓴다.
   완료 `Manifest_HasNoDateTimeNow` 통과 (소스에 `DateTime.Now`/`UtcNow` 0)
 
 **T3-06** `PlanStoreValidator` 무효화 판정 · `M` · 선행 T3-05, T1-19
@@ -60,10 +62,11 @@
 ## C. `Npc.Prebake` CLI (W8)
 
 **T3-08** CLI 골격 + 옵션 · `M` · 선행 T3-07, T2-19
-  파일 `tools/Npc.Prebake/Program.cs`, `PrebakeOptions.cs` (신규)
+  파일 `tools/Npc.Prebake/Program.cs`, `PrebakeOptions.cs` (수정 — T2-19가 만든 프로젝트), `tests/Npc.Tests/Npc.Tests.csproj` (수정)
   사양 `docs/13 §4`
-  내용 `--masterdata --out --tier --model --concurrency --dryrun-sample --resume --only --budget-usd`.
-  완료 `--help` 출력 · `--only "blacksmith@*"` glob 파싱 테스트 통과
+  내용 `--masterdata --out --tier --model --concurrency --dryrun-sample --resume --only --budget-usd`. T1-57의 `HostOptions.TryParse` 형태를 따른다 — `ConfigurationBuilder(args)`는 값 없는 플래그를 거부한다.
+  내용 **T3-08~T3-16의 완료 조건이 전부 테스트다.** `tests/Npc.Tests`가 `tools/Npc.Prebake`를 참조하도록 `ProjectReference`를 추가하고, 프로젝트가 `NpcServer.sln`에 들어가 있는지 확인한다 — 안 그러면 `dotnet build`/`dotnet test`가 이 코드를 아예 보지 않는다.
+  완료 `--help` 출력 · `--only "blacksmith@*"` glob 파싱 테스트 통과 · `dotnet build -c Release`가 Prebake 를 포함
 
 **T3-09** 대상 버킷 산출 · `M` · 선행 T3-08, T3-06
   파일 `tools/Npc.Prebake/TargetSelector.cs` (신규)
@@ -80,19 +83,21 @@
 **T3-11** 프리픽스 워밍업 · `S` · 선행 T3-08
   파일 `tools/Npc.Prebake/Warmup.cs` (신규)
   사양 `docs/13 §4, §8`
-  내용 동시 요청 **전에** 단건을 먼저 던져 캐시 write를 1회만 지불. 생략하면 Anthropic 기준 write 할증을 32번 낸다.
-  완료 `Prebake_WarmupBeforeConcurrency` 통과 (첫 요청 완료 후에야 워커 시작) · 워밍업 유무 비용 차이를 실측 기록
+  내용 동시 요청 **전에** 단건을 먼저 던져 캐시 write를 1회만 지불. 생략하면 Anthropic 기준 write 할증을 동시성 수만큼 낸다.
+  내용 **비용 차이 실측은 외부 API 에서만 한다.** dotLLM 은 `cached_tokens`를 항상 0으로 보고하므로(`W1_env.md §4.4`) 로컬에서는 이 실험 자체가 성립하지 않는다.
+  완료 `Prebake_WarmupBeforeConcurrency` 통과 (첫 요청 완료 후에야 워커 시작) · 외부 API 기준 워밍업 유무 비용 차이를 실측 기록
 
 **T3-12** `AdaptiveConcurrency` (AIMD) · `M` · 선행 T3-08
   파일 `tools/Npc.Prebake/AdaptiveConcurrency.cs` (신규)
-  사양 `docs/13 §4`
-  내용 성공 16연속 → +1, throttle → /2. 초기값은 W1 T0-11 실측값.
-  완료 `Aimd_HalvesOnThrottle` · `Aimd_GrowsOnStreak` 통과
+  사양 `docs/13 §4` · `docs/measurements/W1_concurrency.md`
+  내용 성공 16연속 → +1, throttle → /2.
+  내용 ⚠ **초기값을 "W1 T0-11 실측값"이라고 쓸 수 없다.** T0-11은 로컬 2종만 쟀고 외부 API는 측정되지 않았으며, 로컬에서는 429가 한 번도 나지 않았다. **초기값은 T2-19 첫 회차에서 실측한 429 최초 발생 동시성의 절반**으로 잡는다. 그 실행 전이면 8에서 시작한다.
+  완료 `Aimd_HalvesOnThrottle` · `Aimd_GrowsOnStreak` 통과 · 초기값의 근거가 `W6_compile_stats.md` 또는 `manifest.json`에 기록됨
 
 **T3-13** 429 백오프 · `S` · 선행 T3-12
   파일 `tools/Npc.Prebake/RetryPolicy.cs` (신규)
   사양 `docs/13 §4`
-  내용 지수 백오프 + 지터. **동시 32를 그냥 던지면 초반에 다 튕긴다.**
+  내용 지수 백오프 + 지터. **측정되지 않은 동시성을 그냥 던지면 초반에 다 튕긴다.** 지터는 결정론이어야 한다 — `Random` 대신 `(bucketIndex, attempt)` 해시를 쓴다 (`../CLAUDE.md §2.3`).
   완료 `Backoff_IsExponentialWithJitter` 통과 · 429 주입 시 전량 완주
 
 **T3-14** 예산 하드 캡 · `S` · 선행 T3-08, T2-10
@@ -104,8 +109,8 @@
 **T3-15** 전수 드라이런 병렬 · `M` · 선행 T3-08, T2-13
   파일 `tools/Npc.Prebake/DryRunStage.cs` (신규)
   사양 `docs/13 §8`
-  내용 `--dryrun-sample 1.0`. 2,880 × ~50ms를 병렬화. **프리베이크에서 생략하면 데드락 플랜이 런타임에 배포된다.**
-  완료 2,880건 드라이런 ≤ 60초 · 결정론 유지 (2회 실행 → 동일 판정)
+  내용 `--dryrun-sample 1.0`. 2,880건을 병렬화. **프리베이크에서 생략하면 데드락 플랜이 런타임에 배포된다.** 건당 소요는 T2-13 실측을 쓴다 (§8의 "~50ms"는 추정치다).
+  완료 2,880건 드라이런 ≤ 60초 · 결정론 유지 (2회 실행 → 동일 판정) · 미달 시 병렬도를 올리기 전에 T2-13의 건당 소요부터 기록
 
 **T3-16** manifest 작성 · `S` · 선행 T3-14, T3-15
   파일 `tools/Npc.Prebake/ManifestWriter.cs` (신규)
@@ -118,9 +123,10 @@
 
 **T3-17** 검수 도구 · `M` · 선행 T3-07
   파일 `tools/review.ps1` (신규)
-  사양 `docs/13 §5`
-  내용 `--sample 40` 무작위 추출 → 사이드바이사이드 출력 → `[채택/수정후채택/폐기]` 입력 받음. **검수 소요 시간을 자동 계측.**
-  완료 40건 순회 · 판정과 소요 시간이 jsonl로 기록됨
+  사양 `docs/13 §5` · `docs/measurements/W1_env.md §4.6`
+  내용 `--sample 40` 무작위 추출 → 사이드바이사이드 출력 → `[채택/수정후채택/폐기]` 입력 받음. **검수 소요 시간을 자동 계측.** 샘플 추출은 시드 고정 — 검수 대상이 실행마다 바뀌면 재현이 안 된다.
+  내용 **한국어 주석이 들어가는 `.ps1`은 UTF-8 BOM 으로 저장한다.** BOM 이 없으면 Windows PowerShell 5.1 이 ANSI 로 읽어 파서 오류가 난다. T3-19·T4-15·T4-17의 스크립트도 같다.
+  완료 40건 순회 · 판정과 소요 시간이 jsonl로 기록됨 · `powershell -File tools/review.ps1 -?` 가 파서 오류 없이 실행됨
 
 **T3-18** 검수 결과 기록 포맷 · `S` · 선행 T3-17
   파일 `docs/measurements/review_W8.jsonl` (산출)
@@ -131,18 +137,19 @@
 **T3-19** pinned 승격 도구 · `S` · 선행 T3-18, T3-02
   파일 `tools/pin_plan.ps1` (신규)
   사양 `docs/13 §5, §8`
-  내용 수정 채택된 플랜을 `plans/` → `pinned/`로 이동. **`pinned/`는 반드시 버전 관리에 올린다.**
-  완료 승격 후 재프리베이크가 덮어쓰지 않음 · `.gitignore`가 `pinned/`를 무시하지 않음
+  내용 수정 채택된 플랜을 `plans/` → `pinned/`로 이동하고 `Origin`을 `Pinned`로 바꾼다. **`pinned/`는 반드시 버전 관리에 올린다.** UTF-8 BOM (T3-17 참조).
+  완료 승격 후 재프리베이크가 덮어쓰지 않음 · `.gitignore`가 `pinned/`를 무시하지 않음 (현재 `planstore/plans/`·`planstore/rejected/`만 무시한다 — 이미 만족)
 
 ---
 
 ## E. 결선 · 게이트 (W8)
 
 **T3-20** Host에 `PlanStore` 결선 · `M` · 선행 T3-01, T3-07, T1-57
-  파일 `src/Npc.Host/Program.cs` (수정)
+  파일 `src/Npc.Host/Program.cs` (수정), `src/Npc.Host/HostOptions.cs` (수정)
   사양 `docs/13 §2`
-  내용 기동 시 `planstore/` 로드 → `PlanStore` 주입. P1의 폴백 전용 스텁을 교체. 무효화 판정 결과를 로그로 경고.
-  완료 기동 시 2,880건 로드 · 미생성 버킷은 폴백으로 해소 · 로드 시간 ≤ 3초
+  내용 기동 시 `planstore/` 로드 → `PlanStore` 주입. **교체 대상은 `Program.BuildPlanStore`** — 지금은 최후 플랜 + 폴백 40개만 등록한다. 폴백 등록 경로(`SetFallback` · `fallbackOf`)는 그대로 두고 버킷 로드를 얹는다. 무효화 판정(T3-06) 결과를 로그로 경고.
+  내용 `--planstore <dir>` 옵션을 추가한다 — 지금은 경로가 코드에 박혀 있다.
+  완료 기동 시 2,880건 로드 · 미생성 버킷은 폴백으로 해소 · 로드 시간 ≤ 3초 · `--no-llm` 기동이 P1과 동일하게 동작
 
 **T3-21** P3 게이트 검증 · `M` · 선행 T3-20, T3-16, T3-18
   파일 `tests/Npc.Tests/Gates/Phase3GateTests.cs` (신규)
@@ -151,7 +158,7 @@
 
 ```
 [ ] 2,880 버킷 중 생성 완료 ≥ 95%, 나머지는 폴백으로 안전 해소
-[ ] 프리베이크 wall-clock ≤ 5분 (외부 API 동시 32)
+[ ] 프리베이크 wall-clock ≤ 5분 (T2-19에서 실측한 동시성 기준)
 [ ] 프리베이크 실비용 ≤ $5
 [ ] 프롬프트 캐시 적중률 ≥ 95% (manifest 기록)
 [ ] 시나리오 A(7게임일)에서 캐시 히트율 ≥ 98%
@@ -160,6 +167,9 @@
 [ ] --budget-usd 초과 시 중단 + --resume 재개
 [ ] 검수 40건 샘플의 채택률(accept+edit) ≥ 80%
 ```
+
+> **"동시 32 → 3분"은 상위 계획의 추정이지 실측이 아니다.** W1은 외부 API 동시성을 재지 않았다(`W1_concurrency.md`는 로컬 2종뿐).
+> 실측 동시성이 32보다 낮게 나오면 **5분 기준을 그때 갱신하고 `../TASKS.md §3`에 남긴다** — 기준을 맞추려고 동시성을 올려 429를 맞지 않는다.
 
 ---
 

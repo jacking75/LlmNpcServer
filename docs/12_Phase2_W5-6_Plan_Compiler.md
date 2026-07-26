@@ -20,13 +20,17 @@
 ```
 Npc.Llm/
   IPlanCompiler.cs          플랜 생성 계약
-  PlanCompiler.cs           본체
+  LlmPlanCompiler.cs        본체 (`PlanCompiler` 는 쓸 수 없다 — Npc.Core.Plan 에 이미 있다)
   PromptPrefix.cs           고정 프리픽스 (기동 시 1회 조립, 불변)
   PlanRequestSuffix.cs      가변 서픽스 조립
   SchemaProvider.cs         actions.json → JSON Schema 생성
   ChatClientFactory.cs      IChatClient 생성 (W9에 티어 라우터로 확장)
-  TokenBudget.cs            [W9~] 일일 하드 캡
+  TieredPlanCompiler.cs     [W9~] 3-티어 라우터 (docs/14 §4)
+  CircuitBreaker.cs         [W9~] T2 연속 실패 차단 (docs/14 §10)
 ```
+
+> 일일 하드 캡은 여기가 아니라 **`Npc.Planning/ReplanBudget.cs`** 다 (`docs/14 §3`).
+> 예산은 "누가 재계획을 받을 것인가"의 문제이고 그 판정은 큐 쪽에서 난다 — 호출 직전에 막으면 이미 큐에서 뽑은 뒤라 되돌릴 곳이 없다.
 
 ```csharp
 public interface IPlanCompiler
@@ -55,9 +59,13 @@ public readonly record struct CompileStats(
 
 ---
 
-## 3. 서픽스 조립 — 250토큰 예산을 지킨다
+## 3. 서픽스 조립 — 300토큰 예산을 지킨다
 
-프리픽스는 4,200~4,500토큰으로 고정되어 캐시된다. 서픽스는 매번 prefill되므로 **짧을수록 곧바로 지연이 준다.** dotLLM은 prefill이 느리므로 특히 그렇다.
+프리픽스는 고정되어 캐시된다. 서픽스는 매번 prefill되므로 **짧을수록 곧바로 지연이 준다.** dotLLM은 prefill이 느리므로 특히 그렇다.
+
+> **프리픽스 크기는 W5에 재서 확정한다.** `docs/01 §10.1`의 4,200~4,500 은 액션 12·플래그 16 짜리 축소판으로 잡은 값이다(W1 실측 4,409 tok).
+> 정식은 액션 37·플래그 42 라 그 단가로 외삽하면 약 8,000 tok 이다. **캐시에 필요한 것은 하한 4,096 뿐이므로 상한을 맞추려고 카탈로그를 줄이지 않는다** — T2-04에서 실측하고 §10.1을 갱신한다.
+> 여기서 지키는 300 토큰은 **서픽스** 예산이고, 이건 프리픽스 크기와 무관하게 그대로다.
 
 ```csharp
 // Npc.Llm/PlanRequestSuffix.cs
@@ -130,15 +138,30 @@ public sealed class SchemaProvider
 }
 ```
 
-W1(G0-1)에서 문제된 스키마 요소는 여기서 제거한다. 경험상 위험한 것:
+W1(G0-1)에서 문제된 스키마 요소는 여기서 제거한다. 아래 "실측" 열은 `docs/measurements/W1_schema.md`의 건수다.
 
-| 요소 | 위험 | 대안 |
-|---|---|---|
-| `oneOf` / `anyOf` | FSM 상태 폭발. 로컬 강제 디코딩이 느려지거나 실패 | `args`를 `type: object`로 두고 검증기 2단이 처리 |
-| 깊은 중첩 (3단 이상) | 모델이 닫는 괄호를 놓침 | 평탄화 |
-| `pattern` (정규식) | 제공사별 지원 편차 | 검증기 2단으로 이관 |
-| `minItems`/`maxItems` | 지원은 되지만 모델이 종종 어김 | 유지하되 검증기에서 재확인 |
-| `additionalProperties: false` | 필수. 환각 필드 차단 | 유지 |
+| 요소 | 위험 | 실측 | 대안 |
+|---|---|---|---|
+| `oneOf` / `anyOf` | FSM 상태 폭발. 로컬 강제 디코딩이 느려지거나 실패 | (미사용) | `args`를 `type: object`로 두고 검증기 2단이 처리 |
+| 깊은 중첩 (3단 이상) | 모델이 닫는 괄호를 놓침 | (미사용) | 평탄화 |
+| `pattern` (정규식) | 제공사별 지원 편차 | (미사용) | 검증기 2단으로 이관 |
+| `minItems`/`maxItems` | 모델이 종종 어긴다 | **7건** (`V1.STEP_COUNT`) | **뺀다.** 검증기 1단이 이미 스텝 수를 본다 |
+| `additionalProperties: false` | 환각 필드 차단 | **1건** (`V1.EXTRA_FIELD`) | **뺀다.** 검증기 1단이 이미 잡는다 |
+| `required` · `maximum` | 로컬 모델이 어긴다 | 각 **1건** | **뺀다.** 검증기 2단이 인자를 본다 |
+
+### 실측이 뒤집은 것 — 강제 디코딩을 기본으로 두지 않는다
+
+W1(T0-09)의 결론은 "스키마를 고치면 된다"가 아니었다. **스키마를 강제할수록 나빠졌다.**
+
+| 스키마 | 디코딩 | 유효 JSON | 검증통과 |
+|---|---|---|---|
+| full | forced | 99/100 | **0** — `V2.UNKNOWN_ARG` 99 |
+| bare | forced | 20/20 | **3** — `V2.MISSING_REQUIRED_ARG` 17 |
+| full | **prompt** | 98/100 | **93** |
+
+강제 디코딩은 문법을 지키면서 **인자를 지어낸다**(`MoveTo.recipe`, `Eat.poi`). 형식이 맞으니 파서는 통과시키고, 어휘 검증에서 전부 걸린다.
+따라서 스키마는 **프롬프트에 실리는 문서**로만 쓰고, `response_format`으로 강제할지는 설정으로 빼서 T2-19 첫 회차에 두 모드를 다 재고 정한다.
+이것이 `../CLAUDE.md §2.6`("강제 디코딩을 신뢰하지 않는다")의 실측 근거다.
 
 ---
 
@@ -203,8 +226,18 @@ public ValidationResult Validate(PlanDocument doc, ValidationContext ctx)
 
 `Npc.Sim`을 NPC 1마리 · 시간 1000배속으로 인스턴스화한다. W2–4에서 만든 Sim을 그대로 재사용한다.
 
+**이 검증기만 `Npc.Core`에 두지 않는다.** `../CLAUDE.md §3`의 의존 그래프에서 `Npc.Core`는 `Npc.Contracts`만 참조하는데 `SimWorld`는 `Npc.Sim`에 있다. 1~3단과 달리 4단은 세계를 굴려야 하므로 자리를 옮긴다 — **계약은 `Npc.Core`, 구현은 `Npc.Sim`.** `IPlanVocabulary`(docs/03 §5)를 가른 것과 같은 이유이고 같은 방법이다.
+
 ```csharp
-// Npc.Core/Validation/DryRunValidator.cs
+// Npc.Core/Validation/IDryRunValidator.cs   ← 호출자(Npc.Llm)가 보는 것
+public interface IDryRunValidator
+{
+    ValidationResult Validate(CompiledPlan plan, ValidationContext ctx);
+}
+```
+
+```csharp
+// Npc.Sim/Validation/DryRunValidator.cs     ← SimWorld 를 아는 쪽
 public ValidationResult Validate(CompiledPlan plan, ValidationContext ctx)
 {
     using var sim = SimWorld.CreateMinimal(ctx.MasterData, ctx.Bucket, seed: ctx.Seed);
@@ -222,16 +255,16 @@ public ValidationResult Validate(CompiledPlan plan, ValidationContext ctx)
 }
 ```
 
-**드라이런은 결정론적이어야 한다.** `seed`를 버킷 키에서 유도해서, 같은 플랜은 항상 같은 판정을 받게 한다. 안 그러면 골든 테스트가 불안정해진다.
+**드라이런은 결정론적이어야 한다.** `seed`를 버킷 키에서 유도해서, 같은 플랜은 항상 같은 판정을 받게 한다. 안 그러면 골든 테스트가 불안정해진다. `SimWorld`는 이미 `SimOptions.Seed`로 난수가 고정돼 있으므로 그 경로를 쓰고 새 `Random`을 만들지 않는다.
 
-**비용**: 약 50ms/건. 프리베이크(2,880건)에서 전수 실행하면 144초가 추가되지만 병렬화 가능하다. 런타임 개별 재계획에서는 10% 샘플링만 한다.
+**비용**: 약 50ms/건 **(추정)**. 프리베이크(2,880건)에서 전수 실행하면 144초가 추가되지만 병렬화 가능하다. 런타임 개별 재계획에서는 10% 샘플링만 한다. T2-13에서 실측하면 이 수를 갱신하고, T3-15의 "≤ 60초" 목표도 같이 다시 본다.
 
 ---
 
 ## 6. 실패 처리 파이프라인
 
 ```csharp
-// Npc.Llm/PlanCompiler.cs
+// Npc.Llm/LlmPlanCompiler.cs
 public async ValueTask<PlanCompileResult> CompileAsync(PlanRequest req, CancellationToken ct)
 {
     // 시도 1
@@ -296,7 +329,7 @@ public static IEnumerable<BucketKey> NeighborBuckets(BucketKey k)
 ## 8. 통과율 개선 루프 (W6 후반)
 
 ```
-1. 2,880 버킷 전량을 1회씩 생성 (캐시 없이, 외부 API 동시 32 → 약 3분)
+1. 2,880 버킷 전량을 1회씩 생성 (외부 API. **동시성은 8에서 시작해 AIMD 로 올리며 이 회차에서 실측한다** — "동시 32 → 3분"은 상위 계획의 추정이고 W1 은 외부 동시성을 재지 않았다)
 2. 실패를 (stage, code, archetype) 으로 집계
 3. 상위 3개 실패 원인을 고친다
 4. 반복

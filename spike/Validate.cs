@@ -38,12 +38,8 @@ internal readonly record struct ValidationResult(
 /// </summary>
 internal static class Validate
 {
-    /// <summary>docs/03 §2 의 POI 심볼 허용 목록. 이 밖의 값은 전부 V2.UNKNOWN_POI.</summary>
-    public static readonly string[] PoiSymbols =
-    [
-        "$home", "$workplace", "$market", "$tavern", "$temple", "$gate",
-        "$nearest_field", "$nearest_safe", "$nearest_shelter",
-    ];
+    /// <summary>docs/03 §2 의 POI 심볼 허용 목록. 스키마 생성기와 같은 목록을 본다.</summary>
+    public static string[] PoiSymbols => SchemaGen.PoiSymbols;
 
     /// <summary>아키타입별 허용 액션. 정식판은 archetypes.json 이 들고 있다 (docs/01 §5).</summary>
     private static readonly Dictionary<string, string[]> AllowedActions = new()
@@ -75,8 +71,12 @@ internal static class Validate
             }
 
             var node = JsonNode.Parse(SchemaGen.BuildFromCatalog(SchemaOptions.Full))!;
-            node["properties"]!["steps"]!["items"]!["properties"]!["action"] =
-                new JsonObject { ["type"] = "string" };
+            var stepProps = node["properties"]!["steps"]!["items"]!["properties"]!;
+            stepProps["action"] = new JsonObject { ["type"] = "string" };
+
+            // args 의 평탄화 합집합도 뺀다. POI·아이템 어휘를 여기서 잡으면
+            // V2.UNKNOWN_POI / V2.UNKNOWN_ITEM 이 V1.SCHEMA 로 뭉개진다.
+            stepProps["args"] = new JsonObject { ["type"] = "object" };
             _structuralSchema = node.ToJsonString();
             return _structuralSchema;
         }
@@ -87,7 +87,12 @@ internal static class Validate
     /// <param name="json">LLM 이 뱉은 원문.</param>
     /// <param name="catalog">축소 마스터데이터.</param>
     /// <param name="archetype">아키타입 id. null 이면 ACTION_NOT_ALLOWED 검사를 건너뛴다.</param>
-    public static ValidationResult Check(string json, MinCatalog catalog, string? archetype = null)
+    /// <param name="ignoreUnknownArgs">
+    /// 액션에 없는 인자를 무시한다. 강제 디코딩이 args 합집합을 통째로 채워 넣는 제공사(Gemini)를
+    /// 상대로 "관용 통과율"을 같이 재려고 둔 스위치다 (T0-09).
+    /// </param>
+    public static ValidationResult Check(
+        string json, MinCatalog catalog, string? archetype = null, bool ignoreUnknownArgs = false)
     {
         // ---------------- 1단: 스키마
         JsonDocument doc;
@@ -180,6 +185,11 @@ internal static class Validate
                 var param = def.Params.FirstOrDefault(p => p.Name == arg.Name);
                 if (param is null)
                 {
+                    if (ignoreUnknownArgs)
+                    {
+                        continue;
+                    }
+
                     return new ValidationResult(ValidationStage.Vocabulary, "V2.UNKNOWN_ARG", i,
                         $"{actionId}.{arg.Name}");
                 }

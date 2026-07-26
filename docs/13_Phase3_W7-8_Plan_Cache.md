@@ -18,34 +18,41 @@
 
 ## 2. `PlanStore`
 
+**표가 둘이다.** 버킷으로도 찾고 `PlanId`로도 찾는다 — 런타임(`PlanExecutor`·`CognitionScheduler`)이 NPC마다 들고 있는 것은 버킷이 아니라 `NpcStore.PlanId` 이기 때문이다. 버킷 하나에 배열 하나로는 그 조회가 안 된다.
+
 ```csharp
 // Npc.Planning/PlanStore.cs
 public sealed class PlanStore
 {
-    // 2,880 고정 배열. 해시맵 불필요 — BucketKey.ToIndex()가 O(1)
-    private readonly CompiledPlan?[] _plans = new CompiledPlan?[2880];
-    private readonly CompiledPlan[]  _fallbacks;                  // 아키타입당 1개
-    private readonly PlanOrigin[]    _origin = new PlanOrigin[2880];
-    private readonly long[]          _hits   = new long[2880];
-    private readonly long[]          _misses = new long[2880];
+    // [1] 버킷 → PlanId. 2,880 고정 배열. 해시맵 불필요 — BucketKey.ToIndex()가 O(1)
+    private readonly int[]        _byBucket    = new int[2880];   // 0 = 미생성
+    private readonly PlanOrigin[] _origin      = new PlanOrigin[2880];
+    private readonly long[]       _hits        = new long[2880];
+    private readonly long[]       _misses      = new long[2880];
+
+    // [2] PlanId → 플랜. 런타임의 조회 경로. 첨자 한 번, 할당 0
+    private readonly List<CompiledPlan> _plans;                   // [0] = 최후 플랜
+    private readonly int[]              _byArchetype;             // 아키타입 폴백의 PlanId
 
     public CompiledPlan Resolve(BucketKey key, out PlanOrigin origin)
     {
         int idx = key.ToIndex();
-        var p = Volatile.Read(ref _plans[idx]);
-        if (p is not null) { Interlocked.Increment(ref _hits[idx]); origin = _origin[idx]; return p; }
+        int id  = Volatile.Read(ref _byBucket[idx]);
+        if (id != IdlePlanId) { Interlocked.Increment(ref _hits[idx]); origin = _origin[idx]; return _plans[id]; }
 
         Interlocked.Increment(ref _misses[idx]);
         origin = PlanOrigin.Fallback;
-        return _fallbacks[key.A.Value];        // 미스여도 항상 유효한 플랜을 반환한다
+        return _plans[_byArchetype[key.A.Value]];   // 미스여도 항상 유효한 플랜을 반환한다
     }
 
-    // 재계획 워커만 호출. 원자 교체.
+    public CompiledPlan this[PlanId id] { get; }   // 런타임이 매 틱 쓴다
+
+    // 재계획 워커·프리베이크만 호출. 원자 교체.
     public void Publish(BucketKey key, CompiledPlan plan)
     {
         int idx = key.ToIndex();
         if (_origin[idx] == PlanOrigin.Pinned) return;    // 사람이 고정한 플랜은 덮지 않는다
-        Volatile.Write(ref _plans[idx], plan);
+        Volatile.Write(ref _byBucket[idx], Register(plan).Value);
         _origin[idx] = plan.Origin;
     }
 }
@@ -53,7 +60,11 @@ public sealed class PlanStore
 
 **`Resolve`는 절대 null을 반환하지 않는다.** 미스여도 폴백을 준다. 이게 시나리오 C(LLM 전면 차단)가 통과하는 이유다.
 
-**락이 없다.** 참조 쓰기가 원자적이고, 읽는 쪽이 조금 낡은 플랜을 봐도 다음 틱에 새 것을 본다. 틱 루프에서 락을 잡으면 그 자체가 병목이 된다.
+**락이 없다.** `int` 쓰기가 원자적이고, 읽는 쪽이 조금 낡은 플랜을 봐도 다음 틱에 새 것을 본다. 틱 루프에서 락을 잡으면 그 자체가 병목이 된다.
+
+> P1 스텁(T1-39)이 이미 이 두 표를 갖고 있고 `Register`·`SetBucket`·`SetFallback`·`Resolve`·`HasBucket`·`this[PlanId]`를 노출한다.
+> P3는 **내부만 바꾼다.** 위 코드의 `Publish` 는 `SetBucket` 과 같은 것이니 이름을 하나로 통일하고 호출부를 맞춘다.
+> `_plans` 가 계속 자라는 것을 막는 회수는 개별 플랜 풀(아래)이 맡는다 — 버킷 플랜은 2,880 상한이라 두지 않아도 된다.
 
 ### 개별 오버라이드
 
@@ -61,10 +72,14 @@ public sealed class PlanStore
 
 ```csharp
 // NpcStore.PlanId 가 음수면 개별 플랜 슬롯을 가리킨다
-//   >= 0  : 버킷 플랜 인덱스 (0..2879)
-//   <  0  : 개별 플랜 풀 인덱스 (~value)
+//   >  0  : PlanStore 레지스트리 id  ← 버킷 인덱스가 아니다
+//   == 0  : 최후 플랜 (PlanStore.IdlePlanId)
+//   <  0  : 개별 플랜 풀 인덱스 (~value)  ← 슬롯 0 이 -1 이라 0 과 겹치지 않는다
 private readonly IndividualPlanPool _individual;   // 링 버퍼. 최대 512개, LRU 회수
 ```
+
+**`PlanId`는 버킷 인덱스가 아니다.** 같은 플랜을 여러 버킷이 가리킬 수 있고(인접 버킷 재사용 — `docs/12 §7`), 개별 플랜은 버킷이 아예 없다.
+`NpcStore.PendingPlanId` 도 `0 = 없음` 이므로 워커가 넘기는 개별 슬롯은 **반드시 음수**여야 한다 (`docs/14 §4`의 `~slot`).
 
 개별 플랜은 **수명이 짧다.** 완료되거나 다음 버킷 전환 시 버킷 플랜으로 되돌아간다. 512개 상한은 "동시에 특별 대우를 받는 NPC 수"의 상한이고, 이게 곧 §14의 재계획 예산과 맞물린다.
 
@@ -116,7 +131,7 @@ Npc.Prebake.exe
   --out        ./planstore
   --tier       T2                 # T1(로컬) | T2(외부)
   --model      gpt-5-nano
-  --concurrency 32                # AIMD 초기값. W1 M4에서 확정
+  --concurrency 8                 # AIMD 초기값. ⚠ W1은 외부 API 동시성을 재지 않았다 (T2-19에서 실측)
   --dryrun-sample 1.0             # 프리베이크는 전수 드라이런
   --resume                        # 기존 planstore에서 이어서
   --only "blacksmith@*"           # 부분 재생성 (glob)
@@ -144,10 +159,12 @@ Npc.Prebake.exe
 // 캐시 write를 1회만 지불하기 위해, 동시 요청 전에 단건을 먼저 던진다
 await client.GetResponseAsync([prefixMsg, warmupSuffix], opts);
 await Task.Delay(200);   // 캐시 반영 대기
-// 이제 동시 32 시작
+// 이제 동시 N 시작 (N = AdaptiveConcurrency 의 현재값)
 ```
 
-이걸 빼면 32개 요청이 전부 cache miss로 시작해서, Anthropic 기준 write 할증(1.25~2배)을 32번 낸다.
+이걸 빼면 N개 요청이 전부 cache miss로 시작해서, Anthropic 기준 write 할증(1.25~2배)을 N번 낸다.
+
+**로컬 티어에서는 이 실험이 성립하지 않는다.** dotLLM 0.1.0-preview.3 은 `cached_tokens` 를 항상 0으로 보고한다(`W1_env.md §4.4`). 워밍업 효과 실측은 외부 API 로만 한다.
 
 ### AIMD 동시성 제어
 
@@ -217,12 +234,16 @@ _meter.CreateObservableGauge("npc.plan.cache.hit_ratio",
     () => (double)_hits.Sum() / (_hits.Sum() + _misses.Sum()));
 
 _meter.CreateObservableGauge("npc.plan.cache.cold_buckets",
-    () => _plans.Count(p => p is null));            // 미생성 버킷 수
+    () => _byBucket.Count(id => id == IdlePlanId));  // 미생성 버킷 수
 
 // 미스 상위 버킷 — 프리베이크 우선순위 튜닝의 입력
 _meter.CreateObservableGauge("npc.plan.cache.top_miss",
     () => _misses.Index().OrderByDescending(x => x.Item).Take(10)...);
 ```
+
+`Meter` 계측기는 OpenTelemetry 수집용이고, **대시보드는 `GET /metrics` 의 JSON 한 장만 읽는다**(`docs/11 §10`).
+그 JSON을 만드는 `NpcMeter` 는 `Npc.Host` 의 `internal` 타입이라 `Npc.Planning` 에서 직접 못 쓴다 —
+카운터는 `CacheMetrics` 가 들고 있고 `NpcMeter` 가 스냅샷 시점에 읽어 간다. 패널은 T4-18이 그린다.
 
 ### 히트율 98%가 안 나오는 원인
 
@@ -238,7 +259,7 @@ _meter.CreateObservableGauge("npc.plan.cache.top_miss",
 ## 7. 게이트 확인
 
 - [ ] 2,880개 버킷 중 생성 완료 ≥ 95%, 나머지는 폴백으로 안전하게 해소
-- [ ] 프리베이크 wall-clock ≤ 5분 (외부 API 동시 32)
+- [ ] 프리베이크 wall-clock ≤ 5분 (T2-19 에서 실측한 동시성 기준 — "동시 32" 는 추정이고 W1 은 외부 동시성을 재지 않았다)
 - [ ] 프리베이크 실비용 ≤ $5
 - [ ] 프롬프트 캐시 적중률 ≥ 95% (manifest에 기록)
 - [ ] 시나리오 A(7게임일)에서 **캐시 히트율 ≥ 98%**

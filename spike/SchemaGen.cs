@@ -46,6 +46,11 @@ internal sealed record MinCatalog(ActionDef[] Actions, FlagDef[] Flags, string[]
 /// <param name="ItemBounds">`steps` 에 minItems/maxItems 사용.</param>
 /// <param name="TimeoutBounds">`timeout_s` 에 minimum/maximum 사용.</param>
 /// <param name="NoAdditionalProperties">`additionalProperties: false` 사용.</param>
+/// <param name="ArgsUnion">
+/// `args` 에 전 액션 파라미터의 평탄화 합집합을 properties 로 싣는다.
+/// **끄면 안 된다.** T0-09 에서 확인: `args` 를 properties 없는 object 로 두면 Gemini 의
+/// 강제 디코딩이 매 스텝 `args: {}` 만 뱉는다 (docs/measurements/W1_schema.md).
+/// </param>
 internal readonly record struct SchemaOptions(
     string Name,
     bool Const,
@@ -53,16 +58,27 @@ internal readonly record struct SchemaOptions(
     bool StringLength,
     bool ItemBounds,
     bool TimeoutBounds,
-    bool NoAdditionalProperties)
+    bool NoAdditionalProperties,
+    bool ArgsUnion)
 {
-    /// <summary>docs/03 §2 그대로.</summary>
-    public static SchemaOptions Full => new("full", true, true, true, true, true, true);
+    /// <summary>docs/03 §2 + args 평탄화 합집합.</summary>
+    public static SchemaOptions Full => new("full", true, true, true, true, true, true, true);
 
     /// <summary>
     /// 제공사별 강제 디코딩이 흔히 거부하는 요소를 뺀 것 (docs/12 §4 의 위험 표).
     /// Gemini 의 responseSchema 는 pattern·const·maxLength·additionalProperties 를 지원하지 않는다.
     /// </summary>
-    public static SchemaOptions Relaxed => new("relaxed", false, false, false, true, true, false);
+    public static SchemaOptions Relaxed => new("relaxed", false, false, false, true, true, false, true);
+
+    /// <summary>docs/03 §2 원안 — `args` 가 빈 object. 실패를 재현해 보이기 위해 남긴다.</summary>
+    public static SchemaOptions BareArgs => new("bare", true, true, true, true, true, true, false);
+
+    public static SchemaOptions ByName(string name) => name switch
+    {
+        "relaxed" => Relaxed,
+        "bare" => BareArgs,
+        _ => Full,
+    };
 }
 
 /// <summary>
@@ -168,9 +184,19 @@ internal static class SchemaGen
             DefaultTimeoutS: a.GetProperty("default_timeout_s").GetInt32());
     }
 
+    /// <summary>docs/03 §2 의 POI 심볼 허용 목록. 스키마와 검증기가 같은 목록을 본다.</summary>
+    public static readonly string[] PoiSymbols =
+    [
+        "$home", "$workplace", "$market", "$tavern", "$temple", "$gate",
+        "$nearest_field", "$nearest_safe", "$nearest_shelter",
+    ];
+
     // ---------------------------------------------------------------- 생성
     /// <summary>액션 id 목록에서 플랜 스키마를 만든다. `oneOf` 를 쓰지 않고 중첩은 3단을 넘지 않는다.</summary>
-    public static string Build(IEnumerable<string> actionIds, SchemaOptions opt)
+    /// <param name="actionIds">`action` 열거값.</param>
+    /// <param name="opt">스키마 변종.</param>
+    /// <param name="defs">args 합집합을 만들 액션 정의. null 이면 args 는 빈 object 가 된다.</param>
+    public static string Build(IEnumerable<string> actionIds, SchemaOptions opt, IReadOnlyList<ActionDef>? defs = null)
     {
         var actions = new JsonArray();
         foreach (var id in actionIds)
@@ -181,9 +207,12 @@ internal static class SchemaGen
         var stepProps = new JsonObject
         {
             ["action"] = new JsonObject { ["enum"] = actions },
-            // args 를 액션별로 oneOf 분기하면 강제 디코딩 FSM 이 폭발한다 (docs/03 §2 주석).
-            // 파라미터 검증은 검증기 2단이 한다.
-            ["args"] = new JsonObject { ["type"] = "object" },
+            // 액션별 oneOf 분기는 강제 디코딩 FSM 을 폭발시킨다 (docs/03 §2 주석). 대신
+            // 파라미터 이름을 **평탄화해 합집합**으로 싣는다 — 전부 optional 이고, 어떤
+            // 액션이 어떤 인자를 받는지는 검증기 2단이 본다.
+            ["args"] = opt.ArgsUnion && defs is not null
+                ? ArgsUnionSchema(defs, opt)
+                : new JsonObject { ["type"] = "object" },
             ["timeout_s"] = TimeoutSchema(opt),
         };
 
@@ -250,6 +279,91 @@ internal static class SchemaGen
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
+    /// <summary>
+    /// 전 액션 파라미터의 평탄화 합집합. 같은 이름은 타입이 같아야 하고, 값 목록은 합집합,
+    /// 정수 범위는 최소~최대의 합집합을 쓴다. 좁히는 일은 검증기 2단이 한다.
+    /// </summary>
+    private static JsonObject ArgsUnionSchema(IReadOnlyList<ActionDef> defs, SchemaOptions opt)
+    {
+        var props = new JsonObject();
+
+        // 카탈로그 등장 순서를 유지한다 — 이름 정렬로 바꾸면 프리픽스 SHA 가 흔들린다.
+        var seen = new List<string>();
+        var byName = new Dictionary<string, List<ActionParam>>(StringComparer.Ordinal);
+        foreach (var p in defs.SelectMany(d => d.Params))
+        {
+            if (!byName.TryGetValue(p.Name, out var list))
+            {
+                byName[p.Name] = list = [];
+                seen.Add(p.Name);
+            }
+
+            list.Add(p);
+        }
+
+        foreach (var name in seen)
+        {
+            var ps = byName[name];
+            var type = ps[0].Type;
+            props[name] = type switch
+            {
+                // 심볼·아이템은 열거값으로 못 박는다. 강제 디코딩이 환각 POI 를 아예 못 만든다.
+                "poi_ref" => new JsonObject { ["type"] = "string", ["enum"] = ToArray(PoiSymbols) },
+                "item_ref" => new JsonObject
+                {
+                    ["type"] = "string",
+                    ["enum"] = ToArray(ps.SelectMany(p => p.Values ?? []).Distinct(StringComparer.Ordinal)),
+                },
+                "enum" => new JsonObject
+                {
+                    ["type"] = "string",
+                    ["enum"] = ToArray(ps.SelectMany(p => p.Values ?? []).Distinct(StringComparer.Ordinal)),
+                },
+                // npc_ref 는 self / nearest:<archetype> / poi_owner:<poi> — 열거로 못 박기 어렵다.
+                "npc_ref" => new JsonObject { ["type"] = "string" },
+                "int" => IntSchema(ps, opt),
+                _ => new JsonObject { ["type"] = "string" },
+            };
+        }
+
+        var args = new JsonObject
+        {
+            ["type"] = "object",
+            ["properties"] = props,
+            // 비워 둔 채로 두면 제공사가 "전부 필수"로 해석해 매 스텝에 전 인자를 채워 넣는다.
+            ["required"] = new JsonArray(),
+        };
+        if (opt.NoAdditionalProperties)
+        {
+            args["additionalProperties"] = false;
+        }
+
+        return args;
+    }
+
+    private static JsonObject IntSchema(List<ActionParam> ps, SchemaOptions opt)
+    {
+        var o = new JsonObject { ["type"] = "integer" };
+        if (opt.TimeoutBounds)
+        {
+            o["minimum"] = ps.Min(p => p.Min ?? 0);
+            o["maximum"] = ps.Max(p => p.Max ?? 0);
+        }
+
+        return o;
+    }
+
+    private static JsonArray ToArray(IEnumerable<string> values)
+    {
+        var a = new JsonArray();
+        foreach (var v in values)
+        {
+            a.Add(v);
+        }
+
+        return a;
+    }
+
     private static JsonObject TimeoutSchema(SchemaOptions opt)
     {
         var t = new JsonObject { ["type"] = "integer" };
@@ -263,8 +377,11 @@ internal static class SchemaGen
     }
 
     /// <summary>지정한 변종의 스키마 문자열. 캐시하지 않는다 — 기동 시 1회만 부른다.</summary>
-    public static string BuildFromCatalog(SchemaOptions opt) =>
-        Build(Load().Actions.Select(a => a.Id), opt);
+    public static string BuildFromCatalog(SchemaOptions opt)
+    {
+        var c = Load();
+        return Build(c.Actions.Select(a => a.Id), opt, c.Actions);
+    }
 
     // ---------------------------------------------------------------- 검증 도우미
     /// <summary>JSON Schema 검증. 실패 시 (false, 이유). 검증기 1단(V1.SCHEMA)이 이걸 쓴다.</summary>
@@ -357,7 +474,7 @@ internal static class SchemaGen
         Console.WriteLine($"catalog: actions={catalog.Actions.Length} flags={catalog.Flags.Length}");
 
         var ok = true;
-        foreach (var opt in new[] { SchemaOptions.Full, SchemaOptions.Relaxed })
+        foreach (var opt in new[] { SchemaOptions.Full, SchemaOptions.Relaxed, SchemaOptions.BareArgs })
         {
             var json = BuildFromCatalog(opt);
             var path = Path.Combine(OutDir, opt.Name == "full" ? "plan.schema.json" : $"plan.schema.{opt.Name}.json");

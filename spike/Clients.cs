@@ -32,6 +32,10 @@ internal enum EngineKind
 /// <param name="InputUsdPerMTok">입력 100만 토큰당 단가 (USD). 로컬은 0.</param>
 /// <param name="CachedInputUsdPerMTok">캐시 적중 입력 100만 토큰당 단가 (USD).</param>
 /// <param name="OutputUsdPerMTok">출력 100만 토큰당 단가 (USD).</param>
+/// <param name="SuffixTag">
+/// 서픽스 끝에 붙는 엔진 전용 꼬리표. Qwen3 의 `/no_think` 처럼 모델별 스위치를 넣는 자리다.
+/// **프리픽스는 절대 건드리지 않는다** — 캐시가 깨진다 (CLAUDE.md §2.5).
+/// </param>
 internal sealed record EngineSpec(
     string Id,
     EngineKind Kind,
@@ -40,7 +44,8 @@ internal sealed record EngineSpec(
     string? ApiKeyEnv,
     double InputUsdPerMTok = 0,
     double CachedInputUsdPerMTok = 0,
-    double OutputUsdPerMTok = 0)
+    double OutputUsdPerMTok = 0,
+    string SuffixTag = "")
 {
     public bool IsLocal => Kind != EngineKind.External;
 
@@ -66,6 +71,7 @@ internal sealed record EngineSpec(
 /// <param name="TotalMs">요청 전체 소요.</param>
 /// <param name="FirstTokenMs">첫 토큰까지 (스트리밍일 때만. 비스트리밍은 -1). prefill 대용치.</param>
 /// <param name="Error">실패 시 메시지. 성공이면 null.</param>
+/// <param name="Retries">429 로 다시 던진 횟수.</param>
 internal readonly record struct Reply(
     string Text,
     long PromptTokens,
@@ -73,11 +79,54 @@ internal readonly record struct Reply(
     long CompletionTokens,
     double TotalMs,
     double FirstTokenMs,
-    string? Error)
+    string? Error,
+    int Retries = 0)
 {
     public bool Ok => Error is null;
 
     public double DecodeMs => FirstTokenMs < 0 ? -1 : TotalMs - FirstTokenMs;
+
+    public bool IsRateLimited => Error is not null && Error.Contains("429", StringComparison.Ordinal);
+}
+
+/// <summary>
+/// 요청 간격을 벌린다. 이 키는 무료 등급이라 분당 요청 수 상한이 낮다 —
+/// 간격을 안 두면 T0-09 가 429 로 뒤덮인다. (상한 실측은 T0-11 의 몫이다.)
+/// </summary>
+internal sealed class Pacer(double requestsPerMinute)
+{
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly TimeSpan _interval = requestsPerMinute <= 0
+        ? TimeSpan.Zero
+        : TimeSpan.FromSeconds(60.0 / requestsPerMinute);
+
+    private long _nextTicks;
+
+    public async Task WaitAsync(CancellationToken ct = default)
+    {
+        if (_interval == TimeSpan.Zero)
+        {
+            return;
+        }
+
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var now = Environment.TickCount64;
+            var wait = _nextTicks - now;
+            if (wait > 0)
+            {
+                await Task.Delay((int)wait, ct);
+                now += wait;
+            }
+
+            _nextTicks = now + (long)_interval.TotalMilliseconds;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
 }
 
 /// <summary>
@@ -101,17 +150,20 @@ internal static class Clients
         Endpoint: "http://localhost:8080/v1",
         ApiKeyEnv: null);
 
+    // Qwen3 는 하이브리드 추론 모델이라 기본이 thinking 이다. 끄지 않으면 플랜 1건에
+    // 2,000 토큰을 쓰고 51초가 걸린다 (실측). `/no_think` 는 서픽스에만 붙인다.
     public static readonly EngineSpec LlamaCpp8B = new(
         Id: "llamacpp-qwen3-8b",
         Kind: EngineKind.LlamaCpp,
-        Model: "qwen/qwen3-8b",
+        Model: "qwen3-8b",
         Endpoint: "http://localhost:1234/v1",
-        ApiKeyEnv: null);
+        ApiKeyEnv: null,
+        SuffixTag: " /no_think");
 
     public static readonly EngineSpec LlamaCpp4B = new(
         Id: "llamacpp-gemma3-4b",
         Kind: EngineKind.LlamaCpp,
-        Model: "google/gemma-3-4b",
+        Model: "gemma-3-4b",
         Endpoint: "http://localhost:1234/v1",
         ApiKeyEnv: null);
 
@@ -177,6 +229,13 @@ internal static class Clients
             .AsIChatClient();
     }
 
+    /// <summary>프리픽스(system) + 서픽스(user) 2메시지. 엔진 꼬리표는 서픽스 끝에만 붙는다.</summary>
+    public static List<ChatMessage> BuildMessages(EngineSpec spec, string prefixText, string suffixText) =>
+    [
+        new(ChatRole.System, prefixText),
+        new(ChatRole.User, suffixText + spec.SuffixTag),
+    ];
+
     // ---------------------------------------------------------------- 호출 (단일 경로)
     /// <summary>
     /// 비스트리밍 호출. 로컬·외부가 이 함수 하나를 공유한다.
@@ -201,6 +260,42 @@ internal static class Clients
         {
             sw.Stop();
             return new Reply("", 0, 0, 0, sw.Elapsed.TotalMilliseconds, -1, Describe(ex));
+        }
+    }
+
+    /// <summary>
+    /// 페이서로 간격을 벌리고, 429 면 지수 백오프로 다시 던진다.
+    /// T0-09 · T0-10 · T0-12 가 쓴다. **T0-11 은 쓰지 않는다** — 거기서는 429 자체가 측정 대상이다.
+    /// </summary>
+    public static async Task<Reply> AskWithRetryAsync(
+        EngineSpec spec,
+        IChatClient client,
+        IList<ChatMessage> messages,
+        ChatOptions? options,
+        Pacer? pacer,
+        bool streaming = false,
+        int maxRetries = 5,
+        CancellationToken ct = default)
+    {
+        var delayMs = 4000;
+        for (var attempt = 0; ; attempt++)
+        {
+            if (pacer is not null)
+            {
+                await pacer.WaitAsync(ct);
+            }
+
+            var r = streaming
+                ? await AskStreamingAsync(spec, client, messages, options, ct)
+                : await AskAsync(spec, client, messages, options, ct);
+
+            if (r.Ok || !r.IsRateLimited || attempt >= maxRetries)
+            {
+                return r with { Retries = attempt };
+            }
+
+            await Task.Delay(delayMs, ct);
+            delayMs = Math.Min(delayMs * 2, 60_000);
         }
     }
 
