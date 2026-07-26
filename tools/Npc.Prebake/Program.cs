@@ -198,7 +198,23 @@ Console.WriteLine(
             + $"{warmup.LatencyMs:F0}ms · {warmup.CachedTokens}/{warmup.PromptTokens} tok 캐시 · ${warmup.CostUsd:F6}"
         : "워밍업        : 건너뜀 (로컬 엔진은 cached_tokens 를 보고하지 않는다)");
 
-// 7. 통과한 것을 plans/ 에 쓴다. pinned 는 건드리지 않는다
+// 7. 전수 드라이런. 생성 단계의 4단은 그 버킷에서 만든 플랜만 봤다 —
+//    인접 재사용·폴백으로 채운 것까지 대상 버킷 기준으로 한 번 더 굴린다 (docs/13 §8).
+DryRunReport dryRun = DryRunStage.Run(runner.Store, data, options.DryRunSample);
+
+Console.WriteLine(
+    $"드라이런      : {dryRun.Passed}/{dryRun.Checked} 통과 ({dryRun.PassRate:P1}) · "
+    + $"{dryRun.WallClockSeconds:F1}s · {dryRun.MsPerPlan:F1}ms/건 · 병렬 {dryRun.Parallelism}"
+    + (dryRun.Skipped > 0 ? $" · 표본 제외 {dryRun.Skipped}" : string.Empty));
+
+foreach (DryRunOutcome failure in dryRun.Failures.Take(10))
+{
+    Console.WriteLine(
+        $"  ✗ {failure.Bucket.Format(data.Archetypes[failure.Bucket.A].Id)} "
+        + $"{failure.Validation.Code}@{failure.Validation.StepIndex}");
+}
+
+// 8. 통과한 것을 plans/ 에 쓴다. pinned 는 건드리지 않는다
 int written = PlanStoreIo.SaveAll(options.Out, runner.Store, data);
 
 WriteJsonl(options.Report, report, data);
