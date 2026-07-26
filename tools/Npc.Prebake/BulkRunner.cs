@@ -17,7 +17,9 @@ namespace Npc.Prebake;
 /// (`W1_concurrency.md` 는 로컬 2종뿐). 여기서 AIMD 로 올리며 429 최초 발생 지점을 실측한다.
 /// </param>
 /// <param name="MaxConcurrency">AIMD 가 올릴 수 있는 상한.</param>
-/// <param name="SuccessesBeforeIncrease">이만큼 연속 성공하면 동시성을 1 올린다 (additive increase).</param>
+/// <param name="SuccessesBeforeIncrease">
+/// 이만큼 연속 성공하면 동시성을 1 올린다 (additive increase). docs/13 §4 의 16 이다.
+/// </param>
 /// <param name="MaxRateLimitRetries">429 로 물러난 버킷을 다시 던지는 횟수 상한.</param>
 /// <param name="BackoffMs">429 를 만났을 때 물러나는 시간. 재시도마다 2배가 된다.</param>
 /// <param name="PlanStoreDirectory">산출물을 쓸 곳. null 이면 파일을 쓰지 않는다.</param>
@@ -25,7 +27,7 @@ namespace Npc.Prebake;
 public sealed record BulkRunOptions(
     int Concurrency = 8,
     int MaxConcurrency = 32,
-    int SuccessesBeforeIncrease = 24,
+    int SuccessesBeforeIncrease = AdaptiveConcurrency.DefaultSuccessStreak,
     int MaxRateLimitRetries = 3,
     int BackoffMs = 5_000,
     string? PlanStoreDirectory = null,
@@ -52,12 +54,14 @@ public readonly record struct BucketOutcome(
 /// <param name="FirstRateLimitConcurrency">429 가 처음 난 시점의 동시성. 한 번도 안 났으면 0.</param>
 /// <param name="PeakConcurrency">도달한 최대 동시성.</param>
 /// <param name="RateLimitHits">429 를 만난 횟수.</param>
+/// <param name="StartConcurrency">AIMD 초기 동시성. manifest 에 근거로 남는다 (T3-12).</param>
 public sealed record BulkRunReport(
     ImmutableArray<BucketOutcome> Outcomes,
     double WallClockSeconds,
     int FirstRateLimitConcurrency,
     int PeakConcurrency,
-    int RateLimitHits)
+    int RateLimitHits,
+    int StartConcurrency = AdaptiveConcurrency.DefaultStart)
 {
     /// <summary>생성 시도한 버킷 수.</summary>
     public int Total => Outcomes.Length;
@@ -178,11 +182,12 @@ public sealed class BulkRunner
             pending.Enqueue((i, 0));
         }
 
-        int concurrency = Math.Max(1, _options.Concurrency);
-        int peak = concurrency;
-        int firstRateLimit = 0;
-        int rateLimitHits = 0;
-        int consecutiveSuccesses = 0;
+        // AIMD 는 AdaptiveConcurrency 가 맡는다 (T3-12). 여기서는 물결 크기만 물어본다.
+        var aimd = new AdaptiveConcurrency(
+            start: Math.Max(1, _options.Concurrency),
+            max: _options.MaxConcurrency,
+            successStreak: _options.SuccessesBeforeIncrease);
+
         int done = 0;
 
         using IChatClient client = clientFactory();
@@ -208,6 +213,7 @@ public sealed class BulkRunner
             cancellationToken.ThrowIfCancellationRequested();
 
             // 한 물결 = 지금 동시성만큼. 물결이 끝날 때마다 동시성을 조정한다.
+            int concurrency = aimd.Current;
             var wave = new List<(int Index, int Retries)>(concurrency);
 
             while (wave.Count < concurrency && pending.Count > 0)
@@ -226,28 +232,15 @@ public sealed class BulkRunner
                 (int index, int retries) = wave[i];
                 PlanCompileResult result = results[i];
 
-                if (IsRateLimited(result) && retries < _options.MaxRateLimitRetries)
-                {
-                    sawRateLimit = true;
-                    rateLimitHits++;
-
-                    if (firstRateLimit == 0)
-                    {
-                        firstRateLimit = concurrency;
-                    }
-
-                    pending.Enqueue((index, retries + 1));
-                    continue;
-                }
-
                 if (IsRateLimited(result))
                 {
                     sawRateLimit = true;
-                    rateLimitHits++;
 
-                    if (firstRateLimit == 0)
+                    // 아직 여유가 있으면 다시 던진다. 물러난 것은 결과로 세지 않는다.
+                    if (retries < _options.MaxRateLimitRetries)
                     {
-                        firstRateLimit = concurrency;
+                        pending.Enqueue((index, retries + 1));
+                        continue;
                     }
                 }
 
@@ -258,23 +251,13 @@ public sealed class BulkRunner
 
             if (sawRateLimit)
             {
-                // multiplicative decrease
-                concurrency = Math.Max(1, concurrency / 2);
-                consecutiveSuccesses = 0;
+                aimd.OnThrottled();   // multiplicative decrease
 
                 await Task.Delay(_options.BackoffMs, cancellationToken).ConfigureAwait(false);
                 continue;
             }
 
-            // additive increase
-            consecutiveSuccesses += wave.Count;
-
-            if (consecutiveSuccesses >= _options.SuccessesBeforeIncrease && concurrency < _options.MaxConcurrency)
-            {
-                concurrency++;
-                consecutiveSuccesses = 0;
-                peak = Math.Max(peak, concurrency);
-            }
+            aimd.OnSuccess(wave.Count);   // additive increase
         }
 
         double wallClock = Stopwatch.GetElapsedTime(started).TotalSeconds;
@@ -286,7 +269,13 @@ public sealed class BulkRunner
             final.Add(outcome ?? default);
         }
 
-        return new BulkRunReport(final.ToImmutable(), wallClock, firstRateLimit, peak, rateLimitHits);
+        return new BulkRunReport(
+            final.ToImmutable(),
+            wallClock,
+            aimd.FirstThrottleConcurrency,
+            aimd.Peak,
+            aimd.ThrottleCount,
+            aimd.Start);
     }
 
     private async Task<PlanCompileResult> CompileAsync(

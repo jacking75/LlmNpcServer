@@ -213,6 +213,24 @@ docs/12 §6 의 "1회 78% → 2회 91%" 가정과 방향은 같고 절대값이 
 다만 최대 회차가 288건(105초)이라 **2,880건 규모에서의 분당 한도는 아직 모른다.**
 OpenRouter 경유라 Gemini 직접 호출의 한도와도 다르다.
 
+### T3-12 초기값의 근거
+
+`AdaptiveConcurrency` 의 초기값 규칙은 **"T2-19 첫 회차에서 실측한 429 최초 발생 동시성의 절반,
+그 실행 전이면 8"** 이다 (`docs/13` T3-12). 실측 결과는 이렇다.
+
+| 회차 | 경유 | 최대 도달 동시성 | 429 최초 발생 동시성 | 절반 규칙 |
+|---|---|---:|---:|---|
+| T2-19 288버킷 | OpenRouter → Gemini 2.5 Flash Lite | 18 | **없음** | 발동 안 함 |
+| T3-11 워밍업 실험 (65요청) | Poe → Gemini 2.5 Flash Lite | 32 | **없음** | 발동 안 함 (`W8_prebake.md §2`) |
+
+**둘 다 429 를 만나지 못해 절반 규칙이 발동할 값이 없다. 그래서 초기값은 8 을 유지한다.**
+이 값과 근거는 회차마다 `planstore/manifest.json` 의 `generated_by.concurrency` ·
+`peak_concurrency` · `first_rate_limit_concurrency` 에 남는다 — 다음 회차가 429 를 만나면
+`AdaptiveConcurrency.RecommendedStart` 가 그 절반을 권한다.
+
+연속 성공 임계는 **16** 이다 (`docs/13 §4` 의 코드값). T2-19 러너가 24 로 두고 있었는데
+사양과 어긋나 16 으로 맞췄다.
+
 ---
 
 ## 7. 플랜 다양성 (T2-22)
