@@ -124,6 +124,87 @@ public sealed class ReplanQueueTests
         Assert.Equal(2, first);
     }
 
+    /// <summary>
+    /// T4-03 완료 조건 — 인터럽트 5,000건을 주입해도 일반 항목이 처리된다 (docs/14 §10).
+    ///
+    /// 상한이 없으면 인터럽트 점수(1000 이상)가 일반 항목(상한 9.5)을 전부 밀어내
+    /// 이탈 판정과 스텝 실패가 영원히 처리되지 않는다.
+    /// </summary>
+    [Fact]
+    public void ReplanQueue_InterruptSlotCapped()
+    {
+        var queue = new ReplanQueue(npcCapacity: 5_000, queueCapacity: 4_096);
+
+        Assert.Equal(2_048, queue.MaxUrgentSlots);
+
+        for (int npc = 0; npc < 5_000; npc++)
+        {
+            queue.TryEnqueueUrgent(npc, 100);
+        }
+
+        // 인터럽트는 절반까지만 들어간다. 나머지 절반은 일반 항목을 위해 남는다.
+        Assert.Equal(2_048, queue.UrgentCount);
+        Assert.Equal(2_048, queue.Count);
+        Assert.Equal(5_000 - 2_048, queue.UrgentDropped);
+
+        // 일반 항목은 여전히 들어가고, 인터럽트가 다 빠진 뒤 처리된다.
+        Assert.True(queue.TryEnqueue(4_999, 5f));
+        Assert.Equal(2_049, queue.Count);
+
+        int urgentPopped = 0;
+        bool normalPopped = false;
+
+        while (queue.TryDequeue(out int npc, out float score))
+        {
+            if (ReplanQueue.IsUrgent(score))
+            {
+                urgentPopped++;
+                continue;
+            }
+
+            Assert.Equal(4_999, npc);
+            normalPopped = true;
+        }
+
+        Assert.Equal(2_048, urgentPopped);
+        Assert.True(normalPopped, "인터럽트가 큐를 독점해 일반 항목이 처리되지 않았다.");
+        Assert.Equal(0, queue.UrgentCount);
+
+        // 슬롯이 비면 다시 받는다.
+        Assert.True(queue.TryEnqueueUrgent(0, 100));
+    }
+
+    /// <summary>이미 큐에 있는 항목의 승격은 칸을 더 쓰지 않으므로 상한과 무관하다.</summary>
+    [Fact]
+    public void ReplanQueue_PromotionDoesNotConsumeUrgentSlot()
+    {
+        var queue = new ReplanQueue(npcCapacity: 64, queueCapacity: 4);
+
+        Assert.Equal(2, queue.MaxUrgentSlots);
+
+        queue.TryEnqueue(0, 1f);
+        queue.TryEnqueue(1, 2f);
+        queue.TryEnqueue(2, 3f);
+        Assert.Equal(0, queue.UrgentCount);
+
+        // 인터럽트 신규 삽입은 2칸까지.
+        Assert.True(queue.TryEnqueueUrgent(3, 0));
+        Assert.Equal(1, queue.UrgentCount);
+
+        // 이미 들어 있던 0 이 인터럽트로 승격된다 — 칸 수는 그대로 4 다.
+        Assert.False(queue.TryEnqueueUrgent(0, 50));
+        Assert.Equal(2, queue.UrgentCount);
+        Assert.Equal(4, queue.Count);
+
+        // 상한이 찼으니 새 인터럽트는 거절한다.
+        Assert.False(queue.TryEnqueueUrgent(9, 100));
+        Assert.Equal(1, queue.UrgentDropped);
+
+        // 카운터가 정확해야 꺼낼 때 음수로 새지 않는다.
+        Assert.Equal([0, 3, 2, 1], Order(queue));
+        Assert.Equal(0, queue.UrgentCount);
+    }
+
     /// <summary>T4-01 완료 조건 — 포화 시 최하위를 밀어낸다. 낮은 요청은 거절한다.</summary>
     [Fact]
     public void ReplanQueue_EvictsLowest()
@@ -232,23 +313,26 @@ public sealed class ReplanQueueTests
     {
         var queue = new ReplanQueue(npcCapacity: 5_000, queueCapacity: 4_096);
 
+        // 점수는 인터럽트 기준값 아래로만 쓴다 — 넘기면 슬롯 상한(T4-03)에 걸려
+        // 포화 경로가 아니라 거절 경로를 재게 된다.
         for (int i = 0; i < 5_000; i++)
         {
-            queue.TryEnqueue(i, i);
+            queue.TryEnqueue(i, i % 900);
         }
 
         Assert.Equal(4_096, queue.Count);
+        Assert.Equal(0, queue.UrgentCount);
 
         for (int i = 0; i < 20_000; i++)
         {
-            queue.TryEnqueue(i % 5_000, i % 6_000);
+            queue.TryEnqueue(i % 5_000, (i * 7) % 900);
         }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
 
         for (int i = 0; i < 20_000; i++)
         {
-            queue.TryEnqueue(i % 5_000, i % 6_000);
+            queue.TryEnqueue(i % 5_000, (i * 7) % 900);
         }
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);

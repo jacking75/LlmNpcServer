@@ -35,6 +35,7 @@ public sealed class ReplanQueue
     private readonly int[] _heapPos;     // npc 첨자 → 힙 위치. -1 = 큐에 없음
     private readonly int _capacity;
     private int _count;
+    private int _urgentCount;
 
     /// <summary>큐를 만든다. 기동 시 1회. 이후 재할당하지 않는다.</summary>
     /// <param name="npcCapacity">NPC 수.</param>
@@ -47,6 +48,7 @@ public sealed class ReplanQueue
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(npcCapacity);
 
         _capacity = queueCapacity > 0 ? queueCapacity : Math.Min(npcCapacity, DefaultCapacity);
+        MaxUrgentSlots = Math.Max(1, _capacity / 2);
         _heap = new int[_capacity];
         _score = new float[npcCapacity];
         _heapPos = new int[npcCapacity];
@@ -73,6 +75,24 @@ public sealed class ReplanQueue
     public long Evicted { get; private set; }
 
     /// <summary>
+    /// 인터럽트 항목이 차지할 수 있는 최대 칸 수 = 용량의 50% (docs/14 §10).
+    ///
+    /// <b>상한이 없으면 일반 재계획이 영원히 안 된다.</b> 인터럽트 점수는 1000 이상이라
+    /// 일반 항목(상한 9.5)을 전부 밀어낸다 — 공성 한 번에 마을 전체가 인터럽트를 쏘면
+    /// 큐 4096칸이 통째로 인터럽트로 차고, 그때부터 이탈 판정과 스텝 실패는 처리되지 않는다.
+    /// </summary>
+    public int MaxUrgentSlots { get; }
+
+    /// <summary>지금 큐에 있는 인터럽트 항목 수.</summary>
+    public int UrgentCount => _urgentCount;
+
+    /// <summary>인터럽트 슬롯 상한에 걸려 거절한 수. 공성 중에 크게 오르는 것이 정상이다.</summary>
+    public long UrgentDropped { get; private set; }
+
+    /// <summary>이 점수가 인터럽트인가.</summary>
+    public static bool IsUrgent(float score) => score >= UrgentBase;
+
+    /// <summary>
     /// 재계획 요청. 이미 들어 있으면 점수만 올리고 false 를 돌려준다.
     /// 포화 상태면 최하위와 비교해 더 급한 쪽만 남긴다. <b>할당 0.</b>
     /// </summary>
@@ -91,6 +111,15 @@ public sealed class ReplanQueue
             // 이미 대기 중이다. 더 급한 요청이면 점수만 올린다.
             UpdateScore(npc, MathF.Max(_score[npc], score));
             Deduplicated++;
+            return false;
+        }
+
+        // 인터럽트 슬롯 상한 (docs/14 §10). 새로 들어오는 인터럽트만 막는다 —
+        // 이미 큐에 있는 항목의 점수 승격은 칸을 더 쓰지 않으므로 일반 항목을 굶기지 않는다.
+        if (IsUrgent(score) && _urgentCount >= MaxUrgentSlots)
+        {
+            UrgentDropped++;
+            Dropped++;
             return false;
         }
 
@@ -152,6 +181,7 @@ public sealed class ReplanQueue
     {
         Array.Fill(_heapPos, -1);
         _count = 0;
+        _urgentCount = 0;
     }
 
     // ---------------------------------------------------------------- 힙
@@ -172,6 +202,11 @@ public sealed class ReplanQueue
         _heapPos[npc] = _count;
         _count++;
 
+        if (IsUrgent(score))
+        {
+            _urgentCount++;
+        }
+
         SiftUp(_count - 1);
     }
 
@@ -182,6 +217,11 @@ public sealed class ReplanQueue
         if (score == previous)
         {
             return;
+        }
+
+        if (IsUrgent(score) != IsUrgent(previous))
+        {
+            _urgentCount += IsUrgent(score) ? 1 : -1;
         }
 
         _score[npc] = score;
@@ -202,6 +242,11 @@ public sealed class ReplanQueue
     {
         int removed = _heap[slot];
         _heapPos[removed] = -1;
+
+        if (IsUrgent(_score[removed]))
+        {
+            _urgentCount--;
+        }
 
         int last = --_count;
 
