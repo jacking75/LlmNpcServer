@@ -27,6 +27,10 @@ namespace Npc.Prebake;
 /// </param>
 /// <param name="PlanStoreDirectory">산출물을 쓸 곳. null 이면 파일을 쓰지 않는다.</param>
 /// <param name="DryRunSample">드라이런(4단)을 돌릴 비율. 1.0 이면 전수 (docs/13 §8).</param>
+/// <param name="Budget">
+/// 예산 하드 캡. null 이면 제한이 없다. 캡에 닿으면 회차를 중단하고
+/// <see cref="BulkRunReport.StoppedByBudget"/> 이 선다 (T3-14).
+/// </param>
 public sealed record BulkRunOptions(
     int Concurrency = 8,
     int MaxConcurrency = 32,
@@ -34,7 +38,8 @@ public sealed record BulkRunOptions(
     int MaxRateLimitRetries = 3,
     int BackoffMs = 5_000,
     string? PlanStoreDirectory = null,
-    double DryRunSample = 1.0);
+    double DryRunSample = 1.0,
+    BudgetGuard? Budget = null);
 
 /// <summary>버킷 하나의 결과.</summary>
 /// <param name="Bucket">어느 버킷인가.</param>
@@ -58,31 +63,53 @@ public readonly record struct BucketOutcome(
 /// <param name="PeakConcurrency">도달한 최대 동시성.</param>
 /// <param name="RateLimitHits">429 를 만난 횟수.</param>
 /// <param name="StartConcurrency">AIMD 초기 동시성. manifest 에 근거로 남는다 (T3-12).</param>
+/// <param name="StoppedByBudget">
+/// 예산 캡에 걸려 중단됐는가. manifest 의 <c>partial</c> 이 이 값이고 <c>--resume</c> 이 그것을 본다 (T3-14).
+/// </param>
+/// <param name="Attempted">
+/// 실제로 시도한 버킷 수. 예산 중단이면 <see cref="Total"/> 보다 작다 —
+/// 시도하지 않은 버킷의 결과는 <c>default</c> 로 남는다.
+/// </param>
 public sealed record BulkRunReport(
     ImmutableArray<BucketOutcome> Outcomes,
     double WallClockSeconds,
     int FirstRateLimitConcurrency,
     int PeakConcurrency,
     int RateLimitHits,
-    int StartConcurrency = AdaptiveConcurrency.DefaultStart)
+    int StartConcurrency = AdaptiveConcurrency.DefaultStart,
+    bool StoppedByBudget = false,
+    int Attempted = -1)
 {
-    /// <summary>생성 시도한 버킷 수.</summary>
+    /// <summary>대상이었던 버킷 수.</summary>
     public int Total => Outcomes.Length;
 
-    /// <summary>검증까지 통과한 수 (재시도 1회 포함).</summary>
-    public int Passed => Outcomes.Count(o => o.Validation.IsValid);
+    /// <summary>실제로 시도한 버킷 수.</summary>
+    public int AttemptedCount => Attempted < 0 ? Total : Attempted;
+
+    /// <summary>
+    /// 검증까지 통과한 수 (재시도 1회 포함).
+    ///
+    /// <b><c>Attempt &gt; 0</c> 을 같이 본다.</b> 시도하지 않은 버킷의 결과는 <c>default</c> 인데
+    /// <c>default(ValidationResult).FailedAt</c> 이 <c>None</c> 이라 그것만 보면 "통과"로 읽힌다 —
+    /// 예산 캡에 걸려 던지지도 못한 버킷이 통과로 세어지면 통과율이 통째로 거짓이 된다.
+    /// </summary>
+    public int Passed => Outcomes.Count(o => o.Stats.Attempt > 0 && o.Validation.IsValid);
 
     /// <summary>폴백으로 떨어진 수. 게이트는 ≤ 5% 다.</summary>
-    public int FellBack => Outcomes.Count(o => o.Origin == PlanOrigin.Fallback);
+    public int FellBack => Outcomes.Count(o => o.Stats.Attempt > 0 && o.Origin == PlanOrigin.Fallback);
 
-    /// <summary>인접 버킷에서 빌려 온 수.</summary>
-    public int Reused => Outcomes.Count(o => !o.Validation.IsValid && o.Origin != PlanOrigin.Fallback);
+    /// <summary>인접 버킷에서 빌려 온 수. 시도조차 못 한 버킷은 세지 않는다.</summary>
+    public int Reused => Outcomes.Count(
+        o => !o.Validation.IsValid && o.Origin != PlanOrigin.Fallback && o.Stats.Attempt > 0);
 
-    /// <summary>통과율. P2 게이트는 ≥ 0.90 이다.</summary>
-    public double PassRate => Total == 0 ? 0 : (double)Passed / Total;
+    /// <summary>
+    /// 통과율. P2 게이트는 ≥ 0.90 이다.
+    /// <b>분모는 시도한 수다</b> — 예산 캡에 걸려 던지지도 못한 버킷을 실패로 세면 통과율이 왜곡된다.
+    /// </summary>
+    public double PassRate => AttemptedCount == 0 ? 0 : (double)Passed / AttemptedCount;
 
-    /// <summary>폴백 비율.</summary>
-    public double FallbackRate => Total == 0 ? 0 : (double)FellBack / Total;
+    /// <summary>폴백 비율. 분모는 시도한 수다.</summary>
+    public double FallbackRate => AttemptedCount == 0 ? 0 : (double)FellBack / AttemptedCount;
 
     /// <summary>비용 합계(USD).</summary>
     public double CostUsd => Outcomes.Sum(o => o.Stats.CostUsd);
@@ -100,7 +127,7 @@ public sealed record BulkRunReport(
     public double AverageLatencyMs => Total == 0 ? 0 : Outcomes.Sum(o => o.Stats.LatencyMs) / Total;
 
     /// <summary>1회 만에 통과한 수.</summary>
-    public int PassedFirstAttempt => Outcomes.Count(o => o.Validation.IsValid && o.Stats.Attempt == 1);
+    public int PassedFirstAttempt => Outcomes.Count(o => o.Stats.Attempt == 1 && o.Validation.IsValid);
 }
 
 /// <summary>
@@ -211,6 +238,9 @@ public sealed class BulkRunner
 
         long started = Stopwatch.GetTimestamp();
 
+        BudgetGuard? budget = _options.Budget;
+        bool stoppedByBudget = false;
+
         while (pending.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -224,6 +254,15 @@ public sealed class BulkRunner
                 wave.Add(pending.Dequeue());
             }
 
+            // 예산 판정은 던지기 전에 한다 (docs/13 §4). 캡을 넘으면 여기서 끝이다 —
+            // 남은 버킷은 --resume 이 이어서 만든다.
+            if (budget is not null && !budget.TryReserve(wave.Count))
+            {
+                stoppedByBudget = true;
+                progress?.Invoke(done, buckets.Count, budget.StopMessage(done, buckets.Count));
+                break;
+            }
+
             PlanCompileResult[] results = await Task.WhenAll(
                 wave.Select(item => CompileAsync(compiler, buckets[item.Index], cancellationToken)))
                 .ConfigureAwait(false);
@@ -235,6 +274,8 @@ public sealed class BulkRunner
             {
                 (int index, int retries) = wave[i];
                 PlanCompileResult result = results[i];
+
+                budget?.Record(result.Stats.CostUsd);
 
                 if (RetryPolicy.IsRateLimited(result.Stats.Error))
                 {
@@ -290,7 +331,9 @@ public sealed class BulkRunner
             aimd.FirstThrottleConcurrency,
             aimd.Peak,
             aimd.ThrottleCount,
-            aimd.Start);
+            aimd.Start,
+            stoppedByBudget,
+            done);
     }
 
     private async Task<PlanCompileResult> CompileAsync(

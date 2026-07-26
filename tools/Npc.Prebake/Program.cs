@@ -157,6 +157,11 @@ Console.WriteLine($"concurrency: {options.Concurrency} (AIMD, 상한 {options.Ma
 Console.WriteLine($"budget     : ${options.BudgetUsd:F2}");
 Console.WriteLine();
 
+// 예산 하드 캡. 추정은 보수적으로 — 캐시가 전부 적중한다고 보면 캡을 넘긴 뒤에야 멈춘다.
+var budget = new BudgetGuard(
+    options.BudgetUsd,
+    BudgetGuard.EstimateFor(engine, prefix.TokenCount));
+
 var runner = new BulkRunner(
     data,
     prefix,
@@ -165,7 +170,8 @@ var runner = new BulkRunner(
         Concurrency: options.Concurrency,
         MaxConcurrency: options.MaxConcurrency,
         PlanStoreDirectory: options.Out,
-        DryRunSample: options.DryRunSample));
+        DryRunSample: options.DryRunSample,
+        Budget: budget));
 
 // 5. 프리픽스 워밍업 1회 → 6. 동시 N 워커.
 //    순서가 뒤집히면 캐시 write 를 동시성 수만큼 낸다 (docs/13 §4 · §8).
@@ -198,7 +204,13 @@ int written = PlanStoreIo.SaveAll(options.Out, runner.Store, data);
 WriteJsonl(options.Report, report, data);
 
 Console.WriteLine();
-Console.WriteLine($"통과율        : {report.Passed}/{report.Total} ({report.PassRate:P1})");
+
+if (report.StoppedByBudget)
+{
+    Console.WriteLine($"⚠ {budget.StopMessage(report.AttemptedCount, report.Total)}");
+}
+
+Console.WriteLine($"통과율        : {report.Passed}/{report.AttemptedCount} ({report.PassRate:P1})");
 Console.WriteLine($"1회 통과      : {report.PassedFirstAttempt}");
 Console.WriteLine($"인접 재사용   : {report.Reused}");
 Console.WriteLine($"폴백          : {report.FellBack} ({report.FallbackRate:P1})");
