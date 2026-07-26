@@ -137,32 +137,60 @@ public readonly record struct Weights(float W1, float W2, float W3, float W4, in
 ## 3. 레이트리미터 — 토큰 버짓
 
 ```csharp
-// Npc.Planning/ReplanBudget.cs
-public sealed class ReplanBudget
-{
-    private readonly TokenBucket _perSecond;    // 초당 요청 수
-    private readonly TokenBucket _perDay;       // 일일 토큰 하드 캡
+// Npc.Core/Planning/Tier.cs      — 계약. Npc.Llm 과 Npc.Planning 이 같이 본다
+public enum Tier { None = 0, T1 = 1, T2 = 2 }
 
-    // T1(로컬)은 GPU 용량, T2(외부)는 rate limit + 비용이 상한
-    public bool TryAcquire(Tier tier, int estimatedTokens);
+public interface IReplanBudget
+{
+    bool TryAcquire(Tier tier, int estimatedTokens, Tick now);
+    Tier Acquire(Tier requested, int estimatedTokens, Tick now);   // T2 → T1 → None
+    bool Peek(Tier tier, int estimatedTokens, Tick now);
+    void Settle(Tier tier, int actualTokens, double actualCostUsd);
+}
+
+// Npc.Planning/ReplanBudget.cs   — 구현
+public sealed class ReplanBudget : IReplanBudget
+{
+    private readonly TokenBucket _t1;     // T1 초당 요청 — GPU 용량이 상한
+    private readonly TokenBucket _t2;     // T2 초당 요청 — rate limit 이 상한
+    private long   _tokensToday;          // 일일 토큰 하드 캡
+    private double _costToday;            // 일일 비용 하드 캡
 }
 ```
 
-| 상한 | 초기값 | 근거 |
-|---|---|---|
-| T1 초당 요청 | **0.2 req/s** (워커 1 기준) | W1 실측 8B 5.1s/req. 워커 2면 0.4 |
-| T2 초당 요청 | **미정** | ⚠ 외부 API 미측정. T2-19 실측 전까지 4 req/s 로 보수 설정 |
-| 일일 토큰 캡 | 15M | 시나리오 B(20,000건/일)의 2배 여유 |
-| 일일 비용 캡 | **미정** | ⚠ 외부 단가 미측정. T2-19 실측 전까지 $2 |
+> ⚠ **`TieredPlanCompiler`(Npc.Llm)가 `ReplanBudget`(Npc.Planning)을 직접 참조할 수 없다.**
+> 둘은 형제 프로젝트다 (CLAUDE.md §3 — `Npc.Llm ← Core, MasterData`). 그래서 `Tier` 열거형과
+> `IReplanBudget` 계약은 `Npc.Core` 에 두고 구현만 `Npc.Planning` 에 둔다 —
+> `IDryRunValidator`(T2-13)·`IPlanReuseSource`(T2-11) 와 같은 방법이다.
+>
+> **시계는 `Tick` 이다.** `DateTime`·`Stopwatch` 를 보면 리플레이가 깨진다 (CLAUDE.md §2.3).
+> 틱은 실시간 10Hz 이므로 하루 = 864,000 틱이다.
 
-> ⚠ **이 표의 원래 값(T1 0.5 · T2 16)은 1.75s/req 와 "동시 32" 가정에서 나온 것이고, 둘 다 실측으로 무너졌다.**
+### 상한 4개 — T4-05 에서 실측으로 확정 (2026-07-26)
+
+| 상한 | 값 | 근거 (실측 파일·행) |
+|---|---|---|
+| T1 초당 요청 | **0.195 req/s** (워커 1) · **0.39** (워커 2, 기본) | `W1_perf.csv` · `llamacpp-qwen3-8b` · `Cache=on` 30건 `TotalMs` 중앙값 **5,139.4 ms** → 1/5.1394. 같은 파일 4B 는 3,701.3 ms(0.270)인데 로컬 모델이 미확정(T0-12)이라 **느린 쪽**으로 잡았다 |
+| T2 초당 요청 | **2.5 req/s** | `W8_prebake.md §4` 파일럿 288버킷 — **115.0 s / 288건 = 2.504 req/s**, 최대 동시 24 에서 **429 0회**. 상향 여지는 있으나 실측된 값은 이것뿐이다 (`W6_compile_stats.md §6`) |
+| 일일 토큰 캡 | **15 M** | 정책값. 실측 **23,109 tok/요청**(6,655,438/288, 프리픽스 13,488 × 재시도 포함)으로 환산하면 **T2 약 649건/일** |
+| 일일 비용 캡 | **$2** | 정책값. 실측 단가 **$0.001777/요청**($0.5119/288)로 환산하면 약 1,125건/일 — 토큰 캡(649건)이 먼저 걸려 두 캡이 어긋나지 않는다 |
+| (파생) T2 단가 | **$0.0769 / M tok** | `$0.5119 / 6,655,438 tok`. 공개 단가보다 낮은 것은 캐시 적중 42.6% 가 할인가로 계산되기 때문이다. Poe 과금은 포인트라 USD 자체가 추정이다 |
+
+버스트는 초당 상한의 **4초치**다(`max(1, rate × 4)`). T1 이 0.195 req/s 라 버스트가 1 이면 인터럽트가 몰린 순간 한 건만 나가고 나머지가 5초씩 기다린다.
+
+> ⚠ **원래 값(T1 0.5 · T2 16 · "시나리오 B 20,000건/일의 2배")은 세 군데가 실측으로 무너졌다.**
 >
-> | 항목 | 계획 가정 | W1 실측 |
+> | 항목 | 계획 가정 | 실측 |
 > |---|---|---|
-> | 로컬 요청당 지연 | 1.75s | **4B 3.7s · 8B 5.1s** (프리픽스 캐시 적중, `W1_perf.csv` 중앙값) |
-> | 외부 동시성 | 32 | **측정 안 함** (`W1_concurrency.md` 는 로컬 2종뿐) |
+> | 로컬 요청당 지연 | 1.75 s | **4B 3.7 s · 8B 5.1 s** (`W1_perf.csv` 중앙값, 프리픽스 캐시 적중) |
+> | 외부 동시성 | 32 | 파일럿에서 **동시 24 · 429 0회**. 32 를 확인한 회차는 없다 (`W8_prebake.md §2` 는 65요청) |
+> | 요청당 토큰 | ~375 (15M ÷ 40,000) | **23,109** — 60배 어긋난다 |
 >
-> T4-05에서 실측 기준으로 확정하고, **그때 이 표를 같은 커밋에서 갱신한다.**
+> 요청당 토큰의 60배 차이는 프리픽스가 축소판 4,409 → 정식 **13,488 tok** 으로 커진 결과다(`W6_compile_stats.md §1`).
+> **그래도 15M 을 올리지 않는다** — 시나리오 B 의 20,000건/일은 **T1(로컬·무비용)이 받는다.**
+> T2 로 가는 것은 아키타입 플랜(프리베이크 + 런타임 버킷 미스)뿐이고, 히트율 98% 목표에서 그 수는 세 자리다.
+> 전량 프리베이크(2,880건 · 66.6M tok · $5.12)는 런타임이 아니라 `tools/Npc.Prebake` 의 몫이고
+> 그쪽은 `BudgetGuard`(T3-09)의 `--budget-usd` 가 지킨다.
 
 **GPU 사용률 60% 목표는 T1 초당 요청을 그만큼 더 낮추는 것으로 달성한다.** 남는 40%는 스파이크 흡수용이다.
 다만 W1 측정 기기는 **VRAM 8GB** 라 8B Q4_K_M 가중치(4,789 MiB) + KV 캐시가 거의 꽉 찬다 — GPU 사용률 상한은 VRAM 여유와 같이 봐야 한다 (`W1_env.md §4.3`).
