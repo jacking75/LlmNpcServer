@@ -206,9 +206,7 @@ public static class ChatClientFactory
     {
         ArgumentNullException.ThrowIfNull(engine);
 
-        string key = engine.ApiKeyEnv is null
-            ? "not-needed"
-            : Environment.GetEnvironmentVariable(engine.ApiKeyEnv) ?? string.Empty;
+        string key = ApiKeyOf(engine);
 
         var options = new OpenAIClientOptions
         {
@@ -222,6 +220,38 @@ public static class ChatClientFactory
         return new OpenAIClient(new ApiKeyCredential(key), options)
             .GetChatClient(engine.Model)
             .AsIChatClient();
+    }
+
+    /// <summary>
+    /// 이 엔진이 쓸 수 있는가 — API 키 환경변수가 필요 없거나, 필요한데 채워져 있으면 참.
+    /// 키가 없는 엔진을 목록에서 걸러낼 때 쓴다. <see cref="Create"/> 를 try/catch 로 감싸지 않게 한다.
+    /// </summary>
+    public static bool IsAvailable(LlmEngineOptions engine)
+    {
+        ArgumentNullException.ThrowIfNull(engine);
+
+        return engine.ApiKeyEnv is null
+            || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(engine.ApiKeyEnv));
+    }
+
+    /// <summary>
+    /// 키를 읽는다. 비어 있으면 <b>여기서</b> 멈춘다 —
+    /// 그대로 넘기면 SDK 가 "Value cannot be an empty string. (Parameter 'key')" 를 던져
+    /// 어느 환경변수가 비었는지 알 수 없다.
+    /// </summary>
+    private static string ApiKeyOf(LlmEngineOptions engine)
+    {
+        if (engine.ApiKeyEnv is null)
+        {
+            return "not-needed";
+        }
+
+        string? key = Environment.GetEnvironmentVariable(engine.ApiKeyEnv);
+
+        return string.IsNullOrEmpty(key)
+            ? throw new InvalidOperationException(
+                $"'{engine.Id}' 엔진에 필요한 환경변수 {engine.ApiKeyEnv} 가 비어 있다.")
+            : key;
     }
 
     /// <summary>프리픽스(system) + 서픽스(user) 2메시지. 엔진 꼬리표는 서픽스 끝에만 붙는다.</summary>

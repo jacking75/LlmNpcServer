@@ -99,8 +99,12 @@ public sealed class PromptPrefix
         var sb = new StringBuilder(128 * 1024);
         var sections = ImmutableArray.CreateBuilder<PrefixSection>(parts.Count);
 
-        foreach ((string name, string text) in parts)
+        foreach ((string name, string raw) in parts)
         {
+            // 절마다 정규화한다. ReadText 만으로는 모자란다 — RenderDsl 의 raw string literal 은
+            // .cs 소스의 줄 끝을 그대로 들고 나오므로 CRLF 로 체크아웃된 기계에서 SHA 가 갈라진다.
+            string text = Normalize(raw);
+
             sb.Append(text).Append('\n');
             sections.Add(new PrefixSection(name, CountTokens(text)));
         }
@@ -242,8 +246,12 @@ public sealed class PromptPrefix
     }
 
     /// <summary>줄바꿈을 LF 로 통일한다. CRLF 로 체크아웃된 기계에서 SHA 가 달라지면 안 된다.</summary>
-    private static string ReadText(string path) =>
-        File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd() + "\n";
+    private static string ReadText(string path) => Normalize(File.ReadAllText(path)).TrimEnd() + "\n";
+
+    /// <summary>CR 을 전부 걷어낸다. LF 체크아웃에서는 무연산이라 프리픽스 SHA 가 바뀌지 않는다.</summary>
+    private static string Normalize(string text) => text
+        .Replace("\r\n", "\n", StringComparison.Ordinal)
+        .Replace("\r", "\n", StringComparison.Ordinal);
 
     private static string HashOf(string text) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));

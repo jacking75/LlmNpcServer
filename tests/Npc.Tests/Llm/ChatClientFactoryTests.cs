@@ -25,12 +25,28 @@ public sealed class ChatClientFactoryTests
     public void Options_SwitchLocalToExternalByConfigurationOnly()
     {
         // 같은 코드 경로가 로컬·외부를 다 만든다. 코드에 제공사 이름이 나오지 않는다.
+        //
+        // 키가 없는 외부 엔진까지 만들라고 요구하면 이 테스트가 기계의 환경변수에 매인다.
+        // 대신 두 갈래를 다 단언한다 — 있으면 만들어지고, 없으면 어느 환경변수가 비었는지 말한다.
         foreach (LlmEngineOptions engine in s_options.Engines)
         {
+            if (!ChatClientFactory.IsAvailable(engine))
+            {
+                var missing = Assert.Throws<InvalidOperationException>(() => ChatClientFactory.Create(engine));
+
+                Assert.Contains(engine.ApiKeyEnv!, missing.Message, StringComparison.Ordinal);
+                continue;
+            }
+
             using IChatClient client = ChatClientFactory.Create(engine);
 
             Assert.NotNull(client);
         }
+
+        // 로컬 엔진은 키가 필요 없으므로 어느 기계에서든 만들어져야 한다.
+        Assert.All(
+            s_options.Engines.Where(e => e.IsLocal),
+            e => Assert.True(ChatClientFactory.IsAvailable(e), e.Id));
 
         Assert.True(s_options.Engine("dotllm-qwen2.5-7b").IsLocal);
         Assert.False(s_options.Engine("gemini-3.1-flash-lite").IsLocal);
