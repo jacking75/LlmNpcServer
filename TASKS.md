@@ -179,6 +179,7 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/14 §6` · `docs/14` T4-16 | 인지 스캔 O(1) 판정은 **상한을 푼 회차로** 해야 한다고 명문화 | `MaxScansPerTick = 150` 이 상한을 걸어 P1 실측이 정확히 150 이었다. 상한이 걸린 상태로 재면 무엇을 넣어도 O(1) 로 보인다 |
 | 2026-07-26 | `docs/10` | 게이트 판정 절 신설 (G0-1 미달 · G0-2 미달 · G0-3 통과 · G0-4 판정 불가). T0-09~T0-12 를 `~` 로 | 산출물 4건은 나왔는데 원장은 "미착수" 였다. 규약상 `x` 는 커밋까지이고 아직 워킹 트리에만 있다 |
 | 2026-07-26 | `docs/12`~`docs/15` (공통) | 도구 스크립트 6개를 `.csx` → `.cs`(파일 기반 앱). 신규 `.ps1` 4개에 UTF-8 BOM 요구 추가. `tools/Npc.Prebake`·`Npc.Narrate` 의 sln·테스트 참조 배선을 태스크에 포함 | 이 저장소는 dotnet-script 를 안 쓴다(`tools/gen_npcs.cs`). BOM 없는 한국어 `.ps1` 은 PowerShell 5.1 이 ANSI 로 읽어 파서 오류가 난다(`W1_env.md §4.6`). 프로젝트가 sln 밖에 있으면 `dotnet test` 가 완료 조건의 테스트를 아예 안 본다 |
+| 2026-07-27 | `docs/15 §2` | 예시 픽스처의 `produces_item_of` 를 `weapon` → **`product`** 로. 단언 표에 "(`items.json` 의 `category`)" 명기 | T5-01. `items.json` 에서 `iron_sword` 의 category 는 `product` 이고 `HasWeapon` 은 grants 다. `weapon` category 는 `hunting_bow`·`axe`·`guard_spear`·`guard_sword` 넷뿐인데 **이 넷에는 레시피가 없다** — 어떤 플랜도 `weapon` 을 산출할 수 없어 예시대로 쓰면 단언이 영구 실패한다 |
 
 ---
 
