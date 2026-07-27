@@ -148,6 +148,12 @@ internal sealed class NpcHost : IAsyncDisposable
     /// <summary>틱 루프. 게이트 러너가 통계를 읽는다.</summary>
     public NpcServerLoop Loop => _loop;
 
+    /// <summary>
+    /// 조립된 링크. 결정론 테스트가 재생 결과(<c>ReplayGameServerLink.Commands</c>)를 읽는다 —
+    /// 재생은 명령을 파일로 내보내지 않고 메모리에만 모으기 때문이다.
+    /// </summary>
+    public IGameServerLink Link => _link;
+
     /// <summary>게임서버 대역. Loopback·Record 일 때만 있다.</summary>
     public SimDriver? Driver => _driver;
 
@@ -460,6 +466,24 @@ internal sealed class NpcHost : IAsyncDisposable
 
             var now = new Tick(tick);
 
+            // 틱 루프보다 앞서 나가면 안 된다. 앞서면 명령이 나오기도 전에 세계가 다음 틱으로
+            // 넘어가 버려서 응답 이벤트가 하나도 돌아오지 않는다 (전부 타임아웃 합성이 된다).
+            //
+            // 기다리는 것을 <b>세계를 밀기 전으로</b> 옮겼다. 밀고 나서 기다리면 tick N+1 의
+            // 이벤트가 이미 채널에 들어간 뒤라, 틱 루프가 N 을 돌리는 동안 N+1 이 섞여 들어온다.
+            // 기준도 TicksProcessed 가 아니라 TicksCommitted 다 — 처리만 끝나고 명령이 아직
+            // 링크 큐에 있는 순간에 세계를 밀면 어떤 명령이 반영되는지가 스레드 스케줄에 달린다.
+            // 이 둘이 docs/15 §3 의 "리플레이 100% 일치"가 성립하기 위한 조건이다.
+            var spin = new SpinWait();
+
+            while (tick - _loop.TicksCommitted > MaxLeadTicks && !ct.IsCancellationRequested)
+            {
+                // sleep1Threshold: -1 — Thread.Sleep(1) 로 넘어가지 않게 한다.
+                // 락스텝이라 매 틱 한 번은 기다리게 되는데, 여기서 1ms 를 자면
+                // 1,440틱짜리 하루가 그것만으로 20초를 더 쓴다 (실측 1분 39초 → 9분 8초).
+                spin.SpinOnce(sleep1Threshold: -1);
+            }
+
             if (_driver is not null)
             {
                 _driver.Tick(now);
@@ -467,15 +491,6 @@ internal sealed class NpcHost : IAsyncDisposable
             else
             {
                 _nullLink!.PushTick(now);
-            }
-
-            // 틱 루프보다 앞서 나가면 안 된다. 앞서면 명령이 나오기도 전에 세계가 다음 틱으로
-            // 넘어가 버려서 응답 이벤트가 하나도 돌아오지 않는다 (전부 타임아웃 합성이 된다).
-            var spin = new SpinWait();
-
-            while (tick - _loop.TicksProcessed > MaxLeadTicks && !ct.IsCancellationRequested)
-            {
-                spin.SpinOnce();
             }
 
             if (_options.MaxSpeed)
