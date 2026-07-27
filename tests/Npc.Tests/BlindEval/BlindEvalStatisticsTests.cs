@@ -212,4 +212,43 @@ public sealed class BlindEvalStatisticsTests
 
         return (process.ExitCode, stdout + stderr);
     }
+
+    /// <summary>
+    /// 예비 실시(docs/15 §1) 산출물이 <b>사람 자료와 섞이지 않고</b>, 정식이 아니라는 것을
+    /// 파일 스스로 말한다.
+    ///
+    /// 이게 흐려지면 다음 사람이 LLM 심사원 결과를 정식 판정으로 읽는다 —
+    /// 그 순간 보고서 전체가 거짓이 된다.
+    /// </summary>
+    [Fact]
+    public void Statistics_PilotIsLabelledAndKeptApartFromHumanData()
+    {
+        string pilotRaw = TestPaths.At("docs", "measurements", "blind_eval_pilot.jsonl");
+        string pilotResult = TestPaths.At("docs", "measurements", "blind_eval_pilot_result.md");
+
+        if (!File.Exists(pilotRaw))
+        {
+            return;
+        }
+
+        // 사람 응답 파일과 다른 파일이어야 한다.
+        string humanRaw = File.ReadAllText(TestPaths.At("docs", "measurements", "blind_eval_raw.jsonl"));
+
+        Assert.DoesNotContain("\"participant\":\"J", humanRaw, StringComparison.Ordinal);
+
+        // 심사원 id 는 J 로 시작한다 — 사람(P01…)과 눈으로도 구분된다.
+        foreach (string line in File.ReadAllLines(pilotRaw).Where(l => l.Contains("\"case\"", StringComparison.Ordinal)))
+        {
+            Assert.Contains("\"participant\":\"J", line, StringComparison.Ordinal);
+        }
+
+        Assert.True(File.Exists(pilotResult), "예비 결과 파일이 없다.");
+
+        string text = File.ReadAllText(pilotResult);
+
+        Assert.Contains("예비", text, StringComparison.Ordinal);
+        Assert.Contains("사람이 아니라 LLM", text, StringComparison.Ordinal);
+        Assert.Contains("게이트는 그대로 미달", text, StringComparison.Ordinal);
+        Assert.Contains("blind_eval_pilot.jsonl", text, StringComparison.Ordinal);
+    }
 }

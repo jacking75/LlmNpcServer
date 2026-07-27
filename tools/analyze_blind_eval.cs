@@ -32,6 +32,7 @@ string keyPath = "./docs/measurements/blind_eval_key.md";
 string outPath = "./docs/measurements/blind_eval_result.md";
 string measuredOn = "(미기록)";
 bool selfTest = false;
+bool pilot = false;
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -42,6 +43,9 @@ for (int i = 0; i < args.Length; i++)
         case "--out" when i + 1 < args.Length: outPath = args[++i]; break;
         case "--date" when i + 1 < args.Length: measuredOn = args[++i]; break;
         case "--self-test": selfTest = true; break;
+
+        // 예비 실시(docs/15 §1) 결과에 붙는다. LLM 심사원이라는 사실을 리포트 첫머리에 못 박는다.
+        case "--pilot": pilot = true; break;
         default: throw new ArgumentException($"모르는 인자다: {args[i]}");
     }
 }
@@ -236,9 +240,19 @@ string quadrant = !enough
 // ── 7. 리포트 ────────────────────────────────────────────────────────
 var sb = new StringBuilder(16 * 1024);
 
-sb.Append("# 블라인드 A/B 평가 — 결과\n\n");
+sb.Append(pilot ? "# 블라인드 A/B **예비** 평가 — 결과\n\n" : "# 블라인드 A/B 평가 — 결과\n\n");
 sb.Append("> `tools/analyze_blind_eval.cs` 가 만든다. 손으로 고치지 않는다.\n");
-sb.Append("> 원자료는 `blind_eval_raw.jsonl`, 정답 키는 `blind_eval_key.md` 다.\n\n");
+sb.Append(CultureInfo.InvariantCulture,
+    $"> 원자료는 `{Path.GetFileName(raw)}`, 정답 키는 `{Path.GetFileName(keyPath)}` 다.\n\n");
+
+if (pilot)
+{
+    // 이 문단이 없으면 다음 사람이 이 파일을 정식 결과로 읽는다.
+    sb.Append("> ⚠ **심사원이 사람이 아니라 LLM 이다.** docs/15 §1 이 말하는 예비 실시이고,\n");
+    sb.Append("> docs/15 §6 의 정식 측정(사내 기획자·개발자 12명 이상)이 아니다.\n");
+    sb.Append("> **P5 게이트의 `n ≥ 480` 을 충족하지 않는다** — 게이트는 그대로 미달이다.\n");
+    sb.Append("> 쓰임새는 하나다: 사람 12명 × 1시간을 쓰기 전에 방향을 본다.\n\n");
+}
 
 sb.Append("| 항목 | 값 |\n|---|---|\n");
 sb.Append(CultureInfo.InvariantCulture, $"| 측정일 | {measuredOn} |\n");
