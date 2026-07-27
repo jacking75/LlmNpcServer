@@ -67,7 +67,15 @@ if (options.NoDashboard)
     return 0;
 }
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder();
+// ContentRoot 기본값은 <b>작업 폴더</b>다. 그러면 wwwroot/dashboard.html 을 찾는 자리가
+// "어디서 실행했는가"에 따라 달라져, 같은 빌드가 dotnet run 에서는 뜨고
+// dll 을 직접 실행하면 /dashboard 가 404 가 된다. 실행 파일 폴더로 고정한다 —
+// appsettings.json 도 출력 폴더에 있으므로 같이 안정된다.
+WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    ContentRootPath = AppContext.BaseDirectory,
+});
+
 builder.WebHost.UseUrls($"http://localhost:{options.Port}");
 builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
@@ -84,7 +92,7 @@ app.MapGet("/dashboard", () =>
 
     return file.Exists
         ? Results.File(file.CreateReadStream(), "text/html; charset=utf-8")
-        : Results.NotFound("dashboard.html 이 없다.");
+        : Results.NotFound($"dashboard.html 이 없다: {app.Environment.WebRootPath}");
 });
 
 await app.StartAsync(CancellationToken.None);
