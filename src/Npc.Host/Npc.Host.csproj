@@ -14,6 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Web SDK 는 wwwroot 를 publish 에만 담는다. 빌드 출력에도 넣어야
+         ContentRoot(=실행 파일 폴더)에서 dashboard.html 이 잡힌다. docs/11 §10. -->
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
     <ProjectReference Include="..\Npc.Core\Npc.Core.csproj" />
     <ProjectReference Include="..\Npc.MasterData\Npc.MasterData.csproj" />

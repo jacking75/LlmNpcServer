@@ -1,0 +1,13 @@
+{
+  "id": "G-038",
+  "input": {
+    "bucket": "patrol_scout@Afternoon.Alert.Fair",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "HasWeapon", "IsDay", "OnDuty", "RegionPeaceful"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "not_contains", "action": "Craft" },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest", "Guard", "Patrol"] }
+  ]
+}

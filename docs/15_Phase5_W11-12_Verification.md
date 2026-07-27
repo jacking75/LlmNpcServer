@@ -34,7 +34,7 @@
   "assertions": [
     { "kind": "validates",        "stage": "DryRun" },
     { "kind": "contains_action",  "action": "Craft" },
-    { "kind": "produces_item_of", "category": "weapon" },
+    { "kind": "produces_item_of", "category": "product" },
     { "kind": "not_contains",     "action": "Wander" },
     { "kind": "ends_with_any",    "actions": ["Sleep","Rest"] },
     { "kind": "step_count_between", "min": 4, "max": 9 },
@@ -52,7 +52,7 @@
 |---|---|
 | `validates` | 지정 단계까지 검증 통과 |
 | `contains_action` / `not_contains` | 특정 액션 포함/배제 |
-| `produces_item_of` | 결과물이 특정 카테고리 |
+| `produces_item_of` | 결과물이 특정 카테고리 (`items.json` 의 `category`) |
 | `ends_with_any` | 마지막 스텝 |
 | `step_count_between` | 스텝 수 범위 |
 | `acquires_before_use` | 소비 전에 획득하는가 (정합성) |

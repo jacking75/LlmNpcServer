@@ -16,6 +16,10 @@ namespace Npc.Llm;
 ///
 /// <b>시계는 <see cref="Tick"/> 이고 외부에서 주입한다.</b> 컴파일러가 <c>DateTime</c> 을 보면
 /// 예산 판정이 리플레이마다 달라진다 (CLAUDE.md §2.3).
+///
+/// <b>킬스위치는 예산보다 앞선다</b> (T5-08 · docs/15 §4). 시나리오 C 는 "끊었는데도 동작하는가"를
+/// 보는 것이라, 끊긴 티어에 요청이 한 건이라도 나가면 게이트가 거짓이 된다 —
+/// <see cref="SelectTier"/> 가 끊긴 티어를 애초에 고르지 않는다.
 /// </summary>
 public sealed class TieredPlanCompiler : IPlanCompiler
 {
@@ -113,10 +117,31 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     public CircuitBreaker? Breaker { get; init; }
 
     /// <summary>
+    /// 킬스위치 상태 (T5-08 · docs/15 §4). 시나리오 러너가 세우고 이 라우터가 읽는다.
+    /// 기본값은 아무것도 끊기지 않은 상태다.
+    /// </summary>
+    public KillSwitchState Switches { get; init; } = KillSwitchState.None;
+
+    /// <summary>
+    /// 이 티어를 지금 쓸 수 있는가. <b>킬스위치만 본다</b> —
+    /// 브레이커는 일시적 차단이라 선택 시점이 아니라 호출 직전에 보고(<see cref="CircuitBreaker.TryEnter"/>)
+    /// 단락 횟수를 센다. 여기서 같이 보면 그 계수가 사라진다.
+    /// </summary>
+    public bool Available(Tier tier) => tier switch
+    {
+        Tier.T2 => !Switches.IsDisabled(KillSwitchTarget.T2),
+        Tier.T1 => !Switches.IsDisabled(KillSwitchTarget.T1),
+        _ => false,
+    };
+
+    /// <summary>
     /// docs/14 §4 의 티어 선택 규칙. <b>예산은 보지 않는다</b> —
     /// 예산 판정과 강등은 <see cref="IReplanBudget.Acquire"/> 의 몫이다.
+    /// 끊긴 티어는 고르지 않는다 (docs/15 §4).
     /// </summary>
-    public Tier SelectTier(in PlanRequest request)
+    public Tier SelectTier(in PlanRequest request) => Downgrade(Wanted(in request));
+
+    private Tier Wanted(in PlanRequest request)
     {
         // 아키타입 플랜은 수천 NPC 가 재사용한다 → 품질에 투자한다.
         // 프리베이크와 런타임 미스가 같은 값이라 여기서 갈리지 않는다 (§4 표 1·2행).
@@ -130,12 +155,37 @@ public sealed class TieredPlanCompiler : IPlanCompiler
         return LocalQueueDepth is { } depth && depth() > SpilloverThreshold ? Tier.T2 : Tier.T1;
     }
 
+    /// <summary>
+    /// 끊긴 티어를 한 칸 내린다. <c>T2 → T1 → 거절</c> (docs/14 §3).
+    ///
+    /// <b>올리지는 않는다.</b> T1 차단은 "재계획 전면 중단, 캐시 플랜만 남는다" 는 뜻이라
+    /// (<see cref="KillSwitchTarget.T1"/>) 개별 재계획을 T2 로 올려 보내면 시나리오 C 2단계가
+    /// 측정하려던 것이 사라진다.
+    /// </summary>
+    private Tier Downgrade(Tier wanted)
+    {
+        if (wanted == Tier.T2 && Available(Tier.T2))
+        {
+            return Tier.T2;
+        }
+
+        return Available(Tier.T1) ? Tier.T1 : Tier.None;
+    }
+
     /// <inheritdoc />
     public async ValueTask<PlanCompileResult> CompileAsync(
         PlanRequest request, CancellationToken cancellationToken)
     {
         Tick now = _now();
         Tier wanted = SelectTier(in request);
+
+        // 킬스위치가 T1·T2 를 다 끊었다. 예산을 보기 전에 거절한다 —
+        // 끊긴 티어에 요청을 내는 경로를 남기지 않는다 (docs/15 §4).
+        if (wanted == Tier.None)
+        {
+            Interlocked.Increment(ref _rejected);
+            return NoTierResult();
+        }
 
         // 개별 요청이 T2 로 갔다 = 스필오버다. 아키타입 요청은 원래 T2 라 세지 않는다.
         if (wanted == Tier.T2 && request.Quality != PlanQuality.Archetype)
@@ -147,6 +197,13 @@ public sealed class TieredPlanCompiler : IPlanCompiler
         // (docs/14 §10). 예산도 여기서 아껴진다 — 죽은 엔드포인트에 T2 예산을 쓰지 않는다.
         if (wanted == Tier.T2 && Breaker is { } breaker && !breaker.TryEnter(now))
         {
+            // T1 이 끊겨 있으면 내려갈 곳이 없다.
+            if (!Available(Tier.T1))
+            {
+                Interlocked.Increment(ref _rejected);
+                return NoTierResult();
+            }
+
             wanted = Tier.T1;
         }
 
@@ -179,12 +236,15 @@ public sealed class TieredPlanCompiler : IPlanCompiler
             Breaker?.RecordFailure(now);
             return await FailoverAsync(request, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            throw;   // 종료 신호는 페일오버 대상이 아니다. 브레이커에도 세지 않는다
+            throw;   // 호출자가 지시한 종료다. 페일오버 대상이 아니고 브레이커에도 세지 않는다
         }
         catch (Exception)
         {
+            // <b>취소 예외를 종류만 보고 거르지 않는다.</b> HttpClient 의 타임아웃도
+            // TaskCanceledException 이라, 종류로 거르면 외부 타임아웃이 워커를 뚫고 나가고
+            // 브레이커는 영영 열리지 않는다 (docs/14 §10).
             Breaker?.RecordFailure(now);
             return await FailoverAsync(request, cancellationToken).ConfigureAwait(false);
         }
@@ -199,6 +259,14 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     private async ValueTask<PlanCompileResult> FailoverAsync(
         PlanRequest request, CancellationToken cancellationToken)
     {
+        // T1 이 끊겨 있으면 페일오버할 곳이 없다 (docs/15 §4). 페일오버로 세지도 않는다 —
+        // 넘긴 적이 없기 때문이다.
+        if (!Available(Tier.T1))
+        {
+            Interlocked.Increment(ref _rejected);
+            return NoTierResult();
+        }
+
         Interlocked.Increment(ref _failovers);
 
         if (_budget.Acquire(Tier.T1, Estimate(in request), _now()) == Tier.None)
@@ -255,5 +323,19 @@ public sealed class TieredPlanCompiler : IPlanCompiler
             -1,
             $"예산 소진으로 {wanted} 요청을 거절했다. NPC 는 기존 플랜을 유지한다 (docs/14 §3)."),
         CompileStats.None with { Error = "budget_exhausted" },
+        string.Empty);
+
+    /// <summary>
+    /// 킬스위치가 쓸 티어를 다 끊었다 (T5-08). <c>V0.CALL_FAILED</c> 와 같은 자리에 둔다 —
+    /// 스키마 단계 실패로 세어야 통과율 분모가 줄지 않는다 (docs/12 §2).
+    /// </summary>
+    private static PlanCompileResult NoTierResult() => new(
+        null,
+        ValidationResult.Fail(
+            ValidationStage.Schema,
+            "V0.NO_TIER",
+            -1,
+            "쓸 수 있는 티어가 없다 — 킬스위치가 T1·T2 를 끊었다 (docs/15 §4)."),
+        CompileStats.None with { Error = "no_tier" },
         string.Empty);
 }

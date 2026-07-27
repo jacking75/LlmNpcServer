@@ -3,10 +3,12 @@ using Npc.Core;
 using Npc.Core.Plan;
 using Npc.Core.Validation;
 using Npc.Llm;
+using Npc.MasterData;
+using Npc.Planning;
 
 namespace Npc.Tests.Llm;
 
-/// <summary>docs/14 §4 — 티어 선택 규칙표 6개 케이스와 페일오버.</summary>
+/// <summary>docs/14 §4 — 티어 선택 규칙표 6개 케이스와 페일오버, 그리고 킬스위치 3종 (T5-08).</summary>
 public sealed class TieredPlanCompilerTests
 {
     /// <summary>어느 티어로 불렸는지만 세는 가짜 컴파일러.</summary>
@@ -366,5 +368,176 @@ public sealed class TieredPlanCompilerTests
     {
         Assert.Equal(23_109, TieredPlanCompiler.DefaultEstimatedTokens);
         Assert.Equal(6_655_438 / 288, TieredPlanCompiler.DefaultEstimatedTokens);
+    }
+
+    // ---------------------------------------------------------------- 킬스위치 3종 (T5-08 완료 조건)
+
+    /// <summary>시나리오 C 1단계 — T2 를 끊으면 T1 으로 간다. T2 는 <b>한 번도</b> 불리지 않는다.</summary>
+    [Fact]
+    public async Task KillSwitch_T2_FailsOverToLocal()
+    {
+        var t1 = new StubCompiler("local");
+        var t2 = new StubCompiler("external");
+        var switches = new KillSwitchState();
+
+        var router = new TieredPlanCompiler(t1, t2, new OpenBudget(), () => new Tick(0))
+        {
+            Switches = switches,
+        };
+
+        Assert.True(router.Available(Tier.T2));
+
+        switches.Fire(KillSwitchTarget.T2);
+
+        Assert.False(router.Available(Tier.T2));
+        Assert.Equal(Tier.T1, router.SelectTier(Archetype()));
+
+        PlanCompileResult result = await router.CompileAsync(Archetype(), CancellationToken.None);
+
+        Assert.Equal("local", result.Stats.Model);
+        Assert.Equal(0, t2.Calls);
+        Assert.Equal(1, t1.Calls);
+    }
+
+    /// <summary>
+    /// 시나리오 C 2단계 — T1 까지 끊으면 거절이다. <b>예외가 아니라 결과로</b> 돌려준다.
+    /// 워커가 터지면 그게 크래시이고, 시나리오 C 는 크래시 0 을 요구한다.
+    /// </summary>
+    [Fact]
+    public async Task KillSwitch_T1AndT2_RejectsWithoutThrowing()
+    {
+        var t1 = new StubCompiler("local");
+        var t2 = new StubCompiler("external");
+        var switches = new KillSwitchState();
+
+        var router = new TieredPlanCompiler(t1, t2, new OpenBudget(), () => new Tick(0))
+        {
+            Switches = switches,
+        };
+
+        switches.Fire(KillSwitchTarget.T2);
+        switches.Fire(KillSwitchTarget.T1);
+
+        Assert.Equal(Tier.None, router.SelectTier(Archetype()));
+        Assert.Equal(Tier.None, router.SelectTier(Individual()));
+
+        PlanCompileResult result = await router.CompileAsync(Individual(), CancellationToken.None);
+
+        Assert.Null(result.Plan);
+        Assert.Equal("V0.NO_TIER", result.Validation.Code);
+        Assert.Equal("no_tier", result.Stats.Error);
+        Assert.Equal(1, router.Rejected);
+        Assert.Equal(0, t1.Calls);
+        Assert.Equal(0, t2.Calls);
+    }
+
+    /// <summary>
+    /// T1 이 끊긴 상태에서 T2 가 죽으면 내려갈 곳이 없다 — 거절하되 페일오버로 세지 않는다.
+    /// 넘긴 적이 없기 때문이다.
+    /// </summary>
+    [Fact]
+    public async Task KillSwitch_T1_LeavesNowhereToFailOver()
+    {
+        var t1 = new StubCompiler("local");
+        var t2 = new StubCompiler("external", throws: true);
+        var switches = new KillSwitchState();
+
+        var router = new TieredPlanCompiler(t1, t2, new OpenBudget(), () => new Tick(0))
+        {
+            Switches = switches,
+        };
+
+        switches.Fire(KillSwitchTarget.T1);
+
+        // 아키타입 요청은 여전히 T2 로 간다 — T2 는 끊기지 않았다.
+        Assert.Equal(Tier.T2, router.SelectTier(Archetype()));
+
+        PlanCompileResult result = await router.CompileAsync(Archetype(), CancellationToken.None);
+
+        Assert.Equal("V0.NO_TIER", result.Validation.Code);
+        Assert.Equal(1, t2.Calls);
+        Assert.Equal(0, t1.Calls);
+        Assert.Equal(0, router.Failovers);
+        Assert.Equal(1, router.Rejected);
+    }
+
+    /// <summary>
+    /// 시나리오 C 3단계 — <c>PlanStore</c> 차단은 라우터가 아니라 플랜 스토어가 본다.
+    /// 끊겨도 <c>Resolve</c> 는 <b>여전히 null 을 반환하지 않는다</b> (CLAUDE.md §2.6).
+    /// </summary>
+    [Fact]
+    public void KillSwitch_PlanStore_FallsBackWithoutReturningNull()
+    {
+        MasterDataSet data = LlmPlanCompilerTests.Data;
+        PlanStore plans = PlanStore.CreateIdleOnly(data);
+
+        // 폴백 40개를 채우고, 버킷 하나에 다른 플랜을 올린다.
+        foreach (FallbackPlanEntry entry in data.Fallbacks!.Plans)
+        {
+            plans.SetFallback(entry.Archetype, plans.Register(entry.Plan));
+        }
+
+        BucketKey bucket = LlmPlanCompilerTests.BlacksmithMorning();
+        CompiledPlan prebaked = data.Fallbacks.Plans[1].Plan with
+        {
+            Bucket = bucket,
+            Origin = PlanOrigin.Prebaked,
+        };
+
+        plans.SetBucket(bucket, prebaked);
+
+        var switches = new KillSwitchState();
+        plans.Switches = switches;
+
+        CompiledPlan before = plans.Resolve(bucket, out PlanOrigin originBefore);
+
+        switches.Fire(KillSwitchTarget.PlanStore);
+
+        CompiledPlan after = plans.Resolve(bucket, out PlanOrigin originAfter);
+
+        Assert.NotEqual(PlanOrigin.Fallback, originBefore);
+        Assert.Equal(PlanOrigin.Fallback, originAfter);
+        Assert.NotSame(before, after);
+
+        // 절대 null 이 아니다 — 시나리오 C 3단계가 여기에 달려 있다.
+        Assert.NotNull(after);
+    }
+
+    /// <summary>끊는 것은 멱등이다 (N7). 두 번 끊어도 상태가 같다.</summary>
+    [Fact]
+    public void KillSwitch_IsIdempotent()
+    {
+        var switches = new KillSwitchState();
+
+        switches.Fire(KillSwitchTarget.T2);
+        switches.Fire(KillSwitchTarget.T2);
+
+        Assert.True(switches.IsDisabled(KillSwitchTarget.T2));
+        Assert.True(switches.AnyFired);
+
+        switches.Reset();
+
+        Assert.False(switches.AnyFired);
+    }
+
+    /// <summary>
+    /// 시나리오 파일의 타깃은 3종뿐이다. 모르는 문자열은 거절한다 —
+    /// 오타가 지나가면 안 끊긴 채로 게이트가 통과한다.
+    /// </summary>
+    [Fact]
+    public void KillSwitch_ParsesOnlyTheThreeTargets()
+    {
+        Assert.True(KillSwitchState.TryParse("T1", out KillSwitchTarget t1));
+        Assert.Equal(KillSwitchTarget.T1, t1);
+
+        Assert.True(KillSwitchState.TryParse("planstore", out KillSwitchTarget store));
+        Assert.Equal(KillSwitchTarget.PlanStore, store);
+
+        Assert.False(KillSwitchState.TryParse("T3", out _));
+        Assert.False(KillSwitchState.TryParse(null, out _));
+        Assert.False(KillSwitchState.TryParse("  ", out _));
+
+        // 열거형 ordinal 을 그대로 넣는 것도 막는다 — "2" 가 PlanStore 가 되면 오타를 못 잡는다.
+        Assert.False(KillSwitchState.TryParse("2", out _));
     }
 }

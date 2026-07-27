@@ -100,6 +100,17 @@ public sealed class NpcServerLoop
     /// <summary>처리한 틱 수.</summary>
     public long TicksProcessed { get; private set; }
 
+    /// <summary>
+    /// 명령까지 내보낸 틱 수. <b>결정론의 기준선이다</b> (docs/15 §3).
+    ///
+    /// <see cref="TicksProcessed"/> 는 <see cref="RunTick"/> 이 끝나면 오르지만 그 시점에
+    /// 이번 틱의 명령은 아직 링크 큐 안에 있다. 게임서버 대역이 그 숫자만 보고 다음 틱을 밀면
+    /// <b>어떤 명령이 다음 틱에 반영되는지가 스레드 스케줄에 달린다</b> —
+    /// 같은 시나리오를 두 번 돌려도 이벤트 수가 달라진다(실측 30,416 vs 30,649).
+    /// 이 값은 <c>FlushAsync</c> 뒤에 오르므로 여기에 맞춰 페이싱하면 그 창이 닫힌다.
+    /// </summary>
+    public long TicksCommitted { get; private set; }
+
     /// <summary>배수한 이벤트 수.</summary>
     public long EventsDrained { get; private set; }
 
@@ -129,13 +140,18 @@ public sealed class NpcServerLoop
                 RunTick(tick, drained);
                 drained = 0;
 
+                // 틱마다 내보낸다. 바깥에서 한 번만 하면 이번 틱의 명령이 큐에 남은 채
+                // TicksProcessed 가 먼저 올라 페이싱이 그 창을 보게 된다.
+                await _link.FlushAsync(ct).ConfigureAwait(false);
+                TicksCommitted = tick.Value;
+
                 if (StopAtTick > 0 && tick.Value >= StopAtTick)
                 {
-                    await _link.FlushAsync(ct).ConfigureAwait(false);
                     return;
                 }
             }
 
+            // 인터럽트가 강제한 명령은 틱 밖(배수 중)에서 나온다 — 그것들도 내보내야 한다.
             await _link.FlushAsync(ct).ConfigureAwait(false);
         }
     }
@@ -158,7 +174,15 @@ public sealed class NpcServerLoop
         Observer?.OnTickEnd(tick, _cognition.LastScanned, drained);
     }
 
-    /// <summary>수신 이벤트를 전부 반영한다. 인터럽트는 여기서 즉시 처리된다.</summary>
+    /// <summary>
+    /// 수신 이벤트를 반영한다. 인터럽트는 여기서 즉시 처리된다.
+    ///
+    /// <b><c>TickSync</c> 를 만나면 거기서 끊는다</b> (docs/15 §3). 게임서버 대역이 틱마다
+    /// <c>TickSync</c> 를 마지막에 내므로 이 경계가 곧 틱 경계다. 끊지 않으면 생산자가
+    /// 앞서 나간 만큼 다음 틱의 이벤트까지 한 배수에 들어와,
+    /// <b>아직 돌리지 않은 틱의 결과가 이번 틱의 판단에 반영된다.</b>
+    /// 얼마나 들어오는지는 스레드 스케줄이 정하므로 같은 시나리오가 실행마다 갈라진다.
+    /// </summary>
     private int DrainEvents()
     {
         int drained = 0;
@@ -193,6 +217,11 @@ public sealed class NpcServerLoop
             }
 
             drained++;
+
+            if (ev.Kind == GameEventKind.TickSync)
+            {
+                break;
+            }
         }
 
         if (drained >= MaxEventsPerTick)

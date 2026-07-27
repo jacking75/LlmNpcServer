@@ -1,0 +1,13 @@
+{
+  "id": "G-037",
+  "input": {
+    "bucket": "gate_guard@Dawn.Alert.Cold",
+    "flags": ["HasFood", "HasWater", "HasCoin", "HasWeapon", "IsDawn", "OnDuty", "RegionPeaceful"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "contains_action", "action": "Guard" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest", "Guard", "Patrol"] }
+  ]
+}

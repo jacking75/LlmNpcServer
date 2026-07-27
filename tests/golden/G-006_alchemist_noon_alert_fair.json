@@ -1,0 +1,16 @@
+{
+  "id": "G-006",
+  "input": {
+    "bucket": "alchemist@Noon.Alert.Fair",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsDay", "RegionPeaceful"],
+    "inventory": { "herb": 0 }
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "contains_action", "action": "Craft" },
+    { "kind": "produces_item_of", "category": "product" },
+    { "kind": "acquires_before_use", "item": "herb", "action": "Craft" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] }
+  ]
+}

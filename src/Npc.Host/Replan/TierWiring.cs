@@ -73,7 +73,8 @@ internal sealed class TierWiring : IAsyncDisposable
         PlanSwapper swapper,
         ZoneStateTable zoneStates,
         GameClock clock,
-        TextWriter log)
+        TextWriter log,
+        KillSwitchState? switches = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(log);
@@ -130,6 +131,7 @@ internal sealed class TierWiring : IAsyncDisposable
         {
             LocalQueueDepth = () => queue.Count,
             Breaker = breaker,
+            Switches = switches ?? KillSwitchState.None,
         };
 
         var wiring = new TierWiring(options.Tier)

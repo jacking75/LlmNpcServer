@@ -1,0 +1,12 @@
+{
+  "id": "G-025",
+  "input": {
+    "bucket": "miner@Night.Alert.Fair",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsExhausted", "IsNight", "RegionPeaceful"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] }
+  ]
+}

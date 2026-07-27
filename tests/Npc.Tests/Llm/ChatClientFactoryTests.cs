@@ -25,12 +25,28 @@ public sealed class ChatClientFactoryTests
     public void Options_SwitchLocalToExternalByConfigurationOnly()
     {
         // 같은 코드 경로가 로컬·외부를 다 만든다. 코드에 제공사 이름이 나오지 않는다.
+        //
+        // 키가 없는 외부 엔진까지 만들라고 요구하면 이 테스트가 기계의 환경변수에 매인다.
+        // 대신 두 갈래를 다 단언한다 — 있으면 만들어지고, 없으면 어느 환경변수가 비었는지 말한다.
         foreach (LlmEngineOptions engine in s_options.Engines)
         {
+            if (!ChatClientFactory.IsAvailable(engine))
+            {
+                var missing = Assert.Throws<InvalidOperationException>(() => ChatClientFactory.Create(engine));
+
+                Assert.Contains(engine.ApiKeyEnv!, missing.Message, StringComparison.Ordinal);
+                continue;
+            }
+
             using IChatClient client = ChatClientFactory.Create(engine);
 
             Assert.NotNull(client);
         }
+
+        // 로컬 엔진은 키가 필요 없으므로 어느 기계에서든 만들어져야 한다.
+        Assert.All(
+            s_options.Engines.Where(e => e.IsLocal),
+            e => Assert.True(ChatClientFactory.IsAvailable(e), e.Id));
 
         Assert.True(s_options.Engine("dotllm-qwen2.5-7b").IsLocal);
         Assert.False(s_options.Engine("gemini-3.1-flash-lite").IsLocal);
@@ -152,5 +168,44 @@ public sealed class ChatClientFactoryTests
 
         Assert.Equal(s_options.Default, found.Default);
         Assert.Equal(s_options.Engines.Length, found.Engines.Length);
+    }
+
+    /// <summary>
+    /// 제공사 우선순위가 설정에 있고, 그 순서대로 <b>키가 있는 첫 엔진</b>이 골라진다.
+    ///
+    /// 사용자 지시는 "Poe 를 우선" 이다. 그것을 회차마다 사람이 <c>--model</c> 로
+    /// 넣어 주면 키가 있는 날과 없는 날의 엔진이 달라져 실측치를 나란히 못 놓는다.
+    /// 설정이 정하게 하고, 키가 없으면 조용히 다음으로 내려간다.
+    /// </summary>
+    [Fact]
+    public void Options_PreferPoeThenOpenRouter()
+    {
+        Assert.NotEmpty(s_options.Preferred);
+        Assert.Equal("poe-gemini-2.5-flash-lite", s_options.Preferred[0]);
+
+        // 우선순위에 적힌 id 는 전부 실재해야 한다 — 오타는 조용히 건너뛰어진다.
+        foreach (string id in s_options.Preferred)
+        {
+            Assert.Contains(s_options.Engines, e => string.Equals(e.Id, id, StringComparison.Ordinal));
+        }
+
+        LlmEngineOptions chosen = s_options.PreferredEngine();
+
+        // 골라진 것은 반드시 쓸 수 있어야 하거나, 아무것도 못 쓸 때의 기본값이다.
+        Assert.True(
+            ChatClientFactory.IsAvailable(chosen) || chosen.Id == s_options.Engine().Id,
+            chosen.Id);
+
+        // 앞선 후보 중 키가 있는 것이 있었다면 그것이 골라졌어야 한다.
+        foreach (string id in s_options.Preferred)
+        {
+            LlmEngineOptions candidate = s_options.Engine(id);
+
+            if (ChatClientFactory.IsAvailable(candidate))
+            {
+                Assert.Equal(candidate.Id, chosen.Id);
+                break;
+            }
+        }
     }
 }

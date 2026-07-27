@@ -75,8 +75,61 @@ public sealed class ScenarioAndFaultTests
         Assert.False(scenario.HasMore);
         Assert.True(scenario.Injected > 0);
 
-        // KillSwitch 는 이벤트가 아니라 기록이다 (P1 에는 LLM 이 없다).
-        Assert.Equal(["T2", "T1"], scenario.KillSwitchesFired);
+        // KillSwitch 는 이벤트가 아니라 티어 차단 신호다 (docs/15 §4).
+        Assert.Equal([KillSwitchTarget.T2, KillSwitchTarget.T1], scenario.KillSwitchesFired);
+
+        // 기록만 남기면 "끊었다고 적어 두고 실제로는 계속 도는" 상태를 못 잡는다 — 상태도 선다.
+        Assert.True(scenario.Switches.IsDisabled(KillSwitchTarget.T2));
+        Assert.True(scenario.Switches.IsDisabled(KillSwitchTarget.T1));
+        Assert.False(scenario.Switches.IsDisabled(KillSwitchTarget.PlanStore));
+    }
+
+    /// <summary>
+    /// T5-08 완료 조건 — 미지의 타깃 문자열은 <b>로드 시점에</b> 기동 실패다.
+    /// 조용히 넘기면 안 끊긴 채로 시나리오 C 가 통과해 게이트가 거짓이 된다.
+    /// </summary>
+    [Fact]
+    public void Sim_ScenarioRejectsUnknownKillSwitchTarget()
+    {
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => ScenarioRunner.Parse(
+            ["""{"at_tick": 1, "event": "KillSwitch", "target": "T3"}"""],
+            s_data));
+
+        Assert.Contains("T3", error.Message, StringComparison.Ordinal);
+        Assert.Contains("PlanStore", error.Message, StringComparison.Ordinal);
+
+        // target 자체가 없어도 실패다.
+        Assert.Throws<InvalidDataException>(() => ScenarioRunner.Parse(
+            ["""{"at_tick": 1, "event": "KillSwitch"}"""],
+            s_data));
+    }
+
+    /// <summary>3종 전부 파싱되고 대소문자를 가리지 않는다.</summary>
+    [Fact]
+    public void Sim_ScenarioParsesAllThreeKillSwitchTargets()
+    {
+        ScenarioRunner scenario = ScenarioRunner.Parse(
+            [
+                """{"at_tick": 1, "event": "KillSwitch", "target": "T2"}""",
+                """{"at_tick": 2, "event": "KillSwitch", "target": "t1"}""",
+                """{"at_tick": 3, "event": "KillSwitch", "target": "planstore"}""",
+            ],
+            s_data);
+
+        SimWorld world = SimWorldTests.NewWorld(1);
+
+        for (long tick = 1; tick <= 3; tick++)
+        {
+            scenario.Tick(new Tick(tick), world);
+        }
+
+        Assert.Equal(
+            [KillSwitchTarget.T2, KillSwitchTarget.T1, KillSwitchTarget.PlanStore],
+            scenario.KillSwitchesFired);
+
+        Assert.All(
+            Enum.GetValues<KillSwitchTarget>(),
+            t => Assert.True(scenario.Switches.IsDisabled(t)));
     }
 
     [Fact]

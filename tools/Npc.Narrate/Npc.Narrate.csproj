@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    [W12] 명령 로그 → 사람이 읽는 하루 일지. docs/15 §6 · T5-12.
+
+    LLM 을 쓰지 않는다 — 액션 시퀀스의 기계적 번역이다.
+    Npc.Contracts(패킷)·Npc.MasterData(POI·아이템·아키타입)를 참조해야 해서
+    파일 기반 앱이 아니라 프로젝트다 (tools/Npc.Prebake 와 같은 취급).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Npc.Narrate</RootNamespace>
+    <AssemblyName>Npc.Narrate</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Npc.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.Contracts\Npc.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Gateway\Npc.Gateway.csproj" />
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+  </ItemGroup>
+
+</Project>

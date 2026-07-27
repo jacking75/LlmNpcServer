@@ -474,9 +474,10 @@ public sealed class SiegeTests
             && s.Code == (byte)RegionState.Peace);
         Assert.Contains(runner.Steps, s => s.Kind == GameEventKind.WeatherChanged);
 
-        // 시나리오 C 와 같은 킬스위치도 들어 있다 — P5 가 이 목록을 본다.
-        Assert.Contains(runner.Steps, s => s.KillSwitchTarget == "T1");
-        Assert.Contains(runner.Steps, s => s.KillSwitchTarget == "T2");
+        // 시나리오 C 와 같은 킬스위치도 들어 있다. T5-08 이 타깃을 문자열에서 열거형으로
+        // 바꿨다 — 오타가 지나가면 안 끊긴 채로 게이트가 통과하기 때문이다 (docs/15 §4).
+        Assert.Contains(runner.Steps, s => s.KillSwitch == KillSwitchTarget.T1);
+        Assert.Contains(runner.Steps, s => s.KillSwitch == KillSwitchTarget.T2);
 
         // War 는 Peace 복귀보다 먼저다.
         long war = runner.Steps.First(s => s.Code == (byte)RegionState.War).AtTick;

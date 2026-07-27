@@ -264,6 +264,140 @@ public sealed record HostOptions
         return PlanStore;
     }
 
+    /// <summary>
+    /// 파일 경로 옵션을 전부 절대경로로 푼다. 기동 직후 <b>1회</b>.
+    ///
+    /// <see cref="ResolveMasterData"/> 와 같은 이유다 — <c>dotnet run --project src/Npc.Host</c> 는
+    /// 작업 폴더를 프로젝트 폴더로 잡으므로, 문서에 적힌 <c>./scenarios/siege.jsonl</c> 을 그대로 치면
+    /// <c>src/Npc.Host/scenarios/</c> 를 보고 죽는다. <c>--masterdata</c> 만 위로 올라가 찾고
+    /// <c>--scenario</c>·<c>--trace</c> 는 안 찾는 비대칭이 이 버그의 원인이었다.
+    ///
+    /// <b>여기서 미리 풀어 두면 아래 코드는 절대경로만 다룬다.</b>
+    /// 못 찾은 것은 사용자 입력 문제이므로 예외 대신 <paramref name="error"/> 로 돌려준다 —
+    /// 경로 오타에 스택트레이스를 쏟지 않는다.
+    /// </summary>
+    /// <param name="resolved">경로가 전부 절대경로로 바뀐 옵션.</param>
+    /// <param name="error">실패 사유. 성공이면 null.</param>
+    public bool TryResolvePaths(out HostOptions resolved, out string? error)
+    {
+        resolved = this;
+        error = null;
+
+        string masterData;
+
+        try
+        {
+            masterData = Path.GetFullPath(ResolveMasterData());
+        }
+        catch (DirectoryNotFoundException e)
+        {
+            error = e.Message;
+            return false;
+        }
+
+        string? scenario = Scenario;
+
+        if (scenario is not null)
+        {
+            if (!TryFindFile(scenario, out string found))
+            {
+                error = $"시나리오 파일을 찾지 못했다: {scenario}";
+                return false;
+            }
+
+            scenario = found;
+        }
+
+        string? trace = TracePath;
+
+        if (trace is not null)
+        {
+            if (Link == LinkKind.Replay)
+            {
+                if (!TryFindFile(trace, out string found))
+                {
+                    error = $"재생할 트레이스 파일을 찾지 못했다: {trace}";
+                    return false;
+                }
+
+                trace = found;
+            }
+            else
+            {
+                // 기록은 아직 없는 파일을 만든다. 상대경로를 작업 폴더 기준으로 두면
+                // 같은 명령이 실행 방식에 따라 다른 곳에 쓴다 — 저장소 루트로 고정한다.
+                trace = ToRepoAbsolute(trace);
+            }
+        }
+
+        resolved = this with
+        {
+            MasterData = masterData,
+            PlanStore = Path.GetFullPath(ResolvePlanStore()),
+            Scenario = scenario,
+            TracePath = trace,
+        };
+
+        return true;
+    }
+
+    /// <summary>있는 파일을 찾는다. 작업 폴더 → 저장소 루트 순.</summary>
+    private static bool TryFindFile(string path, out string found)
+    {
+        if (File.Exists(path))
+        {
+            found = Path.GetFullPath(path);
+            return true;
+        }
+
+        if (!Path.IsPathRooted(path) && FindRepoRoot() is { } root)
+        {
+            string candidate = Path.Combine(root, path);
+
+            if (File.Exists(candidate))
+            {
+                found = Path.GetFullPath(candidate);
+                return true;
+            }
+        }
+
+        found = path;
+        return false;
+    }
+
+    /// <summary>상대경로를 저장소 루트 기준 절대경로로. 루트를 못 찾으면 작업 폴더 기준이다.</summary>
+    private static string ToRepoAbsolute(string path)
+    {
+        if (Path.IsPathRooted(path))
+        {
+            return Path.GetFullPath(path);
+        }
+
+        return FindRepoRoot() is { } root
+            ? Path.GetFullPath(Path.Combine(root, path))
+            : Path.GetFullPath(path);
+    }
+
+    /// <summary>
+    /// 저장소 루트. 표식은 <c>masterdata/archetypes.json</c> 이다 —
+    /// <see cref="ResolveMasterData"/> 가 이미 같은 파일을 표식으로 쓴다.
+    /// </summary>
+    private static string? FindRepoRoot()
+    {
+        foreach (string from in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            for (var dir = new DirectoryInfo(from); dir is not null; dir = dir.Parent)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "masterdata", "archetypes.json")))
+                {
+                    return dir.FullName;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>인자를 파싱한다. 실패하면 <paramref name="error"/> 에 이유가 담긴다.</summary>
     public static bool TryParse(string[] args, out HostOptions options, out string? error)
     {

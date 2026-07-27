@@ -20,6 +20,13 @@ public sealed class NullGameServerLink : IGameServerLink
     private long _enqueued;
     private long _flushed;
 
+    /// <summary>
+    /// 이벤트 시퀀스. <b>명령 카운터와 따로 센다</b> (N6).
+    /// 하나로 쓰면 두 <c>TickSync</c> 사이에 나간 명령 수만큼 시퀀스가 건너뛰고,
+    /// 틱 루프의 갭 검출이 매 틱 경보를 올린다 (실측 1,440틱에 445건).
+    /// </summary>
+    private long _sequence;
+
     /// <summary>이벤트는 오지 않는다. 채널은 열려 있지만 아무도 쓰지 않는다.</summary>
     public ChannelReader<GameEvent> Events => _events.Reader;
 
@@ -31,7 +38,7 @@ public sealed class NullGameServerLink : IGameServerLink
         CommandsEnqueued: Interlocked.Read(ref _enqueued),
         CommandsFlushed: Interlocked.Read(ref _flushed),
         CommandsDropped: 0,
-        EventsReceived: 0,
+        EventsReceived: Interlocked.Read(ref _sequence),
         EventGapsDetected: 0,
         PendingCommands: (int)(Interlocked.Read(ref _enqueued) - Interlocked.Read(ref _flushed)));
 
@@ -52,7 +59,7 @@ public sealed class NullGameServerLink : IGameServerLink
     public void PushTick(Tick tick) => _events.Writer.TryWrite(new GameEvent
     {
         Kind = GameEventKind.TickSync,
-        Sequence = Interlocked.Increment(ref _enqueued),
+        Sequence = Interlocked.Increment(ref _sequence),
         OccurredAt = tick,
     });
 

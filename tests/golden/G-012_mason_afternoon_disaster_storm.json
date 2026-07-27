@@ -1,0 +1,14 @@
+{
+  "id": "G-012",
+  "input": {
+    "bucket": "mason@Afternoon.Disaster.Storm",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsDay", "RegionUnderAttack", "WeatherHarsh"],
+    "inventory": { "stone": 0 }
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] },
+    { "kind": "avoids_flag_while", "flag": "AtField", "when": "WeatherHarsh" }
+  ]
+}

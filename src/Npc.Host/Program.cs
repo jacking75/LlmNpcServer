@@ -42,6 +42,16 @@ if (options.Help)
     return 0;
 }
 
+// 경로는 여기서 한 번에 푼다. 아래 코드는 절대경로만 다룬다.
+// 경로 오타는 사용자 입력 문제이므로 미처리 예외로 스택트레이스를 쏟지 않는다.
+if (!options.TryResolvePaths(out HostOptions resolved, out string? pathError))
+{
+    Console.Error.WriteLine(pathError);
+    return 2;
+}
+
+options = resolved;
+
 using var lifetime = new CancellationTokenSource();
 
 Console.CancelKeyPress += (_, e) =>
@@ -59,7 +69,15 @@ if (options.NoDashboard)
     return 0;
 }
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder();
+// ContentRoot 기본값은 <b>작업 폴더</b>다. 그러면 wwwroot/dashboard.html 을 찾는 자리가
+// "어디서 실행했는가"에 따라 달라져, 같은 빌드가 dotnet run 에서는 뜨고
+// dll 을 직접 실행하면 /dashboard 가 404 가 된다. 실행 파일 폴더로 고정한다 —
+// appsettings.json 도 출력 폴더에 있으므로 같이 안정된다.
+WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    ContentRootPath = AppContext.BaseDirectory,
+});
+
 builder.WebHost.UseUrls($"http://localhost:{options.Port}");
 builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
@@ -84,7 +102,7 @@ app.MapGet("/dashboard", () =>
 
     return file.Exists
         ? Results.File(file.CreateReadStream(), "text/html; charset=utf-8")
-        : Results.NotFound("dashboard.html 이 없다.");
+        : Results.NotFound($"dashboard.html 이 없다: {app.Environment.WebRootPath}");
 });
 
 await app.StartAsync(CancellationToken.None);
@@ -169,6 +187,12 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>틱 루프. 게이트 러너가 통계를 읽는다.</summary>
     public NpcServerLoop Loop => _loop;
+
+    /// <summary>
+    /// 조립된 링크. 결정론 테스트가 재생 결과(<c>ReplayGameServerLink.Commands</c>)를 읽는다 —
+    /// 재생은 명령을 파일로 내보내지 않고 메모리에만 모으기 때문이다.
+    /// </summary>
+    public IGameServerLink Link => _link;
 
     /// <summary>게임서버 대역. Loopback·Record 일 때만 있다.</summary>
     public SimDriver? Driver => _driver;
@@ -307,6 +331,19 @@ internal sealed class NpcHost : IAsyncDisposable
                 break;
         }
 
+        // 킬스위치를 실제 티어에 결선한다 (docs/15 §4). 대역이 없으면(Null·Replay)
+        // 시나리오도 없으므로 아무것도 끊기지 않은 상태 그대로다.
+        //
+        // 같은 상태를 셋이 읽는다 — PlanStore·티어 라우터(TieredPlanCompiler)·재계획 워커.
+        // 라우터 쪽은 아래 TierWiring.Build 에 넘긴다. --tier none 이면 라우터가 없으므로
+        // 실제로 끊기는 것은 PlanStore 하나다.
+        KillSwitchState? switches = driver?.Scenario.Switches;
+
+        if (switches is not null)
+        {
+            plans.Switches = switches;
+        }
+
         long totalTicks = options.Days == 0 ? 0 : clock.TicksForGameDays(options.Days);
 
         var loop = new NpcServerLoop(
@@ -319,7 +356,7 @@ internal sealed class NpcHost : IAsyncDisposable
         // ── 재계획 티어 (docs/14 §4). --tier 가 결정한다 ──
         TierWiring tiers = TierWiring.Build(
             options, data, masterDataDir, store, plans, replanQueue, snapshots,
-            individualPool, swapper, zoneStates, clock, log);
+            individualPool, swapper, zoneStates, clock, log, switches);
 
         var meter = new NpcMeter(
             store, bands, plans, replanQueue, cognition, interrupts, link, loop, clock, data,
@@ -434,11 +471,14 @@ internal sealed class NpcHost : IAsyncDisposable
             + $"overruns {m.Tick.Overruns} · gen0 {m.Tick.Gen0Collections} · "
             + $"bytes/tick {m.Tick.BytesPerTick} · heap {m.Tick.ManagedHeapMb}MB");
 
+        // 드롭은 대시보드에만 있으면 안 된다 — 헤드리스로 돌린 사람은 못 본다.
+        // link 는 발행 큐가 넘친 수, sim 은 게임서버 대역의 수신 링이 넘친 수다. 둘 다 0 이어야 정상이다.
         log.WriteLine(
             $"ticks {s.TicksProcessed} · game day {s.GameDay} · events {s.EventsDrained} · "
             + $"commands {s.CommandsEmitted} · steps {s.StepsAdvanced} · "
             + $"timeouts {s.TimeoutsSynthesized} · scan/tick {s.ScanPerTick} · "
             + $"interrupts {s.InterruptsForced} · replan-q {s.ReplanQueued} · "
+            + $"drops link {s.Link.CommandsDropped} sim {_driver?.CommandsDropped ?? 0} · "
             + $"backlogs {s.EventBacklogs} · llm {s.LlmCalls}");
     }
 
@@ -573,6 +613,24 @@ internal sealed class NpcHost : IAsyncDisposable
 
             var now = new Tick(tick);
 
+            // 틱 루프보다 앞서 나가면 안 된다. 앞서면 명령이 나오기도 전에 세계가 다음 틱으로
+            // 넘어가 버려서 응답 이벤트가 하나도 돌아오지 않는다 (전부 타임아웃 합성이 된다).
+            //
+            // 기다리는 것을 <b>세계를 밀기 전으로</b> 옮겼다. 밀고 나서 기다리면 tick N+1 의
+            // 이벤트가 이미 채널에 들어간 뒤라, 틱 루프가 N 을 돌리는 동안 N+1 이 섞여 들어온다.
+            // 기준도 TicksProcessed 가 아니라 TicksCommitted 다 — 처리만 끝나고 명령이 아직
+            // 링크 큐에 있는 순간에 세계를 밀면 어떤 명령이 반영되는지가 스레드 스케줄에 달린다.
+            // 이 둘이 docs/15 §3 의 "리플레이 100% 일치"가 성립하기 위한 조건이다.
+            var spin = new SpinWait();
+
+            while (tick - _loop.TicksCommitted > MaxLeadTicks && !ct.IsCancellationRequested)
+            {
+                // sleep1Threshold: -1 — Thread.Sleep(1) 로 넘어가지 않게 한다.
+                // 락스텝이라 매 틱 한 번은 기다리게 되는데, 여기서 1ms 를 자면
+                // 1,440틱짜리 하루가 그것만으로 20초를 더 쓴다 (실측 1분 39초 → 9분 8초).
+                spin.SpinOnce(sleep1Threshold: -1);
+            }
+
             if (_driver is not null)
             {
                 _driver.Tick(now);
@@ -580,15 +638,6 @@ internal sealed class NpcHost : IAsyncDisposable
             else
             {
                 _nullLink!.PushTick(now);
-            }
-
-            // 틱 루프보다 앞서 나가면 안 된다. 앞서면 명령이 나오기도 전에 세계가 다음 틱으로
-            // 넘어가 버려서 응답 이벤트가 하나도 돌아오지 않는다 (전부 타임아웃 합성이 된다).
-            var spin = new SpinWait();
-
-            while (tick - _loop.TicksProcessed > MaxLeadTicks && !ct.IsCancellationRequested)
-            {
-                spin.SpinOnce();
             }
 
             if (_options.MaxSpeed)
@@ -694,6 +743,9 @@ internal sealed class SimDriver : IAsyncDisposable
     /// <summary>월드.</summary>
     public SimWorld World => _world;
 
+    /// <summary>시나리오 러너. 호스트가 킬스위치 상태를 여기서 꺼내 결선한다 (docs/15 §4).</summary>
+    public ScenarioRunner Scenario => _scenario;
+
     /// <summary>링이 가득 차 버린 명령 수. 0 이 아니면 Sim 이 밀린 것이다.</summary>
     public long CommandsDropped => _inbox.Dropped;
 
@@ -745,6 +797,15 @@ internal sealed class SimDriver : IAsyncDisposable
 
         var inbox = new CommandRing();
 
+        // 링크 큐는 <b>한 틱치 명령</b>을 담아야 한다. 소비자(FlushAsync)가 매 틱 전량을 비우므로
+        // 여기서 넘치는 것은 역압(docs/02 §1)이 아니라 사이징 실수다 —
+        // 틱 0 에 전원이 첫 스텝을 내면 npcs × MaxCommandsPerStep 이 한 번에 들어온다.
+        // 기본값 4,096 을 그대로 두면 NPC 5,000 에서 첫 틱에 904건이 버려지고
+        // 그 NPC 들은 timeout_s 가 만료될 때까지 첫 걸음을 못 뗀다.
+        int linkCapacity = Math.Max(
+            LoopbackGameServerLink.DefaultCapacity,
+            npcs.Length * CommandEmitter.MaxCommandsPerStep);
+
         return new SimDriver(
             world,
             movement,
@@ -754,7 +815,7 @@ internal sealed class SimDriver : IAsyncDisposable
             new PlayerBots(world),
             options.Scenario is { } path ? ScenarioRunner.Load(path, data) : ScenarioRunner.Empty,
             inbox,
-            new LoopbackGameServerLink(inbox.Enqueue, world.Events));
+            new LoopbackGameServerLink(inbox.Enqueue, world.Events, linkCapacity));
     }
 
     /// <summary>한 틱. 받은 명령을 적용하고 하위 시뮬을 민 뒤 TickSync 를 낸다.</summary>

@@ -253,6 +253,16 @@ public sealed class PlanStore
     }
 
     /// <summary>
+    /// 킬스위치. <c>PlanStore</c> 가 끊기면 버킷 표를 보지 않고 폴백으로만 답한다 (docs/15 §4).
+    ///
+    /// <b>끊겨도 <see cref="Resolve"/> 는 여전히 null 을 반환하지 않는다</b> —
+    /// 시나리오 C 3단계가 "폴백 40개만으로 5,000 NPC 가 도는가"를 보는 것이고,
+    /// 그 성질이 여기서 깨지면 NPC 가 멈춘다 (CLAUDE.md §2.6).
+    /// 기본값은 아무것도 끊기지 않은 <see cref="KillSwitchState.None"/> 이다.
+    /// </summary>
+    public KillSwitchState Switches { get; set; } = KillSwitchState.None;
+
+    /// <summary>
     /// 버킷 → 플랜. <b>절대 null 이 아니다.</b>
     /// 버킷 미스면 아키타입 폴백, 그것도 없으면 최후 플랜을 준다.
     /// </summary>
@@ -265,7 +275,9 @@ public sealed class PlanStore
     public CompiledPlan Resolve(BucketKey key, out PlanOrigin origin)
     {
         int index = key.ToIndex();
-        int planId = Volatile.Read(ref _byBucket[index]);
+        int planId = Switches.IsDisabled(KillSwitchTarget.PlanStore)
+            ? IdlePlanId
+            : Volatile.Read(ref _byBucket[index]);
 
         if (planId != IdlePlanId)
         {

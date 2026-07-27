@@ -1,0 +1,14 @@
+{
+  "id": "G-042",
+  "input": {
+    "bucket": "priest@Dawn.Peace.Fair",
+    "flags": ["HasFood", "HasWater", "HasCoin", "IsDawn", "RegionPeaceful"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "contains_action", "action": "Pray" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] },
+    { "kind": "differs_from", "bucket": "priest@Dawn.Disaster.Storm" }
+  ]
+}

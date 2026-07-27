@@ -200,6 +200,7 @@ docs/               설계 사양 (아래)
 
 | 문서 | 내용 |
 |---|---|
+| [`docs/index.html`](docs/index.html) | **한 장짜리 안내서 (HTML).** 아키텍처 · 용도 · 빌드 · 실행 · 실측 결과. 브라우저로 파일을 그대로 열면 된다 |
 | [`LLM_NPC_Server_Plan.md`](LLM_NPC_Server_Plan.md) | 상위 계획 · 타당성 판단 · 아키텍처 · 비용 분석 · 리스크 대장 |
 | [`docs/00_Deliverables.md`](docs/00_Deliverables.md) | 결과물 명세 · 데모 시나리오 · 최종 수용 기준 |
 | [`docs/01_MasterData_Spec.md`](docs/01_MasterData_Spec.md) | 마스터데이터 11종 스키마 · 검증 규칙 V1~V11 · 작업 순서 |
