@@ -278,6 +278,11 @@ public sealed class Narrator
         _data = data ?? throw new ArgumentNullException(nameof(data));
         _instances = instances ?? throw new ArgumentNullException(nameof(instances));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+
+        // 옵션으로 받았으면 기록을 훑지 않아도 첨자 매핑이 성립한다.
+        // 여기서 안 넣으면 NpcsInTrace 를 안 부르는 호출자에서 전 인구(5,000)로 매핑돼
+        // 머리말의 아키타입이 통째로 어긋난다.
+        _population = options.Population ?? 0;
     }
 
     /// <summary>기록에 나오는 NPC id (오름차순).</summary>
