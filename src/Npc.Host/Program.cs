@@ -338,11 +338,14 @@ internal sealed class NpcHost : IAsyncDisposable
             + $"overruns {m.Tick.Overruns} · gen0 {m.Tick.Gen0Collections} · "
             + $"bytes/tick {m.Tick.BytesPerTick} · heap {m.Tick.ManagedHeapMb}MB");
 
+        // 드롭은 대시보드에만 있으면 안 된다 — 헤드리스로 돌린 사람은 못 본다.
+        // link 는 발행 큐가 넘친 수, sim 은 게임서버 대역의 수신 링이 넘친 수다. 둘 다 0 이어야 정상이다.
         log.WriteLine(
             $"ticks {s.TicksProcessed} · game day {s.GameDay} · events {s.EventsDrained} · "
             + $"commands {s.CommandsEmitted} · steps {s.StepsAdvanced} · "
             + $"timeouts {s.TimeoutsSynthesized} · scan/tick {s.ScanPerTick} · "
             + $"interrupts {s.InterruptsForced} · replan-q {s.ReplanQueued} · "
+            + $"drops link {s.Link.CommandsDropped} sim {_driver?.CommandsDropped ?? 0} · "
             + $"backlogs {s.EventBacklogs} · llm {s.LlmCalls}");
     }
 
@@ -660,6 +663,15 @@ internal sealed class SimDriver : IAsyncDisposable
 
         var inbox = new CommandRing();
 
+        // 링크 큐는 <b>한 틱치 명령</b>을 담아야 한다. 소비자(FlushAsync)가 매 틱 전량을 비우므로
+        // 여기서 넘치는 것은 역압(docs/02 §1)이 아니라 사이징 실수다 —
+        // 틱 0 에 전원이 첫 스텝을 내면 npcs × MaxCommandsPerStep 이 한 번에 들어온다.
+        // 기본값 4,096 을 그대로 두면 NPC 5,000 에서 첫 틱에 904건이 버려지고
+        // 그 NPC 들은 timeout_s 가 만료될 때까지 첫 걸음을 못 뗀다.
+        int linkCapacity = Math.Max(
+            LoopbackGameServerLink.DefaultCapacity,
+            npcs.Length * CommandEmitter.MaxCommandsPerStep);
+
         return new SimDriver(
             world,
             movement,
@@ -669,7 +681,7 @@ internal sealed class SimDriver : IAsyncDisposable
             new PlayerBots(world),
             options.Scenario is { } path ? ScenarioRunner.Load(path, data) : ScenarioRunner.Empty,
             inbox,
-            new LoopbackGameServerLink(inbox.Enqueue, world.Events));
+            new LoopbackGameServerLink(inbox.Enqueue, world.Events, linkCapacity));
     }
 
     /// <summary>한 틱. 받은 명령을 적용하고 하위 시뮬을 민 뒤 TickSync 를 낸다.</summary>
