@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Npc.Tests.BlindEval;
@@ -117,5 +118,71 @@ public sealed class BlindEvalMaterialTests
                 Assert.DoesNotContain(marker, text, StringComparison.OrdinalIgnoreCase);
             }
         }
+    }
+
+    // ---------------------------------------------------------------- T5-14 응답 수집 포맷
+
+    /// <summary>
+    /// 원자료 파일이 스키마와 수집 계획을 들고 있다 (T5-14).
+    /// 응답이 하나도 안 들어온 상태에서도 "무엇을 어떻게 모으는가"가 커밋돼 있어야
+    /// 분석기(T5-15)를 먼저 만들 수 있다.
+    /// </summary>
+    [Fact]
+    public void BlindEval_RawFileDeclaresSchemaAndPlan()
+    {
+        string[] lines = File.ReadAllLines(TestPaths.At("docs", "measurements", "blind_eval_raw.jsonl"));
+
+        Assert.NotEmpty(lines);
+
+        string text = string.Join('\n', lines);
+
+        // Q1 강제 선택 · Q2 1~5 · 쌍대 비교 셋이 다 선언돼 있다.
+        Assert.Contains("\"q1\"", text, StringComparison.Ordinal);
+        Assert.Contains("\"q2\"", text, StringComparison.Ordinal);
+        Assert.Contains("\"prefer\"", text, StringComparison.Ordinal);
+
+        // 12명 × 40건 = 480 판정 계획.
+        Assert.Contains("\"target_judgements\":480", text, StringComparison.Ordinal);
+        Assert.Contains("\"minimum_participants\":6", text, StringComparison.Ordinal);
+
+        // 전부 유효한 JSON 이다 — 분석기가 첫 줄에서 터지면 안 된다.
+        foreach (string line in lines.Where(l => l.Length > 0))
+        {
+            using JsonDocument document = JsonDocument.Parse(line);
+
+            Assert.Equal(JsonValueKind.Object, document.RootElement.ValueKind);
+        }
+    }
+
+    /// <summary>
+    /// 양식이 참가자에게 <b>"구분 불가도 성공"</b> 이라는 프레이밍을 알리지 않는다 (docs/15 §6).
+    /// 알려 주면 "구분 안 됨" 쪽으로 응답이 쏠린다.
+    /// </summary>
+    [Fact]
+    public void BlindEval_FormDoesNotFrameTheOutcome()
+    {
+        string path = TestPaths.At("artifacts", "blind_eval", "response_form.md");
+
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        string text = File.ReadAllText(path);
+
+        foreach (string leak in new[] { "구분 불가", "구분이 안", "성공", "가설", "A군", "B군", "프리베이크" })
+        {
+            Assert.DoesNotContain(leak, text, StringComparison.Ordinal);
+        }
+
+        // Q1 은 강제 선택이다.
+        Assert.Contains("llm", text, StringComparison.Ordinal);
+        Assert.Contains("human", text, StringComparison.Ordinal);
+        Assert.Contains("모르겠다", text, StringComparison.Ordinal);
+
+        // 쌍대 비교는 1부 뒤에 온다 — 짝을 먼저 알려 주면 Q1 에 단서가 샌다.
+        Assert.True(
+            text.IndexOf("1부", StringComparison.Ordinal) < text.IndexOf("2부", StringComparison.Ordinal),
+            "쌍대 비교가 1부보다 앞에 있다.");
     }
 }

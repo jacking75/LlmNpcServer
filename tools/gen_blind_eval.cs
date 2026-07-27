@@ -231,7 +231,95 @@ foreach (Sample sample in samples)
 
 File.WriteAllText(keyPath, key.ToString().ReplaceLineEndings("\n"), utf8);
 
+// ── 6. 응답 수집 양식 (T5-14) ────────────────────────────────────────
+//
+// 양식도 산출물이다 — 사례 수와 짝 목록이 배치에 따라 달라지므로 손으로 쓰면 어긋난다.
+//
+// 쌍대 비교는 1부를 제출한 뒤에 한다. 짝을 먼저 알려 주면 "둘 중 하나가 A" 라는
+// 정보가 Q1 에 새어 들어간다. 좌우 순서도 시드로 섞는다 — A 가 늘 왼쪽이면
+// 순서 자체가 단서다.
+//
+// 안내문에 "구분 불가도 성공" 이라는 프레이밍을 넣지 않는다 (docs/15 §6 편향 방지).
+var form = new StringBuilder(16 * 1024);
+
+form.Append("# NPC 행동 평가 — 응답 양식\n\n");
+form.Append("읽어 주셔서 감사합니다. 아래 사례는 게임 속 NPC 한 마리의 **하루 일지**입니다.\n");
+form.Append(CultureInfo.InvariantCulture, $"모두 {shuffled.Length}건이고 순서대로 보시면 됩니다.\n\n");
+form.Append(CultureInfo.InvariantCulture, $"사례 본문은 같은 폴더의 `case_01.md` ~ `case_{shuffled.Length:D2}.md` 에 있습니다.\n\n");
+form.Append("---\n\n");
+
+form.Append("## 1부 — 사례별 응답\n\n");
+form.Append("각 사례에 대해 두 가지를 답해 주세요.\n\n");
+form.Append("| 질문 | 답 |\n|---|---|\n");
+form.Append("| **Q1.** 이 NPC 의 하루를 계획한 것은 무엇이라고 생각하십니까? | `llm` 또는 `human` |\n");
+form.Append("| **Q2.** 이 NPC 의 행동이 상황에 얼마나 잘 맞습니까? | `1`(전혀 안 맞음) ~ `5`(매우 잘 맞음) |\n\n");
+form.Append("> Q1 은 확신이 없어도 한쪽을 고릅니다. \"모르겠다\" 칸은 두지 않았습니다.\n\n");
+
+form.Append("### 제출 형식\n\n");
+form.Append("`docs/measurements/blind_eval_raw.jsonl` 에 **한 줄에 한 판정**으로 덧붙입니다.\n\n");
+form.Append("```jsonl\n");
+form.Append("{\"participant\":\"P01\",\"case\":1,\"q1\":\"llm\",\"q2\":4}\n");
+form.Append("{\"participant\":\"P01\",\"case\":2,\"q1\":\"human\",\"q2\":3}\n");
+form.Append("```\n\n");
+form.Append("`participant` 는 배포 시 받은 식별자입니다. 이름을 적지 않습니다.\n\n");
+
+form.Append("### 응답표 (복사해서 쓰세요)\n\n");
+form.Append("| 사례 | Q1 (llm/human) | Q2 (1~5) |\n|---|---|---|\n");
+
+for (int i = 0; i < shuffled.Length; i++)
+{
+    form.Append(CultureInfo.InvariantCulture, $"| {i + 1:D2} |  |  |\n");
+}
+
+form.Append("\n---\n\n");
+form.Append("## 2부 — 쌍대 비교\n\n");
+form.Append("**1부를 제출하신 뒤에** 진행합니다.\n\n");
+form.Append(CultureInfo.InvariantCulture,
+    $"아래 {samples.Length}개 짝은 서로 비교할 만한 사례입니다. 두 건을 나란히 놓고 ");
+form.Append("**어느 쪽이 더 자연스러운가**를 골라 주세요.\n\n");
+form.Append("```jsonl\n");
+form.Append("{\"participant\":\"P01\",\"pair\":1,\"prefer\":\"left\"}\n");
+form.Append("```\n\n");
+form.Append("`prefer` 는 `left` · `right` · `tie` 중 하나입니다.\n\n");
+form.Append("| 짝 | 왼쪽 | 오른쪽 | 더 자연스러운 쪽 |\n|---|---|---|---|\n");
+
+var pairing = new StringBuilder(2 * 1024);
+
+pairing.Append("\n## 쌍대 비교 배치\n\n");
+pairing.Append("`prefer` 가 가리키는 쪽이 어느 군인지는 여기서만 안다.\n\n");
+pairing.Append("| 짝 | 왼쪽 사례 | 왼쪽 군 | 오른쪽 사례 | 오른쪽 군 |\n|---|---|---|---|---|\n");
+
+for (int p = 0; p < samples.Length; p++)
+{
+    Sample sample = samples[p];
+
+    int a = Array.FindIndex(shuffled, c => c.Group == "A" && c.Sample.Index == sample.Index) + 1;
+    int b = Array.FindIndex(shuffled, c => c.Group == "B" && c.Sample.Index == sample.Index) + 1;
+
+    bool swap = (PlanHash.Mix(seed ^ 0x5EED, p) & 1u) == 1u;
+    (int left, int right) = swap ? (b, a) : (a, b);
+
+    form.Append(CultureInfo.InvariantCulture, $"| {p + 1:D2} | 사례 {left:D2} | 사례 {right:D2} |  |\n");
+    pairing.Append(CultureInfo.InvariantCulture,
+        $"| {p + 1:D2} | {left:D2} | {(swap ? "B" : "A")} | {right:D2} | {(swap ? "A" : "B")} |\n");
+}
+
+form.Append("\n---\n\n");
+form.Append("## 배포 계획\n\n");
+form.Append("| 항목 | 값 |\n|---|---|\n");
+form.Append("| 목표 참가자 | 12명 (사내 기획자·개발자) |\n");
+form.Append(CultureInfo.InvariantCulture, $"| 1인당 판정 | {shuffled.Length}건 + 쌍대 {samples.Length}건 |\n");
+form.Append(CultureInfo.InvariantCulture, $"| 목표 표본 | 12 × {shuffled.Length} = {12 * shuffled.Length} 판정 |\n");
+form.Append("| 예상 소요 | 1인 40~60분 |\n");
+form.Append("| 최소 인원 | **6명.** 미만이면 결론을 내지 않고 표본을 늘린다 (docs/15 §6) |\n");
+
+File.WriteAllText(
+    Path.Combine(outDir, "response_form.md"), form.ToString().ReplaceLineEndings("\n"), utf8);
+
+File.AppendAllText(keyPath, pairing.ToString().ReplaceLineEndings("\n"), utf8);
+
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{outDir}: case_01.md .. case_{shuffled.Length:D2}.md"));
+Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{outDir}/response_form.md: 응답 양식"));
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{keyPath}: 정답 키 (시드 {seed})"));
 
 return 0;

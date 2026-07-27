@@ -1,0 +1,4 @@
+{"_schema":"blind_eval_raw","_doc":"docs/15 §6 · T5-14. 블라인드 A/B 평가 원자료. 한 줄에 한 판정. 이 첫 줄은 스키마 설명이고 tools/analyze_blind_eval.cs 가 건너뛴다."}
+{"_schema":"judgement","participant":"참가자 식별자. 이름을 적지 않는다 (P01, P02 …)","case":"제시번호 1..40","q1":"llm | human — 강제 선택. 모르겠다 칸은 없다","q2":"1..5 — 이 NPC 의 행동이 상황에 얼마나 잘 맞는가"}
+{"_schema":"pairwise","participant":"참가자 식별자","pair":"짝 번호 1..20","prefer":"left | right | tie — 어느 쪽이 더 자연스러운가"}
+{"_plan":"수집 계획","participants":12,"cases_per_participant":40,"target_judgements":480,"pairwise_per_participant":20,"minimum_participants":6,"note":"6명 미만이면 결론을 내지 않고 표본을 늘린다 (docs/15 §6). 정답 키는 docs/measurements/blind_eval_key.md 에 있고 참가자에게 주지 않는다."}
