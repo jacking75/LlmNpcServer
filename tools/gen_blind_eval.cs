@@ -318,8 +318,38 @@ File.WriteAllText(
 
 File.AppendAllText(keyPath, pairing.ToString().ReplaceLineEndings("\n"), utf8);
 
+// ── 7. 배포용 한 장 ──────────────────────────────────────────────────
+//
+// 참가자에게 40개 파일을 따로 주면 순서가 섞이고 빠뜨린 사례가 생긴다.
+// 안내 + 사례 40건 + 응답표를 한 파일로 묶는다. 정답 키는 여기 들어가지 않는다.
+var bundle = new StringBuilder(64 * 1024);
+
+// 한 장에는 사례가 안에 들어 있으니 "다른 파일을 보라" 는 안내를 지운다.
+string intro = form.ToString()[..form.ToString().IndexOf("### 응답표", StringComparison.Ordinal)]
+    .Replace(
+        string.Create(CultureInfo.InvariantCulture, $"사례 본문은 같은 폴더의 `case_01.md` ~ `case_{shuffled.Length:D2}.md` 에 있습니다."),
+        "사례는 이 문서 아래에 순서대로 실려 있습니다.",
+        StringComparison.Ordinal);
+
+bundle.Append(intro);
+bundle.Append("---\n\n## 사례\n\n");
+
+for (int i = 0; i < shuffled.Length; i++)
+{
+    bundle.Append(CultureInfo.InvariantCulture, $"### 사례 {i + 1:D2}\n\n```\n");
+    bundle.Append(shuffled[i].Text.TrimEnd('\n'));
+    bundle.Append("\n```\n\n");
+}
+
+bundle.Append("---\n\n");
+bundle.Append(form.ToString()[form.ToString().IndexOf("### 응답표", StringComparison.Ordinal)..]);
+
+File.WriteAllText(
+    Path.Combine(outDir, "bundle.md"), bundle.ToString().ReplaceLineEndings("\n"), utf8);
+
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{outDir}: case_01.md .. case_{shuffled.Length:D2}.md"));
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{outDir}/response_form.md: 응답 양식"));
+Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{outDir}/bundle.md: 배포용 한 장 (안내 + 사례 40건 + 응답표)"));
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{keyPath}: 정답 키 (시드 {seed})"));
 
 return 0;

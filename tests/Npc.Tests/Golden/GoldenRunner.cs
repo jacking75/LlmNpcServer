@@ -242,7 +242,7 @@ public sealed class GoldenRunner
     [Fact]
     public async Task Golden_FiftyFixturesPassAtLeastNinetyPercent()
     {
-        LlmEngineOptions engine = LlmPlanCompilerTests.Options.Engine();
+        LlmEngineOptions engine = LlmPlanCompilerTests.Options.PreferredEngine();
 
         // xunit 2.x 에는 동적 skip 이 없다. 키가 없으면 부를 수 없으므로 그냥 끝낸다 —
         // 이 카테고리는 어차피 CI 기본 실행에서 빠진다 (CLAUDE.md §5).

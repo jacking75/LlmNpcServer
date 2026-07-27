@@ -92,6 +92,12 @@ public sealed class LlmOptions
     /// <summary>설정된 엔진들. 파일 등장 순서.</summary>
     public required ImmutableArray<LlmEngineOptions> Engines { get; init; }
 
+    /// <summary>
+    /// 우선순위. 앞에서부터 <b>키가 채워져 있는 첫 엔진</b>을 쓴다.
+    /// 비어 있으면 <see cref="Default"/> 하나만 있는 것으로 본다.
+    /// </summary>
+    public ImmutableArray<string> Preferred { get; init; } = [];
+
     /// <summary>id 로 엔진을 고른다. null 이면 <see cref="Default"/>.</summary>
     public LlmEngineOptions Engine(string? id = null)
     {
@@ -109,6 +115,31 @@ public sealed class LlmOptions
             $"'{wanted}' 엔진이 {FileName} 에 없다. 있는 것: {string.Join(", ", Engines.Select(e => e.Id))}");
     }
 
+    /// <summary>
+    /// 지금 이 기계에서 <b>실제로 쓸 수 있는</b> 엔진. <c>preferred</c> 순서를 따르고,
+    /// 키가 없는 것은 건너뛴다.
+    ///
+    /// <b>"어느 제공사를 먼저 쓸지" 를 코드가 아니라 설정이 정하게 한다.</b>
+    /// 키가 있느냐 없느냐로 사람이 매번 <c>--model</c> 을 바꿔 주면 회차마다 엔진이 달라지고,
+    /// 그러면 실측치를 나란히 놓을 수 없다.
+    /// </summary>
+    /// <returns>쓸 수 있는 첫 엔진. 전부 못 쓰면 <see cref="Default"/> (실패는 호출 시점에 난다).</returns>
+    public LlmEngineOptions PreferredEngine()
+    {
+        foreach (string id in Preferred)
+        {
+            foreach (LlmEngineOptions engine in Engines)
+            {
+                if (string.Equals(engine.Id, id, StringComparison.Ordinal) && ChatClientFactory.IsAvailable(engine))
+                {
+                    return engine;
+                }
+            }
+        }
+
+        return Engine();
+    }
+
     /// <summary>파일에서 읽는다.</summary>
     public static LlmOptions Load(string path)
     {
@@ -123,6 +154,7 @@ public sealed class LlmOptions
         return new LlmOptions
         {
             Default = dto.Default,
+            Preferred = dto.Preferred is null ? [] : [.. dto.Preferred],
             Engines = [.. dto.Engines.Select(e => e.ToOptions())],
         };
     }
@@ -152,7 +184,7 @@ public sealed class LlmOptions
 
     // --- JSON DTO. 소스 생성기로 직렬화한다. ---
 
-    internal sealed record LlmOptionsDto(string Default, LlmEngineDto[] Engines);
+    internal sealed record LlmOptionsDto(string Default, string[]? Preferred, LlmEngineDto[] Engines);
 
     internal sealed record LlmEngineDto(
         string Id,

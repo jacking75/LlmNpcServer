@@ -44,6 +44,9 @@ dotnet test --filter "Category=Gate&FullyQualifiedName~Phase5"     실측 항목
 
 > 자료·양식·정답 키·통계 처리기는 전부 준비돼 있다. `--self-test` 로 검정 구현도 검증했다.
 > 응답이 들어오면 `dotnet run tools/analyze_blind_eval.cs` 한 번으로 판정이 나온다.
+>
+> 배포는 **`artifacts/blind_eval/bundle.md` 한 장**이면 된다 — 안내 · 사례 40건 · 응답표 ·
+> 쌍대 비교가 다 들어 있다. 40개 파일을 따로 주면 순서가 섞이고 빠뜨린 사례가 생긴다.
 
 ---
 

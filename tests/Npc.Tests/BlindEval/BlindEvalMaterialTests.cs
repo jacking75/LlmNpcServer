@@ -185,4 +185,37 @@ public sealed class BlindEvalMaterialTests
             text.IndexOf("1부", StringComparison.Ordinal) < text.IndexOf("2부", StringComparison.Ordinal),
             "쌍대 비교가 1부보다 앞에 있다.");
     }
+
+    /// <summary>
+    /// 배포용 한 장이 있고, 거기에도 군 표시가 없다.
+    /// 40개 파일을 따로 주면 순서가 섞이고 빠뜨린 사례가 생긴다 — 실무에서 그게 표본을 깎는다.
+    /// </summary>
+    [Fact]
+    public void BlindEval_BundleIsSelfContainedAndBlind()
+    {
+        string path = TestPaths.At("artifacts", "blind_eval", "bundle.md");
+
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        string text = File.ReadAllText(path);
+
+        // 사례 40건이 안에 들어 있다.
+        Assert.Equal(40, Regex.Matches(text, @"^### 사례 \d{2}$", RegexOptions.Multiline).Count);
+
+        // 안내 · 응답표 · 쌍대 비교가 다 있다.
+        Assert.Contains("1부", text, StringComparison.Ordinal);
+        Assert.Contains("### 응답표", text, StringComparison.Ordinal);
+        Assert.Contains("2부", text, StringComparison.Ordinal);
+
+        // 다른 파일을 보라는 안내가 남아 있으면 안 된다 — 한 장으로 끝나야 한다.
+        Assert.DoesNotContain("case_01.md", text, StringComparison.Ordinal);
+
+        foreach (string leak in new[] { "A군", "B군", "정답", "프리베이크", "planstore", "fallback" })
+        {
+            Assert.DoesNotContain(leak, text, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }

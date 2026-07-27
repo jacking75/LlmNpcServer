@@ -100,7 +100,10 @@ if (buckets.Length == 0)
 }
 
 LlmOptions llm = LlmOptions.LoadDefault(Directory.GetCurrentDirectory());
-LlmEngineOptions engine = llm.Engine(options.Model);
+// --model 을 명시하지 않으면 appsettings 의 preferred 순서를 따른다 —
+// 키가 있는 첫 엔진이 자동으로 골라진다. 사람이 매번 --model 을 바꿔 주면
+// 회차마다 엔진이 달라져 실측치를 나란히 놓을 수 없다.
+LlmEngineOptions engine = options.Model is null ? llm.PreferredEngine() : llm.Engine(options.Model);
 
 if (!engine.IsConfigured)
 {
