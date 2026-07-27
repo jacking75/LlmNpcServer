@@ -40,6 +40,16 @@ if (options.Help)
     return 0;
 }
 
+// 경로는 여기서 한 번에 푼다. 아래 코드는 절대경로만 다룬다.
+// 경로 오타는 사용자 입력 문제이므로 미처리 예외로 스택트레이스를 쏟지 않는다.
+if (!options.TryResolvePaths(out HostOptions resolved, out string? pathError))
+{
+    Console.Error.WriteLine(pathError);
+    return 2;
+}
+
+options = resolved;
+
 using var lifetime = new CancellationTokenSource();
 
 Console.CancelKeyPress += (_, e) =>
