@@ -92,8 +92,8 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | **P2** W5–6 플랜 컴파일러 | [`docs/12_Phase2_W5-6_TASKS.md`](docs/12_Phase2_W5-6_TASKS.md) | 24 | 23 | 태스크 완료 (T2-23 은 조건 미충족 `-`) — **게이트 3/7 미달** |
 | **P3** W7–8 플랜 캐시 | [`docs/13_Phase3_W7-8_TASKS.md`](docs/13_Phase3_W7-8_TASKS.md) | 21 | 19 | 진행 중 — T3-18(사람 검수) 미착수 · T3-21 `~`. **게이트 5/9** (기제 4항목 통과, 실측 산출물 대기) |
 | **P4** W9–10 스케줄러·티어링 | [`docs/14_Phase4_W9-10_TASKS.md`](docs/14_Phase4_W9-10_TASKS.md) | 24 | 0 | 미착수 (W1 실측 반영 완료). **T4-07 의 라우팅 부분만 T5-08 이 먼저 만들었다** — 예산·스필오버·서킷브레이커는 그대로 남아 있다 |
-| **P5** W11–12 검증·평가 | [`docs/15_Phase5_W11-12_TASKS.md`](docs/15_Phase5_W11-12_TASKS.md) | 20 | 0 | 미착수 |
-| | | **164** | **112** | |
+| **P5** W11–12 검증·평가 | [`docs/15_Phase5_W11-12_TASKS.md`](docs/15_Phase5_W11-12_TASKS.md) | 20 | 10 | 진행 중 — W11(T5-01~T5-10) 완료 |
+| | | **164** | **122** | |
 
 각 Phase 문서 맨 아래의 체크리스트에서 개별 태스크 상태를 관리한다.
 
@@ -180,6 +180,7 @@ CLAUDE.md 를 읽고, docs/11_Phase1_W2-4_TASKS.md 의 T1-028 을 구현해라.
 | 2026-07-26 | `docs/10` | 게이트 판정 절 신설 (G0-1 미달 · G0-2 미달 · G0-3 통과 · G0-4 판정 불가). T0-09~T0-12 를 `~` 로 | 산출물 4건은 나왔는데 원장은 "미착수" 였다. 규약상 `x` 는 커밋까지이고 아직 워킹 트리에만 있다 |
 | 2026-07-26 | `docs/12`~`docs/15` (공통) | 도구 스크립트 6개를 `.csx` → `.cs`(파일 기반 앱). 신규 `.ps1` 4개에 UTF-8 BOM 요구 추가. `tools/Npc.Prebake`·`Npc.Narrate` 의 sln·테스트 참조 배선을 태스크에 포함 | 이 저장소는 dotnet-script 를 안 쓴다(`tools/gen_npcs.cs`). BOM 없는 한국어 `.ps1` 은 PowerShell 5.1 이 ANSI 로 읽어 파서 오류가 난다(`W1_env.md §4.6`). 프로젝트가 sln 밖에 있으면 `dotnet test` 가 완료 조건의 테스트를 아예 안 본다 |
 | 2026-07-27 | `docs/15 §2` | 예시 픽스처의 `produces_item_of` 를 `weapon` → **`product`** 로. 단언 표에 "(`items.json` 의 `category`)" 명기 | T5-01. `items.json` 에서 `iron_sword` 의 category 는 `product` 이고 `HasWeapon` 은 grants 다. `weapon` category 는 `hunting_bow`·`axe`·`guard_spear`·`guard_sword` 넷뿐인데 **이 넷에는 레시피가 없다** — 어떤 플랜도 `weapon` 을 산출할 수 없어 예시대로 쓰면 단언이 영구 실패한다 |
+| 2026-07-27 | `docs/14 §10` · `docs/14` T4-09 | `CircuitBreaker` 를 **T5-10 이 먼저 만들었다**. 시각을 밖에서 받는 형태(`Func<long>`)로. `TieredPlanCompiler` 가 T2 앞에서 `TryEnter` 한다 | T5-10. §4 의 "외부 API 타임아웃 30초 → 서킷 브레이커 개방" 을 판정하려면 브레이커가 있어야 한다. 안에서 시계를 읽으면 "60초 뒤 반개방" 을 테스트하려고 60초를 기다려야 한다. 같이 고친 것 — 라우터의 `catch` 가 `OperationCanceledException` 을 전부 걸러내고 있었는데 **HttpClient 타임아웃도 `TaskCanceledException`** 이라 외부 타임아웃이 워커를 뚫고 나갔다. 호출자가 취소했을 때만 올린다 |
 | 2026-07-27 | `docs/15` T5-08 파일 목록 · `docs/02 §5` | KillSwitch 타깃을 문자열 → **열거형 `KillSwitchTarget`(T2·T1·PlanStore)** 로. 상태 객체 `KillSwitchState` 를 `Npc.Core` 에 신설하고 `PlanStore.Switches` 로 결선. `TieredPlanCompiler` 는 **신규**로 만들었다 | T5-08. 선행 T4-07 이 미착수라 "수정" 할 파일이 없었다. 타깃 문자열이 셋(§4 는 `PlanStore` 도 끊는다)이라 열거형이 필요했고, Sim·Llm·Planning 이 같이 보는 상태라 `Npc.Core` 밖에는 둘 자리가 없다(`Npc.Llm ↛ Npc.Sim`). 라우터 없이 기록만 남기면 **안 끊긴 채로 시나리오 C 가 통과해 게이트가 거짓이 된다** |
 | 2026-07-27 | `docs/11 §5` (틱 루프) · `docs/15 §3` | 틱 루프에 **틱 경계 규칙 3개**를 명문화. (1) 이벤트 배수는 `TickSync` 에서 끊는다 (2) `FlushAsync` 는 틱마다 한다 (3) 게임서버 대역의 페이싱 기준을 `TicksProcessed` → **`TicksCommitted`** 로 바꾸고, 기다리는 자리를 세계를 민 **뒤 → 앞**으로 옮긴다 | T5-07. §3 은 "명령 jsonl 바이트 동일"을 요구하는데 **기록 자체가 실행마다 달랐다** — 같은 시나리오 2회에서 이벤트 30,416 vs 30,649. 원인 둘: 배수가 틱 경계를 넘어 아직 돌리지 않은 틱의 이벤트를 미리 반영했고, 대역이 명령 flush 전에 다음 틱을 밀었다. 셋을 고치니 기록 2회가 바이트 동일이 되고 재생도 일치한다. 부수 효과로 전체 테스트가 1분 39초 → **42초**로 줄었다 (락스텝 대기에서 `SpinWait` 이 `Thread.Sleep(1)` 로 넘어가지 않게 `sleep1Threshold: -1` 을 준 결과) |
 

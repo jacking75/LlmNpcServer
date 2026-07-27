@@ -37,12 +37,24 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     /// <param name="t2">외부 API 컴파일러. 없으면 null.</param>
     /// <param name="t1">로컬 컴파일러. 없으면 null.</param>
     /// <param name="switches">킬스위치 상태. 없으면 아무것도 끊기지 않은 것으로 본다.</param>
-    public TieredPlanCompiler(IPlanCompiler? t2, IPlanCompiler? t1, KillSwitchState? switches = null)
+    /// <param name="breaker">T2 서킷 브레이커. 없으면 기본값으로 하나 만든다.</param>
+    public TieredPlanCompiler(
+        IPlanCompiler? t2,
+        IPlanCompiler? t1,
+        KillSwitchState? switches = null,
+        CircuitBreaker? breaker = null)
     {
         _t2 = t2;
         _t1 = t1;
         _switches = switches ?? KillSwitchState.None;
+        Breaker = breaker ?? new CircuitBreaker();
     }
+
+    /// <summary>
+    /// T2 서킷 브레이커. docs/14 §10 — 무한 재시도는 외부 장애 시 지연을 폭발시킨다.
+    /// 열려 있으면 T2 를 아예 시도하지 않고 곧장 T1 으로 간다.
+    /// </summary>
+    public CircuitBreaker Breaker { get; }
 
     /// <summary>T2 장애로 T1 에 넘긴 횟수. docs/14 §4 의 <c>TierFailover</c>.</summary>
     public long Failovers { get; private set; }
@@ -76,28 +88,62 @@ public sealed class TieredPlanCompiler : IPlanCompiler
             return await _t1!.CompileAsync(request, cancellationToken).ConfigureAwait(false);
         }
 
+        // 반개방은 시험 호출 하나만 통과시킨다. 여기서 걸리면 T2 를 시도조차 하지 않는다.
+        if (!Breaker.TryEnter())
+        {
+            return await FailOverAsync(request, "T2 서킷이 열려 있다.", cancellationToken).ConfigureAwait(false);
+        }
+
         try
         {
-            return await _t2!.CompileAsync(request, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception e) when (e is not OperationCanceledException)
-        {
-            // 외부 장애 → 로컬 페일오버. T1 도 없으면 거절이다.
-            if (Available(PlanTier.T1))
+            PlanCompileResult result = await _t2!.CompileAsync(request, cancellationToken).ConfigureAwait(false);
+
+            // 호출이 서버에 닿지 못한 것(타임아웃·연결 실패)만 브레이커의 실패로 센다.
+            // 검증 반려는 외부 장애가 아니다 — 그것까지 세면 품질 문제로 서킷이 열린다.
+            if (result.Stats.Reached)
             {
-                Failovers++;
-                return await _t1!.CompileAsync(request, cancellationToken).ConfigureAwait(false);
+                Breaker.OnSuccess();
+            }
+            else
+            {
+                Breaker.OnFailure();
             }
 
-            Rejections++;
-            return Rejected($"T2 가 실패했고 T1 도 쓸 수 없다: {e.Message}");
+            return result;
+        }
+        // 호출자가 취소한 것만 그대로 올린다. HttpClient 의 타임아웃도 TaskCanceledException 이라
+        // 종류만 보고 거르면 <b>외부 타임아웃이 워커를 뚫고 나가 서킷이 영영 안 열린다.</b>
+        catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            Breaker.OnFailure();
+
+            return await FailOverAsync(request, $"T2 가 실패했다: {e.Message}", cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
-    /// <summary>이 티어를 지금 쓸 수 있는가. 구성돼 있고 끊기지 않았어야 한다.</summary>
+    /// <summary>외부 장애 → 로컬 페일오버. T1 도 못 쓰면 거절이다.</summary>
+    private async ValueTask<PlanCompileResult> FailOverAsync(
+        PlanRequest request, string reason, CancellationToken cancellationToken)
+    {
+        if (Available(PlanTier.T1))
+        {
+            Failovers++;
+            return await _t1!.CompileAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+
+        Rejections++;
+        return Rejected($"{reason} T1 도 쓸 수 없다.");
+    }
+
+    /// <summary>
+    /// 이 티어를 지금 쓸 수 있는가. 구성돼 있고, 끊기지 않았고, 서킷이 열려 있지 않아야 한다.
+    /// </summary>
     public bool Available(PlanTier tier) => tier switch
     {
-        PlanTier.T2 => _t2 is not null && !_switches.IsDisabled(KillSwitchTarget.T2),
+        PlanTier.T2 => _t2 is not null
+            && !_switches.IsDisabled(KillSwitchTarget.T2)
+            && Breaker.State != CircuitState.Open,
         PlanTier.T1 => _t1 is not null && !_switches.IsDisabled(KillSwitchTarget.T1),
         _ => false,
     };
