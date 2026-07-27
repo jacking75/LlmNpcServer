@@ -4,6 +4,7 @@ using System.Text.Json;
 using Npc.Contracts;
 using Npc.Gateway;
 using Npc.Host;
+using Npc.Tests.Runtime;
 
 namespace Npc.Tests.Determinism;
 
@@ -22,6 +23,7 @@ namespace Npc.Tests.Determinism;
 /// 이 테스트가 통과하면 버그 재현이 가능해진다 — 리스크 R5 의 해소 지점이다.
 /// </summary>
 [Trait("Category", "Determinism")]
+[Collection(AllocationCollection.Name)]
 public sealed class ReplayTests
 {
     /// <summary>시나리오 A — 평시 하루. 600배속에서 1,440틱이다.</summary>

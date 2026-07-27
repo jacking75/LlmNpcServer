@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Npc.Tests.Runtime;
 
 namespace Npc.Tests.BlindEval;
 
@@ -15,6 +16,7 @@ namespace Npc.Tests.BlindEval;
 /// <b>통계가 틀리면 보고서 전체가 거짓이 된다.</b> 라이브러리를 안 쓰기로 한 이상
 /// 검증이 유일한 방어다.
 /// </summary>
+[Collection(AllocationCollection.Name)]
 public sealed class BlindEvalStatisticsTests
 {
     private const string Tool = "tools/analyze_blind_eval.cs";

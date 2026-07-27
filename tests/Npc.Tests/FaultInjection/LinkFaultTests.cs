@@ -7,6 +7,7 @@ using Npc.Host;
 using Npc.Host.Metrics;
 using Npc.Llm;
 using Npc.Prebake;
+using Npc.Tests.Runtime;
 
 namespace Npc.Tests.FaultInjection;
 
@@ -25,6 +26,7 @@ namespace Npc.Tests.FaultInjection;
 /// 한 목록으로 적고 있어서다 — 다섯 다 "장애가 나도 멈추지 않는가" 하나를 본다.
 /// </summary>
 [Trait("Category", "FaultInjection")]
+[Collection(AllocationCollection.Name)]
 public sealed class LinkFaultTests
 {
     // ================================================================ 1. 링크 단절

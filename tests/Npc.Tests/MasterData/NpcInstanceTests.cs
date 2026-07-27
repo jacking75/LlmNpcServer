@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Npc.Tests.Runtime;
 
 namespace Npc.Tests.MasterData;
 
@@ -7,6 +8,7 @@ namespace Npc.Tests.MasterData;
 /// docs/01 §9 · docs/11 §8. masterdata/npc_instances.json 은 산출물이다.
 /// tools/gen_npcs.cs 가 만든다 — 손으로 편집하지 않는다.
 /// </summary>
+[Collection(AllocationCollection.Name)]
 public sealed class NpcInstanceTests
 {
     private const int Population = 5_000;

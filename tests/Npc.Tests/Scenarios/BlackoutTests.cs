@@ -7,6 +7,7 @@ using Npc.MasterData;
 using Npc.Planning;
 using Npc.Runtime;
 using Npc.Sim;
+using Npc.Tests.Runtime;
 
 namespace Npc.Tests.Scenarios;
 
@@ -20,6 +21,7 @@ namespace Npc.Tests.Scenarios;
 /// 진행할지는 <c>--days</c> 로 고른다. 600배속에서 게임 하루는 1,440틱이다.
 /// </summary>
 [Trait("Category", "FaultInjection")]
+[Collection(AllocationCollection.Name)]
 public sealed class BlackoutTests
 {
     private static readonly MasterDataSet s_data = MasterDataLoader.Load(TestPaths.MasterData);

@@ -9,6 +9,7 @@ using Npc.Host.Metrics;
 using Npc.MasterData;
 using Npc.Planning;
 using Npc.Runtime;
+using Npc.Tests.Runtime;
 
 namespace Npc.Tests.Gates;
 
@@ -30,6 +31,7 @@ namespace Npc.Tests.Gates;
 /// 여기서는 "게이트 항목으로 세어졌다"는 것을 한자리에 모은다.
 /// </para>
 /// </summary>
+[Collection(AllocationCollection.Name)]
 public sealed class Phase5GateTests
 {
     /// <summary>docs/15 §10 — 골든 합격률 하한.</summary>

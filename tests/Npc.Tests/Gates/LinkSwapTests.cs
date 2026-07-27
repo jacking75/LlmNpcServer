@@ -8,6 +8,7 @@ using Npc.Host.Metrics;
 using Npc.Planning;
 using Npc.Runtime;
 using Npc.Tests.Determinism;
+using Npc.Tests.Runtime;
 
 namespace Npc.Tests.Gates;
 
@@ -24,6 +25,7 @@ namespace Npc.Tests.Gates;
 ///         구현체(<c>Npc.Gateway</c>)를 <b>참조조차 하지 않는다.</b></item>
 /// </list>
 /// </summary>
+[Collection(AllocationCollection.Name)]
 public sealed class LinkSwapTests
 {
     /// <summary>600배속 하루. 4종을 다 돌려도 짧다.</summary>

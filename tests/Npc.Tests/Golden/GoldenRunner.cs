@@ -9,6 +9,7 @@ using Npc.Llm;
 using Npc.MasterData;
 using Npc.Sim.Validation;
 using Npc.Tests.Llm;
+using Npc.Tests.Runtime;
 
 namespace Npc.Tests.Golden;
 
@@ -48,6 +49,7 @@ public static class GoldenSuite
 /// <b>Golden 카테고리가 아니다.</b> LLM 을 부르지 않으므로 기본 CI 에서 항상 돈다 —
 /// 픽스처가 깨지거나 커버리지가 무너지는 것은 LLM 없이도 알 수 있어야 한다.
 /// </summary>
+[Collection(AllocationCollection.Name)]
 public sealed class GoldenFixtureCoverageTests
 {
     /// <summary>docs/15 T5-03 — 아키타입 20종 이상.</summary>
