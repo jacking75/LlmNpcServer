@@ -66,13 +66,17 @@ public sealed record GoldenReport
     /// <summary>통과한 단언 수.</summary>
     public int PassedAssertions => Fixtures.Sum(f => f.PassedCount);
 
-    /// <summary>단언 단위 합격률.</summary>
+    /// <summary>
+    /// 이 회차의 단언 통과율. <b>게이트 값이 아니다</b> —
+    /// docs/15 §2 의 "합격률 ≥ 90%" 는 3회를 집계한 뒤의 단언 합격률이고
+    /// 그 계산은 <c>GoldenRunner</c> 가 한다. 여기 값은 회차별 참고치다.
+    /// </summary>
     public double AssertionPassRate => TotalAssertions == 0 ? 0 : (double)PassedAssertions / TotalAssertions;
 
     /// <summary>전 단언을 통과한 픽스처 수.</summary>
     public int PassedFixtures => Fixtures.Count(f => f.Passed);
 
-    /// <summary>픽스처 단위 합격률. <b>docs/15 §2 의 "합격률 ≥ 90%" 는 이 값이다.</b></summary>
+    /// <summary>픽스처 단위 통과율. 단언 하나만 틀려도 그 픽스처는 실패로 세므로 늘 더 낮다.</summary>
     public double FixturePassRate => Fixtures.Length == 0 ? 0 : (double)PassedFixtures / Fixtures.Length;
 
     /// <summary>
