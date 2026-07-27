@@ -255,6 +255,16 @@ internal sealed class NpcHost : IAsyncDisposable
                 break;
         }
 
+        // 킬스위치를 실제 티어에 결선한다 (docs/15 §4). 대역이 없으면(Null·Replay)
+        // 시나리오도 없으므로 아무것도 끊기지 않은 상태 그대로다.
+        //
+        // T1·T2 는 이 빌드의 런타임에 아직 없다 — P4 가 재계획 워커를 붙이면 라우터가
+        // 같은 상태를 읽는다(TieredPlanCompiler). 지금 실제로 끊기는 것은 PlanStore 다.
+        if (driver?.Scenario.Switches is { } switches)
+        {
+            plans.Switches = switches;
+        }
+
         long totalTicks = options.Days == 0 ? 0 : clock.TicksForGameDays(options.Days);
 
         var loop = new NpcServerLoop(
@@ -595,6 +605,9 @@ internal sealed class SimDriver : IAsyncDisposable
 
     /// <summary>월드.</summary>
     public SimWorld World => _world;
+
+    /// <summary>시나리오 러너. 호스트가 킬스위치 상태를 여기서 꺼내 결선한다 (docs/15 §4).</summary>
+    public ScenarioRunner Scenario => _scenario;
 
     /// <summary>링이 가득 차 버린 명령 수. 0 이 아니면 Sim 이 밀린 것이다.</summary>
     public long CommandsDropped => _inbox.Dropped;

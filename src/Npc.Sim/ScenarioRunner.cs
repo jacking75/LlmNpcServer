@@ -12,13 +12,16 @@ namespace Npc.Sim;
 /// <param name="Kind">주입할 이벤트. KillSwitch 면 null.</param>
 /// <param name="Zone">대상 존.</param>
 /// <param name="Code">RegionState / Climate / TimeOfDay 의 ordinal.</param>
-/// <param name="KillSwitchTarget">"T1" / "T2". 이벤트가 아니라 티어 차단 신호다.</param>
+/// <param name="KillSwitch">
+/// 끊을 대상. 이벤트가 아니라 티어 차단 신호다.
+/// <b>3종이다</b> — 시나리오 C 는 <c>T2 → T1 → PlanStore</c> 순으로 끊는다 (docs/15 §4).
+/// </param>
 public sealed record ScenarioStep(
     long AtTick,
     GameEventKind? Kind,
     ZoneId Zone,
     byte Code,
-    string? KillSwitchTarget);
+    KillSwitchTarget? KillSwitch);
 
 /// <summary>
 /// 시나리오 스크립트 주입기. docs/02 §5.
@@ -26,13 +29,14 @@ public sealed record ScenarioStep(
 /// jsonl 의 <c>at_tick</c> 에 이벤트를 밀어넣는다. 공성·재해·킬스위치가 이걸로 온다.
 /// <b>±0틱</b>에 정확히 발생해야 한다 — 시나리오 A/B/C 의 재현성이 여기 달려 있다.
 ///
-/// KillSwitch 는 이벤트가 아니다. LLM 티어를 끊는 신호이고, P1 에는 LLM 이 없으므로
-/// 발생 사실만 기록한다. P4·P5 의 시나리오 C 가 이 목록을 본다.
+/// KillSwitch 는 이벤트가 아니다. 티어를 끊는 신호이고, <see cref="Switches"/> 에 세운다 —
+/// 티어 라우터(<c>TieredPlanCompiler</c>)와 플랜 스토어가 그 상태를 읽는다 (docs/15 §4).
+/// 발생 순서는 <see cref="KillSwitchesFired"/> 에 따로 남긴다.
 /// </summary>
 public sealed class ScenarioRunner
 {
     private readonly ImmutableArray<ScenarioStep> _steps;
-    private readonly List<string> _killSwitches = [];
+    private readonly List<KillSwitchTarget> _killSwitches = [];
     private int _next;
 
     private ScenarioRunner(ImmutableArray<ScenarioStep> steps) => _steps = steps;
@@ -43,8 +47,14 @@ public sealed class ScenarioRunner
     /// <summary>주입한 이벤트 수.</summary>
     public int Injected { get; private set; }
 
+    /// <summary>
+    /// 끊긴 것들. 호스트가 이 인스턴스를 티어 라우터·플랜 스토어에 물려 준다 —
+    /// 발생 목록만 남기면 "끊었다고 적어 두고 실제로는 계속 도는" 상태를 못 잡는다.
+    /// </summary>
+    public KillSwitchState Switches { get; } = new();
+
     /// <summary>발생한 킬스위치 대상. 발생 순서대로.</summary>
-    public IReadOnlyList<string> KillSwitchesFired => _killSwitches;
+    public IReadOnlyList<KillSwitchTarget> KillSwitchesFired => _killSwitches;
 
     /// <summary>남은 스텝이 있는가.</summary>
     public bool HasMore => _next < _steps.Length;
@@ -103,9 +113,10 @@ public sealed class ScenarioRunner
         {
             ScenarioStep step = _steps[_next++];
 
-            if (step.KillSwitchTarget is { } target)
+            if (step.KillSwitch is { } target)
             {
                 _killSwitches.Add(target);
+                Switches.Fire(target);
                 continue;
             }
 
@@ -133,8 +144,18 @@ public sealed class ScenarioRunner
 
         if (string.Equals(name, "KillSwitch", StringComparison.Ordinal))
         {
-            return new ScenarioStep(
-                atTick, null, default, 0, root.GetProperty("target").GetString());
+            string? target = root.TryGetProperty("target", out JsonElement element)
+                ? element.GetString()
+                : null;
+
+            // 오타를 조용히 넘기면 안 끊긴 채로 시나리오 C 가 통과한다 — 게이트가 거짓이 된다.
+            if (!KillSwitchState.TryParse(target, out KillSwitchTarget parsed))
+            {
+                throw new InvalidDataException(
+                    $"시나리오: 모르는 KillSwitch 대상 '{target}'. {KillSwitchState.TargetNames} 중 하나다.");
+            }
+
+            return new ScenarioStep(atTick, null, default, 0, parsed);
         }
 
         if (!Enum.TryParse(name, out GameEventKind kind))
