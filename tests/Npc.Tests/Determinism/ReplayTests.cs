@@ -154,9 +154,12 @@ public sealed class ReplayTests
 
     /// <summary>
     /// 기록 링크와 <b>같은 직렬화</b>로 적는다. 다른 옵션으로 적으면 내용이 같아도 바이트가 갈라진다.
+    /// 링크 교체 검증(T5-11)도 같은 표현으로 비교해야 해서 공개한다.
     /// </summary>
-    private static string Render(NpcCommand command) => JsonSerializer.Serialize(
+    internal static string RenderCommand(NpcCommand command) => JsonSerializer.Serialize(
         new LinkRecord(RecordKind.Command, command, null), LinkRecordJsonContext.Default.LinkRecord);
+
+    private static string Render(NpcCommand command) => RenderCommand(command);
 
     private static string Join(IReadOnlyList<string> lines)
     {
