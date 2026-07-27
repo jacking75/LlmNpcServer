@@ -1,0 +1,13 @@
+{
+  "id": "G-041",
+  "input": {
+    "bucket": "guard_captain@Morning.Disaster.Cold",
+    "flags": ["HasFood", "HasWater", "HasCoin", "HasWeapon", "IsDay", "OnDuty", "RegionUnderAttack"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "not_contains", "action": "Craft" },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest", "Guard", "Patrol", "Defend"] }
+  ]
+}

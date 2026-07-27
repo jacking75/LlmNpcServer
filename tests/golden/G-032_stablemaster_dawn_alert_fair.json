@@ -1,0 +1,12 @@
+{
+  "id": "G-032",
+  "input": {
+    "bucket": "stablemaster@Dawn.Alert.Fair",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsDawn", "RegionPeaceful"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] }
+  ]
+}

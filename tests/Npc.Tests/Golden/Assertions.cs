@@ -395,7 +395,12 @@ public static class GoldenAssertions
     /// 조건 플래그가 서 있는 동안 회피 플래그를 세우지 않는가.
     ///
     /// 스텝의 플래그 전이를 픽스처의 시작 상태에서부터 굴린다. 조건이 성립한 시점에
-    /// 회피 플래그가 서면 실패다. 예: <c>WeatherHarsh</c> 인데 <c>InWilderness</c> 로 나간다.
+    /// 회피 플래그가 서면 실패다. 예: <c>WeatherHarsh</c> 인데 <c>AtField</c> 로 나간다.
+    ///
+    /// <b>장소 플래그는 액션이 아니라 POI 가 세운다</b> (<c>pois.json</c> 의 grants).
+    /// 액션의 <c>grants</c> 만 보면 <c>AtField</c>·<c>InWilderness</c> 같은 것이 한 번도 서지 않아
+    /// 이 단언이 통째로 무연산이 된다 — 그래서 <see cref="CoherenceValidator.GrantsOf"/> 로
+    /// 스텝이 향하는 POI 심볼의 장소 플래그도 같이 세운다. 3단 검증기가 쓰는 것과 같은 표다.
     /// </summary>
     private static AssertionOutcome AvoidsFlagWhile(GoldenAssertionSpec spec, GoldenSubject subject)
     {
@@ -412,7 +417,7 @@ public static class GoldenAssertions
             // 금지 플래그를 세우는 것까지 통과시키면 단언이 무의미해진다.
             bool conditionHolds = (state & when) == when;
 
-            state = flags.Apply(state);
+            state = flags.Apply(state) | CoherenceValidator.GrantsOf(subject.Plan.Steps[i].Poi);
 
             if (conditionHolds && (state & avoid) != 0)
             {
@@ -667,20 +672,24 @@ public sealed class GoldenAssertionTests
     [Fact]
     public void AvoidsFlagWhile_CatchesTheForbiddenTransition()
     {
-        // MoveTo 는 InWilderness 를 지우기만 하므로 이 플랜은 험한 날씨에도 밖으로 나가지 않는다.
-        GoldenSubject indoors = Subject(
+        GoldenSubject stormy = Subject(
             "blacksmith@Morning.Peace.Storm", SmithDayJson, flags: """["AtHome", "WeatherHarsh", "HasTool"]""");
 
-        Assert.True(
-            Run(indoors, Spec("avoids_flag_while", flag: "InWilderness", when: "WeatherHarsh")).Passed);
+        // 이 플랜의 첫 스텝은 MoveTo($nearest_field) 다 — 폭풍인데 채집지로 나간다.
+        // 장소 플래그는 액션이 아니라 POI 가 세우므로, 심볼을 안 보면 이 실패가 안 잡힌다.
+        AssertionOutcome outdoors = Run(stormy, Spec("avoids_flag_while", flag: "AtField", when: "WeatherHarsh"));
 
-        // 반대로 조건이 서 있는 동안 지워지면 안 되는 플래그를 고르면 걸린다:
-        // Craft 는 HasRawMaterial 을 지우고 HasProduct 를 세운다.
-        AssertionOutcome outcome = Run(
-            indoors, Spec("avoids_flag_while", flag: "HasProduct", when: "WeatherHarsh"));
+        Assert.False(outdoors.Passed);
+        Assert.Contains("AtField", outdoors.Detail, StringComparison.Ordinal);
 
-        Assert.False(outcome.Passed);
-        Assert.Contains("HasProduct", outcome.Detail, StringComparison.Ordinal);
+        // 야외 POI 심볼이 없으므로 InWilderness 는 서지 않는다.
+        Assert.True(Run(stormy, Spec("avoids_flag_while", flag: "InWilderness", when: "WeatherHarsh")).Passed);
+
+        // 액션이 세우는 플래그도 같은 방식으로 걸린다: Craft 는 HasProduct 를 세운다.
+        AssertionOutcome crafted = Run(stormy, Spec("avoids_flag_while", flag: "HasProduct", when: "WeatherHarsh"));
+
+        Assert.False(crafted.Passed);
+        Assert.Contains("HasProduct", crafted.Detail, StringComparison.Ordinal);
     }
 
     [Fact]

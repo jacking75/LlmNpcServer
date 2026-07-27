@@ -1,0 +1,14 @@
+{
+  "id": "G-017",
+  "input": {
+    "bucket": "farmer@Noon.Peace.Fair",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsDay", "RegionPeaceful"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "contains_action", "action": "Farm" },
+    { "kind": "produces_item_of", "category": "raw" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] }
+  ]
+}

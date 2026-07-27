@@ -1,0 +1,13 @@
+{
+  "id": "G-022",
+  "input": {
+    "bucket": "herbalist@Noon.Alert.Storm",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasProduct", "HasCoin", "IsDay", "RegionPeaceful", "WeatherHarsh"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "contains_action", "action": "Gather" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] }
+  ]
+}

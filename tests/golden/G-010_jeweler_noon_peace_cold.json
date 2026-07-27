@@ -1,0 +1,14 @@
+{
+  "id": "G-010",
+  "input": {
+    "bucket": "jeweler@Noon.Peace.Cold",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsDay", "RegionPeaceful"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "contains_action", "action": "Craft" },
+    { "kind": "produces_item_of", "category": "product" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "G-011",
+  "input": {
+    "bucket": "tanner@Morning.Alert.Fair",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsDay", "RegionPeaceful"],
+    "inventory": { "hide": 0 }
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "contains_action", "action": "Craft" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] }
+  ]
+}

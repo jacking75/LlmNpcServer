@@ -1,0 +1,13 @@
+{
+  "id": "G-014",
+  "input": {
+    "bucket": "healer@Night.Disaster.Cold",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsNight", "RegionUnderAttack"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] },
+    { "kind": "not_contains", "action": "Attack" }
+  ]
+}

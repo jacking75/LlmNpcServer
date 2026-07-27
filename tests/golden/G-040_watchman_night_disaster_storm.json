@@ -1,0 +1,13 @@
+{
+  "id": "G-040",
+  "input": {
+    "bucket": "watchman@Night.Disaster.Storm",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasCoin", "IsNight", "OnDuty", "RegionUnderAttack", "WeatherHarsh"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest", "Guard", "Patrol", "Defend"] },
+    { "kind": "differs_from", "bucket": "watchman@Night.Peace.Fair" }
+  ]
+}

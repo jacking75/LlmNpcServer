@@ -1,0 +1,14 @@
+{
+  "id": "G-009",
+  "input": {
+    "bucket": "brewer@Afternoon.Peace.Fair",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasProduct", "HasCoin", "IsDay", "RegionPeaceful"]
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "contains_action", "action": "Craft" },
+    { "kind": "produces_item_of", "category": "drink" },
+    { "kind": "step_count_between", "min": 3, "max": 10 },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] }
+  ]
+}

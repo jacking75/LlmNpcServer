@@ -1,0 +1,18 @@
+{
+  "id": "G-003",
+  "input": {
+    "bucket": "blacksmith@Evening.War.Storm",
+    "flags": ["AtWorkplace", "HasFood", "HasWater", "HasTool", "HasRawMaterial", "HasCoin", "IsHungry", "IsEvening", "RegionUnderAttack", "WeatherHarsh"],
+    "inventory": { "coal": 3, "iron_ore": 0 }
+  },
+  "assertions": [
+    { "kind": "validates", "stage": "DryRun" },
+    { "kind": "contains_action", "action": "Craft" },
+    { "kind": "produces_item_of", "category": "product" },
+    { "kind": "not_contains", "action": "Wander" },
+    { "kind": "ends_with_any", "actions": ["Sleep", "Rest"] },
+    { "kind": "step_count_between", "min": 4, "max": 9 },
+    { "kind": "acquires_before_use", "item": "iron_ore", "action": "Craft" },
+    { "kind": "avoids_flag_while", "flag": "AtField", "when": "WeatherHarsh" }
+  ]
+}
