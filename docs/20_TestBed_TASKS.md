@@ -346,7 +346,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-21 `MirrorLog` — 링·커서만. **틱 루프 배선은 T6-23·T6-24 몫**(소비자가 거기 있다)
 
 ### E. 클라이언트 프로토콜과 세션
-- [ ] T6-22 `Npc.TestBed.Protocol`
+- [x] T6-22 `Npc.TestBed.Protocol`
 - [ ] T6-23 클라이언트 리스너와 세션
 - [ ] T6-24 스냅샷 빌더
 - [ ] T6-25 제어 처리

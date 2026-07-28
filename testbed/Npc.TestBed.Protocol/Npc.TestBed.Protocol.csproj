@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    [P6] 게임서버 ↔ 테스트 클라이언트 프로토콜. docs/20 §4 · §8.
+
+    왜 Npc.Wire 와 따로 두는가
+    ──────────────────────────
+    링크 프로토콜(Npc.Wire)은 NPC 서버와 게임서버 사이의 계약이고, 이쪽은 게임서버와
+    사람이 보는 창 사이의 것이다. 둘은 수명이 다르다 — 클라이언트에 필드를 하나 더
+    보여 주고 싶다고 링크 계약을 건드리면 NPC 서버가 같이 흔들린다.
+
+    프레임 헤더는 재사용한다. Npc.Wire.FrameCodec 하나가 버전·길이 상한 검사를 들고 있고,
+    그 검사를 두 벌로 만들면 한쪽만 고쳐지는 날이 온다 (docs/20 §8).
+
+    이 프로젝트가 아는 것은 Npc.Wire 하나다. Npc.MasterData 도 Npc.Sim 도 모른다 —
+    프로토콜이 마스터데이터를 알면 id 를 문자열로 풀고 싶어지고, 그 순간 §3.5 가 깨진다.
+
+    단방향 잎(leaf) 무리의 일부다. src/ 의 어느 프로젝트도 여기를 참조하지 않는다.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Npc.TestBed.Protocol</RootNamespace>
+    <AssemblyName>Npc.TestBed.Protocol</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.Wire\Npc.Wire.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MemoryPack" Version="1.21.4" />
+  </ItemGroup>
+
+</Project>
