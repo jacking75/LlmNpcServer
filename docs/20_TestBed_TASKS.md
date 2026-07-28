@@ -117,12 +117,15 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
   완료  `Host_TcpLinkDoesNotCreateSimDriver` · `HostOptions_ParsesTcpOptions` · `--link tcp`로 기동 후 게임서버가 없으면 `Connecting` 상태로 재시도하며 크래시하지 않는다
 
 **T6-13** 킬스위치 전달 경로 · `M` · 선행 T6-12
-  파일  `src/Npc.Host/KillSwitchSchedule.cs` (신규) · `src/Npc.Runtime/NpcServerLoop.cs` (수정 — **훅 한 줄만**) · `src/Npc.Host/Program.cs` (수정)
+  파일  `src/Npc.Host/KillSwitchSchedule.cs` (신규) · `src/Npc.Host/Program.cs` (수정) · `src/Npc.Host/HostOptions.cs` (수정 — `--dev-control`)
+        ~~`src/Npc.Runtime/NpcServerLoop.cs`~~ — **건드리지 않았다.** `ITickObserver` 로 대신했다 (아래 주의)
   사양  `docs/20` §11.4
   내용  틱 기반 킬스위치 스케줄(시나리오 jsonl의 `KillSwitch` 줄만 처리)과 `--dev-control` 일 때만 열리는 `POST /control/killswitch?target=...`. **이벤트 주입은 하지 않는다** — 그것은 게임서버의 일이다.
   완료  `KillSwitchSchedule_FiresAtTick`(±0틱) · `KillSwitchSchedule_IgnoresNonSwitchLines` · `--dev-control` 없이 기동하면 `/control/*`이 404 · **`NpcServerLoop`의 diff가 null 체크 한 줄을 넘지 않는다**
 
-> **주의.** T6-13은 `Npc.Runtime`을 건드리는 유일한 태스크다. 훅 한 줄(널 체크 + `Advance(tick)`) 이상으로 커지면 멈추고 보고한다. `docs/20` §1의 합격 기준과 충돌하는 자리이므로 리뷰에서 제일 먼저 볼 곳이다.
+> **주의(해소됨).** T6-13은 `Npc.Runtime`을 건드리는 유일한 태스크로 적혀 있었다. 실제로는 **건드리지 않았다** — `ITickObserver` 라는 이음매가 이미 있어서, `KillSwitchSchedule` 이 그 인터페이스를 구현하고 원래 관측자(`NpcMeter`)를 감싸는 것으로 끝났다. **P6 전 구간에서 본체 diff 가 0줄이다.**
+>
+> `--dev-control` 은 §10.3 에 있으므로 원래 T6-12 의 몫이었는데 그때 빠뜨렸다. 여기서 `HostOptions` 에 같이 넣었다.
 
 ### D. 테스트 게임서버
 
@@ -278,7 +281,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 
 | # | 항목 | 판정 |
 |---|---|---|
-| G6-1 | **NPC 서버 본체 무변경** | `git diff main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Contracts`가 T6-13의 훅 한 줄 외에 비어 있다 |
+| G6-1 | **NPC 서버 본체 무변경** | `git diff main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Contracts`가 **비어 있다.** T6-13의 훅 한 줄도 결국 필요 없었다 |
 | G6-2 | **마스터데이터 무변경** | `git diff main -- masterdata/`가 비어 있다 · `MasterDataSet.ContentHash`가 그대로다 |
 | G6-3 | 소켓 종단 동작 | `TestBed_EndToEnd_NpcArrives` 통과 |
 | G6-4 | 링크 계약 유지 | `Contracts`·`Wire` 카테고리 전량 통과 · `Wire_NoStringOrDateTimeFields`가 두 새 어셈블리에서 통과 |
@@ -298,7 +301,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 | 상황 | 어떻게 |
 |---|---|
 | 사양이 틀렸거나 부족하다 | 임의로 코드에 맞추지 말고 **멈추고 보고한다.** `docs/20`을 먼저 고치고 같은 커밋에 담는다 |
-| `Npc.Runtime`을 고쳐야만 될 것 같다 | **거의 항상 설계가 틀린 것이다.** 멈추고 보고한다. T6-13 외에 그런 태스크는 없다 |
+| `Npc.Runtime`을 고쳐야만 될 것 같다 | **거의 항상 설계가 틀린 것이다.** 멈추고 보고한다. 유일한 예외로 적혀 있던 T6-13조차 `ITickObserver` 로 끝났다 — 이음매를 먼저 찾는다 |
 | MemoryPack이 말썽이다 | `docs/20` §15의 대체안(직접 `MemoryMarshal` 쓰기)을 쓴다. `Npc.Wire` 안쪽만 바뀐다 |
 | 성능이 예산을 넘는다 | 어디서 넘는지 먼저 잰다. 게임서버 쪽이면 AOI·스냅샷 주기를 줄인다. NPC 서버 쪽이면 §6.1 스레드 모델이 지켜지고 있는지부터 본다 |
 
@@ -323,7 +326,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 ### C. 로스터와 호스트 배선
 - [x] T6-11 `NpcRoster` 추출
 - [x] T6-12 `--link tcp` 배선
-- [ ] T6-13 킬스위치 전달 경로
+- [x] T6-13 킬스위치 전달 경로
 
 ### D. 테스트 게임서버
 - [ ] T6-14 프로젝트 골격과 옵션

@@ -793,12 +793,16 @@ public sealed class NpcRoster
 킬스위치는 NPC 서버 안쪽 상태다. 링크로 보낼 수단이 없고, 만들면 N 규칙을 어긴다. 두 경로를 둔다.
 
 1. **스크립트 경로** — 같은 jsonl을 **양쪽에 준다.** 게임서버(`--scenario`)는 `KillSwitch` 줄을 **무시**하고, NPC 서버(`--scenario`)는 `KillSwitch` 줄만 처리한다. 틱 번호는 게임서버가 보내는 `TickSync`로 동기화되어 있으므로 같은 틱에 발동한다.
-   - `Npc.Host`에 `KillSwitchSchedule`(틱 기반)을 두고 `NpcServerLoop`의 틱 구간에서 `Advance(tick)`을 부른다. null 체크 한 번이라 틱 예산에 영향이 없다.
+   - `Npc.Host`에 `KillSwitchSchedule`(틱 기반)을 두고 틱마다 `Advance(tick)`을 부른다. 첨자 하나와 비교 한 번이라 틱 예산에 영향이 없다.
    - `ScenarioRunner`의 파서를 재사용한다. **`--link tcp`에서 `ScenarioRunner.Tick(now, world)`를 부르지 않는다** — 이벤트 주입은 게임서버의 일이다.
+   - **`Npc.Runtime`을 고치지 않는다.** 이 절은 원래 `NpcServerLoop`의 틱 구간에 훅 한 줄을 넣는 것으로 적혀 있었는데, `ITickObserver`라는 이음매가 이미 있어 필요가 없었다 — `KillSwitchSchedule`이 그 인터페이스를 구현하고 원래 관측자(`NpcMeter`)를 감싼다. **그래서 §1 합격 기준 1(본체 무변경)이 이 태스크에서도 깨지지 않는다.**
+   - `KillSwitchState`는 **대역이 없어도 만든다.** 예전에는 `SimDriver`가 있을 때만 존재해서 `--link tcp`에는 끊을 대상 자체가 없었다. 대역이 도는 모드에서는 시나리오 러너와 **같은 상태를 공유**한다 — `Fire`는 멱등이라(N7) 양쪽이 같은 줄을 봐도 결과가 같다.
 2. **대화형 경로** — `--dev-control`을 준 경우에만 `POST /control/killswitch?target=T2`를 연다. 클라이언트의 제어 패널 버튼이 이것을 부른다.
    - 기본은 꺼져 있다. **상태를 바꾸는 HTTP를 기본으로 열지 않는다.**
+   - 막는 방식은 **조건부 등록**이다. 조건부 401/403이 아니다 — 그건 "핸들러가 있고 거절한다"라서 실수 하나로 열린다. 플래그가 없으면 라우트가 없고 `/control/*`은 404다.
+   - 모르는 `target`은 400. 대상 이름은 `KillSwitchState.TargetNames`(`T2`/`T1`/`PlanStore`)다.
 
-> **알려진 결함.** `TASKS.md`의 T5-21이 미착수다 — `TierWiring`이 없는 티어를 있는 티어로 메꾸므로 `--tier t2`에서 T2를 끊어도 같은 외부 컴파일러가 계속 불린다. **`demo_blackout`은 `--tier none` 또는 `--tier all`로 돌린다.** `--tier t2` 단독 회차를 데모에 쓰려면 T5-21을 먼저 끝낸다.
+> **해소됨(T5-21).** 이 자리에는 "`--tier t2`에서 T2를 끊어도 `TierWiring`이 메꾼 티어가 계속 불린다"는 결함이 적혀 있었다. `TieredPlanCompiler.Available`이 `HasT1`/`HasT2`를 보게 고쳐서 **메꾼 티어는 킬스위치를 물려받는다.** `demo_blackout`을 `--tier t2` 단독으로 돌려도 된다.
 
 ---
 
@@ -898,7 +902,6 @@ dotnet run -c Release --project testbed/Npc.TestClient -- `
 | 로스터 불일치를 놓친 채 데모 | NPC가 엉뚱하게 행동 | 핸드셰이크에서 거절한다(§5.5). 우회 옵션을 만들지 않는다 |
 | 시간 배속과 시각 속도의 부조화 | NPC가 순간이동하거나 기어간다 | `--time-scale 60` 기본. 겉보기 속도 = 실제 속도 × TimeScale (§7.3). 배속을 바꾸면 플레이어 속도도 같이 환산된다 |
 | 클라이언트가 NPC 서버 HTTP를 못 찾음 | 인스펙터 빈칸 | 조용히 넘기고 패널에 "NPC 서버 미연결"만 표시. 클라이언트는 계속 돈다 |
-| T5-21 미착수로 `--tier t2` 킬스위치가 안 먹음 | blackout 데모가 거짓 통과 | §11.4의 경고대로 `--tier none`/`--tier all`로 돌린다 |
 | 테스트 베드 편의 기능이 본체로 새어 들어옴 | `Npc.Runtime`에 diff 발생 | **§1의 합격 기준 1이 곧 리뷰 기준이다.** `src/Npc.Runtime`·`Npc.Planning`·`Npc.Core`·`Npc.Contracts`에 diff가 생기면 멈추고 보고한다 |
 
 ---

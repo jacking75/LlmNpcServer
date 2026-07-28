@@ -180,6 +180,14 @@ public sealed record HostOptions
     /// <summary>웹 호스트를 띄우지 않는다. 헤드리스 스모크용.</summary>
     public bool NoDashboard { get; init; }
 
+    /// <summary>
+    /// <c>POST /control/*</c> 를 연다. docs/20 §11.4.
+    ///
+    /// <b>기본은 꺼져 있다.</b> 상태를 바꾸는 HTTP 를 기본으로 열지 않는다 —
+    /// 데모용 제어 패널이 쓰는 경로이지 운영 경로가 아니다.
+    /// </summary>
+    public bool DevControl { get; init; }
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -195,6 +203,7 @@ public sealed record HostOptions
           --gs-host <host>        게임서버 호스트 (기본 127.0.0.1). --link tcp 전용
           --gs-port N             게임서버 링크 포트 (기본 7010)
           --zone <id>[,<id>]      로스터 존 필터. 게임서버와 같아야 한다
+          --dev-control           POST /control/* 을 연다 (기본 꺼짐). 데모용이다
           --npcs N                NPC 수 (기본 500)
           --time-scale N          시간 압축. 1=실시간, 60=1초당 게임 1분 (기본 60)
           --days N                돌릴 게임 일수. 0=무제한 (기본 1)
@@ -528,6 +537,10 @@ public sealed record HostOptions
                     }
 
                     result = result with { Link = kind };
+                    break;
+
+                case "--dev-control":
+                    result = result with { DevControl = true };
                     break;
 
                 case "--gs-host":

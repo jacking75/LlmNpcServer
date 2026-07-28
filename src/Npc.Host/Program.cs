@@ -106,6 +106,31 @@ app.MapGet("/dashboard", () =>
         : Results.NotFound($"dashboard.html 이 없다: {app.Environment.WebRootPath}");
 });
 
+// 데모용 제어 (T6-13 · docs/20 §11.4). --dev-control 일 때만 <b>등록 자체를 한다</b> —
+// 플래그 없이 기동하면 라우트가 없으므로 /control/* 은 404 다.
+// 조건부 401/403 이 아니라 조건부 등록인 이유: 상태를 바꾸는 HTTP 를 기본으로 열어 두면
+// 대시보드가 열려 있는 동안 누구든 티어를 끊을 수 있다.
+//
+// <b>이벤트 주입은 없다.</b> 그건 게임서버의 일이고, 여기서 같이 내면 세계가 두 번 밀린다.
+if (options.DevControl)
+{
+    app.MapPost("/control/killswitch", (string? target) =>
+    {
+        if (!KillSwitchState.TryParse(target, out KillSwitchTarget parsed))
+        {
+            return Results.BadRequest(
+                $"target 이 {KillSwitchState.TargetNames} 중 하나여야 한다: {target ?? "(없음)"}");
+        }
+
+        host.Switches.Fire(parsed);
+
+        // 멱등이다 (N7). 두 번 눌러도 같은 상태라 200 을 그대로 준다.
+        return Results.Ok(new { target = parsed.ToString(), fired = true });
+    });
+
+    Console.Out.WriteLine("dev-control: POST /control/killswitch?target=T2|T1|PlanStore");
+}
+
 await app.StartAsync(CancellationToken.None);
 Console.Out.WriteLine($"dashboard: http://localhost:{options.Port}/dashboard");
 
@@ -143,6 +168,7 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly SimDriver? _driver;
     private readonly NullGameServerLink? _nullLink;
     private readonly TierWiring _tiers;
+    private readonly KillSwitchState _switches;
     private readonly long _totalTicks;
 
     private NpcHost(
@@ -162,7 +188,8 @@ internal sealed class NpcHost : IAsyncDisposable
         NullGameServerLink? nullLink,
         long totalTicks,
         int npcs,
-        TierWiring tiers)
+        TierWiring tiers,
+        KillSwitchState switches)
     {
         _options = options;
         _link = link;
@@ -180,6 +207,7 @@ internal sealed class NpcHost : IAsyncDisposable
         _nullLink = nullLink;
         _totalTicks = totalTicks;
         _tiers = tiers;
+        _switches = switches;
         Npcs = npcs;
     }
 
@@ -203,6 +231,12 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>재계획 티어 한 벌. 부하 하네스가 워커·예산 통계를 읽는다 (T4-15).</summary>
     public TierWiring Tiers => _tiers;
+
+    /// <summary>
+    /// 킬스위치 상태. <c>--dev-control</c> 의 <c>POST /control/killswitch</c> 가 여기에 쓴다.
+    /// <b>한 번 켜지면 꺼지지 않는다</b> — 되돌리려면 재기동한다.
+    /// </summary>
+    public KillSwitchState Switches => _switches;
 
     /// <summary>NPC 상태. 측정 하네스가 읽는다 — <b>쓰지 않는다</b> (T4-17·T4-21).</summary>
     public NpcStore Store => _store;
@@ -364,18 +398,19 @@ internal sealed class NpcHost : IAsyncDisposable
                 break;
         }
 
-        // 킬스위치를 실제 티어에 결선한다 (docs/15 §4). 대역이 없으면(Null·Replay)
-        // 시나리오도 없으므로 아무것도 끊기지 않은 상태 그대로다.
+        // 킬스위치를 실제 티어에 결선한다 (docs/15 §4).
         //
         // 같은 상태를 셋이 읽는다 — PlanStore·티어 라우터(TieredPlanCompiler)·재계획 워커.
         // 라우터 쪽은 아래 TierWiring.Build 에 넘긴다. --tier none 이면 라우터가 없으므로
         // 실제로 끊기는 것은 PlanStore 하나다.
-        KillSwitchState? switches = driver?.Scenario.Switches;
+        //
+        // <b>대역이 없어도 만든다</b> (T6-13). 예전에는 driver 가 null 이면 상태 자체가 없어서
+        // --link tcp 에서는 시나리오의 KillSwitch 줄도 --dev-control 도 끊을 대상이 없었다.
+        // 대역이 있으면 그 시나리오가 쓰는 상태를 그대로 물려받아 <b>한 상태를 둘이 본다</b>.
+        // 아무도 발동하지 않으면 전부 켜진 상태 그대로라 기존 동작과 같다.
+        KillSwitchState switches = driver?.Scenario.Switches ?? new KillSwitchState();
 
-        if (switches is not null)
-        {
-            plans.Switches = switches;
-        }
+        plans.Switches = switches;
 
         long totalTicks = options.Days == 0 ? 0 : clock.TicksForGameDays(options.Days);
 
@@ -400,7 +435,15 @@ internal sealed class NpcHost : IAsyncDisposable
             store, bands, plans, replanQueue, cognition, interrupts, link, loop, clock, data,
             tiers.Stats, new CacheMetrics(plans, individualPool), tiers);
 
-        loop.Observer = meter;
+        // 킬스위치 스케줄이 계측기를 감싼다 (T6-13 · docs/20 §11.4).
+        // --link tcp 에서 이벤트를 내는 것은 게임서버이고, 우리는 KillSwitch 줄만 본다.
+        //
+        // Npc.Runtime 에 훅을 넣지 않았다 — ITickObserver 라는 이음매가 이미 있었다.
+        // 대역이 도는 모드에서는 ScenarioRunner 도 같은 줄을 보지만, Fire 는 멱등이라(N7)
+        // 두 번 끊겨도 상태가 같다.
+        var killSwitches = KillSwitchSchedule.Load(options.Scenario, data, switches, meter);
+
+        loop.Observer = killSwitches;
 
         log.WriteLine(
             $"npcs {npcs} · link {options.Link} · time-scale {options.TimeScale} · "
@@ -409,7 +452,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
         return new NpcHost(
             options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
-            meter, driver, nullLink, totalTicks, npcs, tiers);
+            meter, driver, nullLink, totalTicks, npcs, tiers, switches);
     }
 
     /// <summary>
