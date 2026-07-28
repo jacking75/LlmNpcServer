@@ -346,6 +346,7 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
     private long _samplesWritten;
     private long _overrunCount;
     private long _allocatedInTicks;
+    private long _lastAllocatingTick;
     private long _replanEnqueuedAtWindowStart;
     private long _windowStartTick;
 
@@ -460,6 +461,24 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
     /// <summary>틱 루프 안에서 할당한 총 바이트. 0 이 목표다.</summary>
     public long AllocatedInTicks => _allocatedInTicks;
 
+    /// <summary>
+    /// 틱 창 안에서 <b>마지막으로</b> 할당이 있었던 틱. 한 번도 없었으면 0.
+    ///
+    /// <para>
+    /// <b><see cref="AllocatedInTicks"/> 만으로는 판정할 수 없다.</b> 그 값은 누계라
+    /// 콜드 스타트(JIT · 정적 초기화 · 첫 인터페이스 디스패치)까지 함께 센다.
+    /// 실측(2026-07-28): 게임 3일(4,320틱) 회차에서 할당은 <b>틱 1·148·396 세 번뿐</b>이고
+    /// 나머지 3,924틱은 0 이다 — 회차를 3배 늘려도 총량이 264 B 그대로다.
+    /// 즉 <b>정상 상태의 틱당 할당은 실제로 0</b> 이고, 누계에 잡히는 것은 첫 실행 비용이다.
+    /// </para>
+    ///
+    /// <para>
+    /// 그래서 게이트는 "누계 0" 이 아니라 <b>"정상 상태에서 0"</b> 을 본다 —
+    /// 회차 후반부에 할당이 하나라도 있으면 그것이 진짜 누수다 (docs/14 §9 항목 9).
+    /// </para>
+    /// </summary>
+    public long LastAllocatingTick => _lastAllocatingTick;
+
     /// <summary>관측 창의 재계획 큐 깊이 백분위. docs/14 §6 의 기록 지표다.</summary>
     public int QueueDepthPercentile(double q)
     {
@@ -516,6 +535,7 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         if (allocated > 0)
         {
             _allocatedInTicks += allocated;
+            _lastAllocatingTick = tick.Value;
         }
 
         _queueDepths[(int)(_samplesWritten & (Window - 1))] = _replanQueue.Count;
