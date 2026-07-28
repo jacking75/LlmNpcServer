@@ -7,6 +7,9 @@ using Npc.TestBed.Protocol;
 
 // System.Windows.Forms 가 암시적 using 에 들어 있어 Control 이 겹친다.
 // 이 파일에서 Control 은 언제나 프로토콜 쪽이다 — 여기 위젯은 없다.
+//
+// Input 은 별칭으로 못 푼다 — Npc.TestClient.Input 은 <b>네임스페이스</b>라
+// 이름 조회에서 별칭보다 먼저 걸린다. 그쪽만 쓰는 자리에서 정식 이름을 적는다.
 using Control = Npc.TestBed.Protocol.Control;
 
 namespace Npc.TestClient.Net;
@@ -187,7 +190,13 @@ public sealed class GameConnection : IAsyncDisposable
     /// <summary>이동 입력. 10Hz, 키가 눌린 동안만 (docs/20 §9.4).</summary>
     public void SendInput(int seq, float dirX, float dirZ, bool run) => Send(
         ClientMessageKind.Input,
-        new Input { Seq = seq, DirX = dirX, DirZ = dirZ, Run = (byte)(run ? 1 : 0) });
+        new Npc.TestBed.Protocol.Input
+        {
+            Seq = seq,
+            DirX = dirX,
+            DirZ = dirZ,
+            Run = (byte)(run ? 1 : 0),
+        });
 
     /// <summary>대화. 사거리 판정은 서버가 한다 (docs/20 §7.3).</summary>
     public void SendInteract(int npc) => Send(ClientMessageKind.Interact, new Interact { NpcId = npc });

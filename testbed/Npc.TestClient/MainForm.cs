@@ -1,6 +1,7 @@
 using System.Globalization;
 using Npc.MasterData;
 using Npc.TestBed.Protocol;
+using Npc.TestClient.Input;
 using Npc.TestClient.Net;
 using Npc.TestClient.Render;
 using Npc.Wire;
@@ -64,6 +65,7 @@ public sealed class MainForm : Form
     private readonly MapPanel _map = new();
     private readonly MapRenderer _renderer;
     private readonly EntityInterpolator _entities = new();
+    private readonly InputController _input;
     private readonly ToolTip _tip = new() { InitialDelay = 250, ReshowDelay = 100 };
     private readonly TabControl _tabs = new();
     private readonly ToolStripStatusLabel _clock = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
@@ -88,6 +90,7 @@ public sealed class MainForm : Form
         _data = MasterDataLoader.Load(options.ResolveMasterData());
         _connection = new GameConnection(options.Host, options.Port);
         _renderer = new MapRenderer(_data);
+        _input = new InputController(_connection, _renderer);
 
         Text = $"Npc.TestClient — {options.Host}:{options.Port}";
         ClientSize = new Size(1_440, 900);
@@ -117,8 +120,11 @@ public sealed class MainForm : Form
     /// <summary>보간된 엔티티. 선택·입력(T6-29)이 이 집합에서 고른다.</summary>
     public EntityInterpolator Entities => _entities;
 
+    /// <summary>키·마우스 조종기.</summary>
+    public InputController Input => _input;
+
     /// <summary>선택된 NPC 첨자. 없으면 -1.</summary>
-    public int SelectedNpc { get; private set; } = -1;
+    public int SelectedNpc => _input.Selected;
 
     /// <inheritdoc />
     protected override void OnLoad(EventArgs e)
@@ -287,6 +293,9 @@ public sealed class MainForm : Form
     {
         _networkTicks++;
 
+        // 이동 입력이 10Hz 다 (docs/20 §9.4). 이 타이머가 곧 그 주기다.
+        _input.Send();
+
         if (_networkTicks % PingEveryNetworkTicks == 0)
         {
             _connection.SendPing();
@@ -337,6 +346,11 @@ public sealed class MainForm : Form
         if (!_fitted && viewport.Width > 1 && viewport.Height > 1)
         {
             _renderer.Camera.FitWorld(_renderer.WorldBounds, viewport);
+
+            // <b>기본은 플레이어 추적이다</b> (docs/20 §9.3). FitWorld 는 Home 키의 동작이라
+            // 추적을 끄므로 여기서 다시 켠다 — 접속 전에는 따라갈 대상이 없어
+            // 월드 전체가 그대로 보이고, 플레이어가 생기는 순간 그쪽으로 따라간다.
+            _renderer.Camera.Follow = true;
             _fitted = true;
         }
 
@@ -403,12 +417,7 @@ public sealed class MainForm : Form
         else if (e.Button == MouseButtons.Left)
         {
             // 좌클릭 선택 (docs/20 §9.4). 빈 곳을 찍으면 해제다.
-            SelectedNpc = _renderer.TryPickNpc(
-                e.Location, _map.ClientRectangle, _entities.Entities, out int npc)
-                ? npc
-                : -1;
-
-            _connection.SendSelect(SelectedNpc);
+            _input.Click(e.Location, _map.ClientRectangle, _entities.Entities);
         }
 
         _map.Focus();
@@ -438,23 +447,48 @@ public sealed class MainForm : Form
 
     private void OnMapMouseUp(object? sender, MouseEventArgs e) => _dragging = false;
 
-    /// <inheritdoc />
+    // ---------------------------------------------------------------- 키 입력
+
+    /// <summary>
+    /// 키를 <see cref="InputController"/> 로 넘긴다.
+    ///
+    /// <b><c>OnKeyDown</c> 이 아니라 <c>ProcessCmdKey</c> 다.</b> <c>Tab</c>·화살표는 위젯 간
+    /// 포커스 이동으로 먼저 먹히기 때문이다 — 그러면 <c>Tab</c> 이 다음 NPC 가 아니라
+    /// 다음 탭으로 간다.
+    /// </summary>
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
-        switch (keyData)
+        const int WmKeyDown = 0x0100;
+        const int WmSysKeyDown = 0x0104;
+
+        if (msg.Msg is WmKeyDown or WmSysKeyDown
+            && _input.KeyDown(keyData, _map.ClientRectangle, _entities.Entities))
         {
-            case Keys.Home:
-                _renderer.Camera.FitWorld(_renderer.WorldBounds, _map.ClientRectangle);
-                return true;
-
-            case Keys.Space:
-                // 플레이어 추적 복귀 (docs/20 §9.4). 따라갈 위치는 T6-28 이 채운다.
-                _renderer.Camera.Follow = true;
-                return true;
-
-            default:
-                return base.ProcessCmdKey(ref msg, keyData);
+            return true;
         }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    /// <inheritdoc />
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+
+        _input.KeyUp(e.KeyData);
+
+        base.OnKeyUp(e);
+    }
+
+    /// <inheritdoc />
+    protected override void OnDeactivate(EventArgs e)
+    {
+        // Alt-Tab 으로 나간 사이에 키를 놓으면 KeyUp 이 안 온다. 놓아 주지 않으면
+        // 플레이어가 영원히 걸어간다 — 돌아왔을 때 지도 밖에 있다.
+        _input.ReleaseAll();
+        _input.Send();
+
+        base.OnDeactivate(e);
     }
 
     /// <summary>

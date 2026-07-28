@@ -333,7 +333,10 @@ public sealed class GameServer : IAsyncDisposable
             CultureInfo.InvariantCulture,
             $"tick {Tick} | link {(session is { IsActive: true } ? "up" : "down")} | " +
             $"cmd {_world.CommandsApplied} | ev {_world.World.EventsEmitted} | " +
-            $"players {_players.Count} | clients {_clients.Count} | p99 {TickP99Millis:F2} ms");
+            $"players {_players.Count} | clients {_clients.Count} | " +
+            $"interact {_players.Interacts}/{_players.InteractsOutOfRange} | " +
+            $"attack {_players.Attacks}/{_players.AttacksOutOfRange} | " +
+            $"p99 {TickP99Millis:F2} ms");
     }
 
     /// <inheritdoc />
