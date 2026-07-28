@@ -343,7 +343,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-18 이벤트 송신
 - [x] T6-19 `PlayerRegistry` — 이동과 근접
 - [x] T6-20 `PlayerRegistry` — 상호작용·공격·봇
-- [ ] T6-21 `MirrorLog`
+- [x] T6-21 `MirrorLog` — 링·커서만. **틱 루프 배선은 T6-23·T6-24 몫**(소비자가 거기 있다)
 
 ### E. 클라이언트 프로토콜과 세션
 - [ ] T6-22 `Npc.TestBed.Protocol`
