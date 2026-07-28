@@ -135,11 +135,31 @@ public sealed class GameWorld : IAsyncDisposable
     /// </summary>
     public Action<TickStage>? StageObserver { get; set; }
 
+    /// <summary>
+    /// 1단계에서 적용하기 <b>직전</b>의 명령을 하나씩 알린다. <see cref="World.MirrorLog"/> 가 여기 붙는다
+    /// (docs/20 §7.2 — "CommandInbox 배수 → SimWorld.ApplyCommand (+ MirrorLog 기록)").
+    ///
+    /// <para>
+    /// <b>적용 후가 아니라 전이다.</b> 뒤에 붙이면 <c>Despawn</c> 처럼 대상 상태를 지우는 명령이
+    /// 무엇을 향한 것이었는지 로그가 말하지 못한다.
+    /// </para>
+    /// </summary>
+    public CommandSink? CommandObserver { get; set; }
+
     /// <summary>지금까지 적용한 명령 수.</summary>
     public long CommandsApplied { get; private set; }
 
     /// <summary>지금까지 민 틱 수.</summary>
     public long TicksProcessed { get; private set; }
+
+    /// <summary>
+    /// 마지막으로 민 틱. 아직 안 돌았으면 0 이다.
+    ///
+    /// <b><see cref="TicksProcessed"/> 와 다른 값일 수 있다.</b> <c>SkipTime</c>(docs/20 §8.3)이
+    /// 틱을 점프시키면 민 횟수보다 틱 번호가 앞선다 — 링크로 나가는 <c>OccurredAt</c> 은
+    /// 이쪽이라야 게임서버와 NPC 서버의 시간축이 같다.
+    /// </summary>
+    public Tick Now { get; private set; }
 
     /// <summary>
     /// 이 틱이 시작돼야 하는 벽시계 시각(ms). 기동 시각 기준이다.
@@ -219,10 +239,14 @@ public sealed class GameWorld : IAsyncDisposable
     /// </summary>
     public void Tick(Tick now)
     {
+        Now = now;
+
         StageObserver?.Invoke(TickStage.Commands);
 
         while (_inbox.TryDequeue(out NpcCommand command))
         {
+            CommandObserver?.Invoke(in command, now);
+
             _world.ApplyCommand(in command, now);
             CommandsApplied++;
         }
@@ -253,4 +277,12 @@ public sealed class GameWorld : IAsyncDisposable
 
     /// <inheritdoc />
     public ValueTask DisposeAsync() => _world.DisposeAsync();
+
+    /// <summary>
+    /// <see cref="CommandObserver"/> 의 모양.
+    ///
+    /// <b><c>Action&lt;NpcCommand, Tick&gt;</c> 가 아닌 이유는 <c>in</c> 이다.</b> 56바이트 구조체를
+    /// 틱마다 수백 번 복사하는 자리라 값 전달을 쓰지 않는다 — <c>SimWorld.CommandHandler</c> 와 같은 규약이다.
+    /// </summary>
+    public delegate void CommandSink(in NpcCommand command, Tick now);
 }

@@ -1,4 +1,4 @@
-# 20. 테스트 베드 작업 지시서 (P6 · T6-01 ~ T6-36)
+# 20. 테스트 베드 작업 지시서 (P6 · T6-01 ~ T6-38)
 
 > 사양은 [`20_TestBed_Spec.md`](20_TestBed_Spec.md)에 있다. **이 문서에 사양을 복사하지 않는다.**
 > 태스크 규약(ID·규모·선행·파일·사양·완료)은 [`TASKS.md`](../TASKS.md) §1이 정한다.
@@ -203,6 +203,31 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
   내용  `SetZoneState`·`SetWeather`·`SkipTime`·`SetFaultRate`·`Despawn`. `SkipTime`의 부작용을 코드 주석에 남긴다.
   완료  `Control_SetZoneStateEmitsEvent` · `Control_SkipTimeAdvancesTick`(정확한 틱 수) · `Control_DespawnEmitsNpcDespawned` · 모르는 `ControlKind`는 무시하고 센다
 
+### E-2. 게임 루프 — 조립과 방송 (2026-07-28 추가)
+
+> **왜 뒤늦게 생겼는가.** `docs/20` §7.2 의 10단계를 도는 루프가 **어느 태스크의 파일 목록에도 없었다.**
+> T6-14 의 완료 조건이 "옵션 파싱 + `--help`" 까지였고 이후 태스크들은 부품만 지정했다 —
+> 각 태스크는 자기 파일 목록을 지켰으므로 규약 위반은 아니다. 그 결과
+> `MirrorLog`(T6-21)·`SnapshotBuilder`(T6-24)·`ControlHandler`(T6-25)·`ClientListener.TickAsync`(T6-23)·
+> `LinkSession.FlushEventsAsync`(T6-18)가 **전부 만들어졌지만 아무도 부르지 않는다.**
+> `TASKS.md` 의 "결정 대기" 항목이 권한 (1)안이다. **T6-34·T6-35 의 선행이다.**
+>
+> **하나가 아니라 둘로 쪼갰다.** 원장의 예상은 `M` 한 개였는데, 실제로는 `ClientSession` 에
+> **스냅샷·로그를 보내는 메서드 자체가 없다** — 지금 보내는 것은 `SrvHello` 와 `Pong` 뿐이다.
+> 링크 쪽(1~9단계)과 클라이언트 쪽(10단계)은 선행도 테스트도 갈리므로 태스크를 나눈다.
+
+**T6-37** `GameServer` — 조립과 10Hz 루프(1~9단계) · `M` · 선행 T6-18, T6-21, T6-25
+  파일  `testbed/Npc.TestGameServer/GameServer.cs` (신규) · `Program.cs` (수정) · `GameWorld.cs` (수정 — 명령 관측자) · `Link/LinkSession.cs` (수정 — 이벤트 관측자·`Now`) · `tests/Npc.Tests/TestBed/GameServerTests.cs` (신규)
+  사양  `docs/20` §7.2 · §7.5 · §12
+  내용  마스터데이터·로스터·월드·등록기·수신기를 조립하고 §7.2 의 1~9단계를 100ms 페이싱으로 돈다. `MirrorLog` 를 명령·이벤트 양쪽에 배선한다. 링크 세션이 없으면 이벤트를 배수해 버린다 — 안 그러면 채널이 무한히 자란다. 종료 시 §7.5 의 한 줄 요약.
+  완료  `GameServer_TickOrderMatchesSpec` · `GameServer_MirrorsCommandsAndEvents` · `GameServer_RunsWithoutNpcServer`(링크 없이 100틱, 채널이 자라지 않는다) · `GameServer_ResyncsWhenLinkAttaches` · `GameServer_SkipTimeAdvancesTicks` 통과
+
+**T6-38** 클라이언트 방송 — 10단계 · `M` · 선행 T6-37, T6-24
+  파일  `testbed/Npc.TestGameServer/Client/ClientSession.cs` (수정) · `GameServer.cs` (수정) · `tests/Npc.Tests/TestBed/ClientBroadcastTests.cs` (신규)
+  사양  `docs/20` §8.1 · §7.2 · §7.4
+  내용  `Snapshot`(2틱) · `CommandLog`·`EventLog`(2틱, §7.4 의 세션별 필터) · `ZoneStates`(변화 시 + 5초) · `LinkStatus`(1초) 송신과 `Control` → `ControlHandler` 라우팅. 소켓에 쓰는 것은 틱 스레드 하나뿐이라는 계약을 지킨다.
+  완료  `Broadcast_SnapshotEveryTwoTicks` · `Broadcast_SelectedNpcLogsAreComplete`(선택 NPC 의 줄은 전부, 그 외는 배치당 ≤32) · `Broadcast_ZoneStatesOnChange` · `Broadcast_RoutesControlToHandler` · `Broadcast_LinkStatusEverySecond` 통과
+
 ### F. 테스트 클라이언트
 
 **T6-26** WinForms 골격과 접속 · `M` · 선행 T6-22
@@ -365,6 +390,10 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 > 아무 표시를 남기지 않는다. HP 같은 것으로 흉내내면 **화면이 거짓말을 한다** — 그래서 비웠다.
 > 채우려면 먼저 전투 상태를 어디에 둘지 정해야 한다(`PlayerRegistry` 에 마지막 피격 틱 배열이
 > 가장 싸다). **화면에서 붉은 테두리가 안 보이는 것 외에 다른 증상은 없다.**
+
+### E-2. 게임 루프 (2026-07-28 추가)
+- [x] T6-37 `GameServer` — 조립과 10Hz 루프(1~9단계)
+- [ ] T6-38 클라이언트 방송 — 10단계
 
 ### F. 테스트 클라이언트
 - [ ] T6-26 WinForms 골격과 접속

@@ -154,6 +154,17 @@ public sealed class LinkSession : IAsyncDisposable
     public Task Receiver => _receiver ?? Task.CompletedTask;
 
     /// <summary>
+    /// 채널에서 꺼낸 이벤트를 하나씩 알린다. <see cref="World.MirrorLog"/> 가 여기 붙는다
+    /// (docs/20 §7.4 — 로그 패널의 원천).
+    ///
+    /// <para>
+    /// <b>세션이 유일한 독자라서 여기가 유일한 자리다.</b> <c>SimWorld.Events</c> 는
+    /// <c>SingleReader</c> 채널이라 미러가 따로 읽을 수 없다 — 읽으면 그만큼 링크로 안 나간다.
+    /// </para>
+    /// </summary>
+    public EventSink? EventObserver { get; set; }
+
+    /// <summary>
     /// 핸드셰이크. <b>accept 태스크에서 부른다.</b> docs/20 §5.5.
     ///
     /// <c>Hello</c> 송신 → <c>HelloAck</c> 수신 → 수락 여부 판정.
@@ -168,7 +179,7 @@ public sealed class LinkSession : IAsyncDisposable
             TickRate = GameWorld.TickRate,
             TimeScale = _options.TimeScale,
             NpcCount = _world.Roster.Count,
-            StartTick = _world.TicksProcessed,
+            StartTick = _world.Now.Value,
             MasterData = WireHash.FromHex(_data.ContentHash),
             Roster = WireHash.FromHex(_world.Roster.Hash),
         });
@@ -343,7 +354,7 @@ public sealed class LinkSession : IAsyncDisposable
     public async Task ResyncAsync(CancellationToken ct)
     {
         SimWorld world = _world.World;
-        var now = new Tick(_world.TicksProcessed);
+        Tick now = _world.Now;
 
         while (world.Events.TryRead(out _))
         {
@@ -425,6 +436,8 @@ public sealed class LinkSession : IAsyncDisposable
                 SpawnsSent++;
             }
 
+            EventObserver?.Invoke(in ev);
+
             _staging[count++] = WireEvent.From(in ev);
         }
 
@@ -473,6 +486,8 @@ public sealed class LinkSession : IAsyncDisposable
             {
                 SpawnsSent++;
             }
+
+            EventObserver?.Invoke(in ev);
 
             _staging[count++] = WireEvent.From(in ev);
 
@@ -575,4 +590,10 @@ public sealed class LinkSession : IAsyncDisposable
 
         return (kind, payload);
     }
+
+    /// <summary>
+    /// <see cref="EventObserver"/> 의 모양. <c>in</c> 인 이유는 <see cref="GameWorld.CommandSink"/> 와 같다 —
+    /// 64바이트 구조체를 틱마다 수백 번 복사하지 않는다.
+    /// </summary>
+    public delegate void EventSink(in GameEvent ev);
 }
