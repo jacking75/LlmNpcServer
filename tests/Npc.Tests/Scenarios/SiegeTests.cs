@@ -20,7 +20,32 @@ namespace Npc.Tests.Scenarios;
 /// 전부 똑같이 도망가면 LLM 을 쓴 의미가 없다.
 ///
 /// 실 LLM 을 부르지 않는다 — 필요한 War 버킷은 <c>planstore/</c> 에 프리베이크되어 있고
-/// (T4-23 회차: farmer·town_guard 56건 · $0.139), 이 테스트가 보는 것은 <b>런타임의 전환 경로</b>다.
+/// 이 테스트가 보는 것은 <b>런타임의 전환 경로</b>다.
+///
+/// <para>
+/// <b>네 건은 <c>Category=Gate</c> 다</b> (2026-07-28 결정 14).
+/// <c>planstore/plans/</c> 는 <c>.gitignore</c> 대상이라(CLAUDE.md §6 — 재현 가능한 생성물)
+/// 저장소만 받은 상태에서는 War 버킷이 없고, 그러면 넷이
+/// <b>"War 인데 아무 플랜도 갈아타지 않았다"</b> 로 실패한다. 실제로 커밋 <c>a8ddd61</c> 에서 재현했다.
+/// </para>
+///
+/// <para>
+/// <b>버킷을 테스트가 합성해서 채우지 않는다.</b> 그렇게 하면 "War 에서 플랜이 달라졌다" 가
+/// 런타임이 아니라 픽스처의 성질이 되어 <b>테스트가 공허해진다</b> —
+/// 합성 플랜의 goal 만 바꿔도 통과하기 때문이다. 이 넷이 판정하려는 것은
+/// "프리베이크된 다른 버킷의 플랜으로 실제로 갈아타는가" 이고, 그러려면 진짜 산출물이 있어야 한다.
+/// </para>
+///
+/// <para>
+/// 그래서 <c>Category=Gate</c> 로 가른다 — <b>산출물이 없으면 실패하되</b> 기본 CI 에서는 뺀다.
+/// 없는 것을 통과로 세면 게이트가 거짓이 된다 (CLAUDE.md §5).
+/// 나머지 셋(인터럽트 1틱 · 전환 p99 · 시나리오 파일 점검)은 산출물 없이도 성립하므로 상시 돈다.
+/// </para>
+///
+/// <para>
+/// 판정하려면 도달 집합 + 공성 <b>978버킷</b>을 프리베이크한다 —
+/// <c>docs/measurements/reach264_prebake.md §5.2</c> · §6 에 명령이 있다.
+/// </para>
 /// </summary>
 [Collection(AllocationCollection.Name)]
 public sealed class SiegeTests
@@ -260,6 +285,7 @@ public sealed class SiegeTests
     /// 존 이벤트는 <see cref="BucketTransition.ZoneJitterSpread"/>(±14 = 2.9초 창)를 쓴다.
     /// </summary>
     [Fact]
+    [Trait("Category", "Gate")]   // 프리베이크된 War 버킷이 있어야 판정된다 (아래 클래스 주석)
     public void Siege_TownSwapsWithinThreeSeconds()
     {
         Rig rig = NewRig();
@@ -293,6 +319,7 @@ public sealed class SiegeTests
     /// 이미 채워진 버킷은 절대 일감으로 올라오지 않는다.
     /// </summary>
     [Fact]
+    [Trait("Category", "Gate")]   // 프리베이크된 War 버킷이 있어야 판정된다 (아래 클래스 주석)
     public void Siege_OnlyMissedBucketsBecomeLlmWork()
     {
         Rig rig = NewRig();
@@ -373,6 +400,7 @@ public sealed class SiegeTests
     /// 전부 똑같이 도망가면 LLM 을 쓴 의미가 없다 (docs/14 §7).
     /// </summary>
     [Fact]
+    [Trait("Category", "Gate")]   // 프리베이크된 War 버킷이 있어야 판정된다 (아래 클래스 주석)
     public void Siege_ArchetypesDivergeUnderWar()
     {
         Rig rig = NewRig();
@@ -418,6 +446,7 @@ public sealed class SiegeTests
 
     /// <summary>Peace 복귀 시 원래 플랜으로 복원된다.</summary>
     [Fact]
+    [Trait("Category", "Gate")]   // 프리베이크된 War 버킷이 있어야 판정된다 (아래 클래스 주석)
     public void Siege_RestoresPlansOnPeace()
     {
         Rig rig = NewRig();

@@ -1,5 +1,36 @@
 # 작업 로그
 
+## 2026-07-28 12:26 KST · manifest 스키마와 게이트 산출물 의존 정리 (결정 13·15-A·14)
+
+**① 13 — `counts.generated` 를 "스토어 총계" 로 확정**
+원인은 `BulkRunner` 가 빈 스토어로 시작하는 것이었다. 디스크에 718개가 있는데 manifest 는
+523(이번 회차 몫)이라 적었고 게이트가 그 값을 읽었다. 저장 뒤 디스크에서 다시 읽어 센다.
+
+**② 15-A — 판정선을 "전량" 에서 "선언한 범위 완주" 로**
+`RequireFullRun`(생성/2,880 ≥ 95 %) → `RequireCompleteRun`(`target > 0 && !partial`).
+manifest 에 `counts.target` 을 추가했다. **방어는 사라지지 않고 자리를 옮겼다** — 측정치에
+`[대상 N버킷]` 꼬리표를 강제한다. "97초" 가 264버킷의 값이라는 문맥을 잃으면 게이트가 다시 거짓이 된다.
+
+**③ 14 — `SiegeTests` 4건을 `Category=Gate` 로**
+**버킷을 합성해 채우는 안은 택하지 않았다.** 그러면 "War 에서 플랜이 달라졌다" 가 런타임이 아니라
+픽스처의 성질이 되어 테스트가 공허해진다 — 합성 플랜의 goal 만 바꿔도 통과한다.
+어느 넷인지는 빈 스토어(`a8ddd61`) 실측으로 갈랐다. CI 기본 914 → 910건.
+
+---
+
+**부수 발견 — `ReplanQueue` 가 스레드 안전하지 않다. 실제 결함이다.**
+
+`Handoff_SurvivesConcurrentWorkersAndTicks` 가 `ReplanQueue.Insert` 에서
+`IndexOutOfRangeException` 으로 죽는다 (8회 중 2회).
+
+- 틱 루프가 `TryEnqueue` 를, 워커 8개가 `TryDequeue`(`IndividualReplanSource`)를 **동시에** 부른다
+- `ReplanQueue` 에 동기화가 **하나도 없다** — `lock`·`Interlocked`·`Volatile` 0개
+- 용량 검사와 `Insert` 사이 창에서 `_count` 가 `_capacity` 를 넘어 `_heap[_count]` 가 범위를 벗어난다
+
+**지금까지 안 터진 이유는 전 회차가 `--tier none` 이라 워커가 뜨지 않아서다.**
+보고서의 "런타임 LLM 근거 없음" 과 같은 뿌리이고, **결정 5(티어 켠 회차)의 선행이다.**
+`docs/14 §2` 가 스레드 모델을 명시하지 않은 것이 뿌리라 설계 판단이 필요하다 — `TASKS.md §3` 에 올렸다.
+
 ## 2026-07-28 12:03 KST · 게이트 기준 개정 4건과 CI 필터 수정 (사용자 결정 1-A·2-A·3-A·4-A·12)
 
 **① 1-A — P2 통과율 게이트를 판정에서 뺐다** (`docs/12 §9`)
