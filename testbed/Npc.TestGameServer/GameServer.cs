@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Npc.Contracts;
 using Npc.MasterData;
+using Npc.TestBed.Protocol;
 using Npc.TestGameServer.Client;
 using Npc.TestGameServer.Link;
 using Npc.TestGameServer.World;
@@ -34,6 +35,12 @@ public sealed class GameServer : IAsyncDisposable
     /// <summary><c>--headless</c> 일 때 통계를 찍는 주기(틱). 5초다.</summary>
     public const int StatsPeriodTicks = GameWorld.TickRate * 5;
 
+    /// <summary>존 상태를 다시 보내는 최대 간격(틱). 5초다 (docs/20 §8.1). 변화가 있으면 즉시 나간다.</summary>
+    public const int ZoneStatesPeriodTicks = GameWorld.TickRate * 5;
+
+    /// <summary>링크 상태 주기(틱). 1초다 (docs/20 §8.1).</summary>
+    public const int LinkStatusPeriodTicks = GameWorld.TickRate;
+
     private readonly GameServerOptions _options;
     private readonly MasterDataSet _data;
     private readonly GameWorld _world;
@@ -57,6 +64,25 @@ public sealed class GameServer : IAsyncDisposable
     /// <summary>이벤트 관측자를 이미 붙인 세션. 재접속하면 새 세션에 다시 붙인다.</summary>
     private LinkSession? _observed;
 
+    /// <summary>
+    /// 존별 지역 상태·기후. 첨자는 존 code 다.
+    ///
+    /// <b>게임서버가 이것을 들고 있어야 하는 이유.</b> <c>SimWorld</c> 는 존 상태를 저장하지 않는다 —
+    /// <c>ZoneStateChanged</c> 는 그냥 지나가는 이벤트다. 클라이언트에 <c>ZoneStates</c> 를
+    /// 보내려면 지나가는 것을 누군가 붙잡아야 하고, 그 자리가 여기다.
+    /// </summary>
+    private readonly byte[] _zoneRegion;
+    private readonly byte[] _zoneClimate;
+
+    /// <summary>존 상태가 바뀌었다. 다음 방송에 실린다.</summary>
+    private bool _zonesDirty = true;
+
+    /// <summary>마지막으로 존 상태를 보낸 틱.</summary>
+    private long _zonesSentAt = long.MinValue;
+
+    /// <summary>NPC 서버가 마지막으로 알린 틱. 명령의 <c>IssuedAt</c> 에서 딴다.</summary>
+    private long _npcServerTick;
+
     private GameServer(
         GameServerOptions options,
         MasterDataSet data,
@@ -79,6 +105,27 @@ public sealed class GameServer : IAsyncDisposable
         _link = link;
         _clients = clients;
         _log = log;
+
+        int max = 0;
+
+        foreach (ZoneDef zone in data.Zones.Zones)
+        {
+            max = Math.Max(max, zone.Code.Value);
+        }
+
+        _zoneRegion = new byte[max + 1];
+        _zoneClimate = new byte[max + 1];
+
+        // 마스터데이터의 기본값에서 시작한다. 이것을 안 하면 zones.json 이 Alert·Cold 로
+        // 선언한 존이 첫 방송에서 Peace·Fair 로 보인다 (docs/20 §5.5 의 2026-07-28 보정과 같은 사고다).
+        foreach (ZoneDef zone in data.Zones.Zones)
+        {
+            _zoneRegion[zone.Code.Value] = (byte)zone.DefaultRegionState;
+            _zoneClimate[zone.Code.Value] = (byte)zone.DefaultClimate;
+        }
+
+        world.CommandObserver = ObserveCommand;
+        clients.Controls = _controls;
     }
 
     /// <summary>월드. 테스트가 상태를 들여다보는 통로다.</summary>
@@ -166,11 +213,6 @@ public sealed class GameServer : IAsyncDisposable
 
         GameWorld world = GameWorld.Create(options, data, roster);
         var mirror = new MirrorLog();
-
-        // 1단계의 (+ MirrorLog 기록) 이다 (docs/20 §7.2). 이벤트 쪽은 링크 세션에 붙는다 —
-        // SimWorld.Events 는 SingleReader 라 미러가 따로 읽으면 그만큼 링크로 안 나간다.
-        world.CommandObserver = mirror.Record;
-
         var players = new PlayerRegistry(world, data, options);
 
         world.Players = players.Tick;
@@ -260,6 +302,9 @@ public sealed class GameServer : IAsyncDisposable
 
         // 9단계.
         await FlushLinkAsync(now, ct).ConfigureAwait(false);
+
+        // 10단계.
+        await BroadcastAsync(now, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -270,8 +315,6 @@ public sealed class GameServer : IAsyncDisposable
     /// </summary>
     public string Summarize()
     {
-        Accumulate();
-
         return string.Create(
             CultureInfo.InvariantCulture,
             $"ticks {_world.TicksProcessed} (tick {Tick}, skipped {TicksSkipped}) | " +
@@ -385,7 +428,11 @@ public sealed class GameServer : IAsyncDisposable
         {
             Accumulate();
 
-            session.EventObserver = _mirror.Record;
+            session.EventObserver = ObserveEvent;
+
+            // 링크가 없던 구간에 우리가 버린 분을 알려 준다. 안 알리면 세션의 EventsPending 이
+            // 그만큼 부풀어 적체가 없는데 적체 압력이 보인다.
+            session.ExternallyDrained = OrphanEvents;
             _observed = session;
         }
 
@@ -403,6 +450,8 @@ public sealed class GameServer : IAsyncDisposable
             // 소켓이 죽었다. 자리를 비워 재접속을 받는다 — 세계는 계속 돈다 (docs/20 §7.2).
             await session.CloseAsync(LinkByeCode.Timeout, ct).ConfigureAwait(false);
         }
+
+        Accumulate();
     }
 
     /// <summary>링크가 없는 구간의 이벤트를 미러에만 남기고 버린다.</summary>
@@ -410,8 +459,174 @@ public sealed class GameServer : IAsyncDisposable
     {
         while (_world.World.Events.TryRead(out GameEvent ev))
         {
-            _mirror.Record(in ev);
+            ObserveEvent(in ev);
             OrphanEvents++;
+        }
+    }
+
+    /// <summary>
+    /// 10단계. 클라이언트 방송. docs/20 §7.2 · §8.1.
+    ///
+    /// <b>세션 하나가 던져도 나머지를 계속 돈다</b> — 창 하나가 닫힌 것이 세계를 멈출 이유가 아니다.
+    /// 죽은 세션의 자리는 다음 틱의 3단계에서 회수된다.
+    /// </summary>
+    private async Task BroadcastAsync(Tick now, CancellationToken ct)
+    {
+        bool snapshotDue = SnapshotBuilder.DueAt(now);
+        bool zonesDue = _zonesDirty || now.Value - _zonesSentAt >= ZoneStatesPeriodTicks;
+        bool statusDue = now.Value % LinkStatusPeriodTicks == 0;
+
+        if (!snapshotDue && !zonesDue && !statusDue)
+        {
+            return;
+        }
+
+        // 존 상태·링크 상태는 세션마다 같다. 한 번만 만든다.
+        ZoneStates zones = default;
+        bool zonesBuilt = false;
+        LinkStatus status = statusDue ? BuildLinkStatus(now) : default;
+
+        foreach (ClientSession session in _clients.Live)
+        {
+            try
+            {
+                if (snapshotDue)
+                {
+                    await session.SendSnapshotAsync(_snapshots.Build(session.Player, now), ct)
+                        .ConfigureAwait(false);
+
+                    // 로그는 스냅샷 뒤다 — AOI 집합이 그 안에서 갱신된다 (docs/20 §7.4).
+                    await session.SendLogsAsync(_mirror, ct).ConfigureAwait(false);
+                }
+
+                // 방금 붙은 세션은 주기를 기다리지 않는다. 주기만 보면 최대 5초 동안
+                // 회색 지도를 보게 되고, 사람은 그것을 "제어가 안 먹는다" 로 읽는다.
+                if (zonesDue || session.NeedsZoneStates)
+                {
+                    if (!zonesBuilt)
+                    {
+                        zones = BuildZoneStates(now);
+                        zonesBuilt = true;
+                    }
+
+                    await session.SendZoneStatesAsync(zones, ct).ConfigureAwait(false);
+                }
+
+                if (statusDue)
+                {
+                    await session.SendLinkStatusAsync(status, ct).ConfigureAwait(false);
+                }
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                // 소켓이 죽었다. 다음 틱 3단계가 자리를 회수한다.
+                session.Close();
+            }
+        }
+
+        if (zonesDue)
+        {
+            _zonesSentAt = now.Value;
+            _zonesDirty = false;
+        }
+    }
+
+    /// <summary>지금 존 상태 한 장. 존 수만큼이라 짧다.</summary>
+    private ZoneStates BuildZoneStates(Tick now)
+    {
+        var zones = new ZoneState[_data.Zones.Zones.Length];
+
+        for (int i = 0; i < zones.Length; i++)
+        {
+            ZoneDef zone = _data.Zones.Zones[i];
+
+            zones[i] = new ZoneState
+            {
+                ZoneCode = zone.Code.Value,
+                RegionState = _zoneRegion[zone.Code.Value],
+                Climate = _zoneClimate[zone.Code.Value],
+            };
+        }
+
+        return new ZoneStates { Tick = now.Value, Zones = zones };
+    }
+
+    /// <summary>
+    /// 링크 상태 한 장. docs/20 §8.1 · §9.2.
+    ///
+    /// <para>
+    /// <b><c>NpcServerTick</c> 은 명령의 <c>IssuedAt</c> 에서 딴다.</b> 하트비트에는 없다 —
+    /// <c>TcpGameServerLink</c> 는 런타임의 틱을 모르고(<c>IGameServerLink</c> 에 그런 것이 없다),
+    /// 넣으려면 계약을 바꿔야 한다. 대신 <b>NPC 서버가 조용하면 이 값이 늙는다</b> —
+    /// 상태바의 지연이 커지는 것으로 보이는데, 그것도 정보다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>Gaps</c> 는 우리가 낸 시퀀스 중 링크로 안 나간 수다.</b> 세션 전에 쌓여 버려진 분과
+    /// 링크 없는 구간의 분이 여기 든다 — NPC 서버의 <c>EventGapsDetected</c> 가 셀 값과 같다.
+    /// </para>
+    /// </summary>
+    private LinkStatus BuildLinkStatus(Tick now)
+    {
+        LinkSession? session = _link.Session;
+        long pending = session is { IsActive: true } ? session.EventsPending : 0;
+
+        return new LinkStatus
+        {
+            GsTick = now.Value,
+            NpcServerTick = _npcServerTick,
+            CommandsIn = _commandsIn,
+            EventsOut = _eventsOut,
+            Dropped = _world.Inbox.Dropped,
+            Gaps = Math.Max(0, _world.World.EventsEmitted - _eventsOut - pending),
+            Connected = (byte)(session is { IsActive: true, IsAccepted: true } ? 1 : 0),
+        };
+    }
+
+    /// <summary>
+    /// 1단계에서 적용되는 명령 하나. 미러에 남기고 NPC 서버의 틱을 딴다.
+    /// </summary>
+    private void ObserveCommand(in NpcCommand command, Tick now)
+    {
+        _mirror.Record(in command, now);
+
+        if (command.IssuedAt.Value > _npcServerTick)
+        {
+            _npcServerTick = command.IssuedAt.Value;
+        }
+    }
+
+    /// <summary>
+    /// 나가는 이벤트 하나. 미러에 남기고 존 상태를 붙잡는다.
+    ///
+    /// <b>여기가 존 상태를 아는 유일한 자리다</b> — <c>SimWorld</c> 는 저장하지 않고,
+    /// 이벤트는 링크 세션이 유일한 독자라 미러가 따로 읽을 수 없다.
+    /// </summary>
+    private void ObserveEvent(in GameEvent ev)
+    {
+        _mirror.Record(in ev);
+
+        int zone = ev.Zone.Value;
+
+        if ((uint)zone >= (uint)_zoneRegion.Length)
+        {
+            return;
+        }
+
+        switch (ev.Kind)
+        {
+            case GameEventKind.ZoneStateChanged:
+                _zoneRegion[zone] = ev.Code;
+                _zonesDirty = true;
+                break;
+
+            case GameEventKind.WeatherChanged:
+                _zoneClimate[zone] = ev.Code;
+                _zonesDirty = true;
+                break;
+
+            default:
+                break;
         }
     }
 

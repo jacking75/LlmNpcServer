@@ -52,6 +52,17 @@ public sealed class ClientSession : IAsyncDisposable
     /// </summary>
     public const int InboxCapacity = 256;
 
+    /// <summary>한 배치에서 <see cref="MirrorLog"/> 로부터 읽는 줄 수 상한.</summary>
+    public const int MaxLogRead = 256;
+
+    /// <summary>
+    /// 선택 NPC 가 <b>아닌</b> NPC 의 줄은 배치당 이만큼까지다. docs/20 §7.4.
+    ///
+    /// 전량을 보내면 NPC 500 에서 초당 수백 건이 된다. 선택한 NPC 의 줄은 이 상한을 안 받는다 —
+    /// 그 NPC 를 설명하는 것이 이 화면의 목적이기 때문이다 (docs/20 §9.5).
+    /// </summary>
+    public const int MaxOtherLogsPerBatch = 32;
+
     private const int Mask = InboxCapacity - 1;
 
     private readonly Stream _stream;
@@ -63,11 +74,37 @@ public sealed class ClientSession : IAsyncDisposable
     /// <summary>리시버(생산자) → 틱 스레드(소비자) SPSC 링. <see cref="Link.CommandInbox"/> 와 같은 모양이다.</summary>
     private readonly ClientAction[] _inbox = new ClientAction[InboxCapacity];
 
+    /// <summary>마지막 스냅샷에 실린 NPC. 로그 필터의 "AOI 안" 이 이것이다 (docs/20 §7.4).</summary>
+    private readonly bool[] _inAoi;
+
+    private readonly LoggedCommand[] _readCommands = new LoggedCommand[MaxLogRead];
+    private readonly LoggedEvent[] _readEvents = new LoggedEvent[MaxLogRead];
+
+    /// <summary>
+    /// 거른 결과. <b>읽기 버퍼와 갈라 둔다</b> — 훑는 자리가 감기므로 제자리 압축이 안 된다.
+    ///
+    /// 여기서 미러의 <see cref="LoggedCommand"/> 가 와이어의 <see cref="LogCommand"/> 로 바뀐다.
+    /// 미러는 게임서버 내부 표현이고 이쪽은 프로토콜이라 둘을 같은 타입으로 묶지 않는다 —
+    /// <c>Npc.Wire</c> 가 <c>Npc.Contracts</c> 와 갈려 있는 것과 같은 이유다 (docs/20 §3.1).
+    /// </summary>
+    private readonly LogCommand[] _outCommands = new LogCommand[MaxLogRead];
+    private readonly LogEvent[] _outEvents = new LogEvent[MaxLogRead];
+
+    /// <summary>선별한 줄을 틱 순으로 되돌리는 정렬 키. 비교자를 만들지 않으려고 키 배열을 쓴다.</summary>
+    private readonly long[] _logKeys = new long[MaxLogRead];
+
     private long _head;   // 소비자 (틱 스레드)
     private long _tail;   // 생산자 (리시버)
 
     private int _active = 1;
     private Task? _receiver;
+
+    /// <summary>이 세션이 미러를 어디까지 읽었는가. 첫 배치 때 만든다.</summary>
+    private MirrorLog.Cursor? _cursor;
+
+    /// <summary>라운드로빈 시작 자리. 같은 NPC 의 줄만 계속 실리지 않게 한다 (docs/20 §7.4).</summary>
+    private int _commandRotate;
+    private int _eventRotate;
 
     /// <summary>세션을 만든다. 소켓은 <see cref="ClientListener"/> 가 이미 열어 뒀다.</summary>
     public ClientSession(
@@ -82,7 +119,16 @@ public sealed class ClientSession : IAsyncDisposable
         _players = players;
         _bounds = bounds;
         _timeScale = timeScale;
+        _inAoi = new bool[world.World.Capacity];
     }
+
+    /// <summary>
+    /// 제어 처리기. <see cref="ClientListener"/> 가 붙여 준다. null 이면 <c>Control</c> 을 버린다.
+    ///
+    /// <b>세션이 직접 만들지 않는다.</b> <see cref="ControlHandler"/> 는 <c>SimWorld.Handler</c> 앞에
+    /// 서는 프로세스 단위 물건이라 세션마다 하나씩 있으면 관문이 겹겹이 쌓인다.
+    /// </summary>
+    public ControlHandler? Controls { get; set; }
 
     /// <summary>세션이 살아 있는가. 리스너가 이 값을 보고 자리를 회수한다.</summary>
     public bool IsActive => Volatile.Read(ref _active) != 0;
@@ -92,6 +138,9 @@ public sealed class ClientSession : IAsyncDisposable
 
     /// <summary>아직 <see cref="JoinAsync"/> 를 안 불렀는가. 틱 루프가 이 값을 본다.</summary>
     public bool NeedsJoin { get; private set; } = true;
+
+    /// <summary>아직 존 상태를 한 번도 안 받았는가. 첫 장은 주기를 기다리지 않는다 (docs/20 §8.1).</summary>
+    public bool NeedsZoneStates { get; private set; } = true;
 
     /// <summary>배정된 플레이어. 아직 참여 전이거나 정원 초과면 <c>PlayerId(0)</c> 다.</summary>
     public PlayerId Player { get; private set; }
@@ -117,6 +166,18 @@ public sealed class ClientSession : IAsyncDisposable
 
     /// <summary>보낸 프레임 수.</summary>
     public long FramesSent { get; private set; }
+
+    /// <summary>보낸 <c>Snapshot</c> 수.</summary>
+    public long SnapshotsSent { get; private set; }
+
+    /// <summary>보낸 로그 줄 수 — 명령·이벤트 합계.</summary>
+    public long LogLinesSent { get; private set; }
+
+    /// <summary>배치 상한(<see cref="MaxOtherLogsPerBatch"/>)에 걸려 뺀 줄 수의 누계.</summary>
+    public long LogLinesCulled { get; private set; }
+
+    /// <summary>적용한 <c>Control</c> 수. <see cref="ControlHandler"/> 가 거절한 것은 안 센다.</summary>
+    public long ControlsApplied { get; private set; }
 
     /// <summary>수신 루프. 세션이 끝나면 완료된다.</summary>
     public Task Receiver => _receiver ?? Task.CompletedTask;
@@ -227,12 +288,115 @@ public sealed class ClientSession : IAsyncDisposable
                     PongsSent++;
                     break;
 
+                case ClientMessageKind.Control:
+                    // 모르는 종류·틀린 인자는 처리기가 세고 넘긴다 — 낡은 클라이언트 하나가
+                    // 게임서버를 죽이면 안 된다 (docs/20 §8.3).
+                    if (Controls is { } controls && controls.Apply(
+                        new Control
+                        {
+                            Kind = action.ControlKind,
+                            ZoneCode = action.Zone,
+                            Code = action.Code,
+                            Amount = action.Amount,
+                        },
+                        now))
+                    {
+                        ControlsApplied++;
+                    }
+
+                    break;
+
                 default:
                     // 모르는 종류는 이미 리시버가 걸렀다. 여기 오면 우리 실수다.
                     break;
             }
         }
     }
+
+    // ---------------------------------------------------------------- 10단계 방송
+
+    /// <summary>
+    /// 스냅샷 한 장. <b>틱 스레드에서 부른다</b> — 틱 10단계다 (docs/20 §7.2).
+    ///
+    /// 실린 NPC 를 기억해 둔다. 로그 필터의 "AOI 안" 이 곧 이 집합이다 (docs/20 §7.4) —
+    /// 거리를 두 번 재지 않는다.
+    /// </summary>
+    public async Task SendSnapshotAsync(Snapshot snapshot, CancellationToken ct)
+    {
+        Array.Clear(_inAoi);
+
+        EntityState[] entities = snapshot.Entities ?? [];
+        int count = Math.Min(snapshot.EntityCount, entities.Length);
+
+        for (int i = 0; i < count; i++)
+        {
+            ref EntityState entity = ref entities[i];
+
+            if (entity.Kind == (byte)EntityKind.Npc && (uint)entity.Id < (uint)_inAoi.Length)
+            {
+                _inAoi[entity.Id] = true;
+            }
+        }
+
+        await SendAsync(ClientMessageKind.Snapshot, snapshot, ct).ConfigureAwait(false);
+
+        SnapshotsSent++;
+    }
+
+    /// <summary>
+    /// 명령·이벤트 로그 한 배치. <b>틱 스레드에서 부른다.</b> docs/20 §7.4 · §8.1.
+    ///
+    /// <b><see cref="SendSnapshotAsync"/> 뒤에 부른다</b> — AOI 집합이 그 안에서 갱신된다.
+    /// </summary>
+    public async Task SendLogsAsync(MirrorLog mirror, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(mirror);
+
+        _cursor ??= mirror.NewCursor();
+
+        int read = mirror.ReadCommands(_cursor, _readCommands);
+        int kept = FilterCommands(read);
+
+        if (kept > 0)
+        {
+            await SendAsync(
+                ClientMessageKind.CommandLog,
+                new CommandLog { Commands = _outCommands.AsSpan(0, kept).ToArray() },
+                ct).ConfigureAwait(false);
+
+            LogLinesSent += kept;
+        }
+
+        read = mirror.ReadEvents(_cursor, _readEvents);
+        kept = FilterEvents(read);
+
+        if (kept > 0)
+        {
+            await SendAsync(
+                ClientMessageKind.EventLog,
+                new EventLog { Events = _outEvents.AsSpan(0, kept).ToArray() },
+                ct).ConfigureAwait(false);
+
+            LogLinesSent += kept;
+        }
+    }
+
+    /// <summary>
+    /// 존 상태 한 장. 변화 시 + 5초마다다 (docs/20 §8.1).
+    ///
+    /// <b>첫 장은 주기를 기다리지 않는다</b> (<see cref="NeedsZoneStates"/>). 방금 붙은 세션이
+    /// 다음 주기까지 존 색을 모르면, 사람은 그 5초 동안 회색 지도를 보고 "제어가 안 먹는다" 로 읽는다.
+    /// </summary>
+    public async Task SendZoneStatesAsync(ZoneStates zones, CancellationToken ct)
+    {
+        await SendAsync(ClientMessageKind.ZoneStates, zones, ct).ConfigureAwait(false);
+
+        NeedsZoneStates = false;
+    }
+
+    /// <summary>NPC 서버 링크의 상태 한 장. 1초마다다 (docs/20 §8.1).</summary>
+    public Task SendLinkStatusAsync(LinkStatus status, CancellationToken ct) =>
+        SendAsync(ClientMessageKind.LinkStatus, status, ct);
 
     /// <summary>
     /// 세션을 끝낸다. <b>플레이어 제거는 여기서 하지 않는다</b> —
@@ -279,6 +443,125 @@ public sealed class ClientSession : IAsyncDisposable
             // 상대가 이미 끊었다. 거절 통보는 최선 노력이다.
         }
     }
+
+    // ---------------------------------------------------------------- 로그 필터
+
+    /// <summary>
+    /// 명령 줄을 §7.4 규약대로 거른다 — 선택 NPC 는 전부, 그 외는 AOI 안에서 배치당
+    /// <see cref="MaxOtherLogsPerBatch"/> 건까지.
+    ///
+    /// <para>
+    /// <b>라운드로빈은 훑기 시작 자리를 미는 것으로 한다.</b> 미러는 도착 순이라 시작 자리를
+    /// 옮기면 다음 배치에서 다른 NPC 가 실린다 — 늘 앞의 32건만 실으면 수다스러운 NPC 하나가
+    /// 나머지를 굶긴다. 자리를 옮긴 만큼 순서가 접히므로 마지막에 틱 순으로 되돌린다.
+    /// </para>
+    /// </summary>
+    /// <returns><see cref="_outCommands"/> 앞쪽에 담긴 줄 수.</returns>
+    private int FilterCommands(int read)
+    {
+        if (read <= 0)
+        {
+            return 0;
+        }
+
+        int kept = 0;
+        int others = 0;
+
+        for (int step = 0; step < read; step++)
+        {
+            ref LoggedCommand line = ref _readCommands[(_commandRotate + step) % read];
+
+            if (line.Npc != SelectedNpc)
+            {
+                if (!InAoi(line.Npc))
+                {
+                    continue;
+                }
+
+                if (others >= MaxOtherLogsPerBatch)
+                {
+                    LogLinesCulled++;
+                    continue;
+                }
+
+                others++;
+            }
+
+            _logKeys[kept] = line.Tick;
+            _outCommands[kept++] = new LogCommand
+            {
+                Tick = line.Tick,
+                Npc = line.Npc,
+                Correlation = line.Correlation,
+                TargetPoi = line.TargetPoi,
+                Kind = line.Kind,
+            };
+        }
+
+        _commandRotate = (_commandRotate + Math.Max(1, others)) % read;
+
+        Array.Sort(_logKeys, _outCommands, 0, kept);
+
+        return kept;
+    }
+
+    /// <summary>이벤트 줄. <see cref="FilterCommands"/> 와 같은 규약이다.</summary>
+    /// <returns><see cref="_outEvents"/> 앞쪽에 담긴 줄 수.</returns>
+    private int FilterEvents(int read)
+    {
+        if (read <= 0)
+        {
+            return 0;
+        }
+
+        int kept = 0;
+        int others = 0;
+
+        for (int step = 0; step < read; step++)
+        {
+            ref LoggedEvent line = ref _readEvents[(_eventRotate + step) % read];
+
+            if (line.Npc != SelectedNpc)
+            {
+                if (!InAoi(line.Npc))
+                {
+                    continue;
+                }
+
+                if (others >= MaxOtherLogsPerBatch)
+                {
+                    LogLinesCulled++;
+                    continue;
+                }
+
+                others++;
+            }
+
+            _logKeys[kept] = line.Tick;
+            _outEvents[kept++] = new LogEvent
+            {
+                Tick = line.Tick,
+                Npc = line.Npc,
+                Amount = line.Amount,
+                Kind = line.Kind,
+                Code = line.Code,
+            };
+        }
+
+        _eventRotate = (_eventRotate + Math.Max(1, others)) % read;
+
+        Array.Sort(_logKeys, _outEvents, 0, kept);
+
+        return kept;
+    }
+
+    /// <summary>
+    /// 이 NPC 가 마지막 스냅샷에 실렸는가.
+    ///
+    /// <b>스냅샷을 아직 한 번도 안 보냈으면 전부 false 다</b> — 그래서 첫 배치는 선택 NPC 의 줄만
+    /// 나간다. 5Hz 라 한 번 늦는 것뿐이고, 거리를 두 번 재는 것보다 낫다.
+    /// </summary>
+    private bool InAoi(int npc) => (uint)npc < (uint)_inAoi.Length && _inAoi[npc];
 
     // ---------------------------------------------------------------- 수신
 
@@ -381,9 +664,19 @@ public sealed class ClientSession : IAsyncDisposable
                 return;
 
             case ClientMessageKind.Control:
-                // 제어는 T6-25 가 받는다. 그때까지는 세지도 않고 버린다 —
-                // 프레임 경계는 맞았으므로 스트림은 멀쩡하다.
+            {
+                Control control = MemoryPackSerializer.Deserialize<Control>(payload);
+
+                Enqueue(new ClientAction
+                {
+                    Kind = kind,
+                    ControlKind = control.Kind,
+                    Zone = control.ZoneCode,
+                    Code = control.Code,
+                    Amount = control.Amount,
+                });
                 return;
+            }
 
             default:
                 // 서버 → 클라 종류가 거꾸로 왔다. 무시한다.
@@ -490,5 +783,14 @@ public sealed class ClientSession : IAsyncDisposable
         public float DirZ;
         public byte Run;
         public long Stamp;
+
+        /// <summary><c>Control</c> 전용 — <c>ControlKind</c>. <see cref="Kind"/> 는 늘 <c>Control</c> 이다.</summary>
+        public byte ControlKind;
+
+        /// <summary><c>Control</c> 전용 — 대상 존.</summary>
+        public ushort Zone;
+
+        /// <summary><c>Control</c> 전용 — Kind 별 소형 코드.</summary>
+        public byte Code;
     }
 }

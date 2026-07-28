@@ -59,6 +59,14 @@ public sealed class ClientListener : IAsyncDisposable
     /// <summary>월드 경계. <c>SrvHello</c> 에 실려 클라이언트의 <c>Home</c> 이 된다.</summary>
     public WorldBounds Bounds => _bounds;
 
+    /// <summary>
+    /// 세션들이 <c>Control</c> 을 넘길 처리기. <c>GameServer</c> 가 기동 시 한 번 붙인다.
+    ///
+    /// <b>세션마다 만들지 않는다.</b> <see cref="ControlHandler"/> 는 <c>SimWorld.Handler</c> 앞에
+    /// 서는 프로세스 단위 물건이라 여럿이면 관문이 겹겹이 쌓인다 (docs/20 §8.3).
+    /// </summary>
+    public ControlHandler? Controls { get; set; }
+
     /// <summary>동시 접속 상한.</summary>
     public int Capacity => _sessions.Length;
 
@@ -151,7 +159,10 @@ public sealed class ClientListener : IAsyncDisposable
             }
 
             var session = new ClientSession(
-                client.GetStream(), _world, _players, _bounds, _options.TimeScale);
+                client.GetStream(), _world, _players, _bounds, _options.TimeScale)
+            {
+                Controls = Controls,
+            };
 
             bool greeted;
 

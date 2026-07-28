@@ -144,8 +144,17 @@ public sealed class LinkSession : IAsyncDisposable
     /// <summary>보낸 하트비트 수.</summary>
     public long HeartbeatsSent { get; private set; }
 
+    /// <summary>
+    /// 세션 밖에서 배수된 이벤트 수. 링크가 없던 구간에 <c>GameServer</c> 가 버린 분이다.
+    ///
+    /// <b>이 값을 안 빼면 <see cref="EventsPending"/> 이 그만큼 부풀어</b>
+    /// <see cref="EventsDeferred"/> 가 매 틱 헛되이 늘어난다 — 적체가 없는데 적체 압력이
+    /// 보이는 것이 가장 나쁜 종류의 계기다. <c>GameServer</c> 가 세션을 붙일 때 한 번 넣는다.
+    /// </summary>
+    public long ExternallyDrained { get; set; }
+
     /// <summary>아직 채널에 남아 다음 틱을 기다리는 이벤트 수.</summary>
-    public long EventsPending => _world.World.EventsEmitted - _drained;
+    public long EventsPending => _world.World.EventsEmitted - _drained - ExternallyDrained;
 
     /// <summary>마지막 수신 이후 지난 벽시계 시간(ms). 하트비트 감시가 본다 (docs/20 §5.6).</summary>
     public long SilentMillis => Environment.TickCount64 - Volatile.Read(ref _lastReceivedMillis);

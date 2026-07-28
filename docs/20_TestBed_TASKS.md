@@ -393,7 +393,18 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 
 ### E-2. 게임 루프 (2026-07-28 추가)
 - [x] T6-37 `GameServer` — 조립과 10Hz 루프(1~9단계)
-- [ ] T6-38 클라이언트 방송 — 10단계
+- [x] T6-38 클라이언트 방송 — 10단계
+
+> **T6-38 에서 드러난 것 둘 (2026-07-28).**
+> 1. **`LinkSession.EventsPending` 이 부풀어 있었다.** 링크가 없는 구간에 `GameServer` 가 배수한
+>    분이 세션의 `_drained` 에 안 잡혀서, 붙은 뒤에도 `EventsDeferred` 가 매 틱 헛되이 늘었다.
+>    `ExternallyDrained` 를 세션에 알려 뺀다. **적체가 없는데 적체 압력이 보이는 것이 가장 나쁜 계기다.**
+> 2. **`ZoneStates` 는 주기만으로는 늦다.** 방금 붙은 세션이 다음 5초 주기까지 존 색을 모르면
+>    사람은 그 5초를 "제어가 안 먹는다" 로 읽는다. `ClientSession.NeedsZoneStates` 로 첫 장을 즉시 보낸다.
+>
+> **`LinkStatus.NpcServerTick` 은 명령의 `IssuedAt` 에서 딴다.** 하트비트에는 없다 —
+> `TcpGameServerLink` 는 런타임의 틱을 모르고(`IGameServerLink` 에 그런 것이 없다), 넣으려면 계약을
+> 바꿔야 한다. **NPC 서버가 조용하면 이 값이 늙는다** — 상태바의 지연이 커지는 것으로 보이는데, 그것도 정보다.
 
 ### F. 테스트 클라이언트
 - [ ] T6-26 WinForms 골격과 접속
