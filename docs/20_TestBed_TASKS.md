@@ -409,7 +409,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 ### F. 테스트 클라이언트
 - [x] T6-26 WinForms 골격과 접속
 - [x] T6-27 맵 렌더러 — 존·POI·카메라
-- [ ] T6-28 맵 렌더러 — 엔티티와 보간
+- [x] T6-28 맵 렌더러 — 엔티티와 보간
 - [ ] T6-29 입력
 - [ ] T6-30 인스펙터 패널
 - [ ] T6-31 로그 패널

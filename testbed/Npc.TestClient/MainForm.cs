@@ -36,8 +36,16 @@ namespace Npc.TestClient;
 /// </summary>
 public sealed class MainForm : Form
 {
-    /// <summary>렌더 주기(ms). 약 60fps 다 (docs/20 §9.3).</summary>
-    public const int RenderIntervalMillis = 16;
+    /// <summary>
+    /// 렌더 주기(ms). docs/20 §9.3 은 16ms(≈60fps)라고 적었다.
+    ///
+    /// <b>15 를 쓴다.</b> <c>System.Windows.Forms.Timer</c> 는 <c>WM_TIMER</c> 기반이라
+    /// 해상도가 시스템 틱(≈15.6ms)이고, 16 을 주면 두 틱(≈31ms)으로 반올림되는 경우가 생겨
+    /// 실측 프레임 간격이 26ms 로 나왔다. 15 는 한 틱으로 떨어져 ≈64fps 가 된다.
+    /// <b>그리기 예산은 상태바의 <c>draw</c> 값이 말한다</b> — 프레임 간격은 타이머 해상도이지
+    /// 우리 비용이 아니다.
+    /// </summary>
+    public const int RenderIntervalMillis = 15;
 
     /// <summary>입력 전송 주기(ms). 10Hz 다 (docs/20 §9.4).</summary>
     public const int NetworkIntervalMillis = 100;
@@ -55,6 +63,7 @@ public sealed class MainForm : Form
     private readonly SplitContainer _split = new();
     private readonly MapPanel _map = new();
     private readonly MapRenderer _renderer;
+    private readonly EntityInterpolator _entities = new();
     private readonly ToolTip _tip = new() { InitialDelay = 250, ReshowDelay = 100 };
     private readonly TabControl _tabs = new();
     private readonly ToolStripStatusLabel _clock = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
@@ -64,6 +73,9 @@ public sealed class MainForm : Form
     private long _networkTicks;
     private bool _fitted;
     private bool _dragging;
+    private long _frameAtMillis;
+    private double _frameMillis;
+    private double _drawMillis;
     private Point _dragFrom;
     private string _tipText = string.Empty;
 
@@ -101,6 +113,12 @@ public sealed class MainForm : Form
 
     /// <summary>지도 렌더러. 카메라가 여기 있다.</summary>
     public MapRenderer Renderer => _renderer;
+
+    /// <summary>보간된 엔티티. 선택·입력(T6-29)이 이 집합에서 고른다.</summary>
+    public EntityInterpolator Entities => _entities;
+
+    /// <summary>선택된 NPC 첨자. 없으면 -1.</summary>
+    public int SelectedNpc { get; private set; } = -1;
 
     /// <inheritdoc />
     protected override void OnLoad(EventArgs e)
@@ -220,9 +238,49 @@ public sealed class MainForm : Form
 
     private void OnRender(object? sender, EventArgs e)
     {
+        long now = Environment.TickCount64;
+
+        // 프레임 시간은 실측이다. 60fps 유지를 눈으로 확인하는 값이 이것 하나다 (docs/20 §9.3).
+        if (_frameAtMillis != 0)
+        {
+            _frameMillis = (_frameMillis * 0.9) + ((now - _frameAtMillis) * 0.1);
+        }
+
+        _frameAtMillis = now;
+
+        _entities.Resolve(_connection.Latest, _connection.Previous, now);
+
+        // 추적 중이면 내 플레이어를 화면 중앙에 둔다. 못 찾으면 카메라를 건드리지 않는다 —
+        // 원점으로 되돌리면 화면이 매 프레임 튄다.
+        if (_renderer.Camera.Follow && TryFindMyPlayer(out EntityState me))
+        {
+            _renderer.Camera.LookAt(me.X, me.Z);
+        }
+
         UpdateStatus();
 
         _map.Invalidate();
+    }
+
+    /// <summary>이 창의 플레이어를 보간 결과에서 찾는다.</summary>
+    private bool TryFindMyPlayer(out EntityState player)
+    {
+        int mine = _connection.PlayerId;
+
+        if (mine != 0)
+        {
+            foreach (EntityState entity in _entities.Entities)
+            {
+                if (entity.Kind == (byte)EntityKind.Player && entity.Id == mine)
+                {
+                    player = entity;
+                    return true;
+                }
+            }
+        }
+
+        player = default;
+        return false;
     }
 
     private void OnNetwork(object? sender, EventArgs e)
@@ -259,7 +317,9 @@ public sealed class MainForm : Form
             CultureInfo.InvariantCulture,
             $"client {dot} {(rtt < 0 ? "--" : rtt.ToString(CultureInfo.InvariantCulture))}ms   " +
             $"npc-link {(link.Connected == 1 ? "●" : "○")}   " +
-            $"gs {link.GsTick}  npc {link.NpcServerTick} ({-lag})   drop {link.Dropped}   gap {link.Gaps}");
+            $"gs {link.GsTick}  npc {link.NpcServerTick} ({-lag})   drop {link.Dropped}   gap {link.Gaps}   " +
+            $"frame {_frameMillis:F1}ms  draw {_drawMillis:F1}ms" +
+            $"{(_entities.Stalled ? "  [스냅샷 지연]" : string.Empty)}");
     }
 
     /// <summary>
@@ -268,6 +328,7 @@ public sealed class MainForm : Form
     /// </summary>
     private void OnPaintMap(object? sender, PaintEventArgs e)
     {
+        long began = System.Diagnostics.Stopwatch.GetTimestamp();
         Graphics g = e.Graphics;
         Rectangle viewport = _map.ClientRectangle;
 
@@ -284,8 +345,15 @@ public sealed class MainForm : Form
         // 존·POI 는 마스터데이터에서 나온다. 접속 전에도 지도는 보인다 —
         // 게임서버가 없다고 빈 화면을 띄우면 사람이 클라이언트가 죽은 줄 안다.
         _renderer.DrawWorld(g, viewport, _connection.Zones);
+        _renderer.DrawEntities(g, viewport, _entities.Entities, _connection.PlayerId, SelectedNpc);
 
         DrawOverlay(g, viewport);
+
+        // 그리기에 실제로 쓴 시간. 60fps 예산(16.7ms)과 견주는 값은 이것이다.
+        double millis = (System.Diagnostics.Stopwatch.GetTimestamp() - began)
+            * 1_000.0 / System.Diagnostics.Stopwatch.Frequency;
+
+        _drawMillis = (_drawMillis * 0.9) + (millis * 0.1);
     }
 
     /// <summary>화면 위에 얹는 안내. 무엇을 기다리는 중인지 말한다.</summary>
@@ -331,6 +399,16 @@ public sealed class MainForm : Form
         {
             _dragging = true;
             _dragFrom = e.Location;
+        }
+        else if (e.Button == MouseButtons.Left)
+        {
+            // 좌클릭 선택 (docs/20 §9.4). 빈 곳을 찍으면 해제다.
+            SelectedNpc = _renderer.TryPickNpc(
+                e.Location, _map.ClientRectangle, _entities.Entities, out int npc)
+                ? npc
+                : -1;
+
+            _connection.SendSelect(SelectedNpc);
         }
 
         _map.Focus();

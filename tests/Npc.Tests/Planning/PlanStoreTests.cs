@@ -3,10 +3,21 @@ using Npc.Core;
 using Npc.Core.Plan;
 using Npc.MasterData;
 using Npc.Planning;
+using Npc.Tests.Runtime;
 
 namespace Npc.Tests.Planning;
 
-/// <summary>docs/13 §2 (정식은 P3). P1 에서는 폴백만 반환하지만 절대 null 이 아니다.</summary>
+/// <summary>
+/// docs/13 §2 (정식은 P3). P1 에서는 폴백만 반환하지만 절대 null 이 아니다.
+///
+/// <para>
+/// <b>할당 컬렉션에 들어 있다</b> (<see cref="AllocationCollection"/>). <c>PlanStore_ResolveDoesNotAllocate</c>
+/// 가 P6 의 소켓 테스트가 늘면서 흔들리기 시작했다 — 2026-07-28 결정 18 이 밝힌 것과 같은 원인이고
+/// (계층형 JIT 승격이 CPU 경합으로 측정 창 안까지 밀린다) 같은 처방이다.
+/// <b>허용 오차를 두지 않는다</b> — 두면 진짜 누수를 놓친다.
+/// </para>
+/// </summary>
+[Collection(AllocationCollection.Name)]
 public sealed class PlanStoreTests
 {
     private static readonly MasterDataSet s_data = MasterDataLoader.Load(TestPaths.MasterData);

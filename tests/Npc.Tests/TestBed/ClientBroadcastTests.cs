@@ -168,8 +168,14 @@ public sealed class ClientBroadcastTests
         await peer.SendAsync(
             ClientMessageKind.Select, new Select { NpcId = Selected }, bed.Token);
 
-        // 선택이 반영되고 첫 스냅샷이 나갈 때까지.
-        await peer.PumpAsync(bed, ticks: 6);
+        // <b>선택이 서버에 반영될 때까지 기다린다.</b> 프레임을 보낸 것과 세션이 그것을 적용한
+        // 것은 다르다 — 리시버 태스크가 늦으면 아래 50건이 "그 외" 로 분류돼 32건에서 잘린다.
+        await bed.WaitUntilAsync(async () =>
+        {
+            await peer.PumpAsync(bed, ticks: 2);
+
+            return bed.Server.Clients.Live.Any(s => s.SelectedNpc == Selected);
+        });
 
         peer.Reset();
 
