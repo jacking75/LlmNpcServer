@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Npc.Contracts;
+using Npc.Core.Plan;
 using Npc.MasterData;
 using Npc.Sim;
 
@@ -41,6 +42,17 @@ public sealed class PlayerRegistry
     /// <summary>달리기 배수. 걷기 2.5 · 뛰기 5.0 게임m/게임초 (docs/20 §7.3).</summary>
     public const double RunMultiplier = 2.0;
 
+    /// <summary>
+    /// <c>Interact</c>·<c>Attack</c> 사거리(m). docs/20 §7.3.
+    ///
+    /// <b>왜 제한을 두는가.</b> 클라이언트가 화면 밖 NPC 를 찍어서 인터럽트를 걸 수 있으면
+    /// "플레이어 근접이 인지 LOD 를 바꾼다" 는 검증이 무의미해진다.
+    /// </summary>
+    public const float InteractRange = 30f;
+
+    /// <summary>봇이 이 틱마다 다음 목적지를 고른다. <see cref="PlayerBots.StepTicks"/> 와 같다.</summary>
+    public const int BotStepTicks = 20;
+
     /// <summary>접속 시작 지점의 존. docs/20 §7.3.</summary>
     public const string SpawnZoneId = "town_center";
 
@@ -54,6 +66,7 @@ public sealed class PlayerRegistry
 
     private readonly WorldPos _spawn;
     private readonly double _walkPerTick;
+    private readonly int _seed;
 
     /// <summary>등록기를 만든다. 기동 시 1회.</summary>
     /// <param name="world">게임서버 월드.</param>
@@ -84,9 +97,23 @@ public sealed class PlayerRegistry
         _observed = new bool[world.World.Capacity];
         _candidateZones = new bool[MaxZoneCode(data) + 1];
         _spawn = SpawnPoint(data);
+        _seed = options.Seed;
 
         // 게임m/게임초 → m/틱. TimeScale 이 곱해지는 것이 이 식의 요점이다.
         _walkPerTick = options.PlayerSpeed * options.TimeScale / GameWorld.TickRate;
+
+        // 봇은 사람보다 앞 슬롯을 잡는다. 클라이언트 없이도 데모가 돌게 하는 장치다 (docs/20 §7.3).
+        for (int bot = 0; bot < options.Bots; bot++)
+        {
+            PlayerId id = Add();
+
+            if (id.Value == 0)
+            {
+                break;   // 정원이 모자라면 거기까지다. 기동을 막을 일은 아니다
+            }
+
+            _slots[id.Value - 1].Bot = true;
+        }
     }
 
     /// <summary>동시 플레이어 상한.</summary>
@@ -113,6 +140,37 @@ public sealed class PlayerRegistry
 
     /// <summary>발행한 <c>PlayerProximity</c> 수.</summary>
     public long ProximityEvents { get; private set; }
+
+    /// <summary>발행한 <c>PlayerInteracted</c> 수.</summary>
+    public long Interacts { get; private set; }
+
+    /// <summary>사거리 밖이라 무시한 <c>Interact</c> 수.</summary>
+    public long InteractsOutOfRange { get; private set; }
+
+    /// <summary>발행한 <c>CombatStarted</c> 수.</summary>
+    public long Attacks { get; private set; }
+
+    /// <summary>사거리 밖이라 무시한 <c>Attack</c> 수.</summary>
+    public long AttacksOutOfRange { get; private set; }
+
+    /// <summary>지금 도는 봇 수.</summary>
+    public int Bots
+    {
+        get
+        {
+            int bots = 0;
+
+            foreach (PlayerState player in _slots)
+            {
+                if (player.Active && player.Bot)
+                {
+                    bots++;
+                }
+            }
+
+            return bots;
+        }
+    }
 
     /// <summary>
     /// 거리를 실제로 재 본 NPC 수의 누계.
@@ -165,6 +223,8 @@ public sealed class PlayerRegistry
             player.Run = false;
             player.DirX = 0;
             player.DirZ = 0;
+            player.Bot = false;
+            player.Target = default;
             player.Zone = ZoneAt(_spawn);
 
             return new PlayerId(slot + 1);
@@ -183,8 +243,10 @@ public sealed class PlayerRegistry
         }
 
         state.Active = false;
+        state.Bot = false;
         state.DirX = 0;
         state.DirZ = 0;
+        state.Target = default;
 
         return true;
     }
@@ -237,16 +299,103 @@ public sealed class PlayerRegistry
     }
 
     /// <summary>
-    /// 틱 3단계. 입력 적용 → 이동 → 존 판정, 그리고 5틱마다 근접 판정.
+    /// 이 플레이어가 NPC 에게 말을 건다. docs/20 §7.3.
+    ///
+    /// <b>사거리 밖이면 아무 일도 없다.</b> 예외를 던지지 않고 <see cref="InteractsOutOfRange"/>
+    /// 만 오른다 — 클라이언트가 화면 밖 NPC 를 찍어서 인터럽트를 걸 수 있으면
+    /// "플레이어 근접이 인지 LOD 를 바꾼다" 는 검증이 무의미해진다.
+    /// </summary>
+    /// <returns>이벤트가 나갔으면 true.</returns>
+    public bool TryInteract(PlayerId player, NpcId npc, Tick now)
+    {
+        if (!InRange(player, npc, now, out PlayerState state))
+        {
+            InteractsOutOfRange++;
+            return false;
+        }
+
+        _world.World.Emit(new GameEvent
+        {
+            Kind = GameEventKind.PlayerInteracted,
+            Sequence = 0,
+            OccurredAt = now,
+            Npc = npc,
+            Player = player,
+            Zone = state.Zone,
+        });
+
+        Interacts++;
+
+        return true;
+    }
+
+    /// <summary>
+    /// 이 플레이어가 NPC 를 때린다. docs/20 §7.3.
+    ///
+    /// <c>CombatStarted</c> + <c>DamageTaken</c> 을 내고 <see cref="NeedsSim"/> 의 HP 를 깎는다 —
+    /// HP 를 여기서 따로 들면 <c>NpcVitalsChanged</c> 와 어긋난 두 벌의 진실이 생긴다.
+    /// </summary>
+    /// <returns>이벤트가 나갔으면 true.</returns>
+    public bool TryAttack(PlayerId player, NpcId npc, int amount, Tick now)
+    {
+        if (!InRange(player, npc, now, out _))
+        {
+            AttacksOutOfRange++;
+            return false;
+        }
+
+        int damage = Math.Clamp(amount, 1, 100);
+
+        _world.World.Emit(new GameEvent
+        {
+            Kind = GameEventKind.CombatStarted,
+            Sequence = 0,
+            OccurredAt = now,
+            Npc = npc,
+            Player = player,
+        });
+
+        _world.World.Emit(new GameEvent
+        {
+            Kind = GameEventKind.DamageTaken,
+            Sequence = 0,
+            OccurredAt = now,
+            Npc = npc,
+            Player = player,
+            Amount = damage,
+        });
+
+        // NpcVitalsChanged 는 여기서 나간다. 순서가 CombatStarted → DamageTaken → Vitals 다.
+        _world.Needs.Restore(npc.Value, -damage, 0, now);
+
+        Attacks++;
+
+        return true;
+    }
+
+    /// <summary>이 슬롯이 봇인가.</summary>
+    public bool IsBot(PlayerId player) => TryGet(player, out PlayerState s) && s.Bot;
+
+    /// <summary>
+    /// 틱 3단계. 봇 조종 → 입력 적용 → 이동 → 존 판정, 그리고 5틱마다 근접 판정.
     /// <b><see cref="GameWorld.Players"/> 에 이 메서드를 꽂는다.</b>
     /// </summary>
     public void Tick(Tick now)
     {
-        foreach (PlayerState player in _slots)
+        for (int slot = 0; slot < _slots.Length; slot++)
         {
+            PlayerState player = _slots[slot];
+
             if (!player.Active)
             {
                 continue;
+            }
+
+            if (player.Bot)
+            {
+                // 봇도 사람과 <b>같은 경로로</b> 돈다 (docs/20 §7.3) — 입력을 대신 넣어 줄 뿐이다.
+                // 별도 이동 코드를 두면 둘의 동작이 갈리고, 데모에서 본 것이 사람 경로가 아니게 된다.
+                SteerBot(slot, player, now);
             }
 
             Move(player);
@@ -263,6 +412,74 @@ public sealed class PlayerRegistry
     }
 
     // ---------------------------------------------------------------- 내부
+
+    /// <summary>
+    /// 사거리 판정. 사거리 밖·모르는 플레이어·스폰 안 된 NPC 는 전부 여기서 걸린다.
+    ///
+    /// <b>거절 사유를 나누지 않는다.</b> 클라이언트에 "왜 안 됐는지" 를 돌려주면 그것으로
+    /// 화면 밖 NPC 의 존재를 알아낼 수 있고, 그건 사거리 제한을 두는 이유와 어긋난다.
+    /// </summary>
+    private bool InRange(PlayerId player, NpcId npc, Tick now, out PlayerState state)
+    {
+        if (!TryGet(player, out state))
+        {
+            return false;
+        }
+
+        if (!_world.World.IsSpawned(npc.Value))
+        {
+            return false;
+        }
+
+        float distance = Distance(_world.Transforms.Interpolate(npc.Value, now), state.Pos);
+
+        return distance <= InteractRange;
+    }
+
+    /// <summary>
+    /// 봇의 이번 틱 입력. <see cref="BotStepTicks"/> 마다 목적지 POI 를 새로 고르고,
+    /// 그 사이에는 그쪽을 향해 걷는다.
+    ///
+    /// <para>
+    /// <b>난수를 쓰지 않는다</b> (CLAUDE.md §2.3). <c>PlanHash.Mix(seed, bot, tick/20)</c> 하나로
+    /// 정해지므로 같은 시드는 같은 위치열을 낸다 — 데모를 두 번 돌려 비교할 수 있어야 한다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>방향을 직접 뽑지 않고 목적지를 뽑는 이유.</b> 방향만 뽑으면 봇이 월드 밖으로
+    /// 표류한다. POI 를 향하게 하면 시드가 무엇이든 지도 안에 머문다.
+    /// </para>
+    /// </summary>
+    private void SteerBot(int slot, PlayerState player, Tick now)
+    {
+        ImmutableArray<PoiDef> pois = _data.Pois.Pois;
+
+        if (pois.Length == 0)
+        {
+            return;
+        }
+
+        if (now.Value % BotStepTicks == 0 || player.Target.Value == 0)
+        {
+            uint roll = PlanHash.Mix(
+                PlanHash.Mix(_seed, slot) ^ PlanHash.Mix((uint)(now.Value / BotStepTicks)));
+
+            player.Target = pois[(int)(roll % (uint)pois.Length)].Code;
+        }
+
+        WorldPos to = _data.Pois[player.Target].Pos;
+
+        player.DirX = to.X - player.Pos.X;
+        player.DirZ = to.Z - player.Pos.Z;
+        player.Run = false;
+
+        // 목적지에 닿았으면 멈춘다. 안 그러면 한 걸음 거리를 사이에 두고 진동한다.
+        if (Math.Abs(player.DirX) + Math.Abs(player.DirZ) < 1f)
+        {
+            player.DirX = 0;
+            player.DirZ = 0;
+        }
+    }
 
     private void Move(PlayerState player)
     {
@@ -516,5 +733,11 @@ public sealed class PlayerRegistry
         public bool Run;
         public float DirX;
         public float DirZ;
+
+        /// <summary>봇이면 참. 사람과 같은 경로로 돌되 입력을 <c>SteerBot</c> 이 넣는다.</summary>
+        public bool Bot;
+
+        /// <summary>봇의 목적지 POI. 사람은 0 이다.</summary>
+        public PoiId Target;
     }
 }

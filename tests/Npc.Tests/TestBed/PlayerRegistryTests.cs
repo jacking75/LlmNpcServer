@@ -143,10 +143,176 @@ public sealed class PlayerRegistryTests
         Assert.Equal(expected, registry.NpcsScanned);
     }
 
+    /// <summary>
+    /// T6-20 완료 조건 — <c>Interact</c> 는 30m 안에서만 듣는다 (docs/20 §7.3).
+    ///
+    /// 클라이언트가 화면 밖 NPC 를 찍어서 인터럽트를 걸 수 있으면
+    /// "플레이어 근접이 인지 LOD 를 바꾼다" 는 검증이 무의미해진다.
+    /// </summary>
+    [Fact]
+    public async Task Player_InteractRequiresRange()
+    {
+        await using GameWorld world = Create(timeScale: 60, npcs: 300);
+
+        var registry = new PlayerRegistry(world, s_data, Options(60));
+
+        int npc = FirstNpcInSpawnZone(world);
+        WorldPos target = world.World.PositionOf(npc);
+        PlayerId player = registry.Add();
+        var now = new Tick(1);
+
+        // 31m — 1m 차이로 밖이다. 이벤트도 없고 예외도 없다.
+        registry.Teleport(player, Offset(target, PlayerRegistry.InteractRange + 1f));
+        Drain(world);
+
+        Assert.False(registry.TryInteract(player, new NpcId(npc), now));
+        Assert.Equal(0, Count(world, GameEventKind.PlayerInteracted));
+        Assert.Equal(1, registry.InteractsOutOfRange);
+        Assert.Equal(0, registry.Interacts);
+
+        // 29m — 안이다.
+        registry.Teleport(player, Offset(target, PlayerRegistry.InteractRange - 1f));
+        Drain(world);
+
+        Assert.True(registry.TryInteract(player, new NpcId(npc), now));
+        Assert.Equal(1, Count(world, GameEventKind.PlayerInteracted));
+        Assert.Equal(1, registry.Interacts);
+    }
+
+    /// <summary>
+    /// T6-20 완료 조건 — 공격이 <see cref="Npc.Sim.NeedsSim"/> 의 HP 를 깎는다.
+    ///
+    /// HP 를 <c>PlayerRegistry</c> 가 따로 들면 <c>NpcVitalsChanged</c> 와 어긋난
+    /// 두 벌의 진실이 생긴다. 이벤트 순서도 같이 못 박는다.
+    /// </summary>
+    [Fact]
+    public async Task Player_AttackReducesHp()
+    {
+        const int Damage = 17;
+
+        await using GameWorld world = Create(timeScale: 60, npcs: 300);
+
+        var registry = new PlayerRegistry(world, s_data, Options(60));
+
+        int npc = FirstNpcInSpawnZone(world);
+        WorldPos target = world.World.PositionOf(npc);
+        PlayerId player = registry.Add();
+        var now = new Tick(1);
+
+        short before = world.Needs.HpOf(npc);
+
+        // 사거리 밖에서는 HP 가 그대로다.
+        registry.Teleport(player, Offset(target, PlayerRegistry.InteractRange + 1f));
+        Drain(world);
+
+        Assert.False(registry.TryAttack(player, new NpcId(npc), Damage, now));
+        Assert.Equal(before, world.Needs.HpOf(npc));
+        Assert.Equal(1, registry.AttacksOutOfRange);
+
+        // 안에서는 깎인다.
+        registry.Teleport(player, Offset(target, 10f));
+        Drain(world);
+
+        Assert.True(registry.TryAttack(player, new NpcId(npc), Damage, now));
+        Assert.Equal(before - Damage, world.Needs.HpOf(npc));
+
+        // CombatStarted → DamageTaken → NpcVitalsChanged 순이다.
+        var kinds = new List<GameEventKind>();
+
+        while (world.World.Events.TryRead(out GameEvent ev))
+        {
+            if (ev.Npc.Value == npc)
+            {
+                kinds.Add(ev.Kind);
+            }
+        }
+
+        Assert.Equal(
+            [GameEventKind.CombatStarted, GameEventKind.DamageTaken, GameEventKind.NpcVitalsChanged],
+            kinds);
+    }
+
+    /// <summary>
+    /// T6-20 완료 조건 — 같은 시드면 같은 위치열이다 (CLAUDE.md §2.3).
+    ///
+    /// 데모를 두 번 돌려 비교할 수 있어야 하므로 봇은 <c>Random</c> 을 쓰지 않는다.
+    /// 대조군(다른 시드)이 갈리는 것까지 봐야 이 단언이 공허하지 않다.
+    /// </summary>
+    [Fact]
+    public async Task Bots_AreDeterministic()
+    {
+        const int Bots = 3;
+        const int Ticks = 60;
+
+        await using GameWorld a = Create(timeScale: 60, npcs: 64);
+        await using GameWorld b = Create(timeScale: 60, npcs: 64);
+        await using GameWorld c = Create(timeScale: 60, npcs: 64);
+
+        List<WorldPos> first = RunBots(a, seed: 20260725, Bots, Ticks);
+        List<WorldPos> again = RunBots(b, seed: 20260725, Bots, Ticks);
+        List<WorldPos> other = RunBots(c, seed: 99, Bots, Ticks);
+
+        Assert.Equal(Bots * Ticks, first.Count);
+        Assert.Equal(first, again);
+        Assert.NotEqual(first, other);
+
+        // 실제로 움직였는지도 본다 — 전부 제자리면 위 두 단언은 공허하다.
+        Assert.True(
+            first.Distinct().Count() > Bots,
+            "봇이 움직이지 않았다. 같은 자리만 비교하면 결정론을 본 것이 아니다.");
+    }
+
     // ---------------------------------------------------------------- 도우미
 
     private static GameServerOptions Options(int timeScale) =>
         new() { TimeScale = timeScale, LinkPort = 0, ClientPort = 0 };
+
+    /// <summary>봇 <paramref name="bots"/> 마리를 <paramref name="ticks"/> 틱 돌린 위치열.</summary>
+    private static List<WorldPos> RunBots(GameWorld world, int seed, int bots, int ticks)
+    {
+        GameServerOptions options = Options(world.World.Options.TimeScale) with
+        {
+            Bots = bots,
+            Seed = seed,
+        };
+
+        var registry = new PlayerRegistry(world, s_data, options);
+
+        Assert.Equal(bots, registry.Bots);
+
+        var trail = new List<WorldPos>(bots * ticks);
+
+        for (int t = 1; t <= ticks; t++)
+        {
+            registry.Tick(new Tick(t));
+
+            for (int bot = 1; bot <= bots; bot++)
+            {
+                var id = new PlayerId(bot);
+
+                Assert.True(registry.IsBot(id));
+
+                trail.Add(registry.PositionOf(id));
+            }
+        }
+
+        return trail;
+    }
+
+    private static int Count(GameWorld world, GameEventKind kind)
+    {
+        int count = 0;
+
+        while (world.World.Events.TryRead(out GameEvent ev))
+        {
+            if (ev.Kind == kind)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
 
     private static GameWorld Create(int timeScale, int npcs = 64)
     {

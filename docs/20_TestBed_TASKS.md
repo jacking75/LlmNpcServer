@@ -342,7 +342,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-17 명령 수신
 - [x] T6-18 이벤트 송신
 - [x] T6-19 `PlayerRegistry` — 이동과 근접
-- [ ] T6-20 `PlayerRegistry` — 상호작용·공격·봇
+- [x] T6-20 `PlayerRegistry` — 상호작용·공격·봇
 - [ ] T6-21 `MirrorLog`
 
 ### E. 클라이언트 프로토콜과 세션
