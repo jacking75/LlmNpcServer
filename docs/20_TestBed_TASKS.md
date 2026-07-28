@@ -325,13 +325,15 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 
 ### C. 로스터와 호스트 배선
 - [x] T6-11 `NpcRoster` 추출
-- [x] T6-12 `--link tcp` 배선 — **남은 일 있음**(아래)
+- [x] T6-12 `--link tcp` 배선
 - [x] T6-13 킬스위치 전달 경로
 
-> **T6-12 의 남은 일 — `--zone` 이 로스터에 적용되지 않는다 (2026-07-28 발견, 다음 세션 처리 예정).**
-> `HostOptions.Zones` 는 채워지는데 `Npc.Host/Program.cs` 가 `NpcRoster.Select` 를 존 필터 없이 부른다.
-> 게임서버(T6-14)는 필터를 적용하므로 **지금 `--zone` 을 주면 로스터 해시가 어긋나 핸드셰이크에서 거절된다.**
-> **T6-35(종단 테스트)·데모 전에 끝내야 한다.** 상세와 처리 방법은 `TASKS.md` §3 "막힌 태스크 / 결정 대기" 에 있다.
+> **T6-12 의 남은 일 — 해소됐다 (2026-07-28).** `--zone` 이 `NpcRoster.Select` 로 넘어간다.
+> 로스터 선택을 할당 블록 **위로** 올리고 `npcs` 를 `roster.Count` 에서 받는다 — 그러지 않으면
+> `NpcStore`·`CorrelationTable`·`ReplanQueue` 가 `--npcs` 로 잡히고 뒤쪽이 영원히 빈 배열이 된다.
+> **모르는 존 id 와 0 마리는 기동 실패다.** 조용히 넘기면 사고가 핸드셰이크 거절로만 나타나
+> "새로 만든 게임서버가 이상하다" 로 오해하기 쉽다.
+> 테스트: `Host_ZoneFilterAppliesToRoster`(게임서버와 같은 호출의 해시 일치) · `Host_UnknownZoneFailsStartup`.
 
 ### D. 테스트 게임서버
 - [x] T6-14 프로젝트 골격과 옵션

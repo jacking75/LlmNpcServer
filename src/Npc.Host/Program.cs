@@ -187,7 +187,7 @@ internal sealed class NpcHost : IAsyncDisposable
         SimDriver? driver,
         NullGameServerLink? nullLink,
         long totalTicks,
-        int npcs,
+        NpcRoster roster,
         TierWiring tiers,
         KillSwitchState switches)
     {
@@ -208,11 +208,19 @@ internal sealed class NpcHost : IAsyncDisposable
         _totalTicks = totalTicks;
         _tiers = tiers;
         _switches = switches;
-        Npcs = npcs;
+        Roster = roster;
     }
 
-    /// <summary>이 호스트가 돌리는 NPC 수.</summary>
-    public int Npcs { get; }
+    /// <summary>이 호스트가 돌리는 NPC 수. <b><c>--npcs</c> 가 아니라 로스터가 정한다</b> — <c>--zone</c> 이 줄인다.</summary>
+    public int Npcs => Roster.Count;
+
+    /// <summary>
+    /// 이 호스트가 보는 NPC 집합. <b>해시가 핸드셰이크에 실린다</b> (docs/20 §5.5).
+    ///
+    /// 밖에서 읽을 수 있어야 하는 이유는 진단이다 — 연결이 <c>RosterMismatch</c> 로 거절될 때
+    /// 양쪽 해시를 나란히 놓고 볼 수 없으면 원인을 존 필터까지 되짚기 어렵다.
+    /// </summary>
+    public NpcRoster Roster { get; }
 
     /// <summary>틱 루프. 게이트 러너가 통계를 읽는다.</summary>
     public NpcServerLoop Loop => _loop;
@@ -268,6 +276,40 @@ internal sealed class NpcHost : IAsyncDisposable
             Roster = WireHash.FromHex(roster.Hash),
         });
 
+    /// <summary>
+    /// <c>--zone</c> 을 존 code 로 푼다. docs/20 §10.2.
+    ///
+    /// <b>모르는 id 는 기동 실패다.</b> 조용히 무시하면 필터가 없는 것처럼 로스터가 커지고,
+    /// 그 사고는 <b>핸드셰이크 거절로만</b> 나타난다 — 원인이 멀어져
+    /// "새로 만든 게임서버가 이상하다" 로 오해하기 쉽다 (docs/20 §5.5).
+    /// </summary>
+    private static ZoneId[] ZoneFilter(HostOptions options, MasterDataSet data)
+    {
+        if (options.Zones.IsEmpty)
+        {
+            return [];
+        }
+
+        var zones = new ZoneId[options.Zones.Length];
+
+        for (int i = 0; i < zones.Length; i++)
+        {
+            string id = options.Zones[i];
+
+            if (!data.Zones.TryGet(id, out ZoneDef zone))
+            {
+                throw new ArgumentException(
+                    $"--zone '{id}' 를 zones.json 에서 못 찾았다. "
+                    + $"있는 것: {string.Join(", ", data.Zones.Zones.Select(z => z.Id))}",
+                    nameof(options));
+            }
+
+            zones[i] = zone.Code;
+        }
+
+        return zones;
+    }
+
     /// <summary>옵션대로 전부 조립한다. 기동 시 1회.</summary>
     public static NpcHost Create(HostOptions options, TextWriter log)
     {
@@ -280,11 +322,33 @@ internal sealed class NpcHost : IAsyncDisposable
         string instancePath = Path.Combine(masterDataDir, "npc_instances.json");
         NpcInstanceTable instances = NpcInstanceTable.Load(instancePath, data);
 
-        int npcs = Math.Min(options.Npcs, instances.Count);
+        // ── 로스터 ────────────────────────────────────────────────
+        // 선택 규칙은 NpcRoster 한 곳에 있다 (T6-11 · docs/20 §10). 게임서버도 같은 함수를
+        // 부르므로 첨자가 어긋나지 않는다 — 어긋나면 대장장이에게 밭을 갈라고 명령하게 된다.
+        //
+        // <b>할당보다 먼저 뽑는다.</b> --zone 이 걸리면 실제 마릿수가 --npcs 보다 작아지는데,
+        // 그 값을 모른 채 NpcStore·CorrelationTable·ReplanQueue 를 잡으면 뒤쪽이 영원히
+        // 비어 있는 배열이 되고, 무엇보다 로스터 해시가 게임서버와 어긋나 연결이 거절된다.
+        ZoneId[] zoneFilter = ZoneFilter(options, data);
+        NpcRoster roster = NpcRoster.Select(instances, options.Npcs, zoneFilter);
+        int npcs = roster.Count;
+
+        if (npcs == 0)
+        {
+            // 0 마리로 기동하면 아무 일도 안 하는 서버가 조용히 뜬다. 존 오타의 전형적 증상이라
+            // 여기서 멈추는 편이 싸다 — 게임서버 쪽은 같은 필터로 같은 0 을 얻어 해시는 맞는다.
+            throw new ArgumentException(
+                $"--zone {string.Join(",", options.Zones)} 에 해당하는 NPC 가 npc_instances.json 에 없다.",
+                nameof(options));
+        }
 
         if (npcs < options.Npcs)
         {
-            log.WriteLine($"warn: npc_instances.json 에 {instances.Count} 마리뿐이라 {npcs} 로 줄였다.");
+            string pool = zoneFilter.Length == 0
+                ? $"npc_instances.json 에 {instances.Count} 마리뿐이라"
+                : $"--zone {string.Join(",", options.Zones)} 안에 {npcs} 마리뿐이라";
+
+            log.WriteLine($"warn: {pool} {npcs} 로 줄였다.");
         }
 
         // ── 런타임 ────────────────────────────────────────────────
@@ -332,10 +396,6 @@ internal sealed class NpcHost : IAsyncDisposable
         var interrupts = new InterruptMatcher(data, store) { Snapshots = snapshots };
 
         // ── 인구 배치 ─────────────────────────────────────────────
-        // 선택 규칙은 NpcRoster 한 곳에 있다 (T6-11 · docs/20 §10). 게임서버도 같은 함수를
-        // 부르므로 첨자가 어긋나지 않는다 — 어긋나면 대장장이에게 밭을 갈라고 명령하게 된다.
-        NpcRoster roster = NpcRoster.Select(instances, npcs);
-
         for (int i = 0; i < npcs; i++)
         {
             NpcInstanceDef def = roster.Npcs[i];
@@ -452,7 +512,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
         return new NpcHost(
             options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
-            meter, driver, nullLink, totalTicks, npcs, tiers, switches);
+            meter, driver, nullLink, totalTicks, roster, tiers, switches);
     }
 
     /// <summary>
