@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    [P6] 테스트 클라이언트 — NPC 가 무엇을 하는지 눈으로 보는 창. docs/20 §9.
+
+    왜 WinForms 인가 (docs/20 §9.1)
+    ────────────────────────────────
+    그려야 하는 것은 점·선·원·글자뿐이라 GDI+ 로 충분하고, 화면의 절반을 차지하는
+    목록·버튼·탭·트리가 공짜다. 목적은 "NPC 의 동작을 확인" 이지 게임을 만드는 것이 아니다.
+
+    TargetFramework 를 재정의하는 유일한 프로젝트다
+    ─────────────────────────────────────────────
+    Directory.Build.props 는 "개별 csproj 에서 재정의하지 않는다" 고 적혀 있지만,
+    docs/20 §4 가 이 프로젝트만 net10.0-windows 로 못 박았다. WinForms 가 그것을 요구한다.
+
+    <b>Npc.Tests 는 이 프로젝트를 참조하지 않는다</b> (docs/20 §4 · §13).
+    참조하면 테스트 프로젝트가 net10.0-windows 로 끌려가고, 그 순간 CI 가 Windows 전용이 된다.
+    클라이언트는 수동 확인 대상이고, 프로토콜·게임서버만 테스트한다.
+
+    단방향 잎(leaf)이다. 아무도 참조하지 않는다.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Npc.TestClient</RootNamespace>
+    <AssemblyName>Npc.TestClient</AssemblyName>
+
+    <!--
+      WinForms 디자이너를 쓰지 않는다. 폼은 코드로만 짠다 —
+      .Designer.cs 가 생기면 리뷰에서 사람이 읽을 수 없는 diff 가 나온다.
+    -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\Npc.TestBed.Protocol\Npc.TestBed.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MemoryPack" Version="1.21.4" />
+  </ItemGroup>
+
+</Project>

@@ -407,7 +407,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 > 바꿔야 한다. **NPC 서버가 조용하면 이 값이 늙는다** — 상태바의 지연이 커지는 것으로 보이는데, 그것도 정보다.
 
 ### F. 테스트 클라이언트
-- [ ] T6-26 WinForms 골격과 접속
+- [x] T6-26 WinForms 골격과 접속
 - [ ] T6-27 맵 렌더러 — 존·POI·카메라
 - [ ] T6-28 맵 렌더러 — 엔티티와 보간
 - [ ] T6-29 입력

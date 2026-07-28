@@ -90,6 +90,15 @@ public static class ClientProtocol
     /// <summary>서버 → 클라이언트 Kind 의 상한. 이 값 이하가 서버 쪽이다.</summary>
     public const byte MaxServerKind = 63;
 
+    /// <summary>
+    /// 프레임 헤더 크기(바이트). <see cref="FrameCodec.HeaderSize"/> 를 그대로 다시 내놓는다.
+    ///
+    /// <b>여기 있는 이유는 의존 방향이다.</b> 클라이언트가 프레임을 만들려면 이 값이 필요한데,
+    /// 그것 하나 때문에 <c>Npc.Wire</c> 를 알아야 한다면 이 프로젝트를 따로 둔 뜻이 없어진다
+    /// (docs/20 §4). 값의 출처는 여전히 하나다.
+    /// </summary>
+    public const int HeaderSize = FrameCodec.HeaderSize;
+
     /// <summary>헤더를 쓴다. 페이로드는 호출부가 이어서 쓴다.</summary>
     public static void WriteHeader(IBufferWriter<byte> writer, ClientMessageKind kind, int payloadLength) =>
         FrameCodec.WriteHeader(writer, (LinkMessageKind)(byte)kind, payloadLength);
