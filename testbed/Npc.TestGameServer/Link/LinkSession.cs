@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Pipelines;
+using System.Threading.Channels;
 using MemoryPack;
 using Npc.Contracts;
 using Npc.MasterData;
@@ -35,13 +36,30 @@ public sealed class LinkSession : IAsyncDisposable
     /// <summary>재동기화 <c>EventBatch</c> 한 프레임에 담는 이벤트 상한. docs/20 §5.5.</summary>
     public const int MaxEventsPerFrame = 256;
 
+    /// <summary>
+    /// 틱 9단계가 한 프레임에 싣는 이벤트 상한. docs/20 §7.2.
+    ///
+    /// <b>넘치면 버리는 것이 아니라 다음 틱으로 넘긴다.</b> 이벤트는 명령과 달리 유실을
+    /// 가정하지 않는다 — 하나가 사라지면 NPC 서버의 상관 ID 가 영원히 안 닫힌다.
+    /// 상한이 있는 이유는 프레임 1MiB 제한(docs/20 §5.1)이다: 1,024 × 64B = 64KiB 로 여유가 크다.
+    /// </summary>
+    public const int MaxEventsPerTick = 1_024;
+
+    /// <summary>하트비트 주기(틱). 10Hz 기준 1초다. docs/20 §5.6.</summary>
+    public const int HeartbeatTicks = GameWorld.TickRate;
+
     private readonly Stream _stream;
     private readonly GameWorld _world;
     private readonly MasterDataSet _data;
     private readonly GameServerOptions _options;
 
-    /// <summary>와이어 변환 스테이징. 프레임을 만들 때만 쓴다.</summary>
-    private readonly WireEvent[] _staging = new WireEvent[MaxEventsPerFrame];
+    /// <summary>
+    /// 와이어 변환 스테이징. 프레임을 만들 때만 쓴다.
+    ///
+    /// <b>둘 중 큰 상한으로 잡는다.</b> 재동기화는 256 씩 쪼개고 틱 송신은 1,024 까지 싣는데,
+    /// 둘 다 틱 스레드라 배열 하나를 나눠 써도 겹치지 않는다.
+    /// </summary>
+    private readonly WireEvent[] _staging = new WireEvent[MaxEventsPerTick];
 
     /// <summary>
     /// 세션이 살아 있는가. 0 이면 죽은 것이다.
@@ -55,6 +73,16 @@ public sealed class LinkSession : IAsyncDisposable
     private long _lastReceivedMillis = Environment.TickCount64;
 
     private Task? _receiver;
+
+    /// <summary>
+    /// 채널에서 꺼낸 이벤트 총수 — 보낸 것 + 재동기화에서 버린 것.
+    ///
+    /// <b><c>ChannelReader.Count</c> 를 쓰지 않는 이유.</b> <see cref="SimWorld"/> 의 채널은
+    /// <c>SingleReader = true</c> 라 <c>SingleConsumerUnboundedChannel</c> 로 만들어지고,
+    /// 그 구현은 <c>Count</c> 를 지원하지 않는다(<c>NotSupportedException</c>).
+    /// 세션이 그 채널의 유일한 독자이므로 발행 수에서 꺼낸 수를 빼면 정확히 같은 값이 나온다.
+    /// </summary>
+    private long _drained;
 
     /// <summary>세션을 만든다. 소켓은 <see cref="LinkListener"/> 가 이미 열어 뒀다.</summary>
     public LinkSession(Stream stream, GameWorld world, MasterDataSet data, GameServerOptions options)
@@ -104,6 +132,20 @@ public sealed class LinkSession : IAsyncDisposable
 
     /// <summary>받은 <c>CommandBatch</c> 프레임 수. NPC 서버의 <c>FlushAsync</c> 횟수와 같아야 한다 (N8).</summary>
     public long CommandFramesReceived { get; private set; }
+
+    /// <summary>
+    /// 상한에 걸려 다음 틱으로 넘긴 이벤트 수의 누계.
+    ///
+    /// <b>유실이 아니다.</b> 채널에 그대로 남아 다음 <see cref="FlushEventsAsync"/> 에 실린다.
+    /// 계속 밀리면 같은 이벤트가 여러 번 세어지는데, 그것이 이 값의 쓸모다 — 적체 압력을 잰다.
+    /// </summary>
+    public long EventsDeferred { get; private set; }
+
+    /// <summary>보낸 하트비트 수.</summary>
+    public long HeartbeatsSent { get; private set; }
+
+    /// <summary>아직 채널에 남아 다음 틱을 기다리는 이벤트 수.</summary>
+    public long EventsPending => _world.World.EventsEmitted - _drained;
 
     /// <summary>마지막 수신 이후 지난 벽시계 시간(ms). 하트비트 감시가 본다 (docs/20 §5.6).</summary>
     public long SilentMillis => Environment.TickCount64 - Volatile.Read(ref _lastReceivedMillis);
@@ -306,6 +348,7 @@ public sealed class LinkSession : IAsyncDisposable
         while (world.Events.TryRead(out _))
         {
             // 세션 전 이벤트는 버린다.
+            _drained++;
         }
 
         for (int i = 0; i < _world.Roster.Count; i++)
@@ -352,6 +395,68 @@ public sealed class LinkSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// 틱 9단계. 이벤트 채널을 비워 <b>한 개의</b> <c>EventBatch</c> 프레임으로 내보내고,
+    /// 1초마다 하트비트를 얹는다. docs/20 §7.2 · §5.6. <b>틱 스레드에서 부른다.</b>
+    ///
+    /// <para>
+    /// <b>이벤트가 없으면 프레임도 없다.</b> 명령 쪽과 다른 판단이다 — 명령은 배치 경계 자체가
+    /// 계약이라 빈 프레임도 보내야 하지만(N8), 이벤트는 각자 <c>Sequence</c> 를 달고 있어
+    /// 빈 프레임이 아무것도 전달하지 않는다. 실제로는 <c>SimWorld.Tick</c> 이 매 틱
+    /// <c>TickSync</c> 를 내므로 정상 회차에서 빈 틱은 없다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>상한을 넘긴 분은 버리지 않고 채널에 남긴다</b> (<see cref="MaxEventsPerTick"/>).
+    /// 이벤트를 하나라도 버리면 NPC 서버의 상관 ID 가 영원히 안 닫히고,
+    /// 그 NPC 는 <c>timeout_s</c> 가 지나야 겨우 재개한다.
+    /// </para>
+    /// </summary>
+    public async Task FlushEventsAsync(Tick now, CancellationToken ct)
+    {
+        ChannelReader<GameEvent> events = _world.World.Events;
+        int count = 0;
+
+        while (count < MaxEventsPerTick && events.TryRead(out GameEvent ev))
+        {
+            _drained++;
+
+            if (ev.Kind == GameEventKind.NpcSpawned)
+            {
+                SpawnsSent++;
+            }
+
+            _staging[count++] = WireEvent.From(in ev);
+        }
+
+        if (count > 0)
+        {
+            await SendBatchAsync(count, ct).ConfigureAwait(false);
+        }
+
+        // 남은 것은 다음 틱 몫이다. 채널은 틱 스레드만 읽고 쓰므로 이 수는 정확하다.
+        EventsDeferred += EventsPending;
+
+        if (now.Value % HeartbeatTicks == 0)
+        {
+            await SendHeartbeatAsync(now, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>하트비트 한 장. 마지막 시퀀스를 실어 수신 측이 갭을 스스로 볼 수 있게 한다.</summary>
+    private async Task SendHeartbeatAsync(Tick now, CancellationToken ct)
+    {
+        byte[] beat = MemoryPackSerializer.Serialize(new WireHeartbeat
+        {
+            Tick = now.Value,
+            Sequence = _world.World.Sequence,
+        });
+
+        await WriteFrameAsync(_stream, LinkMessageKind.Heartbeat, beat, ct).ConfigureAwait(false);
+
+        HeartbeatsSent++;
+    }
+
+    /// <summary>
     /// 이벤트 채널을 비워 <c>EventBatch</c> 프레임으로 내보낸다.
     /// 프레임당 <see cref="MaxEventsPerFrame"/> 건이고, 넘으면 프레임을 더 만든다.
     /// </summary>
@@ -362,6 +467,8 @@ public sealed class LinkSession : IAsyncDisposable
 
         while (world.Events.TryRead(out GameEvent ev))
         {
+            _drained++;
+
             if (ev.Kind == GameEventKind.NpcSpawned)
             {
                 SpawnsSent++;

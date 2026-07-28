@@ -258,6 +258,142 @@ public sealed class LinkSessionTests
     }
 
     /// <summary>
+    /// T6-18 완료 조건 — 한 틱이 <b>한 개의</b> <c>EventBatch</c> 프레임이다 (docs/20 §7.2).
+    ///
+    /// 틱마다 쪼개 보내면 수신 측이 한 틱의 결과를 여러 번에 나눠 보게 되고,
+    /// 배치 경계가 와이어에서 사라진다 (N8).
+    /// </summary>
+    [Fact]
+    public async Task LinkSession_FlushesEventsOncePerTick()
+    {
+        const int Ticks = 5;
+
+        await using var bed = await Bed.StartAsync(npcs: 8);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        await session.ResyncAsync(bed.Token);
+
+        long frames = session.FramesSent;
+        long events = session.EventsSent;
+
+        for (int t = 1; t <= Ticks; t++)
+        {
+            var now = new Tick(t);
+
+            bed.World.Tick(now);
+
+            await session.FlushEventsAsync(now, bed.Token);
+        }
+
+        // 틱마다 프레임 하나다. SimWorld.Tick 이 매 틱 TickSync 를 내므로 빈 틱은 없다.
+        Assert.Equal(Ticks, session.FramesSent - frames);
+        Assert.Equal(Ticks, session.EventsSent - events);
+        Assert.Equal(0, session.EventsDeferred);
+
+        // 하트비트는 1초(10틱)마다다. 5틱 회차에서는 아직 나가지 않는다.
+        Assert.Equal(0, session.HeartbeatsSent);
+
+        await bed.ReceiveAsync(Ticks);
+
+        Assert.Equal(0, bed.Link.Stats.EventGapsDetected);
+    }
+
+    /// <summary>
+    /// T6-18 완료 조건 — 상한을 넘긴 분은 <b>버리지 않고</b> 다음 틱으로 넘긴다.
+    ///
+    /// 이벤트를 하나라도 버리면 NPC 서버의 상관 ID 가 안 닫히고, 그 NPC 는
+    /// <c>timeout_s</c> 가 지나야 겨우 재개한다 — 명령과 달리 유실을 가정하지 않는다.
+    /// </summary>
+    [Fact]
+    public async Task LinkSession_SplitsOversizeBatch()
+    {
+        const int Emitted = (LinkSession.MaxEventsPerTick * 3 / 2) + 7;
+
+        await using var bed = await Bed.StartAsync(npcs: 8);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        // 재동기화로 채널을 깨끗이 비운다. 아래 델타가 이번 회차의 것만 담게 된다.
+        await session.ResyncAsync(bed.Token);
+
+        long frames = session.FramesSent;
+        long events = session.EventsSent;
+
+        for (int i = 0; i < Emitted; i++)
+        {
+            bed.World.World.Emit(new GameEvent
+            {
+                Kind = GameEventKind.NpcArrived,
+                Sequence = 0,
+                OccurredAt = new Tick(1),
+                Npc = new NpcId(i % bed.World.Roster.Count),
+            });
+        }
+
+        await session.FlushEventsAsync(new Tick(1), bed.Token);
+
+        const int Remainder = Emitted - LinkSession.MaxEventsPerTick;
+
+        Assert.Equal(1, session.FramesSent - frames);
+        Assert.Equal(LinkSession.MaxEventsPerTick, session.EventsSent - events);
+        Assert.Equal(Remainder, session.EventsDeferred);
+
+        // 다음 틱이 나머지를 싣는다. 버려진 것이 없다.
+        await session.FlushEventsAsync(new Tick(2), bed.Token);
+
+        Assert.Equal(2, session.FramesSent - frames);
+        Assert.Equal(Emitted, session.EventsSent - events);
+        Assert.Equal(Remainder, session.EventsDeferred);
+    }
+
+    /// <summary>
+    /// T6-18 완료 조건 — 수신 측 시퀀스에 구멍이 없다 (N6 · docs/20 §5.6).
+    ///
+    /// 프레임을 여러 장으로 쪼개도 이어져야 한다. 갭이 생기면 <c>EventApplier</c> 가
+    /// 이후 이벤트를 버리기 시작하고 NPC 가 조용히 멈춘다.
+    /// </summary>
+    [Fact]
+    public async Task LinkSession_SequenceIsContiguous()
+    {
+        const int Emitted = LinkSession.MaxEventsPerTick * 2;
+
+        await using var bed = await Bed.StartAsync(npcs: 8);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        await session.ResyncAsync(bed.Token);
+
+        int resync = bed.World.Roster.Count + (s_data.Zones.Zones.Length * 2);
+
+        for (int i = 0; i < Emitted; i++)
+        {
+            bed.World.World.Emit(new GameEvent
+            {
+                Kind = GameEventKind.NpcArrived,
+                Sequence = 0,
+                OccurredAt = new Tick(1),
+                Npc = new NpcId(i % bed.World.Roster.Count),
+            });
+        }
+
+        // 상한이 1,024 이므로 두 틱에 나눠 나간다.
+        await session.FlushEventsAsync(new Tick(1), bed.Token);
+        await session.FlushEventsAsync(new Tick(2), bed.Token);
+
+        List<long> sequences = await bed.ReceiveSequencesAsync(resync + Emitted);
+
+        Assert.Equal(resync + Emitted, sequences.Count);
+
+        for (int i = 1; i < sequences.Count; i++)
+        {
+            Assert.Equal(sequences[i - 1] + 1, sequences[i]);
+        }
+
+        Assert.Equal(0, bed.Link.Stats.EventGapsDetected);
+    }
+
+    /// <summary>
     /// 게임서버 대역 + 진짜 TCP 링크 한 벌. 포트 0 으로 띄우고 끝나면 같이 내린다.
     /// </summary>
     private sealed class Bed : IAsyncDisposable
@@ -426,6 +562,31 @@ public sealed class LinkSessionTests
             }
 
             return got;
+        }
+
+        /// <summary>링크가 받은 이벤트를 <paramref name="count"/> 건 모아 시퀀스만 순서대로 돌려준다.</summary>
+        public async Task<List<long>> ReceiveSequencesAsync(int count)
+        {
+            var sequences = new List<long>(count);
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Token);
+
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+
+            while (sequences.Count < count)
+            {
+                if (!await Link.Events.WaitToReadAsync(timeout.Token))
+                {
+                    break;
+                }
+
+                while (sequences.Count < count && Link.Events.TryRead(out GameEvent ev))
+                {
+                    sequences.Add(ev.Sequence);
+                }
+            }
+
+            return sequences;
         }
 
         public async ValueTask DisposeAsync()
