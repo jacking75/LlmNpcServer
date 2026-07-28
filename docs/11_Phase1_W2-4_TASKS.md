@@ -24,7 +24,7 @@
 **T1-03** CI 스크립트 · `S` · 선행 T1-02
   파일 `.github/workflows/ci.yml` 또는 `build.ps1` (신규)
   사양 `../CLAUDE.md §1, §5`
-  내용 build → `dotnet format --verify-no-changes` → `dotnet test --filter Category!=Golden`.
+  내용 build → `dotnet format --verify-no-changes` → `dotnet test --filter "Category!=Golden&Category!=Gate&Category!=Load"` (필터는 `CLAUDE.md §1` 이 단일 원천이다. 2026-07-28 에 `Gate`·`Load` 가 추가됐다).
   완료 로컬에서 스크립트 1회 실행으로 3단계 전부 통과
 
 ---

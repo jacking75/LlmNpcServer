@@ -37,14 +37,40 @@ namespace Npc.Tests.Gates;
 /// </param>
 public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
 {
-    /// <summary>생성 완료율 하한. docs/13 §7.</summary>
-    private const double MinGeneratedRate = 0.95;
+    /// <summary>
+    /// 픽스처가 채우는 비율. <b>게이트 기준이 아니다</b> —
+    /// 항목 1 의 "생성 완료 ≥ 95%" 는 2026-07-28 에 빠졌다 (docs/13 §7 개정).
+    /// 여기 남은 것은 "5% 가 비어 있어도 폴백이 덮는가" 를 만들기 위한 픽스처 값이다.
+    /// </summary>
+    private const double FixtureFillRate = 0.95;
 
     /// <summary>시나리오 A 캐시 히트율 하한.</summary>
     private const double MinRuntimeHitRate = 0.98;
 
-    /// <summary>프롬프트 캐시 적중률 하한 (외부 API).</summary>
-    private const double MinPromptCacheHitRate = 0.95;
+    /// <summary>
+    /// 프롬프트 캐시 적중률 하한 — <b>명시적 캐싱</b> 엔진 (docs/13 §7 개정).
+    /// 요청에 <c>cache_control</c> 을 실어 우리가 적중을 지시하는 방식이라 높게 잡을 수 있다.
+    /// </summary>
+    private const double MinPromptCacheHitRateExplicit = 0.95;
+
+    /// <summary>
+    /// 프롬프트 캐시 적중률 하한 — <b>암시적 캐싱</b> 엔진 (Gemini 계열).
+    ///
+    /// 제공사가 적중 여부를 요청 단위로 알아서 판정하고 그 판정이 비결정적이라
+    /// (<c>W8_prebake.md §2</c>) 프리픽스를 고정해도 95% 에 닿지 않는다. 실측 42.6~69.2%.
+    ///
+    /// <b>40% 는 손익 기준이다</b> — 적중분이 1/10 단가라 적중률 40% 면 비용이 약 1/3 준다
+    /// (<c>cost_actual.md §3</c>: 40.6% → 33.4% 절감). 그 아래면 프리픽스를 고정한 값어치가 없다.
+    /// </summary>
+    private const double MinPromptCacheHitRateImplicit = 0.40;
+
+    /// <summary>
+    /// "전량 회차인가" 판정선. 항목 2·3·4 는 부분 회차의 값으로 판정하지 않는다.
+    ///
+    /// <b>항목 1 의 게이트 기준이 아니다</b> — 그것은 2026-07-28 에 빠졌다. 여기 남은 것은
+    /// "288버킷 파일럿의 115초를 상한 300초 통과로 세지 않는다" 는 방어 하나뿐이다.
+    /// </summary>
+    private const double FullRunThreshold = 0.95;
 
     /// <summary>프리베이크 wall-clock 상한(초).</summary>
     private const double MaxWallClockSeconds = 300;
@@ -81,14 +107,14 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
 
         // 우선순위 순으로 95% 만 채운다 — 남는 5% 는 Disaster 쪽 꼬리다.
         ImmutableArray<BucketKey> order = TargetSelector.SortByPriority(TargetSelector.All(), s_data);
-        int filled = (int)(BucketKey.TotalKeys * MinGeneratedRate);
+        int filled = (int)(BucketKey.TotalKeys * FixtureFillRate);
 
         for (int i = 0; i < filled; i++)
         {
             store.SetBucket(order[i], Phase3Fixture.PlanFor(order[i], s_data));
         }
 
-        Assert.True(store.FilledBuckets >= BucketKey.TotalKeys * MinGeneratedRate);
+        Assert.True(store.FilledBuckets >= BucketKey.TotalKeys * FixtureFillRate);
 
         // 전 버킷이 유효한 플랜을 받는다. 미생성분은 폴백이다.
         for (int index = 0; index < BucketKey.TotalKeys; index++)
@@ -107,18 +133,12 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
         }
     }
 
-    /// <summary>항목 1 (실측) — manifest 의 생성 완료율이 95% 이상이다.</summary>
-    [Fact]
-    [Trait("Category", "Gate")]
-    public void Gate_GeneratedRateIsAtLeast95Percent()
-    {
-        Manifest manifest = RequireManifest();
-
-        Assert.True(
-            manifest.Counts.GeneratedRate >= MinGeneratedRate,
-            $"생성 완료율 {manifest.Counts.GeneratedRate:P1} — 하한 {MinGeneratedRate:P0}. "
-            + $"생성 {manifest.Counts.Generated} · pinned {manifest.Counts.Pinned} / {manifest.Counts.Total}");
-    }
+    // 항목 1 의 "생성 완료율 ≥ 95%" 판정은 2026-07-28 에 빠졌다 (docs/13 §7 개정).
+    //
+    // 분모가 2,880 인데 도달 집합(264)만 만드는 방침을 택했으므로 정의상 영원히 미달이고,
+    // 분모를 "선언된 대상 집합" 으로 바꾸면 docs/12 §9 의 통과율과 같은 것을 두 번 재게 된다.
+    // 이 항목이 원래 지키려던 것 — "미생성 버킷이 있어도 Resolve 가 null 을 주지 않는다" —
+    // 는 위의 Gate_ColdBucketsResolveToFallback 이 그대로 본다.
 
     // ── 2. 프리베이크 wall-clock ≤ 5분 ─────────────────────────────
 
@@ -156,17 +176,18 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
             $"실비용 ${manifest.CostUsd:F4} — 상한 ${MaxCostUsd:F2}");
     }
 
-    // ── 4. 프롬프트 캐시 적중률 ≥ 95% ─────────────────────────────
+    // ── 4. 프롬프트 캐시 적중률 — 엔진 계열별 ─────────────────────
 
     /// <summary>
-    /// 항목 4 — manifest 에 기록된 프롬프트 캐시 적중률이 95% 이상이다.
+    /// 항목 4 — manifest 의 프롬프트 캐시 적중률이 <b>그 엔진 계열의 하한</b> 이상이다
+    /// (docs/13 §7, 2026-07-28 개정).
     ///
     /// 로컬 엔진은 <c>cached_tokens</c> 를 항상 0 으로 보고하므로 이 항목은 외부 API 회차에만 적용된다
     /// (<c>W1_env.md §4.4</c>).
     /// </summary>
     [Fact]
     [Trait("Category", "Gate")]
-    public void Gate_PromptCacheHitRateIsAtLeast95Percent()
+    public void Gate_PromptCacheHitRateMeetsEngineFloor()
     {
         Manifest manifest = RequireFullRun(RequireManifest());
 
@@ -175,11 +196,29 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
             manifest.GeneratedBy.Tier == "T1",
             "로컬 티어(T1) 회차의 manifest 다. 이 항목은 외부 API 회차에만 판정된다 (W1_env.md §4.4).");
 
+        bool explicitCaching = UsesExplicitCaching(manifest.GeneratedBy.Model);
+        double floor = explicitCaching ? MinPromptCacheHitRateExplicit : MinPromptCacheHitRateImplicit;
+
         Assert.True(
-            manifest.CacheHitRate >= MinPromptCacheHitRate,
-            $"프롬프트 캐시 적중률 {manifest.CacheHitRate:P1} — 하한 {MinPromptCacheHitRate:P0}. "
+            manifest.CacheHitRate >= floor,
+            $"프롬프트 캐시 적중률 {manifest.CacheHitRate:P1} — "
+            + $"{(explicitCaching ? "명시적" : "암시적")} 캐싱 하한 {floor:P0} "
+            + $"(엔진 {manifest.GeneratedBy.Model}). "
             + "프리픽스가 흔들렸는지(SHA 종류 수)와 워밍업 여부를 본다.");
     }
+
+    /// <summary>
+    /// 이 엔진이 <b>명시적</b> 프롬프트 캐싱을 쓰는가 (docs/13 §7 개정).
+    ///
+    /// 명시적 = 요청에 <c>cache_control</c> 을 실어 우리가 적중을 지시한다. 지금은 Anthropic 뿐이다.
+    /// 그 외(Gemini·OpenAI 호환 경유 포함)는 암시적이라 적중 판정이 제공사 몫이고 비결정적이다.
+    ///
+    /// <b>모르는 엔진은 암시적으로 본다</b> — 높은 하한을 잘못 씌워 통과시키는 것보다
+    /// 낮은 하한으로 실측을 남기는 편이 안전하다.
+    /// </summary>
+    private static bool UsesExplicitCaching(string model) =>
+        model.Contains("claude", StringComparison.OrdinalIgnoreCase)
+        || model.Contains("anthropic", StringComparison.OrdinalIgnoreCase);
 
     // ── 5. 시나리오 A(7게임일) 캐시 히트율 ≥ 98% ──────────────────
 
@@ -198,7 +237,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
 
         try
         {
-            Phase3Fixture.WriteStore(store, s_data, count: (int)(BucketKey.TotalKeys * MinGeneratedRate), writeManifest: true);
+            Phase3Fixture.WriteStore(store, s_data, count: (int)(BucketKey.TotalKeys * FixtureFillRate), writeManifest: true);
 
             await using NpcHost host = NpcHost.Create(
                 Options(
@@ -518,7 +557,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
     private static Manifest RequireFullRun(Manifest manifest)
     {
         Assert.True(
-            manifest.Counts.GeneratedRate >= MinGeneratedRate,
+            manifest.Counts.GeneratedRate >= FullRunThreshold,
             $"부분 회차의 manifest 다 (생성 완료율 {manifest.Counts.GeneratedRate:P1}). "
             + $"이 항목은 전량 {BucketKey.TotalKeys} 회차에서만 판정된다 — "
             + $"지금 값(wall-clock {manifest.WallClockSeconds:F0}s · ${manifest.CostUsd:F4} · "

@@ -54,7 +54,8 @@ dotnet build -c Release
 dotnet test                                    # 전체
 dotnet test --filter Category=Golden           # 골든 회귀 (LLM 호출 있음, 느림)
 dotnet test --filter Category=Gate             # 실측 산출물이 있어야 판정되는 게이트 항목
-dotnet test "--filter Category!=Golden&Category!=Gate"   # CI 기본
+dotnet test --filter Category=Load              # 부하 (수 분. 측정 CSV 를 덮어쓴다)
+dotnet test "--filter Category!=Golden&Category!=Gate&Category!=Load"   # CI 기본 (= .\build.ps1)
 dotnet format --verify-no-changes              # 스타일 검사
 ```
 
@@ -220,7 +221,7 @@ Npc.Host       ←  전부
 | (없음) | 단위 테스트. 빠르고 LLM 미호출 | 항상 |
 | `Contracts` | N1~N8 강제 (리플렉션 검사) | 항상 |
 | `Determinism` | 리플레이 일치, 멱등성 | 항상 |
-| `Load` | NPC 5,000 부하. 수 분 소요 | 야간 |
+| `Load` | NPC 5,000 부하. 수 분 소요. **`docs/measurements/W10_load.csv`·`W10_weights.md` 를 덮어쓴다** — 돌린 뒤 `git diff` 로 의도한 갱신인지 확인한다 | 야간 |
 | `Golden` | 골든 50건 × 3회. **LLM 호출·비용 발생** | 수동 / 릴리스 전 |
 | `FaultInjection` | 시나리오 C, 링크 장애 | 야간 |
 | `Gate` | **실측 산출물이 있어야 판정되는 게이트 항목.** `planstore/manifest.json`·검수 기록이 근거다. 산출물이 없으면 **실패한다** — 없는 것을 통과로 세면 게이트가 거짓이 된다 | 수동 / 게이트 판정 시 |

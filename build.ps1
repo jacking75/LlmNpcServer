@@ -6,8 +6,10 @@
 .DESCRIPTION
     1. dotnet build -c Release
     2. dotnet format --verify-no-changes   (스타일 검사)
-    3. dotnet test --filter Category!=Golden
-       Golden 은 LLM 호출·비용이 발생하므로 CI 기본에서 제외한다.
+    3. dotnet test --filter "Category!=Golden&Category!=Gate&Category!=Load"
+       Golden 은 LLM 호출·비용이 발생하고,
+       Gate  는 실측 산출물이 없으면 실패하도록 만든 항목이며,
+       Load  는 수 분이 걸리고 docs/measurements/*.csv 를 덮어쓴다 (CLAUDE.md §5 — 야간).
 
 .PARAMETER Configuration
     빌드 구성. 기본 Release.
@@ -61,7 +63,7 @@ Invoke-Step -Name 'test' -Arguments @(
     'test', $solution,
     '-c', $Configuration,
     '--no-build',
-    '--filter', 'Category!=Golden'
+    '--filter', 'Category!=Golden&Category!=Gate&Category!=Load'
 )
 
 Write-Host ''
