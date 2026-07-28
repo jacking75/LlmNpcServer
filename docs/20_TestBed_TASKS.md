@@ -321,7 +321,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-10 링크 사양 문서 갱신
 
 ### C. 로스터와 호스트 배선
-- [ ] T6-11 `NpcRoster` 추출
+- [x] T6-11 `NpcRoster` 추출
 - [ ] T6-12 `--link tcp` 배선
 - [ ] T6-13 킬스위치 전달 경로
 

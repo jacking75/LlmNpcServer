@@ -279,18 +279,13 @@ internal sealed class NpcHost : IAsyncDisposable
         var interrupts = new InterruptMatcher(data, store) { Snapshots = snapshots };
 
         // ── 인구 배치 ─────────────────────────────────────────────
-        // --npcs 가 전체보다 작으면 균등 간격으로 뽑는다. 앞에서부터 자르면
-        // 아키타입 code 순이라 대장장이·목수만 뽑히고 농부가 한 마리도 안 나온다.
-        var chosen = new NpcInstanceDef[npcs];
+        // 선택 규칙은 NpcRoster 한 곳에 있다 (T6-11 · docs/20 §10). 게임서버도 같은 함수를
+        // 부르므로 첨자가 어긋나지 않는다 — 어긋나면 대장장이에게 밭을 갈라고 명령하게 된다.
+        NpcRoster roster = NpcRoster.Select(instances, npcs);
 
         for (int i = 0; i < npcs; i++)
         {
-            chosen[i] = instances[(int)((long)i * instances.Count / npcs)];
-        }
-
-        for (int i = 0; i < npcs; i++)
-        {
-            NpcInstanceDef def = chosen[i];
+            NpcInstanceDef def = roster.Npcs[i];
 
             applier.Seed(i, def.Home, def.Zone, def.Archetype, def.Home, def.Workplace);
             store.StepStatus[i] = (byte)StepStatus.Ready;
@@ -317,7 +312,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
             case LinkKind.Record:
             {
-                driver = SimDriver.Create(options, data, chosen);
+                driver = SimDriver.Create(options, data, roster.Npcs);
                 string path = options.TracePath ?? Path.Combine("artifacts", "link.jsonl");
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
                 link = new RecordingGameServerLink(driver.Link, path);
@@ -326,7 +321,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
             case LinkKind.Loopback:
             default:
-                driver = SimDriver.Create(options, data, chosen);
+                driver = SimDriver.Create(options, data, roster.Npcs);
                 link = driver.Link;
                 break;
         }
@@ -755,11 +750,11 @@ internal sealed class SimDriver : IAsyncDisposable
     public long CommandsDropped => _inbox.Dropped;
 
     /// <summary>조립한다.</summary>
-    public static SimDriver Create(HostOptions options, MasterDataSet data, NpcInstanceDef[] npcs)
+    public static SimDriver Create(
+        HostOptions options, MasterDataSet data, ImmutableArray<NpcInstanceDef> npcs)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(data);
-        ArgumentNullException.ThrowIfNull(npcs);
 
         var world = new SimWorld(data, npcs.Length, new SimOptions(
             Seed: options.Seed,
