@@ -348,8 +348,15 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 ### E. 클라이언트 프로토콜과 세션
 - [x] T6-22 `Npc.TestBed.Protocol`
 - [x] T6-23 클라이언트 리스너와 세션
-- [ ] T6-24 스냅샷 빌더
+- [x] T6-24 스냅샷 빌더 — `EntityFlags.InCombat` 은 **미채움**(전투 상태를 들고 있는 곳이 없다. 아래)
 - [ ] T6-25 제어 처리
+
+> **T6-24 의 남은 일 — `EntityFlags.InCombat`(bit2)이 늘 0 이다 (2026-07-28).**
+> `docs/20` §8.1 이 그 비트를 정의했지만 **전투 상태를 들고 있는 곳이 없다.**
+> `PlayerRegistry.TryAttack`(T6-20)도 `InteractionSim.ResolveCombat` 도 그 자리에서 끝나고
+> 아무 표시를 남기지 않는다. HP 같은 것으로 흉내내면 **화면이 거짓말을 한다** — 그래서 비웠다.
+> 채우려면 먼저 전투 상태를 어디에 둘지 정해야 한다(`PlayerRegistry` 에 마지막 피격 틱 배열이
+> 가장 싸다). **화면에서 붉은 테두리가 안 보이는 것 외에 다른 증상은 없다.**
 
 ### F. 테스트 클라이언트
 - [ ] T6-26 WinForms 골격과 접속
