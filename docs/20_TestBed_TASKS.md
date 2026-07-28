@@ -318,7 +318,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-07 송신 경로
 - [x] T6-08 수신 경로
 - [x] T6-09 재접속·하트비트·상태 전이
-- [ ] T6-10 링크 사양 문서 갱신
+- [x] T6-10 링크 사양 문서 갱신
 
 ### C. 로스터와 호스트 배선
 - [ ] T6-11 `NpcRoster` 추출

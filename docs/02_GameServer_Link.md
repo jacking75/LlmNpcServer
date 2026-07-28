@@ -3,8 +3,12 @@
 > **이 문서는 "게임서버를 어떻게 만드는가"가 아니다.**
 > **우리가 만드는 NPC 서버가 게임서버와 주고받는 경계(Link)를 NPC 서버 관점에서 정의한 문서다.**
 >
-> **이번 범위: 인터페이스와 패킷 정의까지만.** 실제 네트워크 통신(소켓·직렬화·재접속)은 구현하지 않는다.
-> 목표: 나중에 실제 게임서버에 붙일 때 **NPC 서버 코드가 한 줄도 바뀌지 않는 것.**
+> ~~**이번 범위: 인터페이스와 패킷 정의까지만.**~~ — **2026-07-28 갱신.** 실제 네트워크 통신은
+> P6(테스트 베드)에서 구현됐다. §2 구현체 표와 §7 을 본다.
+>
+> 목표는 그대로였고, **지켜졌다** — 나중에 실제 게임서버에 붙일 때 NPC 서버 코드가 한 줄도 바뀌지 않는 것.
+> TCP 링크를 구현한 아홉 커밋(T6-01~T6-09) 전부 `Npc.Runtime`·`Npc.Planning`·`Npc.Core`·`Npc.Contracts`
+> 변경이 **0줄**이다.
 
 ---
 
@@ -85,7 +89,7 @@ namespace Npc.Contracts;
 
 /// <summary>
 /// NPC 서버 ↔ 게임서버 사이의 유일한 경계.
-/// 구현체는 인프로세스 루프백 / 널 / 기록 데코레이터 / (미래) TCP.
+/// 구현체는 인프로세스 루프백 / 널 / 기록·재생 데코레이터 / TCP (P6 에서 구현).
 /// </summary>
 public interface IGameServerLink : IAsyncDisposable
 {
@@ -122,25 +126,26 @@ public readonly record struct LinkStats(
 | `NullGameServerLink` | 명령 폐기, 이벤트 없음. 단위 테스트·성능 측정 기준선 | 구현 |
 | `RecordingGameServerLink` | 데코레이터. 명령·이벤트를 jsonl로 기록 → 리플레이 | 구현 |
 | `ReplayGameServerLink` | 기록된 jsonl을 이벤트 소스로 재생 | 구현 |
-| `TcpGameServerLink` | 실제 네트워크 | **미구현.** 클래스 골격 + `TODO` 주석 + `NotSupportedException` 만 |
+| `TcpGameServerLink` | 실제 네트워크 | **구현 (테스트 베드 · P6).** 연결·핸드셰이크·송신·수신·재접속. `docs/20` §5·§6 |
 
-```csharp
-// Npc.Gateway/TcpGameServerLink.cs
-/// <summary>
-/// [범위 밖] 실제 게임서버 TCP 링크.
-/// 이 클래스는 인터페이스가 네트워크 전환에 견디는지 확인하기 위한 골격이다.
-/// 구현 시 필요한 것:
-///   1. 프레이밍 (길이 접두 4바이트 + payload)
-///   2. 직렬화 — MemoryPack 또는 소스 생성 기반. 리플렉션 금지
-///   3. 재접속 + 시퀀스 재동기화 (N6)
-///   4. Nagle 비활성 + 배치 코얼레싱 (N8)
-/// </summary>
-public sealed class TcpGameServerLink : IGameServerLink
-{
-    public void Enqueue(in NpcCommand command) => throw new NotSupportedException("TODO: 범위 밖");
-    // ...
-}
+`TcpGameServerLink` 는 2026-07-28(T6-06~T6-09)에 골격에서 구현으로 바뀌었다. **스레드가 셋이다.**
+
 ```
+ [틱 루프]                          [센더 태스크]              [리시버 태스크]
+  Enqueue ──► PriorityCommandRing        │                          │
+  Flush   ──► BatchQueue 게시 ──────────►│ → WireCommand[]          │
+              (할당 0)                   │ → MemoryPack → 소켓       │
+                                                                    │ PipeReader → 프레임
+  link.Events.TryRead ◄─────────────────────────────────────────────┘ → GameEvent → 채널
+```
+
+**틱 루프는 소켓을 만지지 않는다.** 커널 송신 버퍼가 차기를 틱 루프에서 기다리면 그 순간 틱이 밀린다
+(`docs/20` §3.3). `FlushAsync` 가 하는 일은 링을 배치 슬롯으로 옮기고 꼬리를 올리는 것뿐이고,
+그 경로에 할당이 없다(`TcpLink_FlushDoesNotAllocate`).
+
+> **링을 스레드 너머로 넘기지 않는다.** `PriorityCommandRing` 은 삽입과 꺼냄이 `_count` 를 함께
+> 만져 SPSC 로 안전하지 않다. 경계는 `BatchQueue`(생산자/소비자 첨자가 갈린 SPSC)이고,
+> 이 판단의 근거는 `ReplanQueue` 에서 같은 실수를 한 번 했기 때문이다 (`TASKS.md §3` 결정 16).
 
 ---
 
@@ -383,14 +388,43 @@ public sealed class NpcServerLoop
 | `Link_CommandLoss` | 명령을 의도적으로 드롭 → `timeout_s` 후 합성 `ActionFailed` 발생 → 플랜 진행 재개 |
 | `Link_Swappable` | 같은 시나리오를 `Loopback`/`Recording`/`Replay`로 각각 실행 → NPC 서버 코드 무변경 |
 
+### TCP 링크 (P6 · `docs/20` §13)
+
+| 테스트 | 내용 |
+|---|---|
+| `Wire_MirrorsContractMembers` | 리플렉션으로 `NpcCommand`↔`WireCommand` 멤버 집합 1:1 — **계약에 필드를 추가하고 와이어를 잊으면 여기서 깨진다** |
+| `Wire_LayoutIsFrozen` | `sizeof`가 56·64. 패딩이 생기면 값이 달라진다 |
+| `Frame_SplitAcrossReads` | 1바이트씩 넣어도 복원. 다 오기 전에는 버퍼를 건드리지 않는다 |
+| `Frame_ReadsAcrossSegments` | 헤더 한가운데서 잘린 다중 세그먼트 — `PipeReader` 가 주는 모양이다 |
+| `Frame_RejectsOversizePayload` | 1MiB 초과 거절. **프로세스는 산다** |
+| `TcpLink_HandshakeRejectsMismatch` | 버전·타임스케일·마스터데이터·로스터 4가지 불일치 각각 해당 `RejectCode` |
+| `TcpLink_OneFlushIsOneFrame` | 수신 측이 센 프레임 수 = Flush 횟수 (N8) |
+| `TcpLink_FlushDoesNotAllocate` | 워밍업 후 10,000회 할당 델타 0 |
+| `TcpLink_CountsSequenceGaps` | 시퀀스 건너뛴 배치 → **건너뛴 개수만큼** `EventGapsDetected` (N6) |
+| `TcpLink_ReconnectKeepsSequenceMonotonic` | 끊고 다시 붙여도 시퀀스가 되감기지 않는다 (N6) |
+| `TcpLink_StateTransitions` | §6.3 전이표가 `StateChanged` 로 관측된다 |
+| `TcpLink_FaultedDoesNotRetry` | 거절되면 세션 1회로 끝난다 — 무한 재시도로 원인을 묻지 않는다 |
+
 ---
 
-## 7. 실제 네트워크 구현 시 남는 작업 (범위 밖 · 미래 참고)
+## 7. 실제 네트워크 구현 — 다섯 항목 전부 구현됐다 (P6)
 
-1. **직렬화** — `MemoryPack` 또는 소스 생성기. 패킷이 전부 값 타입이라 `MemoryMarshal`로 blittable 처리도 가능
-2. **프레이밍** — 길이 접두 4바이트 + payload. 배치는 `[count][cmd][cmd]...`
-3. **전송** — `System.IO.Pipelines` + `SocketAsyncEventArgs`. Nagle 비활성
-4. **재접속** — `LinkState.Degraded` 동안 명령은 링 버퍼에 축적, 재연결 시 시퀀스 재동기화
-5. **흐름 제어** — 게임서버가 처리 못 하면 링크가 역압을 올려야 함. 현재 `BoundedChannel` 자리에 그대로 들어감
+| # | 항목 | 상태 |
+|---|---|---|
+| 1 | **직렬화** — `MemoryPack`. 패킷이 전부 값 타입이라 unmanaged 배열로 나간다 | **구현** — `docs/20` §5.3 · `Npc.Wire` |
+| 2 | **프레이밍** — 길이 접두 + payload | **구현** — `docs/20` §5.1 · `FrameCodec`. 헤더는 8바이트 고정이고 **4바이트가 아니다** (Kind·Ver·Reserved 가 붙는다) |
+| 3 | **전송** — `System.IO.Pipelines`. Nagle 비활성 | **구현** — `docs/20` §6.1. `SocketAsyncEventArgs` 대신 `PipeReader`/`NetworkStream` 이다 |
+| 4 | **재접속 + 시퀀스 재동기화** | **구현** — `docs/20` §5.6. 백오프 250ms~4s · **시퀀스는 리셋하지 않는다**(N6) |
+| 5 | **흐름 제어** | **구현** — `PriorityCommandRing`. `BoundedChannel` 이 아니라 우선순위별 링이고 `Critical` 은 무손실이다 |
 
-이 5가지 중 **NPC 서버 코드를 건드려야 하는 것은 없다.** 그것이 이번 인터페이스 설계의 검증 기준이다.
+**다섯 중 NPC 서버 코드를 건드려야 한 것은 없었다.** 이것이 이 인터페이스 설계의 검증 기준이었고,
+**커밋 단위로 확인했다** — T6-01~T6-09 아홉 커밋 전부 `Npc.Runtime`·`Npc.Planning`·`Npc.Core`·
+`Npc.Contracts` 변경 0줄이다 (`docs/20` §1 합격 기준 1).
+
+### 아직 남은 것
+
+| 항목 | 왜 남았나 |
+|---|---|
+| **이기종 엔디언·패딩** | unmanaged 배열을 원시 메모리로 복사하므로 **양쪽이 같은 x64 .NET 런타임**인 것을 전제한다. 다른 런타임의 게임서버에 붙일 때는 필드별 쓰기 포매터로 바꾼다 — **바꿀 자리가 `Npc.Wire` 한 곳뿐인 것이 이 설계의 요점이다** (`docs/20` §5.2) |
+| **인증·암호화** | 핸드셰이크가 검증하는 것은 "같은 데이터를 보고 있는가" 지 "네가 누구인가" 가 아니다. 신뢰 경계 밖에 놓으려면 TLS 와 토큰이 필요하다 |
+| **샤딩** | 링크 하나가 게임서버 하나에 붙는다. 월드를 여러 프로세스로 쪼개면 존별 라우팅이 필요하다 |
