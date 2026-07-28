@@ -339,7 +339,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-16 링크 리스너와 핸드셰이크
 - [x] T6-17 명령 수신
 - [x] T6-18 이벤트 송신
-- [ ] T6-19 `PlayerRegistry` — 이동과 근접
+- [x] T6-19 `PlayerRegistry` — 이동과 근접
 - [ ] T6-20 `PlayerRegistry` — 상호작용·공격·봇
 - [ ] T6-21 `MirrorLog`
 
