@@ -24,20 +24,43 @@ public sealed record ManifestGeneratedBy(
     int PeakConcurrency = 0,
     int FirstRateLimitConcurrency = 0);
 
-/// <summary>버킷 집계. docs/03 §7 의 <c>counts</c>.</summary>
-/// <param name="Total">전체 버킷 수. 2,880.</param>
-/// <param name="Generated">LLM 생성 + 검증 통과.</param>
+/// <summary>
+/// 버킷 집계. docs/03 §7 의 <c>counts</c>.
+///
+/// <b><see cref="Generated"/> 와 <see cref="Target"/> 은 세는 대상이 다르다</b>
+/// (2026-07-28 결정 13·15-A). 증분 <c>--only</c> 회차에서 둘이 크게 갈린다 —
+/// 714버킷을 새로 만들어도 스토어에는 이전 회차 몫까지 718개가 있다.
+/// </summary>
+/// <param name="Total">버킷 공간 크기. 2,880. 고정값이다.</param>
+/// <param name="Generated">
+/// <b>스토어 전체</b>에서 LLM 생성으로 채워진 버킷 수. 이번 회차 것만이 아니다 —
+/// 이 값은 "지금 플랜 스토어가 어떤 상태인가" 를 답한다.
+/// </param>
 /// <param name="Pinned">사람이 고정한 것.</param>
-/// <param name="Fallback">폴백으로 해소한 것.</param>
-/// <param name="Reused">인접 버킷에서 빌려 온 것 (docs/12 §7).</param>
+/// <param name="Fallback">이번 회차에서 폴백으로 해소한 것.</param>
+/// <param name="Reused">이번 회차에서 인접 버킷에서 빌려 온 것 (docs/12 §7).</param>
+/// <param name="Target">
+/// <b>이번 회차가 만들기로 선언한 버킷 수</b> (<c>TargetSelector</c> 산출).
+/// 전량 회차면 2,880 이고 <c>--only</c> 도달 집합 회차면 264 다.
+///
+/// <b>wall-clock·비용을 이 값 없이 읽으면 안 된다</b> — "97초" 는 264버킷의 97초이지
+/// 2,880버킷의 97초가 아니다. P3 게이트 항목 2·3 이 이 값을 같이 싣는 이유다.
+/// 0 이면 이 필드가 없던 시절의 manifest 다.
+/// </param>
 public readonly record struct ManifestCounts(
     int Total,
     int Generated,
     int Pinned,
     int Fallback,
-    int Reused = 0)
+    int Reused = 0,
+    int Target = 0)
 {
-    /// <summary>생성 완료율. P3 게이트는 ≥ 0.95 다.</summary>
+    /// <summary>
+    /// 버킷 공간(2,880) 대비 스토어 채움 비율.
+    ///
+    /// <b>더 이상 게이트 기준이 아니다</b> — P3 항목 1 의 "생성 완료 ≥ 95%" 는
+    /// 2026-07-28 에 빠졌다 (docs/13 §7). 보고용 지표다.
+    /// </summary>
     public double GeneratedRate => Total == 0 ? 0 : (double)(Generated + Pinned) / Total;
 }
 
@@ -216,7 +239,8 @@ public sealed record Manifest
             m.GeneratedBy.PeakConcurrency,
             m.GeneratedBy.FirstRateLimitConcurrency),
         new CountsDto(
-            m.Counts.Total, m.Counts.Generated, m.Counts.Pinned, m.Counts.Fallback, m.Counts.Reused),
+            m.Counts.Total, m.Counts.Generated, m.Counts.Pinned, m.Counts.Fallback,
+            m.Counts.Reused, m.Counts.Target),
         new ValidationDto(
             m.Validation.Pass,
             m.Validation.FailSchema,
@@ -244,7 +268,7 @@ public sealed record Manifest
             dto.GeneratedBy?.PeakConcurrency ?? 0,
             dto.GeneratedBy?.FirstRateLimitConcurrency ?? 0),
         Counts = dto.Counts is { } c
-            ? new ManifestCounts(c.Total, c.Generated, c.Pinned, c.Fallback, c.Reused)
+            ? new ManifestCounts(c.Total, c.Generated, c.Pinned, c.Fallback, c.Reused, c.Target)
             : default,
         Validation = dto.Validation is { } v
             ? new ManifestValidation(v.Pass, v.FailSchema, v.FailVocab, v.FailCoherence, v.FailDryrun, v.FailCall)
@@ -281,7 +305,8 @@ public sealed record Manifest
         int PeakConcurrency,
         int FirstRateLimitConcurrency);
 
-    internal sealed record CountsDto(int Total, int Generated, int Pinned, int Fallback, int Reused);
+    internal sealed record CountsDto(
+        int Total, int Generated, int Pinned, int Fallback, int Reused, int Target = 0);
 
     internal sealed record ValidationDto(
         int Pass, int FailSchema, int FailVocab, int FailCoherence, int FailDryrun, int FailCall);

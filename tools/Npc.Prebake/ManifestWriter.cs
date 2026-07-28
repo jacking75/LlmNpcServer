@@ -43,7 +43,8 @@ public static class ManifestWriter
         BulkRunReport report,
         DryRunReport dryRun,
         PlanStore store,
-        string generatedAt)
+        string generatedAt,
+        int target = 0)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(prefix);
@@ -51,6 +52,8 @@ public static class ManifestWriter
         ArgumentNullException.ThrowIfNull(report);
         ArgumentNullException.ThrowIfNull(store);
 
+        // store 는 저장 뒤 디스크에서 다시 읽은 것이어야 한다 — 러너의 스토어는 이번 회차 몫만
+        // 들고 있어서 증분 --only 회차의 counts.generated 가 이전 회차를 잊는다 (결정 13).
         int pinned = store.PinnedBuckets;
         int filled = store.FilledBuckets;
 
@@ -71,7 +74,8 @@ public static class ManifestWriter
                 Generated: Math.Max(0, filled - pinned),
                 Pinned: pinned,
                 Fallback: report.FellBack,
-                Reused: report.Reused),
+                Reused: report.Reused,
+                Target: target),
             Validation = CountValidation(report, dryRun),
             CostUsd = report.CostUsd,
             WallClockSeconds = report.WallClockSeconds,

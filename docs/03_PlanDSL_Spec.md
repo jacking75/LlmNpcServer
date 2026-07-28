@@ -373,12 +373,15 @@ planstore/
   "generated_by": { "tier": "T2", "model": "gpt-5-nano", "temperature": 0.4,
                     "concurrency": 8, "peak_concurrency": 18,
                     "first_rate_limit_concurrency": 0 },
-  "counts": { "total": 2880, "generated": 2841, "pinned": 12, "fallback": 27, "reused": 0 },
+  "counts": { "total": 2880,           // 버킷 공간 크기. 고정
+              "target": 264,           // 이번 회차가 만들기로 선언한 수 (--only 면 그 부분집합)
+              "generated": 2841,       // 스토어 전체. 이번 회차 것만이 아니다
+              "pinned": 12, "fallback": 27, "reused": 0 },
   "validation": { "pass": 2841, "fail_schema": 3, "fail_vocab": 11,
                   "fail_coherence": 22, "fail_dryrun": 3, "fail_call": 0 },
-  "cost_usd": 0.23,
-  "wall_clock_s": 187,
-  "cache_hit_rate": 0.96,              // 입력 토큰 기준. P3 게이트는 ≥ 0.95
+  "cost_usd": 0.23,                    // 이번 회차. target 버킷을 만드는 데 든 값
+  "wall_clock_s": 187,                 // 이번 회차
+  "cache_hit_rate": 0.96,              // 입력 토큰 기준. 하한은 엔진 계열별 (docs/13 §7)
   "file_hashes": [                     // 부분 무효화 판정의 입력 (docs/13 §3)
     { "file": "actions.json", "sha256": "..." }
   ]
@@ -386,6 +389,24 @@ planstore/
 ```
 
 `manifest.json`이 곧 R&D 보고서의 원자료다. 프리베이크를 돌 때마다 보존한다.
+
+### `counts` 의 세 수는 세는 대상이 다르다 (2026-07-28 결정 13·15-A)
+
+| 필드 | 무엇 | 증분 `--only` 회차에서 |
+|---|---|---|
+| `total` | 버킷 공간 크기. 항상 2,880 | 고정 |
+| `target` | **이번 회차가 만들기로 선언한 수** | 264 · 714 처럼 회차마다 다르다 |
+| `generated` | **스토어 전체**에서 LLM 이 채운 수 | 누적된다 (264회차 뒤 195 → 714회차 뒤 718) |
+
+**이 셋을 구분하지 않으면 게이트가 거짓이 된다.** 실제로 그랬다 —
+`generated` 가 러너의 스토어(이번 회차 몫)를 세는 바람에 디스크에 718개가 있는데
+manifest 는 523 이라고 적었고, `Phase3GateTests` 가 그 값을 읽어 스토어를 실제보다 작게 봤다.
+
+**`cost_usd`·`wall_clock_s` 는 `target` 없이 읽으면 안 된다.**
+"97초" 는 264버킷의 97초이지 2,880버킷의 97초가 아니다. P3 게이트 항목 2·3 의 실패 메시지가
+항상 `[대상 N버킷]` 을 같이 찍는 이유다.
+
+> `target` 이 **0 이면 2026-07-28 이전 스키마**다. 그 manifest 로는 항목 2·3·4 를 판정하지 않는다.
 
 **`generated_at`은 외부에서 주입한다.** 만드는 쪽이 `DateTime.Now`를 부르면 같은 입력이 같은 파일을 내지 못한다 (CLAUDE.md §2.3).
 `file_hashes`가 없으면 부분 무효화를 판정할 수 없어 POI 하나 추가에도 2,880건 전량 재생성이 된다.

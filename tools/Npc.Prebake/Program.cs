@@ -223,8 +223,16 @@ int written = PlanStoreIo.SaveAll(options.Out, runner.Store, data);
 WriteJsonl(options.Report, report, data);
 
 // 9. manifest 작성. 회차마다 이력에 한 줄 쌓인다 (docs/03 §7)
+//
+// counts.generated 는 "스토어 전체" 다 (결정 13). 러너의 스토어는 이번 회차 몫만 들고 있어서
+// 그것을 세면 증분 --only 회차가 이전 회차를 잊는다 — 실제로 718개가 있는데 523 이라고 적었다.
+// 저장 뒤 디스크에서 다시 읽어 지금 스토어 상태를 그대로 센다.
+PlanStore onDisk = PlanStore.CreateIdleOnly(data);
+PlanStoreIo.LoadAll(options.Out, onDisk, data);
+
 Manifest manifest = ManifestWriter.Build(
-    data, prefix, engine, options.Tier.ToString(), report, dryRun, runner.Store, options.GeneratedAt);
+    data, prefix, engine, options.Tier.ToString(), report, dryRun, onDisk, options.GeneratedAt,
+    target: selection.Count);
 
 string manifestPath = ManifestWriter.Save(options.Out, manifest, dryRun);
 
@@ -248,8 +256,8 @@ Console.WriteLine($"프리픽스 해시  : {runner.Stats.UniquePrefixHashes} 종
 Console.WriteLine($"저장          : {written} 건 → {Path.Combine(options.Out, "plans")}");
 Console.WriteLine($"결과          : {options.Report}");
 Console.WriteLine(
-    $"manifest      : {manifestPath} (생성 {manifest.Counts.Generated} · pinned {manifest.Counts.Pinned}"
-    + $" · 폴백 {manifest.Counts.Fallback} · {manifest.Counts.GeneratedRate:P1}"
+    $"manifest      : {manifestPath} (대상 {manifest.Counts.Target} · 스토어 {manifest.Counts.Generated}"
+    + $" + pinned {manifest.Counts.Pinned} / {manifest.Counts.Total} = {manifest.Counts.GeneratedRate:P1}"
     + (manifest.Partial ? " · 부분" : string.Empty) + ")");
 
 return report.PassRate >= 0.90 ? 0 : 1;

@@ -64,14 +64,6 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
     /// </summary>
     private const double MinPromptCacheHitRateImplicit = 0.40;
 
-    /// <summary>
-    /// "전량 회차인가" 판정선. 항목 2·3·4 는 부분 회차의 값으로 판정하지 않는다.
-    ///
-    /// <b>항목 1 의 게이트 기준이 아니다</b> — 그것은 2026-07-28 에 빠졌다. 여기 남은 것은
-    /// "288버킷 파일럿의 115초를 상한 300초 통과로 세지 않는다" 는 방어 하나뿐이다.
-    /// </summary>
-    private const double FullRunThreshold = 0.95;
-
     /// <summary>프리베이크 wall-clock 상한(초).</summary>
     private const double MaxWallClockSeconds = 300;
 
@@ -153,11 +145,11 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
     [Trait("Category", "Gate")]
     public void Gate_PrebakeFinishesWithinFiveMinutes()
     {
-        Manifest manifest = RequireFullRun(RequireManifest());
+        Manifest manifest = RequireCompleteRun(RequireManifest());
 
         Assert.True(
             manifest.WallClockSeconds <= MaxWallClockSeconds,
-            $"wall-clock {manifest.WallClockSeconds:F1}s — 상한 {MaxWallClockSeconds}s "
+            $"wall-clock {manifest.WallClockSeconds:F1}s — 상한 {MaxWallClockSeconds}s {Scope(manifest)} "
             + $"(동시성 시작 {manifest.GeneratedBy.Concurrency} · 최대 {manifest.GeneratedBy.PeakConcurrency} · "
             + $"429 최초 {manifest.GeneratedBy.FirstRateLimitConcurrency})");
     }
@@ -169,11 +161,11 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
     [Trait("Category", "Gate")]
     public void Gate_PrebakeCostsAtMostFiveDollars()
     {
-        Manifest manifest = RequireFullRun(RequireManifest());
+        Manifest manifest = RequireCompleteRun(RequireManifest());
 
         Assert.True(
             manifest.CostUsd <= MaxCostUsd,
-            $"실비용 ${manifest.CostUsd:F4} — 상한 ${MaxCostUsd:F2}");
+            $"실비용 ${manifest.CostUsd:F4} — 상한 ${MaxCostUsd:F2} {Scope(manifest)}");
     }
 
     // ── 4. 프롬프트 캐시 적중률 — 엔진 계열별 ─────────────────────
@@ -189,7 +181,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
     [Trait("Category", "Gate")]
     public void Gate_PromptCacheHitRateMeetsEngineFloor()
     {
-        Manifest manifest = RequireFullRun(RequireManifest());
+        Manifest manifest = RequireCompleteRun(RequireManifest());
 
         // 로컬 엔진은 cached_tokens 를 항상 0 으로 보고한다. 그 회차에는 이 항목이 성립하지 않는다.
         Assert.False(
@@ -203,7 +195,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
             manifest.CacheHitRate >= floor,
             $"프롬프트 캐시 적중률 {manifest.CacheHitRate:P1} — "
             + $"{(explicitCaching ? "명시적" : "암시적")} 캐싱 하한 {floor:P0} "
-            + $"(엔진 {manifest.GeneratedBy.Model}). "
+            + $"(엔진 {manifest.GeneratedBy.Model}) {Scope(manifest)}. "
             + "프리픽스가 흔들렸는지(SHA 종류 수)와 워밍업 여부를 본다.");
     }
 
@@ -549,22 +541,44 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
-    /// 전량 회차의 manifest 를 요구한다.
+    /// <b>선언한 대상 집합을 완주한</b> 회차의 manifest 를 요구한다 (2026-07-28 결정 15-A).
     ///
-    /// <b>부분 회차로는 wall-clock·비용·캐시 적중률을 판정할 수 없다.</b> 288버킷 파일럿의
-    /// 115초는 상한 300초 안이지만 2,880 회차의 값이 아니다 — 그것을 통과로 세면 게이트가 거짓이 된다.
+    /// <para>
+    /// 원래는 <c>생성/2,880 ≥ 95%</c> 를 요구했다. 그 방어의 목적은
+    /// "288버킷 파일럿의 115초를 상한 300초 통과로 세지 않는다" 였고 <b>그 목적은 지금도 옳다.</b>
+    /// 다만 판정선을 전량 2,880 에 묶어 두면, 도달 집합만 만드는 방침
+    /// (<c>RnD_Report</c> 권고 2)에서는 <b>영원히 판정할 수 없다.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// 그래서 묻는 것을 바꾼다 — <b>"이 회차가 만들기로 한 것을 다 만들었는가"</b> 다.
+    /// 예산 캡에 걸려 중단된 회차(<see cref="Manifest.Partial"/>)는 여전히 거절한다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>대신 wall-clock·비용을 범위 없이 읽지 않게 한다.</b> 이 헬퍼를 통과한 값은
+    /// 항상 <c>counts.target</c> 과 같이 보고된다 — "97초" 는 264버킷의 97초이지
+    /// 2,880버킷의 97초가 아니다. 그 문맥을 잃으면 게이트가 다시 거짓이 된다.
+    /// </para>
     /// </summary>
-    private static Manifest RequireFullRun(Manifest manifest)
+    private static Manifest RequireCompleteRun(Manifest manifest)
     {
         Assert.True(
-            manifest.Counts.GeneratedRate >= FullRunThreshold,
-            $"부분 회차의 manifest 다 (생성 완료율 {manifest.Counts.GeneratedRate:P1}). "
-            + $"이 항목은 전량 {BucketKey.TotalKeys} 회차에서만 판정된다 — "
-            + $"지금 값(wall-clock {manifest.WallClockSeconds:F0}s · ${manifest.CostUsd:F4} · "
-            + $"캐시 {manifest.CacheHitRate:P1})은 외삽의 근거일 뿐이다 (docs/measurements/P3_gate.md).");
+            manifest.Counts.Target > 0,
+            "manifest 에 counts.target 이 없다 — 2026-07-28 이전 스키마다. "
+            + "프리베이크를 다시 돌려야 이 항목을 판정할 수 있다 (docs/03 §7).");
+
+        Assert.False(
+            manifest.Partial,
+            $"예산 캡에 걸려 중단된 회차다 (대상 {manifest.Counts.Target}버킷). "
+            + "끝까지 돈 회차가 아니면 wall-clock·비용은 그 범위의 값이 아니다.");
 
         return manifest;
     }
+
+    /// <summary>측정치에 항상 붙이는 범위 꼬리표. 이걸 빼면 숫자가 문맥을 잃는다.</summary>
+    private static string Scope(Manifest manifest) =>
+        $"[대상 {manifest.Counts.Target}버킷 · 스토어 {manifest.Counts.Generated}/{manifest.Counts.Total}]";
 }
 
 /// <summary>
