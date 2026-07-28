@@ -199,8 +199,17 @@ public sealed class ClientSessionTests
 
         await bed.TickAsync();
 
+        // 입력은 링에 든 것이 확인됐으니 한 틱이면 적용된다.
         Assert.NotEqual(before, bed.Players.PositionOf(player));
-        Assert.Equal(3, session.SelectedNpc);
+
+        // <b>Select 는 따로 기다린다.</b> 다른 프레임이라 같은 읽기에 실려 온다는 보장이 없다 —
+        // 계약은 "몇 틱 만에" 가 아니라 "틱 경계에서만" 이다.
+        await bed.WaitUntilAsync(async () =>
+        {
+            await bed.TickAsync();
+            return session.SelectedNpc == 3;
+        });
+
         Assert.Equal(0, session.ActionsDropped);
 
         // 범위 밖 첨자는 선택 해제로 접는다 — 스냅샷 빌더가 그 값으로 배열을 찌르지 않게 한다.
@@ -372,11 +381,24 @@ public sealed class ClientSessionTests
         /// </summary>
         public async Task<T> ReceiveAsync<T>(ClientMessageKind expected, Bed bed)
         {
-            for (int i = 0; i < 500 && !_client.Client.Poll(0, SelectMode.SelectRead); i++)
+            bool ready = false;
+
+            for (int i = 0; i < 1_000 && !ready; i++)
             {
+                ready = _client.Client.Poll(0, SelectMode.SelectRead);
+
+                if (ready)
+                {
+                    break;
+                }
+
                 await bed.TickAsync();
                 await Task.Delay(5, bed.Token);
             }
+
+            // <b>여기서 이름을 붙여 실패한다.</b> 그냥 읽으러 가면 아래 타임아웃이
+            // OperationCanceledException 으로 터지고, 무엇을 기다리다 죽었는지가 사라진다.
+            Assert.True(ready, $"{expected} 프레임이 5초 안에 오지 않았다.");
 
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(bed.Token);
 

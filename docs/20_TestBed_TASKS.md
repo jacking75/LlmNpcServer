@@ -349,7 +349,15 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-22 `Npc.TestBed.Protocol`
 - [x] T6-23 클라이언트 리스너와 세션
 - [x] T6-24 스냅샷 빌더 — `EntityFlags.InCombat` 은 **미채움**(전투 상태를 들고 있는 곳이 없다. 아래)
-- [ ] T6-25 제어 처리
+- [x] T6-25 제어 처리
+
+> **T6-25 의 판단 — `SetFaultRate` 는 `FaultInjector` 를 떼지 않고 그 앞에 선다 (2026-07-28).**
+> `Npc.Sim.FaultInjector` 는 주입률을 **생성 시점에 고정**한다(`readonly` 임계값). 런타임 변경을 넣으려면
+> `Npc.Sim` 을 고쳐야 하는데, `docs/20` §4 의 수정 대상 목록에 그 프로젝트가 없다.
+> 대신 `ControlHandler` 가 `SimWorld.Handler` 앞에 관문을 세운다 — **떼지 않는 이유**는
+> 떼면 `--fail-rate` 로 시작한 회차가 `ControlHandler` 를 만드는 순간 조용히 무고장이 되기 때문이다.
+> **대가:** 시작 옵션과 런타임 값이 겹쳐 걸린다(`--fail-rate 0.1` + 슬라이더 0.3 → 실효 약 0.37).
+> 데모 기본이 0 이라 실제로는 슬라이더 값이 전부다. 정확한 치환이 필요해지면 그때 `Npc.Sim` 을 고친다.
 
 > **T6-24 의 남은 일 — `EntityFlags.InCombat`(bit2)이 늘 0 이다 (2026-07-28).**
 > `docs/20` §8.1 이 그 비트를 정의했지만 **전투 상태를 들고 있는 곳이 없다.**
