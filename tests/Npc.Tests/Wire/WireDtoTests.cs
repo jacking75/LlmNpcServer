@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using MemoryPack;
 using Npc.Contracts;
 using Npc.Wire;
 
@@ -161,6 +162,81 @@ public sealed class WireDtoTests
             StringComparer.Ordinal);
 
         Assert.Equal(expected, actual);
+    }
+
+    // ---------------------------------------------------------------- 제어 메시지 (T6-03)
+
+    /// <summary>
+    /// <c>WireHash</c> 왕복. <b>hex 는 로그용이고 와이어에는 안 나간다</b> —
+    /// 실리는 것은 <c>ulong</c> 4개다 (N3 · docs/20 §5.4).
+    /// </summary>
+    [Fact]
+    public void WireHash_RoundTripsThroughHex()
+    {
+        // 실제 SHA-256 모양의 값. 0 으로 시작하는 워드를 포함시켜 자릿수 누락을 잡는다.
+        const string Hex = "00f3a91b2c4d5e6f7081920304a5b6c7d8e9f0010203040506070809a0b0c0d0";
+
+        WireHash hash = WireHash.FromHex(Hex);
+
+        Assert.Equal(Hex, hash.ToHex());
+        Assert.Equal(WireHash.HexLength, hash.ToHex().Length);
+
+        // 접두가 붙어 있어도 받는다 — MasterDataSet.ContentHash 가 그 형태로 다닐 수 있다.
+        Assert.Equal(hash, WireHash.FromHex("sha256:" + Hex));
+
+        // 소문자로 되돌린다. 대문자로 넣어도 같은 값이다.
+        Assert.Equal(hash, WireHash.FromHex(Hex.ToUpperInvariant()));
+        Assert.DoesNotContain(hash.ToHex(), c => char.IsUpper(c));
+    }
+
+    /// <summary>길이가 틀리면 거절한다. 조용히 잘라 쓰면 해시 비교가 거짓으로 통과한다.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("abc")]
+    [InlineData("00f3a91b2c4d5e6f7081920304a5b6c7d8e9f0010203040506070809a0b0c0d")]     // 63자
+    [InlineData("00f3a91b2c4d5e6f7081920304a5b6c7d8e9f0010203040506070809a0b0c0d0e")]  // 65자
+    public void WireHash_RejectsWrongLength(string hex) =>
+        Assert.Throws<FormatException>(() => WireHash.FromHex(hex));
+
+    /// <summary>제어 메시지 4종이 왕복한다 (T6-03 완료 조건).</summary>
+    [Fact]
+    public void Wire_ControlMessagesRoundTrip()
+    {
+        WireHash md = WireHash.FromHex(new string('a', 64));
+        WireHash roster = WireHash.FromHex(new string('5', 64));
+
+        var hello = new WireHello
+        {
+            ProtocolVersion = 1,
+            TickRate = 10,
+            TimeScale = 600,
+            NpcCount = 5_000,
+            StartTick = 1_234_567L,
+            MasterData = md,
+            Roster = roster,
+        };
+
+        var ack = new WireHelloAck
+        {
+            ProtocolVersion = 1,
+            TimeScale = 600,
+            NpcCount = 5_000,
+            MasterData = md,
+            Roster = roster,
+            Accepted = 0,
+            RejectCode = (byte)LinkRejectCode.RosterMismatch,
+        };
+
+        var beat = new WireHeartbeat { Tick = 98_765L, Sequence = 4_321L };
+        var bye = new WireBye { Code = (byte)LinkByeCode.Timeout };
+
+        Assert.Equal(hello, Roundtrip(hello));
+        Assert.Equal(ack, Roundtrip(ack));
+        Assert.Equal(beat, Roundtrip(beat));
+        Assert.Equal(bye, Roundtrip(bye));
+
+        static T Roundtrip<T>(T value) => MemoryPackSerializer.Deserialize<T>(
+            MemoryPackSerializer.Serialize(value))!;
     }
 
     /// <summary>
