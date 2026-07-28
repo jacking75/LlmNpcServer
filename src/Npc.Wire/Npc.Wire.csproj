@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    [P6] 링크 와이어 표현. docs/20 §3.1 · §4 · §5.
+
+    왜 Npc.Contracts 에 [MemoryPackable] 을 붙이지 않는가
+    ─────────────────────────────────────────────────────
+    CLAUDE.md §3 이 "Npc.Contracts 에 NuGet 패키지를 추가하지 않는다" 를 정한다.
+    NpcCommand·GameEvent 에 [MemoryPackable] 을 붙이면 그 순간 Npc.Contracts 가
+    MemoryPack 을 참조하게 되고, 계약 프로젝트가 직렬화기 버전에 묶인다.
+
+    그래서 와이어 DTO 를 따로 두고 1:1 로 매핑한다 (T6-02). 손이 더 가는 대신 둘을 얻는다.
+
+      - 도메인 타입(NpcCommand)과 전송 표현(WireCommand)이 갈라진다.
+        직렬화기를 바꿔도 도메인이 흔들리지 않는다 — docs/20 §15 의 대체안
+        (MemoryMarshal 직접 쓰기)이 이 프로젝트 안쪽만 바꾸면 되는 이유다.
+      - 매핑이 있으므로 드리프트를 테스트로 잡는다. NpcCommand 에 필드를 추가하고
+        와이어를 잊으면 빌드가 아니라 Wire_MirrorsContractMembers 가 깨진다 (docs/20 §13).
+
+    이 프로젝트는 Npc.Contracts 만 참조한다. Npc.Runtime 은 여기를 참조하지 않는다 —
+    런타임이 전송 표현을 알 이유가 없다 (docs/20 §4).
+  -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Wire</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MemoryPack" Version="1.21.4" />
+  </ItemGroup>
+
+</Project>

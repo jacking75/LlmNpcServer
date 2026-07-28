@@ -307,7 +307,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 ## 4. 진행 원장
 
 ### A. 와이어 프로토콜
-- [ ] T6-01 `Npc.Wire` 프로젝트 생성
+- [x] T6-01 `Npc.Wire` 프로젝트 생성
 - [ ] T6-02 와이어 명령·이벤트 DTO와 매핑
 - [ ] T6-03 제어 메시지와 `WireHash`
 - [ ] T6-04 프레임 코덱
