@@ -48,22 +48,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "NpcPlan",
   "type": "object",
-  "additionalProperties": false,
-  "required": ["schema", "goal", "steps", "loop"],
   "properties": {
     "schema":    { "const": 1 },
-    "goal":      { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,31}$" },
+    "goal":      { "type": "string" },
     "reasoning": { "type": "string", "maxLength": 200 },
     "loop":      { "type": "boolean" },
-    "on_step_fail": { "enum": ["fallback", "retry_once", "skip", "replan"] },
+    "on_step_fail": { "type": "string",
+                      "enum": ["fallback", "retry_once", "skip", "replan"] },
     "steps": {
-      "type": "array", "minItems": 3, "maxItems": 10,
+      "type": "array",
       "items": {
         "type": "object",
-        "additionalProperties": false,
-        "required": ["action", "args"],
         "properties": {
-          "action":    { "enum": ["MoveTo","Follow","Wander","Flee","Patrol",
+          "action":    { "type": "string",
+                         "enum": ["MoveTo","Follow","Wander","Flee","Patrol",
                                   "Work","Gather","Mine","Farm","Fish","Craft","Cook","Repair",
                                   "Talk","Trade","Greet","Gossip","Pray","Perform",
                                   "Eat","Drink","Sleep","Rest","Bathe",
@@ -71,7 +69,7 @@
                                   "PickUp","Drop","Store","Withdraw","Equip",
                                   "Wait","Observe","Emote"] },
           "args":      { "type": "object" },
-          "timeout_s": { "type": "integer", "minimum": 5, "maximum": 7200 }
+          "timeout_s": { "type": "integer" }
         }
       }
     }
@@ -81,6 +79,24 @@
 
 > `action` 열거값은 **`actions.json`에서 자동 생성**한다. 손으로 유지하면 반드시 어긋난다.
 > `args`는 스키마 단계에서 `object`로만 두고, 액션별 파라미터 검증은 검증기 2단이 한다. JSON Schema의 `oneOf`로 37개 액션 분기를 만들면 강제 디코딩 FSM이 폭발한다.
+> 구현은 `Npc.Llm/SchemaProvider.cs` 이고, `Full` 프로파일은 `args`를 전 액션 파라미터의 **평탄화 합집합**으로 채운다.
+
+### 왜 제약이 이렇게 적은가 — W1 실측 (T0-09 · T0-13)
+
+**스키마를 강제할수록 나빠졌다.** `response_format=json_schema` 는 유효 JSON 99/100 을 내면서 **어휘 검증 통과 0/100** 이었다. 실패 99건이 전부 `V2.UNKNOWN_ARG` 다 — 문법은 완벽한데 존재하지 않는 인자를 지어낸다(`MoveTo.recipe` · `Eat.poi`). 같은 모델의 `prompt` 모드는 93/100 이다 (`measurements/W1_schema.md`).
+
+그래서 **강제 디코딩을 기본에서 뺐고**(`appsettings.Llm.json` 의 `force_json_schema: false`), 이 스키마의 주 용도는 **프롬프트 프리픽스에 실리는 문서**다. 아래 요소는 W1 에서 실제로 실패를 만든 건수만큼 제거했다 — **전부 검증기 1·2단이 다시 잡으므로 안전망은 줄지 않는다.**
+
+| 제거한 요소 | W1 실패 건수 | 대신 잡는 곳 |
+|---|---|---|
+| `minItems` / `maxItems` | 7 | `V1.STEP_COUNT` |
+| `additionalProperties: false` | 1 | `V1.EXTRA_FIELD` |
+| `required` | 1 | `V2.MISSING_REQUIRED_ARG` |
+| `maximum` / `minimum` | 1 | `V2.RANGE` |
+| `pattern` (goal) | — 제공사별 지원 편차 | `V1.SCHEMA` |
+| `oneOf` / `anyOf` | — FSM 폭발 | 검증기 2단 |
+
+> **측정 지표를 잘못 고르면 100% 실패를 통과로 읽는다.** 게이트 G0-1 의 기준인 "유효 JSON" 으로 보면 `forced` 가 이겼고, 쓸 수 있는 플랜 수로 보면 0 대 93 으로 졌다. `docs/10 §5` 의 위험 신호("유효율 90% 미만")로도 이 실패는 잡히지 않는다.
 
 ### POI 심볼 (허용 목록)
 
