@@ -7,6 +7,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Npc.Contracts\Npc.Contracts.csproj" />
+    <!--
+      P6 (docs/20 §4). 와이어 표현과 프레임 코덱. Npc.Wire 는 Npc.Contracts 만 참조하므로
+      이 간선으로 LLM 도 마스터데이터도 들어오지 않는다.
+    -->
+    <ProjectReference Include="..\Npc.Wire\Npc.Wire.csproj" />
   </ItemGroup>
 
 </Project>

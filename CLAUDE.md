@@ -182,10 +182,15 @@ Npc.MasterData ←  Core
 Npc.Runtime    ←  Core, MasterData, Contracts, Planning
 Npc.Planning   ←  Core, MasterData
 Npc.Llm        ←  Core, MasterData (+ Microsoft.Extensions.AI)
-Npc.Gateway    ←  Contracts
+Npc.Wire       ←  Contracts (+ MemoryPack)          [P6]
+Npc.Gateway    ←  Contracts, Wire
 Npc.Sim        ←  Contracts, MasterData
 Npc.Host       ←  전부
 ```
+
+`Npc.Wire` 는 링크의 **전송 표현**이다 (docs/20 §3.1·§4). `Npc.Contracts` 에 NuGet 의존을 만들지 않으려고
+와이어 DTO 를 따로 두고 1:1 매핑한다 — `[MemoryPackable]` 을 `NpcCommand` 에 붙이는 순간 계약 프로젝트가
+직렬화기 버전에 묶인다. **`Npc.Runtime` 은 `Npc.Wire` 를 참조하지 않는다** — 런타임이 전송 표현을 알 이유가 없다.
 
 - **`Npc.Runtime`은 `Npc.Llm`을 참조하지 않는다.** 참조가 생기면 틱 루프에 LLM이 들어올 길이 열린다.
 - `Npc.Runtime → Npc.Planning`은 허용한다. `CognitionScheduler.Scan`이 `PlanStore`·`ReplanQueue`를 직접 받기 때문이다 (`docs/11 §4`). `Npc.Planning`은 `Core`·`MasterData`만 참조하므로 이 간선으로 LLM이 들어올 길은 없다.

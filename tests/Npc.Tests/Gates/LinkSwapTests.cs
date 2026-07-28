@@ -178,18 +178,20 @@ public sealed class LinkSwapTests
     // ---------------------------------------------------------------- 3. TcpGameServerLink 가 컴파일된다
 
     /// <summary>
-    /// docs/15 §5 — <c>TcpGameServerLink</c> 는 미구현이지만 <b>컴파일은 되어야 한다.</b>
-    /// 인터페이스를 만족하는 골격이 존재한다는 것 자체가 "나중에 붙일 수 있다"의 최소 증거다.
+    /// docs/15 §5 — <c>TcpGameServerLink</c> 가 <b>같은 인터페이스로 보인다.</b>
+    ///
+    /// <b>2026-07-28 (T6-06) 이후 골격이 아니다.</b> 연결·핸드셰이크는 구현됐고
+    /// <c>Enqueue</c> 도 링에 들어간다. 남은 것은 송신(T6-07)·수신(T6-08)·재접속(T6-09)이라
+    /// <c>FlushAsync</c> 만 아직 던진다 — 조용히 성공하면 "붙였다"고 착각하게 된다.
     /// </summary>
     [Fact]
     public async Task LinkSwap_TcpSkeletonCompilesAndSatisfiesTheInterface()
     {
-        await using IGameServerLink tcp = new TcpGameServerLink();
+        await using IGameServerLink tcp = new TcpGameServerLink(new TcpLinkOptions());
 
         Assert.IsAssignableFrom<IGameServerLink>(tcp);
         Assert.Equal(LinkState.Disconnected, tcp.State);
 
-        // 전송은 범위 밖이라 던진다 — 조용히 성공하면 "붙였다"고 착각하게 된다.
         var command = new NpcCommand
         {
             Kind = NpcCommandKind.MoveTo,
@@ -199,7 +201,13 @@ public sealed class LinkSwapTests
             Priority = CommandPriority.Normal,
         };
 
-        Assert.Throws<NotSupportedException>(() => tcp.Enqueue(in command));
+        // Enqueue 는 링에 넣는다 (T6-05·T6-06). 계약대로 통계에 잡힌다.
+        tcp.Enqueue(in command);
+
+        Assert.Equal(1, tcp.Stats.CommandsEnqueued);
+        Assert.Equal(1, tcp.Stats.PendingCommands);
+
+        // 송신 경로는 아직이다 (T6-07). 조용히 성공하면 "붙였다"고 착각하게 된다.
         await Assert.ThrowsAsync<NotSupportedException>(async () => await tcp.FlushAsync(CancellationToken.None));
 
         // 4종 + Tcp 가 전부 같은 인터페이스로 보인다.

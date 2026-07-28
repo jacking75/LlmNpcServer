@@ -314,7 +314,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-05 `PriorityCommandRing` 추출
 
 ### B. TCP 링크
-- [ ] T6-06 연결·핸드셰이크
+- [x] T6-06 연결·핸드셰이크
 - [ ] T6-07 송신 경로
 - [ ] T6-08 수신 경로
 - [ ] T6-09 재접속·하트비트·상태 전이

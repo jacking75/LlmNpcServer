@@ -1,0 +1,55 @@
+using Npc.Wire;
+
+namespace Npc.Gateway;
+
+/// <summary>
+/// TCP 링크 설정. docs/20 §5.5 · §6.3 · §7.5.
+///
+/// <para>
+/// <b>핸드셰이크에서 검증할 값 넷이 여기 들어 있다</b> — 프로토콜 버전 · 타임스케일 ·
+/// 마스터데이터 해시 · 로스터 해시. 게임서버가 보낸 <see cref="WireHello"/> 와 하나라도 다르면
+/// 거절하고 <see cref="Npc.Contracts.LinkState.Faulted"/> 로 간다.
+/// </para>
+///
+/// <para>
+/// <b>우회 옵션(<c>--force</c> 류)을 만들지 않는다</b> (docs/20 §5.5).
+/// 마스터데이터가 다른 두 프로세스를 붙이면 POI code 가 어긋나 NPC 가 엉뚱한 곳으로 가고,
+/// 원인을 찾는 데 하루가 든다. <b>연결 시점에 죽이는 편이 싸다.</b>
+/// </para>
+/// </summary>
+public sealed record TcpLinkOptions
+{
+    /// <summary>게임서버 호스트.</summary>
+    public string Host { get; init; } = "127.0.0.1";
+
+    /// <summary>게임서버 포트. docs/20 §7.5 의 기본값.</summary>
+    public int Port { get; init; } = 7010;
+
+    /// <summary>내 타임스케일. <c>GameClock.TimeScale</c> 이다.</summary>
+    public int TimeScale { get; init; }
+
+    /// <summary>내가 들고 있는 NPC 수.</summary>
+    public int NpcCount { get; init; }
+
+    /// <summary>내 마스터데이터 콘텐츠 해시.</summary>
+    public WireHash MasterData { get; init; }
+
+    /// <summary>내 NPC 로스터 해시 (docs/20 §10.2).</summary>
+    public WireHash Roster { get; init; }
+
+    /// <summary>명령 링 용량.</summary>
+    public int Capacity { get; init; } = PriorityCommandRing.DefaultCapacity;
+
+    /// <summary>
+    /// 핸드셰이크 상한. 게임서버가 <see cref="WireHello"/> 를 이 안에 보내지 않으면 실패로 본다.
+    /// <b>무한 대기하지 않는다</b> — 그러면 기동이 조용히 멈춘다.
+    /// </summary>
+    public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// <b>NPC 수를 핸드셰이크에서 대조할지.</b> 기본은 대조하지 않는다 —
+    /// 로스터 해시가 이미 그 집합을 담고 있고(docs/20 §10.2), <c>--npcs</c> 로 일부만 돌리는
+    /// 측정 회차에서 수만 다른 것은 정상이다. 로스터 해시가 같으면 같은 NPC 를 보고 있는 것이다.
+    /// </summary>
+    public bool StrictNpcCount { get; init; }
+}
