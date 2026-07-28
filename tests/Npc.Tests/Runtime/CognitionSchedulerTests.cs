@@ -7,7 +7,19 @@ using Npc.Runtime;
 
 namespace Npc.Tests.Runtime;
 
-/// <summary>docs/11 §4. 틱당 판정 대상 ≤ 150, 스캔 ≤ 3ms, NPC 를 늘려도 상수.</summary>
+/// <summary>
+/// docs/11 §4. 틱당 판정 대상 ≤ 150, 스캔 ≤ 3ms, NPC 를 늘려도 상수.
+///
+/// <b><see cref="AllocationCollection"/> 에 넣는다</b> (2026-07-28) —
+/// <c>Cognition_ScanDoesNotAllocate</c> 가 전체 스위트에서 5회 중 1회 실패했다.
+/// 단독 실행은 3/3 통과였다.
+///
+/// 원인은 <b>계층형 JIT 이다.</b> 이 테스트는 이미 1,000틱 워밍업을 하지만,
+/// 다른 테스트와 병렬로 돌면 CPU 경합으로 tier-1 승격이 뒤로 밀려 측정 창 안에서 일어난다 —
+/// 그때 나는 몇십 바이트가 "할당" 으로 잡힌다. <c>Category=Load</c> 로 빼면 CI 에서 사라지지만
+/// 그건 검사를 없애는 것이다. 직렬화가 원인을 없앤다.
+/// </summary>
+[Collection(AllocationCollection.Name)]
 public sealed class CognitionSchedulerTests
 {
     private static readonly MasterDataSet s_data = MasterDataLoader.Load(TestPaths.MasterData);

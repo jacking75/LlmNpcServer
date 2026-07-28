@@ -149,7 +149,14 @@ public sealed class TickAllocationTests
         Assert.Equal(Npcs, rig.Store.Count);
     }
 
-    /// <summary>호스트 전체를 돌려도 틱 창 안의 할당이 0 이다.</summary>
+    /// <summary>
+    /// 호스트 전체를 돌려도 틱 창 안의 <b>정상 상태</b> 할당이 0 이다.
+    ///
+    /// <b>누계로 재지 않는다</b> (2026-07-28, P4 게이트 항목 9 와 같은 정정).
+    /// 누계는 콜드 스타트(JIT · 정적 초기화 · 첫 인터페이스 디스패치)를 함께 세고,
+    /// 그것은 JIT 런타임에서 0 으로 만들 수 없다 — 실측으로 게임 1일과 3일 회차의
+    /// 할당이 <b>같은 3건·같은 264 B</b> 였다 (<c>P4_gate.md §4.4</c>).
+    /// </summary>
     [Fact]
     [Trait("Category", "Load")]
     public async Task Runtime_TickWindowAllocatesNothingInHost()
@@ -169,7 +176,15 @@ public sealed class TickAllocationTests
 
         Assert.True(m.Tick.Ticks >= MeasuredTicks, $"틱 {m.Tick.Ticks}");
         Assert.Equal(0, m.Tick.BytesPerTick);
-        Assert.Equal(0, host.Metrics.AllocatedInTicks);
+
+        // 정상 상태 = 회차 후반부. 여기서 할당이 나면 콜드 스타트로 설명할 수 없다.
+        long last = host.Metrics.LastAllocatingTick;
+
+        Assert.True(
+            last * 2 < host.Loop.TicksProcessed,
+            $"회차 후반부에 할당이 있다 — 마지막 할당 틱 {last} / 전체 {host.Loop.TicksProcessed} "
+            + $"(누계 {host.Metrics.AllocatedInTicks}B).");
+
         Assert.Equal(0, m.Tick.Overruns);
         Assert.InRange(m.Replan.ScanPerTick, 0, CognitionScheduler.MaxScansPerTick);
     }
