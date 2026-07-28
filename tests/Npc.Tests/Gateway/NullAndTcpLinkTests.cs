@@ -426,6 +426,227 @@ public sealed class NullAndTcpLinkTests
         Assert.Equal(3, link.Stats.EventGapsDetected);
     }
 
+    // ---------------------------------------------------------------- T6-09 재접속·하트비트
+
+    /// <summary>
+    /// 세션을 끊고 다시 붙여도 <b>시퀀스가 되감기지 않는다</b> (N6 · T6-09 완료 조건).
+    ///
+    /// <b>이게 깨지면 NPC 가 영원히 멈춘다.</b> 게임서버가 시퀀스를 리셋하면
+    /// <c>EventApplier</c> 가 재접속 후 모든 이벤트를 중복으로 버린다 (docs/20 §5.6).
+    /// </summary>
+    [Fact]
+    public async Task TcpLink_ReconnectKeepsSequenceMonotonic()
+    {
+        TcpLinkOptions mine = Fast();
+        var server = new FakeGameServer(mine);
+
+        await using var link = new TcpGameServerLink(mine, server.ConnectAsync);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        Task run = link.RunAsync(cts.Token);
+
+        // 1세션 — 시퀀스 1~3.
+        await server.WaitForSessionAsync(1, cts.Token);
+        await server.SendEventsAsync(Events(1, 3));
+        await WaitAsync(() => link.Stats.EventsReceived >= 3, cts.Token);
+
+        // 세션을 끊는다. 링크는 Degraded 를 거쳐 재접속한다.
+        server.Break();
+
+        // 2세션 — 게임서버가 시퀀스를 <b>이어서</b> 보낸다 (리셋하지 않는다).
+        await server.WaitForSessionAsync(2, cts.Token);
+        await server.SendEventsAsync(Events(4, 3));
+        await WaitAsync(() => link.Stats.EventsReceived >= 6, cts.Token);
+
+        await cts.CancelAsync();
+        await run;
+
+        Assert.Equal(6, link.Stats.EventsReceived);
+
+        // 재접속을 사이에 두고도 갭이 없다 — 시퀀스가 되감기지 않았다는 뜻이다.
+        Assert.Equal(0, link.Stats.EventGapsDetected);
+        Assert.True(server.Sessions >= 2, $"세션 {server.Sessions}");
+    }
+
+    /// <summary>
+    /// docs/20 §6.3 의 전이가 <c>StateChanged</c> 로 관측된다 (T6-09 완료 조건).
+    /// </summary>
+    [Fact]
+    public async Task TcpLink_StateTransitions()
+    {
+        TcpLinkOptions mine = Fast();
+        var server = new FakeGameServer(mine);
+
+        await using var link = new TcpGameServerLink(mine, server.ConnectAsync);
+
+        var states = new List<LinkState>();
+
+        link.StateChanged += s =>
+        {
+            lock (states)
+            {
+                states.Add(s);
+            }
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        Task run = link.RunAsync(cts.Token);
+
+        await server.WaitForSessionAsync(1, cts.Token);
+        await WaitAsync(() => link.State == LinkState.Connected, cts.Token);
+
+        server.Break();
+
+        await server.WaitForSessionAsync(2, cts.Token);
+        await WaitAsync(() => link.State == LinkState.Connected, cts.Token);
+
+        await cts.CancelAsync();
+        await run;
+
+        LinkState[] seen;
+
+        lock (states)
+        {
+            seen = [.. states];
+        }
+
+        // Connecting → Connected → Degraded → Connecting → Connected
+        Assert.Equal(
+            [
+                LinkState.Connecting, LinkState.Connected,
+                LinkState.Degraded, LinkState.Connecting, LinkState.Connected,
+            ],
+            seen);
+    }
+
+    /// <summary>거절되면 <b>재시도하지 않는다</b> — Faulted 는 사람이 고쳐야 하는 상태다.</summary>
+    [Fact]
+    public async Task TcpLink_FaultedDoesNotRetry()
+    {
+        TcpLinkOptions mine = Fast();
+
+        // 게임서버가 다른 마스터데이터를 들고 있다.
+        var server = new FakeGameServer(mine with { MasterData = WireHash.FromHex(new string('e', 64)) });
+
+        await using var link = new TcpGameServerLink(mine, server.ConnectAsync);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        await link.RunAsync(cts.Token);
+
+        Assert.Equal(LinkState.Faulted, link.State);
+        Assert.Equal(LinkRejectCode.MasterDataMismatch, link.RejectCode);
+
+        // 한 번만 붙어 보고 끝났다. 무한 재시도로 로그를 채우지 않는다.
+        Assert.Equal(1, server.Sessions);
+    }
+
+    /// <summary>테스트용 짧은 주기. 실서비스 값(1초/3초/250ms)으로는 테스트가 느려진다.</summary>
+    private static TcpLinkOptions Fast() => Mine() with
+    {
+        HeartbeatInterval = TimeSpan.FromMilliseconds(30),
+        HeartbeatTimeout = TimeSpan.FromMilliseconds(2_000),
+        ReconnectBackoff = TimeSpan.FromMilliseconds(20),
+        MaxReconnectBackoff = TimeSpan.FromMilliseconds(50),
+    };
+
+    private static async Task WaitAsync(Func<bool> until, CancellationToken ct)
+    {
+        while (!until() && !ct.IsCancellationRequested)
+        {
+            await Task.Delay(5, ct);
+        }
+
+        ct.ThrowIfCancellationRequested();
+    }
+
+    /// <summary>
+    /// 게임서버 흉내. 세션마다 새 파이프 쌍을 주고 <see cref="Break"/> 로 끊는다.
+    ///
+    /// <b>소켓을 쓰지 않는다.</b> 재접속은 "연결을 새로 만든다" 가 본질이므로
+    /// 연결 생성기만 갈아끼우면 포트도 타이밍도 없이 재현된다.
+    /// </summary>
+    private sealed class FakeGameServer(TcpLinkOptions serverSide)
+    {
+        private readonly object _gate = new();
+
+        private Pipe? _toLink;
+        private Pipe? _fromLink;
+
+        public int Sessions { get; private set; }
+
+        /// <summary>링크가 부를 연결 생성기.</summary>
+        public async Task<Stream> ConnectAsync(CancellationToken ct)
+        {
+            Pipe toLink = new();
+            Pipe fromLink = new();
+
+            lock (_gate)
+            {
+                _toLink = toLink;
+                _fromLink = fromLink;
+                Sessions++;
+            }
+
+            // 게임서버가 먼저 Hello 를 보낸다 (docs/20 §5.5).
+            byte[] payload = MemoryPackSerializer.Serialize(new WireHello
+            {
+                ProtocolVersion = FrameCodec.Version,
+                TickRate = 10,
+                TimeScale = serverSide.TimeScale,
+                NpcCount = serverSide.NpcCount,
+                StartTick = 1,
+                MasterData = serverSide.MasterData,
+                Roster = serverSide.Roster,
+            });
+
+            var buffer = new ArrayBufferWriter<byte>();
+
+            FrameCodec.WriteHeader(buffer, LinkMessageKind.Hello, payload.Length);
+            buffer.Write(payload);
+
+            await toLink.Writer.WriteAsync(buffer.WrittenMemory, ct);
+
+            return new DuplexStream(toLink.Reader.AsStream(), fromLink.Writer.AsStream());
+        }
+
+        /// <summary>이벤트 배치 하나를 밀어 넣는다.</summary>
+        public async Task SendEventsAsync(GameEvent[] events)
+        {
+            PipeWriter writer;
+
+            lock (_gate)
+            {
+                writer = _toLink!.Writer;
+            }
+
+            await WriteEventBatchAsync(writer, events);
+        }
+
+        /// <summary>세션을 끊는다. 링크 쪽에서는 EOF 로 보인다.</summary>
+        public void Break()
+        {
+            lock (_gate)
+            {
+                _toLink?.Writer.Complete();
+                _fromLink?.Writer.Complete();
+            }
+        }
+
+        /// <summary><paramref name="n"/> 번째 세션이 열릴 때까지 기다린다.</summary>
+        public async Task WaitForSessionAsync(int n, CancellationToken ct)
+        {
+            while (Sessions < n && !ct.IsCancellationRequested)
+            {
+                await Task.Delay(5, ct);
+            }
+
+            ct.ThrowIfCancellationRequested();
+        }
+    }
+
     /// <summary>연속한 시퀀스를 단 <see cref="GameEvent"/> 묶음.</summary>
     private static GameEvent[] Events(long from, int count) =>
         [.. Enumerable.Range(0, count).Select(i => new GameEvent

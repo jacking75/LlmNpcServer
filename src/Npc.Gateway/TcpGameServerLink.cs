@@ -33,6 +33,7 @@ namespace Npc.Gateway;
 public sealed class TcpGameServerLink : IGameServerLink
 {
     private readonly TcpLinkOptions _options;
+    private readonly Func<CancellationToken, Task<Stream>> _connect;
     private readonly PriorityCommandRing _ring;
 
     // 기록자는 리시버 태스크 하나뿐이다 (docs/20 §6.1).
@@ -69,12 +70,27 @@ public sealed class TcpGameServerLink : IGameServerLink
     private long _eventGaps;
     private long _lastSequence = -1;
 
-    /// <summary>링크를 만든다. <b>여기서 I/O 를 하지 않는다</b> — 연결은 <see cref="ConnectAsync"/> 다.</summary>
-    public TcpGameServerLink(TcpLinkOptions options)
+    /// <summary>마지막 수신 시각(벽시계 ms). 하트비트 감시가 본다.</summary>
+    private long _lastReceivedTicks;
+
+    /// <summary>
+    /// 링크를 만든다. <b>여기서 I/O 를 하지 않는다</b> — 연결은 <see cref="ConnectAsync"/> ·
+    /// <see cref="RunAsync"/> 다.
+    /// </summary>
+    /// <param name="options">설정.</param>
+    /// <param name="connect">
+    /// 연결 생성기. null 이면 <see cref="TcpClient"/> 로 붙는다.
+    ///
+    /// <b>이 이음매가 있어야 재접속을 테스트할 수 있다.</b> 재접속은 "소켓을 새로 만든다" 가
+    /// 본질이라 소켓을 만드는 자리를 밖에서 갈아끼울 수 있어야 하고, 그러지 못하면
+    /// 포트·타이밍에 기대는 느리고 흔들리는 테스트가 된다.
+    /// </param>
+    public TcpGameServerLink(TcpLinkOptions options, Func<CancellationToken, Task<Stream>>? connect = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options;
+        _connect = connect ?? ConnectSocketAsync;
         _ring = new PriorityCommandRing(options.Capacity);
         _outbound = new BatchQueue(options.OutboundBatches, options.Capacity);
         _staging = new WireCommand[options.Capacity];
@@ -122,6 +138,171 @@ public sealed class TcpGameServerLink : IGameServerLink
     {
         SetState(LinkState.Connecting);
 
+        _stream = await _connect(ct).ConfigureAwait(false);
+
+        return await HandshakeAsync(_stream, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// <b>링크 수명 전체를 돈다.</b> 접속 → 핸드셰이크 → 송·수신 → 끊기면 재접속. docs/20 §5.6 · §6.3.
+    ///
+    /// <para>
+    /// <b><see cref="LinkState.Faulted"/> 면 즉시 끝낸다.</b> 프로토콜·마스터데이터 불일치는
+    /// 사람이 고쳐야 하고, 무한 재시도로 덮으면 로그만 차고 원인이 묻힌다.
+    /// 접속 실패(상대가 아직 안 떴다)는 성격이 달라 백오프 재시도한다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>재접속 시 링에 남은 명령을 버린다</b> (docs/20 §5.6). 상관 ID 는 이미 타임아웃으로
+    /// 정리됐고, 뒤늦게 도착한 명령은 NPC 를 과거로 되돌린다. 버린 수는 드롭에 계상한다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>수신 시퀀스는 재접속해도 리셋하지 않는다</b> (N6 · docs/20 §5.6). 게임서버가
+    /// 재동기화 이벤트를 새 시퀀스로 다시 보내므로 멱등하게 반영된다.
+    /// </para>
+    /// </summary>
+    public async Task RunAsync(CancellationToken ct)
+    {
+        TimeSpan backoff = _options.ReconnectBackoff;
+
+        while (!ct.IsCancellationRequested && _state != LinkState.Faulted)
+        {
+            Stream? stream = null;
+
+            try
+            {
+                SetState(LinkState.Connecting);
+
+                stream = await _connect(ct).ConfigureAwait(false);
+                _stream = stream;
+
+                if (!await HandshakeAsync(stream, ct).ConfigureAwait(false))
+                {
+                    return;   // 거절 = Faulted. 재시도하지 않는다
+                }
+
+                backoff = _options.ReconnectBackoff;   // 붙었으니 되돌린다
+
+                await PumpUntilBrokenAsync(stream, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception)
+            {
+                // 접속 실패. 상대가 아직 안 떴을 수 있다 — Connecting 유지로 재시도한다.
+            }
+            finally
+            {
+                if (stream is not null)
+                {
+                    await stream.DisposeAsync().ConfigureAwait(false);
+                }
+
+                _client?.Dispose();
+                _client = null;
+                _stream = null;
+            }
+
+            if (ct.IsCancellationRequested || _state == LinkState.Faulted)
+            {
+                return;
+            }
+
+            // 끊긴 동안 쌓인 명령은 버린다 (docs/20 §5.6).
+            _ring.Clear(countAsDropped: true);
+            _outbound.Reset();
+
+            try
+            {
+                await Task.Delay(backoff, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            backoff = backoff * 2 > _options.MaxReconnectBackoff
+                ? _options.MaxReconnectBackoff
+                : backoff * 2;
+        }
+    }
+
+    /// <summary>
+    /// 한 세션 동안 송·수신·하트비트를 돌린다. 셋 중 하나라도 끝나면 세션이 끝난 것이다.
+    /// </summary>
+    private async Task PumpUntilBrokenAsync(Stream stream, CancellationToken ct)
+    {
+        using var session = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        Volatile.Write(ref _lastReceivedTicks, Environment.TickCount64);
+
+        Task receiver = ReceiverLoopAsync(stream, session.Token);
+        Task sender = SenderLoopAsync(stream, session.Token);
+        Task watchdog = HeartbeatLoopAsync(stream, session.Token);
+
+        await Task.WhenAny(receiver, sender, watchdog).ConfigureAwait(false);
+
+        await session.CancelAsync().ConfigureAwait(false);
+
+        // 나머지 둘이 정리될 때까지 기다린다 — 소켓을 닫기 전에 쓰기가 끝나야 한다.
+        await Task.WhenAll(
+            Swallow(receiver), Swallow(sender), Swallow(watchdog)).ConfigureAwait(false);
+
+        // <b>종료 지시는 저하가 아니다.</b> 여기서 무조건 Degraded 로 보내면
+        // 정상 종료가 "링크가 끊겼다" 로 기록되고, docs/20 §6.3 의 전이표와도 어긋난다
+        // (임의 → DisposeAsync → Disconnected).
+        if (!ct.IsCancellationRequested)
+        {
+            SetState(LinkState.Degraded);
+        }
+
+        static async Task Swallow(Task task)
+        {
+            try
+            {
+                await task.ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // 세션 종료 과정의 예외는 이미 상태로 표현됐다.
+            }
+        }
+    }
+
+    /// <summary>
+    /// 하트비트를 보내고 무수신을 감시한다. docs/20 §5.6 — 1초 주기, 3초 무수신이면 끝낸다.
+    ///
+    /// <b>시계는 <see cref="Environment.TickCount64"/> 다.</b> 이 경로는 게임 시간이 아니라
+    /// 벽시계 영역이라 <c>Tick</c> 을 쓸 수 없고, 리플레이 대상도 아니다 (docs/20 §5.6).
+    /// </summary>
+    private async Task HeartbeatLoopAsync(Stream stream, CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            await Task.Delay(_options.HeartbeatInterval, ct).ConfigureAwait(false);
+
+            long silent = Environment.TickCount64 - Volatile.Read(ref _lastReceivedTicks);
+
+            if (silent > (long)_options.HeartbeatTimeout.TotalMilliseconds)
+            {
+                return;   // 무수신 → 세션 종료 → 재접속
+            }
+
+            byte[] beat = MemoryPackSerializer.Serialize(new WireHeartbeat
+            {
+                Tick = 0,
+                Sequence = Interlocked.Read(ref _lastSequence),
+            });
+
+            await WriteFrameAsync(stream, LinkMessageKind.Heartbeat, beat, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<Stream> ConnectSocketAsync(CancellationToken ct)
+    {
         var client = new TcpClient
         {
             // Nagle 을 끈다 (docs/02 §7-4). 10Hz 배치를 40ms 지연시키면 틱 예산이 무의미해진다.
@@ -131,9 +312,8 @@ public sealed class TcpGameServerLink : IGameServerLink
         await client.ConnectAsync(_options.Host, _options.Port, ct).ConfigureAwait(false);
 
         _client = client;
-        _stream = client.GetStream();
 
-        return await HandshakeAsync(_stream, ct).ConfigureAwait(false);
+        return client.GetStream();
     }
 
     /// <summary>
@@ -306,6 +486,9 @@ public sealed class TcpGameServerLink : IGameServerLink
                 while (FrameCodec.TryReadFrame(
                     ref buffer, out LinkMessageKind kind, out ReadOnlySequence<byte> payload))
                 {
+                    // 무엇이든 받았으면 살아 있는 것이다 — 하트비트도 포함이다.
+                    Volatile.Write(ref _lastReceivedTicks, Environment.TickCount64);
+
                     Deliver(kind, payload);
                 }
 
@@ -613,5 +796,16 @@ public sealed class TcpGameServerLink : IGameServerLink
 
         /// <summary><b>소비자.</b> 다 썼다고 알린다. 그 슬롯이 생산자에게 돌아간다.</summary>
         public void CommitRead() => Volatile.Write(ref _head, _head + 1);
+
+        /// <summary>
+        /// 전부 버린다. <b>세션이 끝난 뒤에만 부른다</b> — 그때는 센더가 이미 멈춰 있어
+        /// 생산자·소비자가 동시에 만지지 않는다.
+        /// </summary>
+        public void Reset()
+        {
+            Volatile.Write(ref _head, 0);
+            Volatile.Write(ref _tail, 0);
+            Array.Clear(_counts);
+        }
     }
 }

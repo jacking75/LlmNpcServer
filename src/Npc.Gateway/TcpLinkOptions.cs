@@ -61,4 +61,16 @@ public sealed record TcpLinkOptions
     /// 측정 회차에서 수만 다른 것은 정상이다. 로스터 해시가 같으면 같은 NPC 를 보고 있는 것이다.
     /// </summary>
     public bool StrictNpcCount { get; init; }
+
+    /// <summary>하트비트 주기. docs/20 §5.6 의 1초.</summary>
+    public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>이만큼 아무것도 못 받으면 <c>Degraded</c> 다. docs/20 §5.6 의 3초.</summary>
+    public TimeSpan HeartbeatTimeout { get; init; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>재접속 백오프 첫 값. docs/20 §5.6 — 250ms → 500 → 1s → 2s → 4s.</summary>
+    public TimeSpan ReconnectBackoff { get; init; } = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>재접속 백오프 상한.</summary>
+    public TimeSpan MaxReconnectBackoff { get; init; } = TimeSpan.FromSeconds(4);
 }
