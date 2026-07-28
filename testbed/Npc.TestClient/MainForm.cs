@@ -3,6 +3,7 @@ using Npc.MasterData;
 using Npc.TestBed.Protocol;
 using Npc.TestClient.Input;
 using Npc.TestClient.Net;
+using Npc.TestClient.Panels;
 using Npc.TestClient.Render;
 using Npc.Wire;
 
@@ -66,12 +67,15 @@ public sealed class MainForm : Form
     private readonly MapRenderer _renderer;
     private readonly EntityInterpolator _entities = new();
     private readonly InputController _input;
+    private readonly NpcServerHttp _npcHttp;
+    private readonly InspectorPanel _inspector;
     private readonly ToolTip _tip = new() { InitialDelay = 250, ReshowDelay = 100 };
     private readonly TabControl _tabs = new();
     private readonly ToolStripStatusLabel _clock = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly ToolStripStatusLabel _link = new() { Spring = true, TextAlign = ContentAlignment.MiddleRight };
 
     private Task? _connectionTask;
+    private Task? _npcHttpTask;
     private long _networkTicks;
     private bool _fitted;
     private bool _dragging;
@@ -91,6 +95,8 @@ public sealed class MainForm : Form
         _connection = new GameConnection(options.Host, options.Port);
         _renderer = new MapRenderer(_data);
         _input = new InputController(_connection, _renderer);
+        _npcHttp = new NpcServerHttp(options.NpcHttp);
+        _inspector = new InspectorPanel(options.NpcHttp) { Dock = DockStyle.Fill };
 
         Text = $"Npc.TestClient — {options.Host}:{options.Port}";
         ClientSize = new Size(1_440, 900);
@@ -141,6 +147,7 @@ public sealed class MainForm : Form
             Math.Max(_split.Panel1MinSize, _split.Width - _split.Panel2MinSize));
 
         _connectionTask = Task.Run(() => _connection.RunAsync(_stopping.Token), CancellationToken.None);
+        _npcHttpTask = Task.Run(() => _npcHttp.RunAsync(_stopping.Token), CancellationToken.None);
 
         _render.Start();
         _network.Start();
@@ -154,8 +161,13 @@ public sealed class MainForm : Form
 
         await _stopping.CancelAsync().ConfigureAwait(true);
 
-        if (_connectionTask is { } task)
+        foreach (Task? task in new[] { _connectionTask, _npcHttpTask })
         {
+            if (task is null)
+            {
+                continue;
+            }
+
             try
             {
                 await task.ConfigureAwait(true);
@@ -181,6 +193,7 @@ public sealed class MainForm : Form
             _stopping.Dispose();
             _renderer.Dispose();
             _tip.Dispose();
+            _npcHttp.Dispose();
         }
 
         base.Dispose(disposing);
@@ -206,7 +219,12 @@ public sealed class MainForm : Form
         _map.MouseUp += OnMapMouseUp;
 
         _tabs.Dock = DockStyle.Fill;
-        _tabs.TabPages.Add(NewTab("인스펙터"));
+
+        TabPage inspector = NewTab("인스펙터");
+
+        inspector.Controls.Add(_inspector);
+
+        _tabs.TabPages.Add(inspector);
         _tabs.TabPages.Add(NewTab("로그"));
         _tabs.TabPages.Add(NewTab("제어"));
         _tabs.TabPages.Add(NewTab("링크"));
@@ -264,8 +282,20 @@ public sealed class MainForm : Form
         }
 
         UpdateStatus();
+        UpdateInspector();
 
         _map.Invalidate();
+    }
+
+    /// <summary>
+    /// 인스펙터를 갱신한다. <b>폴링은 배경 태스크가 하고 여기서는 읽기만 한다</b> —
+    /// UI 스레드에서 HTTP 를 기다리면 NPC 서버가 늦을 때마다 화면이 멎는다.
+    /// </summary>
+    private void UpdateInspector()
+    {
+        _npcHttp.Target = _input.Selected;
+
+        _inspector.Update(_input.Selected, _npcHttp.Reachable, _npcHttp.Trace);
     }
 
     /// <summary>이 창의 플레이어를 보간 결과에서 찾는다.</summary>
