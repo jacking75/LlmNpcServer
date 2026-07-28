@@ -321,9 +321,18 @@ NPC 서버                                            게임서버
    │                                     거절이면 Bye 후 종료 │
    │◄────────── EventBatch(NpcSpawned × N) ────────────│ 로스터 순서, 프레임당 ≤256
    │◄────────── EventBatch(ZoneStateChanged × Z) ──────│ 존 상태 초기화
+   │◄────────── EventBatch(WeatherChanged × Z) ────────│ 존 기후 초기화
    │◄────────── EventBatch(TickSync) ──────────────────│ 이후 매 틱
    │ ─────────── CommandBatch ─────────────────────────►│ 틱 루프의 FlushAsync
 ```
+
+> **2026-07-28 보정 (T6-16) — `WeatherChanged`를 같이 보낸다.**
+> 이 그림에는 원래 `ZoneStateChanged`만 있었다. 그런데 `ZoneDef`에는 `DefaultRegionState`와
+> **`DefaultClimate`가 둘 다 있고**, 실제 `zones.json`은 12개 존 중 **2개를 `Alert`, 2개를 `Cold`**로 선언한다.
+> NPC 서버의 `ZoneStateTable`은 전 존을 `Peace`·`Fair`로 시작하므로(`docs/14 §5`),
+> 지역 상태만 보내면 **그 2개 존의 기후가 조용히 어긋난 채로 돈다.** 기후는 버킷 키의 한 축이라
+> 어긋나면 그 존의 NPC가 다른 버킷의 플랜을 쓴다 — 증상이 "가끔 이상하게 행동한다"로만 나타나는,
+> §10.1이 경고한 바로 그 종류의 사고다. **한 줄 빠진 초기화가 원인을 하루 걸려 찾게 만든다.**
 
 **거절은 조용히 넘기지 않는다.** 마스터데이터가 다른 두 프로세스를 붙이면 POI code가 어긋나 NPC가 엉뚱한 곳으로 간다. 원인을 찾는 데 하루가 든다. **연결 시점에 죽이는 편이 싸다.**
 

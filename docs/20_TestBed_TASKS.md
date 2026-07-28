@@ -331,7 +331,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 ### D. 테스트 게임서버
 - [x] T6-14 프로젝트 골격과 옵션
 - [x] T6-15 `GameWorld` — Sim 조립과 틱 순서
-- [ ] T6-16 링크 리스너와 핸드셰이크
+- [x] T6-16 링크 리스너와 핸드셰이크
 - [ ] T6-17 명령 수신
 - [ ] T6-18 이벤트 송신
 - [ ] T6-19 `PlayerRegistry` — 이동과 근접
