@@ -150,6 +150,114 @@ public sealed class LinkSessionTests
     }
 
     /// <summary>
+    /// T6-17 완료 조건 — 명령은 <b>다음 틱에</b> 적용된다.
+    ///
+    /// 도착 즉시가 아니라 링에 담겼다가 틱 1단계에서 나가는 것이 계약이다 (docs/20 §7.2).
+    /// 소켓 태스크가 월드를 직접 고치면 틱 중간에 상태가 바뀌어 시나리오가 매번 다르게 흐른다.
+    /// </summary>
+    [Fact]
+    public async Task LinkSession_AppliesCommandsOnNextTick()
+    {
+        const int Count = 3;
+
+        await using var bed = await Bed.StartAsync(npcs: 8);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        bed.Send(Count);
+
+        await bed.WaitUntilAsync(() => session.CommandsReceived == Count);
+
+        // 아직 틱이 안 돌았다. 링에 담겨 있을 뿐이다.
+        Assert.Equal(Count, bed.World.Inbox.Pending);
+        Assert.Equal(0, bed.World.CommandsApplied);
+
+        bed.World.Tick(new Tick(1));
+
+        Assert.Equal(Count, bed.World.CommandsApplied);
+        Assert.Equal(0, bed.World.Inbox.Pending);
+        Assert.Equal(0, bed.World.Inbox.Dropped);
+    }
+
+    /// <summary>
+    /// T6-17 완료 조건 — 명령 순서가 프레임 안 순서와 같다.
+    ///
+    /// 뒤집히면 <c>Stop</c> 뒤에 <c>MoveTo</c> 가 적용되는 식이 되고, 증상은
+    /// "가끔 이상하게 행동한다" 로만 나타난다. 상관 ID 로 순서를 되짚는다.
+    /// </summary>
+    [Fact]
+    public async Task LinkSession_KeepsCommandOrderWithinFrame()
+    {
+        const int Count = 32;
+
+        await using var bed = await Bed.StartAsync(npcs: 8);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        bed.Send(Count);
+
+        await bed.WaitUntilAsync(() => session.CommandsReceived == Count);
+
+        bed.World.Tick(new Tick(1));
+
+        // Stop 은 SimWorld 가 즉시 Complete 로 답한다. 그 상관 ID 열이 곧 적용 순서다.
+        var applied = new List<uint>();
+
+        while (bed.World.World.Events.TryRead(out GameEvent ev))
+        {
+            if (ev.Kind == GameEventKind.NpcActionCompleted)
+            {
+                applied.Add(ev.Correlation.Value);
+            }
+        }
+
+        Assert.Equal(Enumerable.Range(1, Count).Select(i => (uint)i), applied);
+    }
+
+    /// <summary>
+    /// T6-17 완료 조건 — 링이 차면 버리고 <b>센다.</b>
+    ///
+    /// <b>예외를 던지지 않는다.</b> 명령이 유실된다고 가정하는 것이 이 링크의 계약이고
+    /// (docs/02 §1), NPC 서버는 <c>timeout_s</c> 만료로 스스로 재개한다.
+    /// </summary>
+    [Fact]
+    public async Task LinkSession_CountsInboxDrops()
+    {
+        const int Count = 4;
+
+        await using var bed = await Bed.StartAsync(npcs: 8);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        // 링을 먼저 가득 채운다. 이 회차는 틱을 돌리지 않으므로 아무도 빼 가지 않고,
+        // 아직 보낸 명령이 없어서 리시버 태스크와 겹치지도 않는다 (SPSC 가 지켜진다).
+        var filler = new NpcCommand
+        {
+            Kind = NpcCommandKind.Stop,
+            Npc = new NpcId(0),
+            IssuedAt = default,
+            Correlation = default,
+            Priority = CommandPriority.Normal,
+        };
+
+        for (int i = 0; i < CommandInbox.Capacity; i++)
+        {
+            Assert.True(bed.World.Inbox.TryEnqueue(in filler));
+        }
+
+        Assert.Equal(0, bed.World.Inbox.Dropped);
+
+        bed.Send(Count);
+
+        await bed.WaitUntilAsync(() => session.CommandsReceived == Count);
+        await bed.WaitUntilAsync(() => bed.World.Inbox.Dropped == Count);
+
+        // 받은 것은 다 셌고, 링은 넘치지 않았다.
+        Assert.Equal(Count, session.CommandsReceived);
+        Assert.Equal(CommandInbox.Capacity, bed.World.Inbox.Pending);
+    }
+
+    /// <summary>
     /// 게임서버 대역 + 진짜 TCP 링크 한 벌. 포트 0 으로 띄우고 끝나면 같이 내린다.
     /// </summary>
     private sealed class Bed : IAsyncDisposable
@@ -217,6 +325,7 @@ public sealed class LinkSessionTests
                 // <b>핸드셰이크가 끝난 뒤에 띄운다.</b> 먼저 띄우면 수신 루프가 Hello 프레임을
                 // 먼저 집어삼켜(Deliver 는 EventBatch 만 본다) 핸드셰이크가 영원히 기다린다.
                 await link.StartReceiverAsync(opened!, bed.Token);
+                await link.StartSenderAsync(opened!, bed.Token);
             }
 
             return bed;
@@ -236,6 +345,33 @@ public sealed class LinkSessionTests
 
                 return stream;
             }
+        }
+
+        /// <summary>
+        /// 명령 <paramref name="count"/> 개를 <b>한 배치로</b> 보낸다. 상관 ID 는 1부터 순증한다 —
+        /// 수신 순서를 되짚는 근거다.
+        ///
+        /// <c>Stop</c> 인 이유는 <c>SimWorld</c> 가 하위 시뮬 없이 즉시 <c>Complete</c> 로 답하기 때문이다.
+        /// 전부 같은 우선순위라 링이 순서를 바꾸지 않는다.
+        /// </summary>
+        public void Send(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                var command = new NpcCommand
+                {
+                    Kind = NpcCommandKind.Stop,
+                    Npc = new NpcId(i % Math.Max(1, World.Roster.Count)),
+                    IssuedAt = new Tick(1),
+                    Correlation = new CorrelationId((uint)(i + 1)),
+                    Priority = CommandPriority.Normal,
+                };
+
+                Link.Enqueue(in command);
+            }
+
+            // 한 번의 Flush = 한 개의 CommandBatch 프레임이다 (N8).
+            Link.FlushAsync(Token).AsTask().GetAwaiter().GetResult();
         }
 
         /// <summary>세션이 붙을 때까지 기다린다.</summary>

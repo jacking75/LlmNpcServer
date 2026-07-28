@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.IO.Pipelines;
 using MemoryPack;
 using Npc.Contracts;
 using Npc.MasterData;
@@ -19,11 +20,13 @@ namespace Npc.TestGameServer.Link;
 /// </para>
 ///
 /// <para>
-/// <b>스레드 계약이 둘로 갈린다.</b> 이 구분을 지우면 <see cref="SimWorld"/> 의 이벤트 채널이
+/// <b>스레드 계약이 셋으로 갈린다.</b> 이 구분을 지우면 <see cref="SimWorld"/> 의 이벤트 채널이
 /// 깨진다 — 그 채널은 <c>SingleWriter = true</c> 라 기록자가 하나여야 한다.
 /// <list type="bullet">
 ///   <item><see cref="HandshakeAsync"/> — <b>accept 태스크</b>에서 부른다. 월드를 만지지 않는다.</item>
 ///   <item><see cref="ResyncAsync"/> — <b>틱 스레드</b>에서 부른다. 월드에 이벤트를 낸다.</item>
+///   <item>수신 루프 — <b>리시버 태스크</b>다. 월드에 직접 쓰지 않고
+///     <see cref="CommandInbox"/> 에만 넣는다. 그 링을 비우는 것은 틱 스레드다.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -40,6 +43,19 @@ public sealed class LinkSession : IAsyncDisposable
     /// <summary>와이어 변환 스테이징. 프레임을 만들 때만 쓴다.</summary>
     private readonly WireEvent[] _staging = new WireEvent[MaxEventsPerFrame];
 
+    /// <summary>
+    /// 세션이 살아 있는가. 0 이면 죽은 것이다.
+    ///
+    /// <b>accept 태스크·리시버 태스크·틱 스레드가 함께 본다.</b> 리시버가 EOF 를 만나면
+    /// 여기를 내려야 리스너가 자리를 비우고 재접속을 받는다 (docs/20 §5.6).
+    /// </summary>
+    private int _active = 1;
+
+    /// <summary>마지막으로 무엇이든 받은 벽시계 시각(ms). 하트비트 감시가 본다.</summary>
+    private long _lastReceivedMillis = Environment.TickCount64;
+
+    private Task? _receiver;
+
     /// <summary>세션을 만든다. 소켓은 <see cref="LinkListener"/> 가 이미 열어 뒀다.</summary>
     public LinkSession(Stream stream, GameWorld world, MasterDataSet data, GameServerOptions options)
     {
@@ -55,7 +71,7 @@ public sealed class LinkSession : IAsyncDisposable
     }
 
     /// <summary>세션이 살아 있는가. 리스너가 두 번째 접속을 거절할지 이 값으로 가른다.</summary>
-    public bool IsActive { get; private set; } = true;
+    public bool IsActive => Volatile.Read(ref _active) != 0;
 
     /// <summary>핸드셰이크가 수락됐는가.</summary>
     public bool IsAccepted { get; private set; }
@@ -79,6 +95,21 @@ public sealed class LinkSession : IAsyncDisposable
 
     /// <summary>보낸 <c>EventBatch</c> 프레임 수.</summary>
     public long FramesSent { get; private set; }
+
+    /// <summary>
+    /// 받은 명령 수. <b>링이 차서 버린 것도 센다</b> — 이 값과
+    /// <c>GameWorld.Inbox.Accepted</c> 의 차이가 곧 유실분이다.
+    /// </summary>
+    public long CommandsReceived { get; private set; }
+
+    /// <summary>받은 <c>CommandBatch</c> 프레임 수. NPC 서버의 <c>FlushAsync</c> 횟수와 같아야 한다 (N8).</summary>
+    public long CommandFramesReceived { get; private set; }
+
+    /// <summary>마지막 수신 이후 지난 벽시계 시간(ms). 하트비트 감시가 본다 (docs/20 §5.6).</summary>
+    public long SilentMillis => Environment.TickCount64 - Volatile.Read(ref _lastReceivedMillis);
+
+    /// <summary>수신 루프. 세션이 끝나면 완료된다. 안 띄웠으면 이미 완료다.</summary>
+    public Task Receiver => _receiver ?? Task.CompletedTask;
 
     /// <summary>
     /// 핸드셰이크. <b>accept 태스크에서 부른다.</b> docs/20 §5.5.
@@ -126,7 +157,128 @@ public sealed class LinkSession : IAsyncDisposable
         RejectCode = LinkRejectCode.None;
         IsAccepted = true;
 
+        // 수락된 순간부터 명령이 올 수 있다. 리시버를 여기서 띄우는 이유는 의존 방향이다 —
+        // 리스너가 띄우게 하면 "핸드셰이크가 끝났다" 와 "수신을 시작했다" 사이에 틈이 생기고,
+        // 그 틈에 도착한 CommandBatch 는 커널 버퍼에 남아 있다가 순서만 늦게 반영된다.
+        StartReceiver(ct);
+
         return true;
+    }
+
+    /// <summary>
+    /// 수신 루프를 띄운다. <b>이 태스크가 <see cref="CommandInbox"/> 의 유일한 생산자다</b>
+    /// (docs/20 §7.1 — SPSC). 두 번 불러도 하나만 돈다.
+    /// </summary>
+    public void StartReceiver(CancellationToken ct) =>
+        _receiver ??= Task.Run(() => ReceiveLoopAsync(ct), CancellationToken.None);
+
+    /// <summary>
+    /// <c>PipeReader</c> → 프레임 → <see cref="CommandInbox"/>. docs/20 §7.2 의 1단계 재료를 만든다.
+    ///
+    /// <para>
+    /// <b>여기서 <c>SimWorld</c> 를 만지지 않는다.</b> 명령을 적용하는 것은 틱 스레드다 —
+    /// 소켓 태스크가 월드를 직접 고치면 틱 중간에 상태가 바뀌어 같은 시나리오가 매번 다르게 흐른다.
+    /// </para>
+    /// </summary>
+    private async Task ReceiveLoopAsync(CancellationToken ct)
+    {
+        PipeReader reader = PipeReader.Create(_stream);
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                ReadResult result = await reader.ReadAsync(ct).ConfigureAwait(false);
+                ReadOnlySequence<byte> buffer = result.Buffer;
+
+                while (FrameCodec.TryReadFrame(
+                    ref buffer, out LinkMessageKind kind, out ReadOnlySequence<byte> payload))
+                {
+                    // 무엇이든 받았으면 살아 있는 것이다 — 하트비트도 포함이다.
+                    Volatile.Write(ref _lastReceivedMillis, Environment.TickCount64);
+
+                    Deliver(kind, payload);
+                }
+
+                reader.AdvanceTo(buffer.Start, buffer.End);
+
+                if (result.IsCompleted)
+                {
+                    break;   // EOF. NPC 서버가 끊었다
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 종료 지시다.
+        }
+        catch (Exception)
+        {
+            // 프레임이 깨졌거나(InvalidDataException) 소켓이 죽었다.
+            // 게임서버는 계속 돈다 — 링크가 없는 동안에도 세계는 흐른다 (docs/20 §7.2).
+        }
+        finally
+        {
+            // 자리를 비운다. 리스너가 이 값을 보고 다음 접속을 받는다.
+            Volatile.Write(ref _active, 0);
+
+            await reader.CompleteAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>프레임 하나를 처리한다. 리시버 태스크 전용.</summary>
+    private void Deliver(LinkMessageKind kind, ReadOnlySequence<byte> payload)
+    {
+        switch (kind)
+        {
+            case LinkMessageKind.CommandBatch:
+                Receive(payload);
+                return;
+
+            case LinkMessageKind.Bye:
+                // NPC 서버가 정상 종료했다. 자리를 비워 다음 접속을 받는다.
+                Volatile.Write(ref _active, 0);
+                return;
+
+            default:
+                // Heartbeat 는 도착한 것만으로 의미가 있다 — 시각은 위에서 이미 갱신했다.
+                // 모르는 종류는 조용히 버린다. 프레임 경계는 맞았으므로 스트림은 멀쩡하다.
+                return;
+        }
+    }
+
+    /// <summary>
+    /// <c>CommandBatch</c> 한 장을 링에 붓는다.
+    ///
+    /// <para>
+    /// <b>프레임 안 순서를 그대로 넣는다.</b> 링은 FIFO 라 틱 루프가 같은 순서로 꺼낸다 —
+    /// 뒤집히면 <c>Stop</c> 뒤에 <c>MoveTo</c> 가 적용되는 식으로 NPC 가 엉뚱하게 움직이고,
+    /// 증상이 "가끔 이상하게 행동한다" 로만 나타난다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>링이 차면 버린다.</b> 예외를 던지지 않는다 — 명령은 유실된다고 가정하는 것이
+    /// 이 링크의 계약이고(docs/02 §1), NPC 서버는 <c>timeout_s</c> 만료로 스스로 재개한다.
+    /// </para>
+    /// </summary>
+    private void Receive(ReadOnlySequence<byte> payload)
+    {
+        WireCommand[]? commands = MemoryPackSerializer.Deserialize<WireCommand[]>(payload);
+
+        CommandFramesReceived++;
+
+        if (commands is null)
+        {
+            return;   // 빈 배치도 프레임 하나다 (N8). 셌으니 할 일이 없다
+        }
+
+        foreach (WireCommand wire in commands)
+        {
+            NpcCommand command = wire.To();
+
+            CommandsReceived++;
+            _world.Inbox.TryEnqueue(in command);
+        }
     }
 
     /// <summary>
@@ -243,12 +395,10 @@ public sealed class LinkSession : IAsyncDisposable
     /// <summary><c>Bye</c> 를 보내고 세션을 닫는다. 실패해도 조용히 넘긴다 — 이미 끊긴 소켓일 수 있다.</summary>
     public async Task CloseAsync(LinkByeCode code, CancellationToken ct)
     {
-        if (!IsActive)
+        if (Interlocked.Exchange(ref _active, 0) == 0)
         {
             return;
         }
-
-        IsActive = false;
 
         try
         {
@@ -263,7 +413,7 @@ public sealed class LinkSession : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        IsActive = false;
+        Volatile.Write(ref _active, 0);
 
         await _stream.DisposeAsync().ConfigureAwait(false);
     }
@@ -292,7 +442,7 @@ public sealed class LinkSession : IAsyncDisposable
 
     /// <summary>
     /// 프레임 하나를 읽는다. <b>핸드셰이크 전용</b>이라 단순 동기 읽기다 —
-    /// 상시 수신은 <c>PipeReader</c> 로 간다 (T6-17).
+    /// 상시 수신은 <see cref="StartReceiver"/> 의 <c>PipeReader</c> 로 간다.
     /// </summary>
     public static async Task<(LinkMessageKind Kind, byte[] Payload)> ReadFrameAsync(
         Stream stream, CancellationToken ct)
