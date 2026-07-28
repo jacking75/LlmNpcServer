@@ -1,5 +1,24 @@
 # 작업 로그
 
+## 2026-07-28 10:39 KST · T5-21 — 메꾼 티어가 킬스위치를 물려받는다
+
+P5 의 마지막 미착수 태스크. `TierWiring` 이 한쪽 티어의 엔진이 없을 때 없는 쪽을 있는 쪽으로
+메꾸는데, 메꾼 자리가 원 티어의 차단을 물려받지 않아 `--tier t2` 에서 T2 를 끊어도
+같은 외부 컴파일러가 T1 이름으로 계속 불렸다 — `KillSwitchTarget` 주석이 금지한 "안 끊긴 채로 통과".
+
+`TieredPlanCompiler` 에 `HasT1`·`HasT2`(기본 `true`)를 두고 `Available` 을 사양(`docs/15 §E`)의
+두 식으로 바꿨다. `TierWiring` 만 `t1/t2 is not null` 을 넘긴다 — 기본값이 `true` 라
+기존 호출부와 킬스위치 3종 테스트가 무수정으로 통과한다. 테스트 3건 추가.
+
+**부수 발견 2건** — 둘 다 `TASKS.md §3` 에 등재했다.
+- `SiegeTests` 4건이 프리베이크 산출물(`planstore/plans/`, `.gitignore` 대상) 없이는 실패한다.
+  T5-21 이전부터 그렇고 커밋 `a8ddd61` 에서 재현했다.
+- **`dotnet test` 가 `docs/measurements/W10_load.csv` 를 덮어쓴다.** 이번 회차에서 실제로
+  `cache_hit_rate` 0.71 → 0.0000, `cold_buckets` 2,626 → 2,880 으로 덮였다. P4 게이트 항목 2 의
+  근거라 되돌렸다.
+
+빌드 경고 0·오류 0 · `dotnet format` 통과 · 927건 중 923건 통과(실패 4건은 위 SiegeTests).
+
 ## 2026-07-27 20:12 KST · 수정 4건을 태스크 단위 커밋으로 분리
 
 `Program.cs` 가 세 수정에 걸쳐 있어 HEAD 로 되돌린 뒤 한 묶음씩 다시 얹어 커밋했다.

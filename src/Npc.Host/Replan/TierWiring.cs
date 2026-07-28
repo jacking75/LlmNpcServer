@@ -127,11 +127,15 @@ internal sealed class TierWiring : IAsyncDisposable
             return new TierWiring(TierMode.None);
         }
 
+        // 메꾼 자리는 반드시 알려 준다 (T5-21). 이게 없으면 --tier t2 에서 T2 를 끊어도
+        // T1 자리에 앉은 같은 외부 컴파일러가 계속 불려 킬스위치가 아무것도 끊지 못한다.
         var router = new TieredPlanCompiler(t1 ?? t2!, t2 ?? t1!, budget, () => clock.Current)
         {
             LocalQueueDepth = () => queue.Count,
             Breaker = breaker,
             Switches = switches ?? KillSwitchState.None,
+            HasT1 = t1 is not null,
+            HasT2 = t2 is not null,
         };
 
         var wiring = new TierWiring(options.Tier)

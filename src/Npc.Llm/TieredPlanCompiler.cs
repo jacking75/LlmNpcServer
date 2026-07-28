@@ -123,14 +123,35 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     public KillSwitchState Switches { get; init; } = KillSwitchState.None;
 
     /// <summary>
+    /// T1 자리에 <b>진짜 로컬 컴파일러</b>가 들어 있는가 (T5-21).
+    ///
+    /// 조립부(<c>TierWiring</c>)는 한쪽 티어의 엔진이 없으면 없는 쪽을 있는 쪽으로 메꾼다 —
+    /// 강등·페일오버가 같은 엔진으로 가게 하려는 의도다. 그러면 <c>--tier t2</c> 에서
+    /// T1 자리에 T2 엔진이 앉는데, <b>메꾼 티어는 실제 티어의 차단을 물려받아야 한다.</b>
+    /// 그러지 않으면 T2 를 끊어도 같은 외부 엔진이 T1 이름으로 계속 불려
+    /// <see cref="KillSwitchTarget"/> 의 주석이 금지한 "안 끊긴 채로 통과" 가 된다.
+    ///
+    /// 기본값 <c>true</c> 는 "두 자리가 서로 다른 엔진이다" 는 뜻이다.
+    /// </summary>
+    public bool HasT1 { get; init; } = true;
+
+    /// <summary>T2 자리에 <b>진짜 외부 컴파일러</b>가 들어 있는가. <see cref="HasT1"/> 참조.</summary>
+    public bool HasT2 { get; init; } = true;
+
+    /// <summary>
     /// 이 티어를 지금 쓸 수 있는가. <b>킬스위치만 본다</b> —
     /// 브레이커는 일시적 차단이라 선택 시점이 아니라 호출 직전에 보고(<see cref="CircuitBreaker.TryEnter"/>)
     /// 단락 횟수를 센다. 여기서 같이 보면 그 계수가 사라진다.
+    ///
+    /// <b>메꾼 자리는 원 티어의 차단도 같이 본다</b> (T5-21 · docs/15 §E) —
+    /// 자기 자리가 안 끊겼더라도, 그 자리에 앉은 것이 남의 엔진이면 그쪽 차단이 그대로 걸린다.
     /// </summary>
     public bool Available(Tier tier) => tier switch
     {
-        Tier.T2 => !Switches.IsDisabled(KillSwitchTarget.T2),
-        Tier.T1 => !Switches.IsDisabled(KillSwitchTarget.T1),
+        Tier.T2 => !Switches.IsDisabled(KillSwitchTarget.T2)
+            && (HasT2 || !Switches.IsDisabled(KillSwitchTarget.T1)),
+        Tier.T1 => !Switches.IsDisabled(KillSwitchTarget.T1)
+            && (HasT1 || !Switches.IsDisabled(KillSwitchTarget.T2)),
         _ => false,
     };
 

@@ -540,4 +540,113 @@ public sealed class TieredPlanCompilerTests
         // 열거형 ordinal 을 그대로 넣는 것도 막는다 — "2" 가 PlanStore 가 되면 오타를 못 잡는다.
         Assert.False(KillSwitchState.TryParse("2", out _));
     }
+
+    // ------------------------------------------------ 메꾼 티어 (T5-21 완료 조건 · docs/15 §E)
+
+    /// <summary>
+    /// <c>--tier t2</c> — T1 엔진이 없어 그 자리를 T2 컴파일러로 메꾼 구성이다.
+    /// <b>T2 를 끊으면 전면 거절이어야 한다.</b> 강등해 봐야 같은 외부 엔진이라
+    /// 한 건이라도 나가면 시나리오 C 1단계가 "끊었는데 불린 회차" 를 통과로 기록한다.
+    /// </summary>
+    [Fact]
+    public async Task KillSwitch_FilledT1_InheritsTheT2Cut()
+    {
+        var external = new StubCompiler("external");
+        var switches = new KillSwitchState();
+
+        // TierWiring 이 t1 == null 일 때 하는 것과 같은 조립이다.
+        var router = new TieredPlanCompiler(external, external, new OpenBudget(), () => new Tick(0))
+        {
+            Switches = switches,
+            HasT1 = false,
+            HasT2 = true,
+        };
+
+        Assert.True(router.Available(Tier.T1));
+
+        switches.Fire(KillSwitchTarget.T2);
+
+        // T1 자리에 앉은 것이 끊긴 T2 엔진이므로 그 자리도 같이 닫힌다.
+        Assert.False(router.Available(Tier.T2));
+        Assert.False(router.Available(Tier.T1));
+        Assert.Equal(Tier.None, router.SelectTier(Archetype()));
+        Assert.Equal(Tier.None, router.SelectTier(Individual()));
+
+        PlanCompileResult result = await router.CompileAsync(Archetype(), CancellationToken.None);
+
+        Assert.Equal("V0.NO_TIER", result.Validation.Code);
+        Assert.Equal(1, router.Rejected);
+
+        // 완료 조건 — 외부 호출 0 건.
+        Assert.Equal(0, external.Calls);
+    }
+
+    /// <summary>
+    /// <c>--tier t1</c> — T2 엔진이 없어 그 자리를 T1 컴파일러로 메꾼 구성이다.
+    /// T2 를 끊으면 <b>진짜 T1 으로</b> 내려간다. 이쪽은 거절이 아니다 — 로컬은 멀쩡하다.
+    /// </summary>
+    [Fact]
+    public async Task KillSwitch_FilledT2_StillFailsOverToRealLocal()
+    {
+        var local = new StubCompiler("local");
+        var switches = new KillSwitchState();
+
+        var router = new TieredPlanCompiler(local, local, new OpenBudget(), () => new Tick(0))
+        {
+            Switches = switches,
+            HasT1 = true,
+            HasT2 = false,
+        };
+
+        switches.Fire(KillSwitchTarget.T2);
+
+        Assert.False(router.Available(Tier.T2));
+        Assert.True(router.Available(Tier.T1));
+        Assert.Equal(Tier.T1, router.SelectTier(Archetype()));
+
+        PlanCompileResult result = await router.CompileAsync(Archetype(), CancellationToken.None);
+
+        Assert.Equal("local", result.Stats.Model);
+        Assert.Equal(1, local.Calls);
+        Assert.Equal(0, router.Rejected);
+
+        // 반대 방향도 성립한다 — T1 을 끊으면 메꾼 T2 자리까지 닫힌다.
+        switches.Reset();
+        switches.Fire(KillSwitchTarget.T1);
+
+        Assert.False(router.Available(Tier.T1));
+        Assert.False(router.Available(Tier.T2));
+        Assert.Equal(Tier.None, router.SelectTier(Archetype()));
+    }
+
+    /// <summary>
+    /// <c>--tier all</c> — 두 자리가 서로 다른 엔진이면 판정이 예전과 같다 (회귀 없음).
+    /// 기본값이 <c>true</c> 인 이유이고, 위 킬스위치 3종이 무수정으로 통과하는 이유다.
+    /// </summary>
+    [Fact]
+    public void KillSwitch_DistinctEngines_KeepIndependentCuts()
+    {
+        var t1 = new StubCompiler("local");
+        var t2 = new StubCompiler("external");
+        var switches = new KillSwitchState();
+
+        var router = new TieredPlanCompiler(t1, t2, new OpenBudget(), () => new Tick(0))
+        {
+            Switches = switches,
+        };
+
+        Assert.True(router.HasT1);
+        Assert.True(router.HasT2);
+
+        switches.Fire(KillSwitchTarget.T2);
+
+        Assert.False(router.Available(Tier.T2));
+        Assert.True(router.Available(Tier.T1));
+
+        switches.Reset();
+        switches.Fire(KillSwitchTarget.T1);
+
+        Assert.True(router.Available(Tier.T2));
+        Assert.False(router.Available(Tier.T1));
+    }
 }
