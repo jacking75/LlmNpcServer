@@ -2,6 +2,7 @@ using System.Globalization;
 using Npc.MasterData;
 using Npc.TestBed.Protocol;
 using Npc.TestClient.Net;
+using Npc.TestClient.Render;
 using Npc.Wire;
 
 // System.Windows.Forms.Control 과 Npc.TestBed.Protocol.Control 이 이름이 겹친다.
@@ -51,13 +52,20 @@ public sealed class MainForm : Form
     private readonly System.Windows.Forms.Timer _render = new() { Interval = RenderIntervalMillis };
     private readonly System.Windows.Forms.Timer _network = new() { Interval = NetworkIntervalMillis };
 
+    private readonly SplitContainer _split = new();
     private readonly MapPanel _map = new();
+    private readonly MapRenderer _renderer;
+    private readonly ToolTip _tip = new() { InitialDelay = 250, ReshowDelay = 100 };
     private readonly TabControl _tabs = new();
     private readonly ToolStripStatusLabel _clock = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly ToolStripStatusLabel _link = new() { Spring = true, TextAlign = ContentAlignment.MiddleRight };
 
     private Task? _connectionTask;
     private long _networkTicks;
+    private bool _fitted;
+    private bool _dragging;
+    private Point _dragFrom;
+    private string _tipText = string.Empty;
 
     /// <summary>창을 만든다. 마스터데이터는 여기서 읽는다 — 없으면 기동 실패다.</summary>
     public MainForm(ClientOptions options)
@@ -67,6 +75,7 @@ public sealed class MainForm : Form
         _options = options;
         _data = MasterDataLoader.Load(options.ResolveMasterData());
         _connection = new GameConnection(options.Host, options.Port);
+        _renderer = new MapRenderer(_data);
 
         Text = $"Npc.TestClient — {options.Host}:{options.Port}";
         ClientSize = new Size(1_440, 900);
@@ -87,13 +96,25 @@ public sealed class MainForm : Form
     /// <summary>게임서버 연결.</summary>
     public GameConnection Connection => _connection;
 
-    /// <summary>맵이 그려지는 패널. 렌더러(T6-27)가 여기 붙는다.</summary>
+    /// <summary>맵이 그려지는 패널.</summary>
     public Control Map => _map;
+
+    /// <summary>지도 렌더러. 카메라가 여기 있다.</summary>
+    public MapRenderer Renderer => _renderer;
 
     /// <inheritdoc />
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
+
+        // <b>분할 위치는 여기서 정한다.</b> 생성자에서 주면 아직 기본 크기(150px)라
+        // Panel2MinSize 가 예외를 던지고, SplitterDistance 는 조용히 잘려 우측 패널이 사라진다.
+        // 둘 다 실제로 겪은 증상이다 — 앞의 것은 크래시, 뒤의 것은 폭 10px 짜리 탭이었다.
+        _split.Panel2MinSize = Math.Min(260, Math.Max(1, _split.Width / 4));
+        _split.SplitterDistance = Math.Clamp(
+            _split.Width - SidePanelWidth,
+            _split.Panel1MinSize,
+            Math.Max(_split.Panel1MinSize, _split.Width - _split.Panel2MinSize));
 
         _connectionTask = Task.Run(() => _connection.RunAsync(_stopping.Token), CancellationToken.None);
 
@@ -134,6 +155,8 @@ public sealed class MainForm : Form
             _render.Dispose();
             _network.Dispose();
             _stopping.Dispose();
+            _renderer.Dispose();
+            _tip.Dispose();
         }
 
         base.Dispose(disposing);
@@ -141,19 +164,22 @@ public sealed class MainForm : Form
 
     // ---------------------------------------------------------------- 레이아웃
 
+    /// <summary>우측 패널 너비(px). 인스펙터의 스텝 목록이 접히지 않는 최소치다.</summary>
+    public const int SidePanelWidth = 420;
+
     private Control BuildBody()
     {
-        var split = new SplitContainer
-        {
-            Dock = DockStyle.Fill,
-            Orientation = Orientation.Vertical,
-            SplitterDistance = 980,
-            FixedPanel = FixedPanel.Panel2,
-            BackColor = Color.FromArgb(40, 40, 46),
-        };
+        _split.Dock = DockStyle.Fill;
+        _split.Orientation = Orientation.Vertical;
+        _split.FixedPanel = FixedPanel.Panel2;
+        _split.BackColor = Color.FromArgb(40, 40, 46);
 
         _map.Dock = DockStyle.Fill;
         _map.Paint += OnPaintMap;
+        _map.MouseWheel += OnMapMouseWheel;
+        _map.MouseDown += OnMapMouseDown;
+        _map.MouseMove += OnMapMouseMove;
+        _map.MouseUp += OnMapMouseUp;
 
         _tabs.Dock = DockStyle.Fill;
         _tabs.TabPages.Add(NewTab("인스펙터"));
@@ -161,10 +187,10 @@ public sealed class MainForm : Form
         _tabs.TabPages.Add(NewTab("제어"));
         _tabs.TabPages.Add(NewTab("링크"));
 
-        split.Panel1.Controls.Add(_map);
-        split.Panel2.Controls.Add(_tabs);
+        _split.Panel1.Controls.Add(_map);
+        _split.Panel2.Controls.Add(_tabs);
 
-        return split;
+        return _split;
     }
 
     /// <summary>탭 한 장. 내용은 T6-30~T6-32 가 채운다.</summary>
@@ -243,32 +269,114 @@ public sealed class MainForm : Form
     private void OnPaintMap(object? sender, PaintEventArgs e)
     {
         Graphics g = e.Graphics;
+        Rectangle viewport = _map.ClientRectangle;
+
+        // <b>첫 맞춤은 여기서 한다.</b> OnLoad 에서 하면 분할 위치가 아직 반영되기 전의 넓은
+        // 폭으로 맞춰져서 지도가 화면 밖으로 삐져 나온다 — 실제로 그렇게 됐다.
+        if (!_fitted && viewport.Width > 1 && viewport.Height > 1)
+        {
+            _renderer.Camera.FitWorld(_renderer.WorldBounds, viewport);
+            _fitted = true;
+        }
 
         g.Clear(Color.FromArgb(18, 18, 22));
 
+        // 존·POI 는 마스터데이터에서 나온다. 접속 전에도 지도는 보인다 —
+        // 게임서버가 없다고 빈 화면을 띄우면 사람이 클라이언트가 죽은 줄 안다.
+        _renderer.DrawWorld(g, viewport, _connection.Zones);
+
+        DrawOverlay(g, viewport);
+    }
+
+    /// <summary>화면 위에 얹는 안내. 무엇을 기다리는 중인지 말한다.</summary>
+    private void DrawOverlay(Graphics g, Rectangle viewport)
+    {
         string message = _connection.State switch
         {
             ConnectionState.Connected when _connection.PlayerId == 0 =>
                 "정원이 찼다 — --max-clients 를 늘리거나 다른 창을 닫는다",
             ConnectionState.Connected when _connection.Latest is null => "첫 스냅샷을 기다리는 중…",
-            ConnectionState.Connected =>
-                $"player {_connection.PlayerId} · npc {_connection.Hello.NpcCount} · 스냅샷 {_connection.SnapshotsReceived}",
+            ConnectionState.Connected when !MasterDataMatchesServer() =>
+                "경고: 마스터데이터 해시가 게임서버와 다르다 — 화면이 거짓말을 한다",
+            ConnectionState.Connected => string.Empty,
             _ => $"게임서버 {_options.Host}:{_options.Port} 에 붙는 중… ({_connection.Attempts}회 시도)",
         };
 
-        if (_connection.State == ConnectionState.Connected && !MasterDataMatchesServer())
+        if (message.Length == 0)
         {
-            message += Environment.NewLine + "경고: 마스터데이터 해시가 게임서버와 다르다";
+            return;
         }
 
         using var brush = new SolidBrush(Color.Gainsboro);
-        using var format = new StringFormat
-        {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center,
-        };
+        using var shade = new SolidBrush(Color.FromArgb(150, 12, 12, 16));
+        var box = new Rectangle(viewport.X, viewport.Bottom - 40, viewport.Width, 28);
 
-        g.DrawString(message, Font, brush, e.ClipRectangle, format);
+        g.FillRectangle(shade, box);
+        g.DrawString(
+            message,
+            Font,
+            brush,
+            box,
+            new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+    }
+
+    // ---------------------------------------------------------------- 카메라 조작
+
+    private void OnMapMouseWheel(object? sender, MouseEventArgs e) =>
+        _renderer.Camera.ZoomAt(e.Location, e.Delta, _map.ClientRectangle);
+
+    private void OnMapMouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Right || e.Button == MouseButtons.Middle)
+        {
+            _dragging = true;
+            _dragFrom = e.Location;
+        }
+
+        _map.Focus();
+    }
+
+    private void OnMapMouseMove(object? sender, MouseEventArgs e)
+    {
+        if (_dragging)
+        {
+            _renderer.Camera.Pan(e.X - _dragFrom.X, e.Y - _dragFrom.Y);
+            _dragFrom = e.Location;
+
+            return;
+        }
+
+        // 마우스를 올리면 POI id 를 말한다 (docs/20 §9.3). 이름은 마스터데이터에서 온다.
+        string label = _renderer.TryPickPoi(e.Location, _map.ClientRectangle, out PoiDef poi)
+            ? $"{poi.Id}  ({poi.Type})"
+            : string.Empty;
+
+        if (_tipText != label)
+        {
+            _tipText = label;
+            _tip.SetToolTip(_map, label);
+        }
+    }
+
+    private void OnMapMouseUp(object? sender, MouseEventArgs e) => _dragging = false;
+
+    /// <inheritdoc />
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        switch (keyData)
+        {
+            case Keys.Home:
+                _renderer.Camera.FitWorld(_renderer.WorldBounds, _map.ClientRectangle);
+                return true;
+
+            case Keys.Space:
+                // 플레이어 추적 복귀 (docs/20 §9.4). 따라갈 위치는 T6-28 이 채운다.
+                _renderer.Camera.Follow = true;
+                return true;
+
+            default:
+                return base.ProcessCmdKey(ref msg, keyData);
+        }
     }
 
     /// <summary>
