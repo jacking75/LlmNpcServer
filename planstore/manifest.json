@@ -2,34 +2,34 @@
   "schema": 1,
   "masterdata_hash": "f37c02926c0b3d26582c4f47a4d393c6548fe921e5b6bc74f04c31ce2cb53218",
   "prefix_hash": "56a0c601f48392e0c332d62d3180bf479cdb3e9c785341fb3916be3f05108ddf",
-  "generated_at": "2026-07-28T-reach264",
+  "generated_at": "2026-07-28T-reach978",
   "partial": false,
   "generated_by": {
     "tier": "T2",
     "model": "openrouter-gemini-2.5-flash-lite",
     "temperature": 0.4000000059604645,
     "concurrency": 8,
-    "peak_concurrency": 24,
+    "peak_concurrency": 32,
     "first_rate_limit_concurrency": 0
   },
   "counts": {
     "total": 2880,
-    "generated": 195,
+    "generated": 523,
     "pinned": 0,
-    "fallback": 66,
-    "reused": 3
+    "fallback": 145,
+    "reused": 46
   },
   "validation": {
-    "pass": 195,
-    "fail_schema": 1,
-    "fail_vocab": 27,
-    "fail_coherence": 35,
+    "pass": 523,
+    "fail_schema": 3,
+    "fail_vocab": 58,
+    "fail_coherence": 124,
     "fail_dryrun": 6,
     "fail_call": 0
   },
-  "cost_usd": 0.372731,
-  "wall_clock_s": 96.9,
-  "cache_hit_rate": 0.4536,
+  "cost_usd": 0.698975,
+  "wall_clock_s": 177.6,
+  "cache_hit_rate": 0.6925,
   "file_hashes": [
     {
       "file": "actions.json",
