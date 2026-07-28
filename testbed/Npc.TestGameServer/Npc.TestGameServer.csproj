@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\Npc.Sim\Npc.Sim.csproj" />
     <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
     <ProjectReference Include="..\..\src\Npc.Wire\Npc.Wire.csproj" />
+    <ProjectReference Include="..\Npc.TestBed.Protocol\Npc.TestBed.Protocol.csproj" />
   </ItemGroup>
 
 </Project>

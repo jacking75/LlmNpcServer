@@ -196,7 +196,7 @@ P6 의 테스트 베드는 **단방향 잎(leaf)** 이다. 아무도 참조하�
 
 ```
 testbed/Npc.TestBed.Protocol  ←  Wire                              [T6-22 완료]
-testbed/Npc.TestGameServer    ←  Sim, MasterData, Wire             [T6-14 완료. Protocol 은 T6-23 에서]
+testbed/Npc.TestGameServer    ←  Sim, MasterData, Wire, Protocol   [T6-23 완료]
 testbed/Npc.TestClient        ←  MasterData, Protocol              [T6-26, 미착수 · net10.0-windows]
 ```
 

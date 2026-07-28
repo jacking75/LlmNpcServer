@@ -347,7 +347,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 
 ### E. 클라이언트 프로토콜과 세션
 - [x] T6-22 `Npc.TestBed.Protocol`
-- [ ] T6-23 클라이언트 리스너와 세션
+- [x] T6-23 클라이언트 리스너와 세션
 - [ ] T6-24 스냅샷 빌더
 - [ ] T6-25 제어 처리
 
