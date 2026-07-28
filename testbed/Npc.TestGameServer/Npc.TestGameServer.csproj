@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    [P6] 게임서버 대역 — 소켓을 가진 상대역. docs/20 §7.
+
+    관점 주의 (docs/02 §0 · docs/20 §0). 우리가 만드는 것은 NPC 서버다.
+    이 프로젝트는 그 상대역이며, 이름의 "GameServer" 는 상대방을 가리킨다.
+
+    시뮬 로직을 새로 짜지 않는다 — MovementSim·InteractionSim·NeedsSim·TransformEmitter·
+    FaultInjector·ScenarioRunner 는 Npc.Sim 의 것을 그대로 쓴다 (docs/20 §7.1).
+    새로 만드는 것은 PlayerRegistry 하나다.
+
+    이 프로젝트는 단방향 잎(leaf)이다 — 아무도 참조하지 않는다 (docs/20 §4).
+    Npc.Host 를 참조하지 않으므로 옵션 파싱은 HostOptions 를 "본떠" 따로 쓴다.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Npc.TestGameServer</RootNamespace>
+    <AssemblyName>Npc.TestGameServer</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.Sim\Npc.Sim.csproj" />
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Wire\Npc.Wire.csproj" />
+  </ItemGroup>
+
+</Project>
