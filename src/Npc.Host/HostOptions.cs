@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 
 namespace Npc.Host;
@@ -16,6 +17,14 @@ public enum LinkKind
 
     /// <summary>기록된 jsonl 을 재생한다. 게임서버 없이 같은 이벤트 열을 다시 먹인다.</summary>
     Replay,
+
+    /// <summary>
+    /// 실제 게임서버에 TCP 로 붙는다 (P6 · docs/20 §10.3).
+    ///
+    /// <b><c>Npc.Sim</c> 을 만들지 않는다</b> — <see cref="Replay"/> 와 같은 경로다.
+    /// 세계를 미는 것은 게임서버이고, 우리는 이벤트를 받아 명령을 낼 뿐이다.
+    /// </summary>
+    Tcp,
 }
 
 /// <summary>
@@ -112,6 +121,28 @@ public sealed record HostOptions
     /// <summary><c>--link record</c> 의 출력 경로 · <c>--link replay</c> 의 입력 경로.</summary>
     public string? TracePath { get; init; }
 
+    /// <summary>게임서버 호스트. <c>--link tcp</c> 일 때만 쓴다 (docs/20 §10.3).</summary>
+    public string GameServerHost { get; init; } = "127.0.0.1";
+
+    /// <summary>게임서버 링크 포트. docs/20 §12 의 7010.</summary>
+    public int GameServerPort { get; init; } = 7010;
+
+    /// <summary>
+    /// <c>--gs-host</c>·<c>--gs-port</c> 를 <b>명시했는가.</b>
+    ///
+    /// <c>--link record</c> 가 무엇을 감쌀지 이 값으로 가른다 (docs/20 §10.3) —
+    /// 기본값과 명시값을 구별하지 못하면 "포트가 7010 이니까 TCP 겠지" 라는 추측이 된다.
+    /// </summary>
+    public bool UsesGameServer { get; init; }
+
+    /// <summary>
+    /// 로스터 존 필터. 비어 있으면 전체다.
+    ///
+    /// <b>게임서버와 같아야 한다</b> — 다르면 로스터 해시가 어긋나 핸드셰이크에서 거절된다
+    /// (docs/20 §5.5). 그게 의도된 동작이다: 첨자가 어긋난 채로 도는 것보다 낫다.
+    /// </summary>
+    public ImmutableArray<string> Zones { get; init; } = [];
+
     /// <summary>대시보드·메트릭 포트.</summary>
     public int Port { get; init; } = DefaultPort;
 
@@ -158,9 +189,12 @@ public sealed record HostOptions
         사용법: Npc.Host [validate ...] [옵션]
 
           --loopback              Npc.Sim 인프로세스 월드에 직결 (기본)
-          --link null|record|replay|loopback
-                                  링크 구현체 교체
+          --link null|record|replay|loopback|tcp
+                                  링크 구현체 교체. tcp 는 실제 게임서버에 붙는다 (P6)
           --trace <path>          --link record 의 출력 · --link replay 의 입력 (jsonl)
+          --gs-host <host>        게임서버 호스트 (기본 127.0.0.1). --link tcp 전용
+          --gs-port N             게임서버 링크 포트 (기본 7010)
+          --zone <id>[,<id>]      로스터 존 필터. 게임서버와 같아야 한다
           --npcs N                NPC 수 (기본 500)
           --time-scale N          시간 압축. 1=실시간, 60=1초당 게임 1분 (기본 60)
           --days N                돌릴 게임 일수. 0=무제한 (기본 1)
@@ -488,12 +522,47 @@ public sealed record HostOptions
                     if (!TryValue(args, ref i, arg, out string? link, out error)
                         || !Enum.TryParse(link, ignoreCase: true, out LinkKind kind))
                     {
-                        error ??= $"--link 값이 잘못됐다: '{link}'. null|record|replay|loopback 중 하나다.";
+                        error ??= $"--link 값이 잘못됐다: '{link}'. null|record|replay|loopback|tcp 중 하나다.";
                         options = result;
                         return false;
                     }
 
                     result = result with { Link = kind };
+                    break;
+
+                case "--gs-host":
+                    if (!TryValue(args, ref i, arg, out string? gsHost, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { GameServerHost = gsHost!, UsesGameServer = true };
+                    break;
+
+                case "--gs-port":
+                    if (!TryInt(args, ref i, arg, 1, 65_535, out int gsPort, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { GameServerPort = gsPort, UsesGameServer = true };
+                    break;
+
+                case "--zone":
+                    if (!TryValue(args, ref i, arg, out string? zones, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    // 쉼표로 여러 존. 공백은 버린다 — "--zone a, b" 를 오타로 죽이지 않는다.
+                    result = result with
+                    {
+                        Zones = [.. zones!.Split(',',
+                            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)],
+                    };
                     break;
 
                 case "--trace":

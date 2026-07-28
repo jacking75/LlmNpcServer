@@ -14,6 +14,7 @@ using Npc.MasterData;
 using Npc.Planning;
 using Npc.Runtime;
 using Npc.Sim;
+using Npc.Wire;
 
 // ASP.NET 의 Microsoft.Extensions.Hosting.HostOptions 와 이름이 겹친다. 우리 것을 쓴다.
 using HostOptions = Npc.Host.HostOptions;
@@ -215,6 +216,24 @@ internal sealed class NpcHost : IAsyncDisposable
     /// <summary>게임 시계.</summary>
     public GameClock Clock => _clock;
 
+    /// <summary>
+    /// TCP 링크를 만든다. docs/20 §10.3.
+    ///
+    /// <b>핸드셰이크에 실을 값 넷을 여기서 채운다</b> — 프로토콜 버전은 링크가, 나머지 셋은
+    /// 우리가 안다. 게임서버가 하나라도 다른 값을 보내면 연결이 거절되고
+    /// <c>Faulted</c> 로 간다 (docs/20 §5.5). <b>우회 옵션은 없다.</b>
+    /// </summary>
+    private static TcpGameServerLink TcpLink(HostOptions options, MasterDataSet data, NpcRoster roster) =>
+        new(new TcpLinkOptions
+        {
+            Host = options.GameServerHost,
+            Port = options.GameServerPort,
+            TimeScale = options.TimeScale,
+            NpcCount = roster.Count,
+            MasterData = WireHash.FromHex(data.ContentHash),
+            Roster = WireHash.FromHex(roster.Hash),
+        });
+
     /// <summary>옵션대로 전부 조립한다. 기동 시 1회.</summary>
     public static NpcHost Create(HostOptions options, TextWriter log)
     {
@@ -310,12 +329,31 @@ internal sealed class NpcHost : IAsyncDisposable
                 link = ReplayGameServerLink.Load(options.TracePath!);
                 break;
 
+            case LinkKind.Tcp:
+                // 대역을 만들지 않는다 — Replay 와 같은 경로다. 세계를 미는 것은 게임서버이고
+                // 우리는 이벤트를 받아 명령을 낼 뿐이다 (docs/20 §10.3).
+                link = TcpLink(options, data, roster);
+                break;
+
             case LinkKind.Record:
             {
-                driver = SimDriver.Create(options, data, roster.Npcs);
+                // 데코레이터라 안쪽이 무엇이든 감싼다. --link record --gs-port ... 조합이면
+                // 소켓으로 받은 이벤트 열을 그대로 기록해 나중에 --link replay 로 재생할 수 있다.
+                IGameServerLink inner;
+
+                if (options.UsesGameServer)
+                {
+                    inner = TcpLink(options, data, roster);
+                }
+                else
+                {
+                    driver = SimDriver.Create(options, data, roster.Npcs);
+                    inner = driver.Link;
+                }
+
                 string path = options.TracePath ?? Path.Combine("artifacts", "link.jsonl");
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-                link = new RecordingGameServerLink(driver.Link, path);
+                link = new RecordingGameServerLink(inner, path);
                 break;
             }
 

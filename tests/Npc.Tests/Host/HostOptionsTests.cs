@@ -106,6 +106,7 @@ public sealed class HostOptionsTests
     [InlineData("record", LinkKind.Record)]
     [InlineData("replay", LinkKind.Replay)]
     [InlineData("loopback", LinkKind.Loopback)]
+    [InlineData("tcp", LinkKind.Tcp)]
     [InlineData("NULL", LinkKind.Null)]
     public void Options_SwapLinkByArgument(string text, LinkKind expected)
     {
@@ -183,5 +184,41 @@ public sealed class HostOptionsTests
 
         Assert.True(Directory.Exists(resolved), resolved);
         Assert.True(File.Exists(Path.Combine(resolved, "archetypes.json")), resolved);
+    }
+
+    /// <summary>T6-12 완료 조건 — TCP 옵션 셋이 파싱된다 (docs/20 §10.3).</summary>
+    [Fact]
+    public void HostOptions_ParsesTcpOptions()
+    {
+        HostOptions options = Parse(
+            "--link", "tcp",
+            "--gs-host", "10.0.0.7",
+            "--gs-port", "7011",
+            "--zone", "town_center, gate_east");
+
+        Assert.Equal(LinkKind.Tcp, options.Link);
+        Assert.Equal("10.0.0.7", options.GameServerHost);
+        Assert.Equal(7011, options.GameServerPort);
+        Assert.Equal(new[] { "town_center", "gate_east" }, options.Zones.ToArray());
+
+        // --link record 가 무엇을 감쌀지 가르는 값이다.
+        Assert.True(options.UsesGameServer);
+    }
+
+    /// <summary>
+    /// <c>--gs-*</c> 를 주지 않으면 기본값이고 <c>UsesGameServer</c> 는 거짓이다.
+    ///
+    /// <b>기본값과 명시값을 구별하지 못하면</b> "포트가 7010 이니까 TCP 겠지" 라는 추측이 되고,
+    /// <c>--link record</c> 가 엉뚱한 것을 감싼다.
+    /// </summary>
+    [Fact]
+    public void HostOptions_TcpDefaultsAreNotMistakenForExplicit()
+    {
+        HostOptions options = Parse("--link", "loopback");
+
+        Assert.Equal("127.0.0.1", options.GameServerHost);
+        Assert.Equal(7010, options.GameServerPort);
+        Assert.Empty(options.Zones);
+        Assert.False(options.UsesGameServer);
     }
 }

@@ -322,7 +322,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 
 ### C. 로스터와 호스트 배선
 - [x] T6-11 `NpcRoster` 추출
-- [ ] T6-12 `--link tcp` 배선
+- [x] T6-12 `--link tcp` 배선
 - [ ] T6-13 킬스위치 전달 경로
 
 ### D. 테스트 게임서버
