@@ -167,6 +167,16 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly NpcMeter _meter;
     private readonly SimDriver? _driver;
     private readonly NullGameServerLink? _nullLink;
+
+    /// <summary>
+    /// 소켓 링크. <c>--link tcp</c>(와 그것을 감싼 <c>--link record</c>)일 때만 있다.
+    ///
+    /// <b>이것을 따로 들고 있어야 하는 이유.</b> 접속·재접속 루프는 <c>IGameServerLink</c> 에
+    /// 없는 동작이라(계약이 <c>Enqueue</c>·<c>FlushAsync</c>·<c>Events</c> 뿐이다 — docs/02 §1)
+    /// 누군가는 구체 타입으로 <c>RunAsync</c> 를 돌려야 한다. <c>--link record</c> 는
+    /// 데코레이터라 <see cref="_link"/> 로는 안쪽 소켓에 닿을 수 없다.
+    /// </summary>
+    private readonly TcpGameServerLink? _tcp;
     private readonly TierWiring _tiers;
     private readonly KillSwitchState _switches;
     private readonly long _totalTicks;
@@ -186,6 +196,7 @@ internal sealed class NpcHost : IAsyncDisposable
         NpcMeter meter,
         SimDriver? driver,
         NullGameServerLink? nullLink,
+        TcpGameServerLink? tcp,
         long totalTicks,
         NpcRoster roster,
         TierWiring tiers,
@@ -203,6 +214,7 @@ internal sealed class NpcHost : IAsyncDisposable
         _plans = plans;
         _data = data;
         _meter = meter;
+        _tcp = tcp;
         _driver = driver;
         _nullLink = nullLink;
         _totalTicks = totalTicks;
@@ -410,6 +422,7 @@ internal sealed class NpcHost : IAsyncDisposable
         // ── 링크 · 게임서버 대역 ──────────────────────────────────
         SimDriver? driver = null;
         NullGameServerLink? nullLink = null;
+        TcpGameServerLink? tcp = null;
         IGameServerLink link;
 
         switch (options.Link)
@@ -426,7 +439,7 @@ internal sealed class NpcHost : IAsyncDisposable
             case LinkKind.Tcp:
                 // 대역을 만들지 않는다 — Replay 와 같은 경로다. 세계를 미는 것은 게임서버이고
                 // 우리는 이벤트를 받아 명령을 낼 뿐이다 (docs/20 §10.3).
-                link = TcpLink(options, data, roster);
+                link = tcp = TcpLink(options, data, roster);
                 break;
 
             case LinkKind.Record:
@@ -437,7 +450,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
                 if (options.UsesGameServer)
                 {
-                    inner = TcpLink(options, data, roster);
+                    inner = tcp = TcpLink(options, data, roster);
                 }
                 else
                 {
@@ -512,7 +525,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
         return new NpcHost(
             options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
-            meter, driver, nullLink, totalTicks, roster, tiers, switches);
+            meter, driver, nullLink, tcp, totalTicks, roster, tiers, switches);
     }
 
     /// <summary>
@@ -524,6 +537,13 @@ internal sealed class NpcHost : IAsyncDisposable
         using var workers = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
         await _tiers.StartAsync(workers.Token).ConfigureAwait(false);
+
+        // 소켓 링크는 스스로 붙지 않는다 — 접속·재접속 루프를 누군가 돌려야 한다.
+        // <b>WhenAll 에 넣지 않는다</b>: 이 루프는 취소될 때까지 끝나지 않으므로
+        // --days N 처럼 틱 루프가 먼저 끝나는 회차에서 종료를 막는다.
+        Task socket = _tcp is null
+            ? Task.CompletedTask
+            : Task.Run(() => _tcp.RunAsync(workers.Token), CancellationToken.None);
 
         Task pump = Task.Run(() => PumpAsync(ct), CancellationToken.None);
         Task loop = _loop.RunAsync(ct);
@@ -541,6 +561,15 @@ internal sealed class NpcHost : IAsyncDisposable
             // 틱 루프가 멈춘 뒤 워커를 세운다 — 순서가 반대면 마지막 스왑이 유실된다.
             await workers.CancelAsync().ConfigureAwait(false);
             await _tiers.StopAsync().ConfigureAwait(false);
+
+            try
+            {
+                await socket.ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // 취소·소켓 종료로 끝난다.
+            }
         }
     }
 
