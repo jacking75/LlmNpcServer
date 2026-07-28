@@ -38,11 +38,29 @@ public sealed class TcpGameServerLink : IGameServerLink
     private readonly Channel<GameEvent> _events = Channel.CreateUnbounded<GameEvent>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
 
+    /// <summary>
+    /// 틱 루프 → 센더 태스크 배치 인계.
+    ///
+    /// <b>링을 스레드 너머로 넘기지 않는다.</b> docs/20 §6.1 의 그림은 센더가
+    /// <c>publishedTail</c> 까지 링에서 직접 Pop 하지만, <see cref="PriorityCommandRing"/> 은
+    /// 삽입과 꺼냄이 <c>_count</c> 를 함께 만져 <b>SPSC 로 안전하지 않다</b> —
+    /// 같은 실수를 <c>ReplanQueue</c> 에서 이미 한 번 했다(2026-07-28 결정 16).
+    /// 그래서 링은 틱 루프 단독 소유로 두고, 경계를 <b>배치 단위</b>로 옮겼다.
+    /// </summary>
+    private readonly BatchQueue _outbound;
+
+    /// <summary>와이어 변환 스테이징. 센더 태스크만 만진다.</summary>
+    private readonly WireCommand[] _staging;
+
     private TcpClient? _client;
     private Stream? _stream;
+    private Task? _sender;
     private LinkState _state = LinkState.Disconnected;
 
     private long _enqueued;
+    private long _flushed;
+    private long _framesSent;
+    private long _flushesSkipped;
 
     /// <summary>링크를 만든다. <b>여기서 I/O 를 하지 않는다</b> — 연결은 <see cref="ConnectAsync"/> 다.</summary>
     public TcpGameServerLink(TcpLinkOptions options)
@@ -51,6 +69,8 @@ public sealed class TcpGameServerLink : IGameServerLink
 
         _options = options;
         _ring = new PriorityCommandRing(options.Capacity);
+        _outbound = new BatchQueue(options.OutboundBatches, options.Capacity);
+        _staging = new WireCommand[options.Capacity];
     }
 
     /// <summary>게임서버 → NPC 서버.</summary>
@@ -62,16 +82,25 @@ public sealed class TcpGameServerLink : IGameServerLink
     /// <summary>
     /// 통계. docs/20 §6.4.
     ///
-    /// <b>발신·수신 계수는 아직 0 이다</b> — 그 경로가 T6-07·T6-08 이다.
-    /// 지금 필드를 미리 두면 <c>TreatWarningsAsErrors</c> 가 "할당되지 않는다" 로 잡는다.
+    /// <b>수신 계수는 아직 0 이다</b> — 그 경로가 T6-08 이다.
     /// </summary>
     public LinkStats Stats => new(
         _enqueued,
-        CommandsFlushed: 0,
+        Interlocked.Read(ref _flushed),
         _ring.Dropped,
         EventsReceived: 0,
         EventGapsDetected: 0,
         _ring.Pending);
+
+    /// <summary>보낸 <c>CommandBatch</c> 프레임 수. <b>Flush 횟수와 같아야 한다</b> (N8).</summary>
+    public long FramesSent => Interlocked.Read(ref _framesSent);
+
+    /// <summary>
+    /// 센더가 밀려 이번 Flush 를 건너뛴 횟수. <b>명령을 버린 것이 아니다</b> —
+    /// 링에 남아 다음 Flush 에 실린다. 상시로 오르면 게임서버가 못 따라오는 것이고,
+    /// 그때 실제로 버려지는 것은 링의 우선순위 역압이 정한다 (Cosmetic 부터).
+    /// </summary>
+    public long FlushesSkipped => _flushesSkipped;
 
     /// <summary>거절 사유. 수락됐거나 아직 핸드셰이크 전이면 <see cref="LinkRejectCode.None"/>.</summary>
     public LinkRejectCode RejectCode { get; private set; }
@@ -197,9 +226,111 @@ public sealed class TcpGameServerLink : IGameServerLink
         _ring.Enqueue(in command);
     }
 
-    /// <summary>[T6-07] 송신 경로. 아직 구현되지 않았다.</summary>
-    public ValueTask FlushAsync(CancellationToken ct) =>
-        throw new NotSupportedException("TODO: T6-07 — 센더 태스크와 게시 꼬리 배선이 아직이다.");
+    /// <summary>
+    /// 이번 배치를 <b>게시</b>한다. docs/20 §6.1·§6.2 · N8.
+    ///
+    /// <para>
+    /// <b>소켓을 만지지 않는다.</b> 링을 비워 배치 슬롯 하나에 옮기고 게시 첨자를
+    /// <see cref="Volatile"/> 로 올린 뒤 곧바로 돌아온다 — 실제 직렬화와 송신은 센더 태스크가 한다.
+    /// 틱 루프에서 커널 송신 버퍼가 차기를 기다리면 그 순간 틱이 밀린다 (docs/20 §3.3).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>한 번의 Flush = 한 개의 <c>CommandBatch</c> 프레임이다</b> (N8).
+    /// 명령이 0건이어도 배치를 게시한다 — 배치 경계가 와이어에 그대로 보존되어야 하고,
+    /// 빈 프레임 8바이트는 그 대가로 싸다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>할당 0.</b> 배치 슬롯은 기동 시 전부 잡아 둔다.
+    /// </para>
+    /// </summary>
+    public ValueTask FlushAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        if (!_outbound.TryBeginWrite(out NpcCommand[]? slot))
+        {
+            // 센더가 밀렸다. <b>명령을 링에 그대로 둔다</b> — 다음 Flush 가 싣는다.
+            //
+            // 배치를 통째로 버리지 않는 것이 중요하다. 그러면 링의 우선순위 역압을 우회해
+            // Critical 까지 같이 버리게 되고, 그건 docs/02 §1 이 금지한 것이다.
+            // 링이 넘치면 그때 Cosmetic 부터 버리는 것은 PriorityCommandRing 이 한다.
+            _flushesSkipped++;
+
+            return ValueTask.CompletedTask;
+        }
+
+        int count = 0;
+
+        while (count < slot.Length && _ring.TryDequeue(out NpcCommand command))
+        {
+            slot[count++] = command;
+        }
+
+        // 링에 남은 것이 있으면 이 배치에 못 실은 것이다. 다음 Flush 로 넘어간다.
+        _outbound.CommitWrite(count);
+
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// 센더 태스크를 띄운다. <b>틱 루프와 다른 스레드다</b> (docs/20 §6.1).
+    /// 게시된 배치가 없으면 1ms 쉰다 — 10Hz 배치에 1ms 폴링은 무시할 수 있고,
+    /// <c>SemaphoreSlim</c> 을 틱 루프 쪽에서 건드리지 않아도 된다 (CLAUDE.md §2.1).
+    /// </summary>
+    public Task StartSenderAsync(Stream stream, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        _sender = Task.Run(() => SenderLoopAsync(stream, ct), CancellationToken.None);
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SenderLoopAsync(Stream stream, CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            if (!_outbound.TryBeginRead(out NpcCommand[]? batch, out int count))
+            {
+                try
+                {
+                    await Task.Delay(1, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+
+                continue;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                _staging[i] = WireCommand.From(in batch[i]);
+            }
+
+            byte[] payload = MemoryPackSerializer.Serialize(_staging.AsSpan(0, count).ToArray());
+
+            try
+            {
+                await WriteFrameAsync(stream, LinkMessageKind.CommandBatch, payload, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                // 송신 실패 → Degraded. 재접속은 T6-09 다.
+                SetState(LinkState.Degraded);
+                return;
+            }
+
+            _flushed += count;
+            _framesSent++;
+
+            _outbound.CommitRead();
+        }
+    }
 
     /// <summary>소켓을 닫고 상태를 <see cref="LinkState.Disconnected"/> 로 되돌린다.</summary>
     public async ValueTask DisposeAsync()
@@ -299,5 +430,85 @@ public sealed class TcpGameServerLink : IGameServerLink
 
         _state = state;
         StateChanged?.Invoke(state);
+    }
+
+    /// <summary>
+    /// 틱 루프(생산자 하나) → 센더 태스크(소비자 하나) 배치 인계. <b>SPSC 다.</b>
+    ///
+    /// <para>
+    /// 슬롯마다 명령 배열을 <b>기동 시 전부 잡아 둔다.</b> 그래서 <c>FlushAsync</c> 경로에
+    /// 할당이 없다 (docs/20 §6.2) — 하는 일은 링에서 배치로 복사하고 꼬리를 올리는 것뿐이다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>첨자 소유가 갈려 있다.</b> 생산자는 <c>_tail</c> 만, 소비자는 <c>_head</c> 만 쓴다.
+    /// 서로의 것은 <see cref="Volatile"/> 로 읽기만 한다 — 이것이 락 없이 안전한 근거이고,
+    /// <c>PriorityCommandRing</c> 을 그대로 넘길 수 없었던 이유이기도 하다(그쪽은 <c>_count</c> 를 공유한다).
+    /// </para>
+    /// </summary>
+    private sealed class BatchQueue
+    {
+        private readonly NpcCommand[][] _slots;
+        private readonly int[] _counts;
+
+        private long _tail;   // 생산자 전용
+        private long _head;   // 소비자 전용
+
+        public BatchQueue(int slots, int perSlot)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(slots);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(perSlot);
+
+            _slots = new NpcCommand[slots][];
+            _counts = new int[slots];
+
+            for (int i = 0; i < slots; i++)
+            {
+                _slots[i] = new NpcCommand[perSlot];
+            }
+        }
+
+        /// <summary><b>생산자.</b> 쓸 슬롯을 잡는다. 큐가 차 있으면 false.</summary>
+        public bool TryBeginWrite(out NpcCommand[] slot)
+        {
+            if (_tail - Volatile.Read(ref _head) >= _slots.Length)
+            {
+                slot = [];
+                return false;
+            }
+
+            slot = _slots[(int)(_tail % _slots.Length)];
+            return true;
+        }
+
+        /// <summary><b>생산자.</b> 쓴 건수를 확정하고 게시한다.</summary>
+        public void CommitWrite(int count)
+        {
+            _counts[(int)(_tail % _slots.Length)] = count;
+
+            // 건수 쓰기가 먼저 보이고 그 다음 꼬리가 보여야 한다.
+            Volatile.Write(ref _tail, _tail + 1);
+        }
+
+        /// <summary><b>소비자.</b> 읽을 배치를 잡는다. 게시된 것이 없으면 false.</summary>
+        public bool TryBeginRead(out NpcCommand[] batch, out int count)
+        {
+            if (_head >= Volatile.Read(ref _tail))
+            {
+                batch = [];
+                count = 0;
+                return false;
+            }
+
+            int index = (int)(_head % _slots.Length);
+
+            batch = _slots[index];
+            count = _counts[index];
+
+            return true;
+        }
+
+        /// <summary><b>소비자.</b> 다 썼다고 알린다. 그 슬롯이 생산자에게 돌아간다.</summary>
+        public void CommitRead() => Volatile.Write(ref _head, _head + 1);
     }
 }

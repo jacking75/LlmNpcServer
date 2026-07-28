@@ -215,6 +215,171 @@ public sealed class NullAndTcpLinkTests
         Assert.Equal(LinkRejectCode.RosterMismatch, new TcpGameServerLink(strict).Validate(in fewer));
     }
 
+    // ---------------------------------------------------------------- T6-07 송신 경로
+
+    /// <summary>
+    /// <b>한 번의 Flush = 한 개의 <c>CommandBatch</c> 프레임</b> (N8 · T6-07 완료 조건).
+    ///
+    /// 배치 경계가 와이어에 그대로 보존되는지를 <b>수신 측이 센 프레임 수</b>로 본다.
+    /// </summary>
+    [Fact]
+    public async Task TcpLink_OneFlushIsOneFrame()
+    {
+        const int Flushes = 5;
+
+        TcpLinkOptions mine = Mine();
+
+        await using var link = new TcpGameServerLink(mine);
+
+        var pipe = new Pipe();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        await link.StartSenderAsync(pipe.Writer.AsStream(), cts.Token);
+
+        // 실서비스는 10Hz 라 Flush 사이에 100ms 가 있다. 센더가 따라잡을 틈을 주고 재는 것이
+        // N8 이 말하는 상황이다 — 몰아치면 배치 큐가 차서 Flush 가 건너뛴다(그건 아래 테스트가 본다).
+        for (int f = 0; f < Flushes; f++)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                NpcCommand c = Command(f * 10 + i);
+
+                link.Enqueue(in c);
+            }
+
+            await link.FlushAsync(cts.Token);
+
+            for (int spin = 0; spin < 400 && link.FramesSent <= f; spin++)
+            {
+                await Task.Delay(5, cts.Token);
+            }
+        }
+
+        Assert.True(
+            link.FramesSent == Flushes,
+            $"프레임 {link.FramesSent}/{Flushes} · 상태 {link.State} · "
+            + $"건너뜀 {link.FlushesSkipped} · 대기 {link.Stats.PendingCommands}");
+
+        Assert.Equal(0, link.FlushesSkipped);
+
+        await pipe.Writer.CompleteAsync();
+
+        (int frames, int commands) = await CountFramesAsync(pipe.Reader);
+
+        Assert.Equal(Flushes, frames);
+        Assert.Equal(Flushes * 3, commands);
+        Assert.Equal(Flushes * 3, link.Stats.CommandsFlushed);
+    }
+
+    /// <summary>
+    /// 역압은 <c>Cosmetic</c> 부터 버리고 <c>Critical</c> 은 지킨다 (T6-07 완료 조건).
+    /// <b>정책은 <see cref="PriorityCommandRing"/> 하나에서 온다</b> — 루프백과 같은 코드다.
+    /// </summary>
+    [Fact]
+    public async Task TcpLink_BackpressureDropsCosmeticFirst()
+    {
+        TcpLinkOptions mine = Mine() with { Capacity = 10 };
+
+        await using var link = new TcpGameServerLink(mine);
+
+        for (int i = 0; i < 10; i++)
+        {
+            NpcCommand cosmetic = Command(CommandPriority.Cosmetic, i);
+
+            link.Enqueue(in cosmetic);
+        }
+
+        Assert.Equal(0, link.Stats.CommandsDropped);
+
+        for (int i = 0; i < 5; i++)
+        {
+            NpcCommand critical = Command(CommandPriority.Critical, 100 + i);
+
+            link.Enqueue(in critical);
+        }
+
+        Assert.Equal(10, link.Stats.PendingCommands);
+        Assert.Equal(5, link.Stats.CommandsDropped);
+    }
+
+    /// <summary>
+    /// <b><c>FlushAsync</c> 경로에 할당이 0 이다</b> (T6-07 완료 조건 · docs/20 §6.2).
+    ///
+    /// 틱 루프 안에서 불리므로 여기에 할당이 생기면 Gen0 이 돌고 틱 p99 가 무너진다.
+    /// 배치 슬롯을 기동 시 전부 잡아 두는 것이 그 근거다.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Load")]
+    public async Task TcpLink_FlushDoesNotAllocate()
+    {
+        const int Iterations = 10_000;
+
+        TcpLinkOptions mine = Mine();
+
+        await using var link = new TcpGameServerLink(mine);
+
+        // 센더를 띄우지 않는다 — 배치 큐가 차면 Flush 는 링을 비우고 곧바로 돌아온다.
+        // 두 경로(빈 자리 있음 / 가득) 다 할당이 없어야 한다.
+        for (int i = 0; i < 1_000; i++)
+        {
+            NpcCommand warm = Command(i);
+
+            link.Enqueue(in warm);
+            await link.FlushAsync(CancellationToken.None);
+        }
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        for (int i = 0; i < Iterations; i++)
+        {
+            NpcCommand c = Command(i);
+
+            link.Enqueue(in c);
+            await link.FlushAsync(CancellationToken.None);
+        }
+
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    /// <summary>스트림에서 <c>CommandBatch</c> 프레임 수와 그 안의 명령 수를 센다.</summary>
+    private static async Task<(int Frames, int Commands)> CountFramesAsync(PipeReader reader)
+    {
+        int frames = 0;
+        int commands = 0;
+
+        while (true)
+        {
+            ReadResult result = await reader.ReadAsync();
+            ReadOnlySequence<byte> buffer = result.Buffer;
+
+            while (FrameCodec.TryReadFrame(ref buffer, out LinkMessageKind kind, out ReadOnlySequence<byte> payload))
+            {
+                Assert.Equal(LinkMessageKind.CommandBatch, kind);
+
+                frames++;
+                commands += MemoryPackSerializer.Deserialize<WireCommand[]>(payload.ToArray())!.Length;
+            }
+
+            reader.AdvanceTo(buffer.Start, buffer.End);
+
+            if (result.IsCompleted && buffer.IsEmpty)
+            {
+                break;
+            }
+        }
+
+        return (frames, commands);
+    }
+
+    private static NpcCommand Command(CommandPriority priority, int npc) => new()
+    {
+        Kind = NpcCommandKind.MoveTo,
+        Npc = new NpcId(npc),
+        IssuedAt = new Tick(1),
+        Correlation = new CorrelationId((uint)npc),
+        Priority = priority,
+    };
+
     /// <summary>
     /// 게임서버 흉내. Hello 를 밀어 넣고 링크가 쓴 <c>HelloAck</c> 를 되읽는다.
     ///

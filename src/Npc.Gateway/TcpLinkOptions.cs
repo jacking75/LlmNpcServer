@@ -41,6 +41,15 @@ public sealed record TcpLinkOptions
     public int Capacity { get; init; } = PriorityCommandRing.DefaultCapacity;
 
     /// <summary>
+    /// 센더에게 넘길 배치 슬롯 수. 슬롯마다 <see cref="Capacity"/> 만큼의 명령 배열을
+    /// 기동 시 잡으므로 크게 잡으면 메모리를 그만큼 먹는다.
+    ///
+    /// <b>4 면 0.4초치다</b> (10Hz 기준). 센더가 그보다 오래 밀리면 배치를 버리는 편이 낫다 —
+    /// 쌓아 두면 지연만 늘고 그 명령은 이미 낡았다.
+    /// </summary>
+    public int OutboundBatches { get; init; } = 4;
+
+    /// <summary>
     /// 핸드셰이크 상한. 게임서버가 <see cref="WireHello"/> 를 이 안에 보내지 않으면 실패로 본다.
     /// <b>무한 대기하지 않는다</b> — 그러면 기동이 조용히 멈춘다.
     /// </summary>

@@ -207,8 +207,11 @@ public sealed class LinkSwapTests
         Assert.Equal(1, tcp.Stats.CommandsEnqueued);
         Assert.Equal(1, tcp.Stats.PendingCommands);
 
-        // 송신 경로는 아직이다 (T6-07). 조용히 성공하면 "붙였다"고 착각하게 된다.
-        await Assert.ThrowsAsync<NotSupportedException>(async () => await tcp.FlushAsync(CancellationToken.None));
+        // Flush 는 배치를 게시하고 곧바로 돌아온다 (T6-07). 소켓이 없어도 던지지 않는다 —
+        // 실제 송신은 센더 태스크의 몫이고, 그 태스크가 없으면 배치가 그냥 쌓인다.
+        await tcp.FlushAsync(CancellationToken.None);
+
+        Assert.Equal(0, tcp.Stats.PendingCommands);
 
         // 4종 + Tcp 가 전부 같은 인터페이스로 보인다.
         Assert.Equal(5, ImplementationCount());

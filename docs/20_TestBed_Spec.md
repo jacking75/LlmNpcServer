@@ -381,6 +381,35 @@ NPC 서버                                            게임서버
 - 센더 태스크는 게시된 꼬리가 없으면 `await Task.Delay(1, ct)`로 쉰다. 10Hz 배치에 1ms 폴링은 무시할 수 있고, `SemaphoreSlim`을 틱 루프 쪽에서 건드리지 않아도 된다(`CLAUDE.md` §2.1).
 - **한 번의 `FlushAsync` = 한 개의 `CommandBatch` 프레임.** 센더는 게시 경계 단위로만 프레임을 만든다(N8).
 
+#### 2026-07-28 정정 (T6-07) — 센더가 링에서 직접 Pop 하지 않는다
+
+위 그림은 센더 태스크가 `publishedTail`까지 `PriorityCommandRing`에서 Pop 하는 것으로 그려져 있는데, **그대로 만들면 데이터 레이스다.** 그 링은 삽입과 꺼냄이 `_count`를 함께 만져 SPSC 로 안전하지 않다 — **`ReplanQueue`에서 이미 같은 실수를 한 번 했다**(결정 16, `IndexOutOfRangeException` 8회 중 2회).
+
+그래서 경계를 **배치 단위**로 옮겼다.
+
+```
+ [틱 루프 스레드]                              [센더 태스크]
+  Enqueue(cmd) ──► PriorityCommandRing          │
+        │           (틱 루프 단독 소유)           │
+  FlushAsync() ──► 링을 비워 배치 슬롯에 복사      │
+        │          → Volatile.Write(_tail)      │
+        │          return CompletedTask         ▼
+        │                            게시된 배치 하나를 통째로
+        │                            → WireCommand[] → MemoryPack → 소켓
+```
+
+| 항목 | 결과 |
+|---|---|
+| 링 소유 | **틱 루프 단독.** 센더는 만지지 않는다 |
+| 경계 | `BatchQueue` — 슬롯 배열 + 생산자/소비자 첨자가 갈린 SPSC |
+| `FlushAsync` 할당 | **0.** 슬롯은 기동 시 전부 잡는다 |
+| `FlushAsync` 비용 | 배치 하나만큼의 복사(O(N)). 직렬화·소켓 쓰기는 여전히 다른 스레드다 |
+
+**배치 큐가 차면 그 Flush 를 건너뛴다.** 명령은 링에 남아 다음 Flush 에 실린다 —
+**배치를 통째로 버리지 않는다.** 그러면 링의 우선순위 역압을 우회해 `Critical`까지 같이 버리게 되고,
+그건 `docs/02` §1 이 금지한 것이다. 링이 넘치면 그때 `Cosmetic`부터 버리는 것은 `PriorityCommandRing`이 한다.
+건너뛴 횟수는 `TcpGameServerLink.FlushesSkipped`에 남는다.
+
 ### 6.2 할당 0
 
 `FlushAsync`가 틱 루프 안에서 불리므로 그 경로에 할당이 있으면 안 된다. 이 설계에서 그 경로는 `Volatile.Write` 한 줄이다. 직렬화·소켓 쓰기는 다른 스레드에 있고, 그쪽 버퍼는 전부 사전 할당(`WireCommand[]` 스테이징, `PipeWriter` 풀 메모리)이다.
