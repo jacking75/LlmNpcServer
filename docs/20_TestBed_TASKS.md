@@ -311,7 +311,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-02 와이어 명령·이벤트 DTO와 매핑
 - [x] T6-03 제어 메시지와 `WireHash`
 - [x] T6-04 프레임 코덱
-- [ ] T6-05 `PriorityCommandRing` 추출
+- [x] T6-05 `PriorityCommandRing` 추출
 
 ### B. TCP 링크
 - [ ] T6-06 연결·핸드셰이크

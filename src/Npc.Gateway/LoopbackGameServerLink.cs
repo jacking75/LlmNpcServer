@@ -24,21 +24,19 @@ public delegate void CommandSink(in NpcCommand command, Tick now);
 public sealed class LoopbackGameServerLink : IGameServerLink
 {
     /// <summary>기본 큐 용량 (명령 수).</summary>
-    public const int DefaultCapacity = 4_096;
-
-    private const int PriorityCount = 3;
+    public const int DefaultCapacity = PriorityCommandRing.DefaultCapacity;
 
     private readonly CommandSink _sink;
     private readonly ChannelReader<GameEvent> _events;
-    private readonly NpcCommand[][] _rings;
-    private readonly int[] _head;
-    private readonly int[] _tail;
-    private readonly int[] _count;
-    private readonly int _capacity;
+
+    /// <summary>
+    /// 우선순위 링과 역압 정책. <b>TCP 링크와 같은 타입을 쓴다</b> (T6-05 · docs/20 §5.7) —
+    /// 정책을 복사하면 반드시 갈라진다.
+    /// </summary>
+    private readonly PriorityCommandRing _ring;
 
     private long _enqueued;
     private long _flushed;
-    private long _dropped;
 
     /// <summary>링크를 만든다. 기동 시 1회.</summary>
     /// <param name="sink">명령을 받을 쪽 (SimWorld.ApplyCommand).</param>
@@ -52,17 +50,7 @@ public sealed class LoopbackGameServerLink : IGameServerLink
 
         _sink = sink;
         _events = events;
-        _capacity = capacity;
-
-        _rings = new NpcCommand[PriorityCount][];
-        for (int p = 0; p < PriorityCount; p++)
-        {
-            _rings[p] = new NpcCommand[capacity];
-        }
-
-        _head = new int[PriorityCount];
-        _tail = new int[PriorityCount];
-        _count = new int[PriorityCount];
+        _ring = new PriorityCommandRing(capacity);
     }
 
     /// <summary>게임서버 → NPC 서버.</summary>
@@ -72,13 +60,13 @@ public sealed class LoopbackGameServerLink : IGameServerLink
     public LinkState State => LinkState.Connected;
 
     /// <summary>통계.</summary>
-    public LinkStats Stats => new(_enqueued, _flushed, _dropped, 0, 0, Pending);
+    public LinkStats Stats => new(_enqueued, _flushed, _ring.Dropped, 0, 0, Pending);
 
     /// <summary>큐에 남아 있는 명령 수.</summary>
-    public int Pending => _count[0] + _count[1] + _count[2];
+    public int Pending => _ring.Pending;
 
     /// <summary>큐 용량.</summary>
-    public int Capacity => _capacity;
+    public int Capacity => _ring.Capacity;
 
     /// <summary>인프로세스라 상태가 바뀌지 않는다.</summary>
     public event Action<LinkState>? StateChanged;
@@ -91,39 +79,7 @@ public sealed class LoopbackGameServerLink : IGameServerLink
     public void Enqueue(in NpcCommand command)
     {
         _enqueued++;
-
-        int priority = (int)command.Priority;
-        if ((uint)priority >= PriorityCount)
-        {
-            priority = (int)CommandPriority.Normal;
-        }
-
-        if (Pending < _capacity)
-        {
-            Push(priority, in command);
-            return;
-        }
-
-        // 포화. 자기보다 낮은 우선순위(=큰 값)부터 밀어낸다.
-        for (int lower = PriorityCount - 1; lower > priority; lower--)
-        {
-            if (_count[lower] > 0)
-            {
-                Pop(lower);
-                _dropped++;
-                Push(priority, in command);
-                return;
-            }
-        }
-
-        // Critical 은 무손실이다. 링이 용량만큼 있으므로 자리는 있다.
-        if (priority == (int)CommandPriority.Critical && _count[priority] < _capacity)
-        {
-            Push(priority, in command);
-            return;
-        }
-
-        _dropped++;
+        _ring.Enqueue(in command);
     }
 
     /// <summary>
@@ -132,16 +88,12 @@ public sealed class LoopbackGameServerLink : IGameServerLink
     /// </summary>
     public ValueTask FlushAsync(CancellationToken ct)
     {
-        for (int priority = 0; priority < PriorityCount; priority++)
+        while (_ring.TryDequeue(out NpcCommand command))
         {
-            while (_count[priority] > 0)
-            {
-                ct.ThrowIfCancellationRequested();
+            ct.ThrowIfCancellationRequested();
 
-                NpcCommand command = Pop(priority);
-                _sink(in command, command.IssuedAt);
-                _flushed++;
-            }
+            _sink(in command, command.IssuedAt);
+            _flushed++;
         }
 
         return ValueTask.CompletedTask;
@@ -153,22 +105,9 @@ public sealed class LoopbackGameServerLink : IGameServerLink
     /// <summary>큐를 비운다.</summary>
     public ValueTask DisposeAsync()
     {
-        Array.Clear(_count);
+        // 버린 것을 드롭에 세지 않는다 — 종료지 역압이 아니다.
+        _ring.Clear(countAsDropped: false);
+
         return ValueTask.CompletedTask;
-    }
-
-    private void Push(int priority, in NpcCommand command)
-    {
-        _rings[priority][_tail[priority]] = command;
-        _tail[priority] = _tail[priority] + 1 >= _capacity ? 0 : _tail[priority] + 1;
-        _count[priority]++;
-    }
-
-    private NpcCommand Pop(int priority)
-    {
-        NpcCommand command = _rings[priority][_head[priority]];
-        _head[priority] = _head[priority] + 1 >= _capacity ? 0 : _head[priority] + 1;
-        _count[priority]--;
-        return command;
     }
 }
