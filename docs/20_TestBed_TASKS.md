@@ -425,7 +425,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-28 맵 렌더러 — 엔티티와 보간
 - [x] T6-29 입력
 - [x] T6-30 인스펙터 패널
-- [ ] T6-31 로그 패널
+- [x] T6-31 로그 패널
 - [ ] T6-32 제어 패널과 상태바
 
 ### G. 시나리오와 마무리

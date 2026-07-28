@@ -1,6 +1,7 @@
 using System.Globalization;
 using Npc.MasterData;
 using Npc.TestBed.Protocol;
+using Npc.TestClient.Format;
 using Npc.TestClient.Input;
 using Npc.TestClient.Net;
 using Npc.TestClient.Panels;
@@ -69,6 +70,7 @@ public sealed class MainForm : Form
     private readonly InputController _input;
     private readonly NpcServerHttp _npcHttp;
     private readonly InspectorPanel _inspector;
+    private readonly LogPanel _log;
     private readonly ToolTip _tip = new() { InitialDelay = 250, ReshowDelay = 100 };
     private readonly TabControl _tabs = new();
     private readonly ToolStripStatusLabel _clock = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
@@ -97,6 +99,7 @@ public sealed class MainForm : Form
         _input = new InputController(_connection, _renderer);
         _npcHttp = new NpcServerHttp(options.NpcHttp);
         _inspector = new InspectorPanel(options.NpcHttp) { Dock = DockStyle.Fill };
+        _log = new LogPanel(new IdNames(_data)) { Dock = DockStyle.Fill };
 
         Text = $"Npc.TestClient — {options.Host}:{options.Port}";
         ClientSize = new Size(1_440, 900);
@@ -224,8 +227,12 @@ public sealed class MainForm : Form
 
         inspector.Controls.Add(_inspector);
 
+        TabPage log = NewTab("로그");
+
+        log.Controls.Add(_log);
+
         _tabs.TabPages.Add(inspector);
-        _tabs.TabPages.Add(NewTab("로그"));
+        _tabs.TabPages.Add(log);
         _tabs.TabPages.Add(NewTab("제어"));
         _tabs.TabPages.Add(NewTab("링크"));
 
@@ -296,6 +303,7 @@ public sealed class MainForm : Form
         _npcHttp.Target = _input.Selected;
 
         _inspector.Update(_input.Selected, _npcHttp.Reachable, _npcHttp.Trace);
+        _log.Update(_connection, _input.Selected);
     }
 
     /// <summary>이 창의 플레이어를 보간 결과에서 찾는다.</summary>
