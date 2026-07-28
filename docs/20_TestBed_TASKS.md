@@ -316,7 +316,7 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 ### B. TCP 링크
 - [x] T6-06 연결·핸드셰이크
 - [x] T6-07 송신 경로
-- [ ] T6-08 수신 경로
+- [x] T6-08 수신 경로
 - [ ] T6-09 재접속·하트비트·상태 전이
 - [ ] T6-10 링크 사양 문서 갱신
 

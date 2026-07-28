@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.IO.Pipelines;
 using System.Net.Sockets;
 using System.Threading.Channels;
 using MemoryPack;
@@ -55,12 +56,18 @@ public sealed class TcpGameServerLink : IGameServerLink
     private TcpClient? _client;
     private Stream? _stream;
     private Task? _sender;
+    private Task? _receiver;
     private LinkState _state = LinkState.Disconnected;
 
     private long _enqueued;
     private long _flushed;
     private long _framesSent;
     private long _flushesSkipped;
+
+    // 아래 셋은 리시버 태스크만 쓴다. 읽기는 Interlocked.Read 로 한다.
+    private long _eventsReceived;
+    private long _eventGaps;
+    private long _lastSequence = -1;
 
     /// <summary>링크를 만든다. <b>여기서 I/O 를 하지 않는다</b> — 연결은 <see cref="ConnectAsync"/> 다.</summary>
     public TcpGameServerLink(TcpLinkOptions options)
@@ -79,17 +86,13 @@ public sealed class TcpGameServerLink : IGameServerLink
     /// <summary>지금 상태. docs/20 §6.3 의 전이표를 따른다.</summary>
     public LinkState State => _state;
 
-    /// <summary>
-    /// 통계. docs/20 §6.4.
-    ///
-    /// <b>수신 계수는 아직 0 이다</b> — 그 경로가 T6-08 이다.
-    /// </summary>
+    /// <summary>통계. docs/20 §6.4 의 여섯 필드를 전부 채운다.</summary>
     public LinkStats Stats => new(
         _enqueued,
         Interlocked.Read(ref _flushed),
         _ring.Dropped,
-        EventsReceived: 0,
-        EventGapsDetected: 0,
+        Interlocked.Read(ref _eventsReceived),
+        Interlocked.Read(ref _eventGaps),
         _ring.Pending);
 
     /// <summary>보낸 <c>CommandBatch</c> 프레임 수. <b>Flush 횟수와 같아야 한다</b> (N8).</summary>
@@ -272,6 +275,106 @@ public sealed class TcpGameServerLink : IGameServerLink
         _outbound.CommitWrite(count);
 
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// 리시버 태스크를 띄운다. <b>이 태스크가 채널의 유일한 기록자다</b> (docs/20 §6.1).
+    ///
+    /// <c>PipeReader</c> → 프레임 분해 → <see cref="WireEvent"/>[] → <see cref="GameEvent"/> → 채널.
+    /// 틱 루프는 <see cref="Events"/> 에서 읽기만 한다.
+    /// </summary>
+    public Task StartReceiverAsync(Stream stream, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        _receiver = Task.Run(() => ReceiverLoopAsync(stream, ct), CancellationToken.None);
+
+        return Task.CompletedTask;
+    }
+
+    private async Task ReceiverLoopAsync(Stream stream, CancellationToken ct)
+    {
+        PipeReader reader = PipeReader.Create(stream);
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                ReadResult result = await reader.ReadAsync(ct).ConfigureAwait(false);
+                ReadOnlySequence<byte> buffer = result.Buffer;
+
+                while (FrameCodec.TryReadFrame(
+                    ref buffer, out LinkMessageKind kind, out ReadOnlySequence<byte> payload))
+                {
+                    Deliver(kind, payload);
+                }
+
+                reader.AdvanceTo(buffer.Start, buffer.End);
+
+                if (result.IsCompleted)
+                {
+                    // EOF. 상대가 끊었다 → Degraded (docs/20 §6.3). 재접속은 T6-09 다.
+                    SetState(LinkState.Degraded);
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 종료 지시다. 상태를 건드리지 않는다.
+        }
+        catch (Exception)
+        {
+            // 프레임이 깨졌거나(InvalidDataException) 소켓이 죽었다.
+            SetState(LinkState.Degraded);
+        }
+        finally
+        {
+            await reader.CompleteAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>프레임 하나를 처리한다. 리시버 태스크 전용.</summary>
+    private void Deliver(LinkMessageKind kind, ReadOnlySequence<byte> payload)
+    {
+        if (kind != LinkMessageKind.EventBatch)
+        {
+            // Heartbeat·Bye 는 T6-09 가 다룬다. 모르는 종류는 조용히 버린다 —
+            // 프레임 경계는 이미 맞았으므로 스트림은 멀쩡하다.
+            return;
+        }
+
+        WireEvent[]? events = MemoryPackSerializer.Deserialize<WireEvent[]>(payload.ToArray());
+
+        if (events is null)
+        {
+            return;
+        }
+
+        foreach (WireEvent wire in events)
+        {
+            GameEvent ev = wire.To();
+
+            // N6 — 시퀀스 불연속을 센다. 건너뛴 개수만큼 더한다.
+            //
+            // 게임서버 프로세스가 사는 동안 시퀀스는 순증하고 재접속해도 리셋하지 않는다
+            // (docs/20 §5.6). 리셋되면 EventApplier 가 이후 이벤트를 전부 중복으로 버리므로
+            // 여기서 세는 갭이 그 사고의 첫 신호다.
+            if (_lastSequence >= 0 && ev.Sequence > _lastSequence + 1)
+            {
+                _eventGaps += ev.Sequence - _lastSequence - 1;
+            }
+
+            if (ev.Sequence > _lastSequence)
+            {
+                _lastSequence = ev.Sequence;
+            }
+
+            if (_events.Writer.TryWrite(ev))
+            {
+                _eventsReceived++;
+            }
+        }
     }
 
     /// <summary>

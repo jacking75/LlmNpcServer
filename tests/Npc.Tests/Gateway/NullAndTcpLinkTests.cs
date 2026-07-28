@@ -341,6 +341,120 @@ public sealed class NullAndTcpLinkTests
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
     }
 
+    // ---------------------------------------------------------------- T6-08 수신 경로
+
+    /// <summary>
+    /// 받은 이벤트가 <b>순서대로</b> 채널에 들어간다 (T6-08 완료 조건).
+    /// <c>LinkStats</c> 의 여섯 필드가 전부 갱신되는 것도 여기서 본다 (docs/20 §6.4).
+    /// </summary>
+    [Fact]
+    public async Task TcpLink_DeliversEventsInOrder()
+    {
+        TcpLinkOptions mine = Mine();
+
+        await using var link = new TcpGameServerLink(mine);
+
+        var pipe = new Pipe();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        await link.StartReceiverAsync(pipe.Reader.AsStream(), cts.Token);
+
+        // 게임서버가 두 배치로 나눠 보낸다. 시퀀스는 연속이다.
+        await WriteEventBatchAsync(pipe.Writer, Events(1, 4));
+        await WriteEventBatchAsync(pipe.Writer, Events(5, 3));
+
+        var got = new List<GameEvent>();
+
+        while (got.Count < 7 && !cts.IsCancellationRequested)
+        {
+            if (link.Events.TryRead(out GameEvent ev))
+            {
+                got.Add(ev);
+                continue;
+            }
+
+            await Task.Delay(5, cts.Token);
+        }
+
+        Assert.Equal(7, got.Count);
+        Assert.Equal(Enumerable.Range(1, 7).Select(i => (long)i), got.Select(e => e.Sequence));
+
+        // 명령 쪽도 채워 여섯 필드를 전부 확인한다.
+        NpcCommand cosmetic = Command(CommandPriority.Cosmetic, 1);
+
+        link.Enqueue(in cosmetic);
+
+        LinkStats stats = link.Stats;
+
+        Assert.Equal(1, stats.CommandsEnqueued);
+        Assert.Equal(7, stats.EventsReceived);
+        Assert.Equal(0, stats.EventGapsDetected);
+        Assert.Equal(1, stats.PendingCommands);
+        Assert.Equal(0, stats.CommandsFlushed);
+        Assert.Equal(0, stats.CommandsDropped);
+    }
+
+    /// <summary>
+    /// 시퀀스를 건너뛴 배치를 주면 <c>EventGapsDetected</c> 가 오른다 (N6 · T6-08 완료 조건).
+    ///
+    /// <b>갭은 사고의 첫 신호다.</b> 게임서버가 시퀀스를 리셋하면 <c>EventApplier</c> 가
+    /// 이후 이벤트를 전부 중복으로 버려 NPC 가 영원히 멈춘다 (docs/20 §5.6).
+    /// </summary>
+    [Fact]
+    public async Task TcpLink_CountsSequenceGaps()
+    {
+        TcpLinkOptions mine = Mine();
+
+        await using var link = new TcpGameServerLink(mine);
+
+        var pipe = new Pipe();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        await link.StartReceiverAsync(pipe.Reader.AsStream(), cts.Token);
+
+        await WriteEventBatchAsync(pipe.Writer, Events(1, 3));    // 1 2 3
+        await WriteEventBatchAsync(pipe.Writer, Events(7, 2));    // 7 8  → 4·5·6 이 없다
+
+        while (link.Stats.EventsReceived < 5 && !cts.IsCancellationRequested)
+        {
+            await Task.Delay(5, cts.Token);
+        }
+
+        Assert.Equal(5, link.Stats.EventsReceived);
+
+        // 건너뛴 개수만큼 센다 — "갭이 있었다" 가 아니라 "몇 개가 없었나" 다.
+        Assert.Equal(3, link.Stats.EventGapsDetected);
+    }
+
+    /// <summary>연속한 시퀀스를 단 <see cref="GameEvent"/> 묶음.</summary>
+    private static GameEvent[] Events(long from, int count) =>
+        [.. Enumerable.Range(0, count).Select(i => new GameEvent
+        {
+            Kind = GameEventKind.TickSync,
+            Sequence = from + i,
+            OccurredAt = new Tick(from + i),
+            Npc = new NpcId((int)(from + i)),
+        })];
+
+    /// <summary>게임서버 흉내 — <c>EventBatch</c> 프레임 하나를 밀어 넣는다.</summary>
+    private static async Task WriteEventBatchAsync(PipeWriter writer, GameEvent[] events)
+    {
+        var wire = new WireEvent[events.Length];
+
+        for (int i = 0; i < events.Length; i++)
+        {
+            wire[i] = WireEvent.From(in events[i]);
+        }
+
+        byte[] payload = MemoryPackSerializer.Serialize(wire);
+        var buffer = new ArrayBufferWriter<byte>();
+
+        FrameCodec.WriteHeader(buffer, LinkMessageKind.EventBatch, payload.Length);
+        buffer.Write(payload);
+
+        await writer.WriteAsync(buffer.WrittenMemory);
+    }
+
     /// <summary>스트림에서 <c>CommandBatch</c> 프레임 수와 그 안의 명령 수를 센다.</summary>
     private static async Task<(int Frames, int Commands)> CountFramesAsync(PipeReader reader)
     {
