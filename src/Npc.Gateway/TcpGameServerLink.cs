@@ -13,9 +13,18 @@ namespace Npc.Gateway;
 /// 실제 게임서버 TCP 링크. docs/02 §2·§7 · docs/20 §5·§6.
 ///
 /// <para>
-/// <b>[T6-06] 지금은 연결과 핸드셰이크까지다.</b> 송신(T6-07)·수신(T6-08)·재접속(T6-09)은
-/// 아직이고, 그 전에는 <see cref="FlushAsync"/> 가 던진다. 상태·통계·<see cref="Events"/> 는
-/// 이미 계약대로 동작한다.
+/// <b>구현 완료 (T6-06~T6-09).</b> 연결·핸드셰이크 · 송신 · 수신 · 재접속·하트비트.
+/// <see cref="RunAsync"/> 하나가 링크 수명 전체를 돈다.
+/// </para>
+///
+/// <para>
+/// <b>스레드는 셋이다</b> (docs/20 §6.1). 틱 루프는 <see cref="Enqueue"/>·<see cref="FlushAsync"/> 만
+/// 부르고 소켓을 만지지 않는다 — 커널 송신 버퍼가 차기를 틱 루프에서 기다리면 그 순간 틱이 밀린다.
+/// <list type="bullet">
+///   <item><b>틱 루프</b> — <see cref="PriorityCommandRing"/>(단독 소유) → <c>BatchQueue</c> 게시</item>
+///   <item><b>센더</b> — 배치 → <see cref="WireCommand"/>[] → MemoryPack → 소켓</item>
+///   <item><b>리시버</b> — <c>PipeReader</c> → 프레임 → <see cref="GameEvent"/> → 채널(유일한 기록자)</item>
+/// </list>
 /// </para>
 ///
 /// <para>
