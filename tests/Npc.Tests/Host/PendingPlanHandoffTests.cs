@@ -36,6 +36,7 @@ public sealed class PendingPlanHandoffTests
         PlanSwapper Swapper,
         PlanExecutor Executor,
         ReplanQueue Queue,
+        ReplanHandoff Handoff,
         ReplanSnapshots Snapshots,
         IndividualReplanSource Source);
 
@@ -70,10 +71,14 @@ public sealed class PendingPlanHandoffTests
             executor.AssignPlan(i, new PlanId(PlanStore.IdlePlanId));
         }
 
-        var source = new IndividualReplanSource(
-            store, queue, snapshots, pool, swapper, s_data, () => TimeOfDay.Morning);
+        // 통로는 틱 루프가 힙에서 채운다. 여기서는 테스트가 그 역할을 대신한다 —
+        // 프로덕션에서 NpcServerLoop.RunTick 이 DrainReturns → Scan → Pump 를 도는 것과 같다.
+        var handoff = new ReplanHandoff();
 
-        return new Rig(store, plans, pool, swapper, executor, queue, snapshots, source);
+        var source = new IndividualReplanSource(
+            store, queue, handoff, snapshots, pool, swapper, s_data, () => TimeOfDay.Morning);
+
+        return new Rig(store, plans, pool, swapper, executor, queue, handoff, snapshots, source);
     }
 
     /// <summary>워커가 만든 개별 플랜을 담을 플랜. goal 로 구별한다.</summary>
@@ -96,6 +101,7 @@ public sealed class PendingPlanHandoffTests
 
         rig.Queue.TryEnqueue(2, 7f);
         rig.Snapshots.Capture(2, rig.Store.Flags[2], new Tick(95), 7f);
+        rig.Handoff.Pump(rig.Queue);   // 틱 루프가 하는 일
 
         Assert.True(await worker.PumpOnceAsync(CancellationToken.None));
 
@@ -211,6 +217,9 @@ public sealed class PendingPlanHandoffTests
             rig.Executor.Step(new Tick(round + 1), link);
             rig.Swapper.ApplyPendingSwaps(rig.Executor);
 
+            // 워커가 되돌린 낡은 요청을 힙에 되넣는다 (NpcServerLoop.RunTick 과 같은 순서).
+            rig.Handoff.DrainReturns(rig.Queue);
+
             // 재계획 요청을 계속 밀어 넣는다.
             for (int npc = 0; npc < Npcs; npc++)
             {
@@ -219,6 +228,10 @@ public sealed class PendingPlanHandoffTests
                     rig.Snapshots.Capture(npc, rig.Store.Flags[npc], new Tick(round + 1), 1f);
                 }
             }
+
+            // 힙에서 통로로 옮긴다. 워커가 보는 것은 여기까지다 —
+            // 힙을 직접 만지게 두면 _heap[_count] 가 범위를 벗어난다 (ReplanHandoff 주석).
+            rig.Handoff.Pump(rig.Queue);
 
             // 워커가 실제로 끼어들 틈을 준다. 이 루프는 순수 CPU 라 양보하지 않으면
             // 200라운드가 몇 ms 에 끝나 워커가 스케줄되기도 전에 테스트가 끝난다.

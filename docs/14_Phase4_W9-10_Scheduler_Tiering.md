@@ -253,12 +253,45 @@ public sealed class TieredPlanCompiler : IPlanCompiler
 
 ### 워커
 
+### 스레드 모델 — 워커는 힙을 만지지 않는다 (2026-07-28 추가)
+
+> **이 절이 없어서 실제 결함이 났다.** 아래 코드 조각은 워커가 `_queue.TryDequeueMax` 를
+> 직접 부르는데, `ReplanQueue` 는 **동기화가 하나도 없는 고정 크기 힙**이다.
+> 틱 루프의 `TryEnqueue` 와 경합해 용량 검사와 삽입 사이 창에서 `_count` 가 용량을 넘고
+> `_heap[_count]` 가 범위를 벗어난다 — 실측으로 8회 중 2회 `IndexOutOfRangeException` 이다.
+>
+> **락으로 고치지 않는다.** CLAUDE.md §2.1 이 틱 루프의 `lock` 을 금지한다 —
+> 워커 8개가 다투는 락을 틱 루프가 같이 잡으면 그 순간 p99 가 무너진다.
+
+**힙은 틱 루프가 단독으로 소유하고, 워커와는 `ReplanHandoff` 로만 주고받는다.**
+
+```
+  틱 루프 (단일 스레드)                     워커 N개 (BackgroundService)
+  ──────────────────────                    ────────────────────────────
+  DrainReturns  ◀──────── Returns 링 ◀────── TryReturn   (낡은 요청)
+  Scan → TryEnqueue
+  Pump          ────────▶ Pending 링 ───────▶ TryClaim    (일감)
+```
+
+| 누가 | 무엇을 만지나 |
+|---|---|
+| 틱 루프 | `ReplanQueue`(힙) **전부** · `ReplanHandoff.Pump`/`DrainReturns` |
+| 워커 | `ReplanHandoff.TryClaim`/`TryReturn` · `NpcStore.Flags` **읽기만** · `PendingPlanId` **한 칸 쓰기** |
+
+두 링은 칸별 시퀀스를 쓰는 락프리 MPMC 링이라 **락도 할당도 없다**.
+`RunTick` 의 순서는 `DrainReturns → Scan → Pump` 다 — 되돌아온 요청이 이번 스캔의 점수 경쟁에 낀다.
+
+**바뀐 동작 하나** — 낡은 요청의 재삽입이 **한 틱 늦어진다.** 예전에는 워커가 힙에 바로 되넣어
+같은 `TryTake` 안에서 다시 집었다. 지금은 되돌리기만 하고 다음 틱의 `DrainReturns` 가 힙에 넣는다.
+T4-04 의 "폐기하고 지금 상태로 다시 넣는다" 는 그대로다.
+
 ```csharp
-// Npc.Planning/ReplanWorker.cs : BackgroundService
+// Npc.Host/Replan/ReplanWorker.cs : BackgroundService
 protected override async Task ExecuteAsync(CancellationToken ct)
 {
     while (!ct.IsCancellationRequested)
     {
+        // ↓ 아래 한 줄이 결함이었다. 지금은 _handoff.TryClaim 이다.
         if (!_queue.TryDequeueMax(out int npc)) { await Task.Delay(50, ct); continue; }
 
         var req = BuildRequest(npc);
@@ -438,6 +471,7 @@ W4의 5개 패널에 추가한다.
 | 재계획 결과가 이미 낡음 | 큐 대기 중 상황이 바뀜 | 큐에 넣을 때의 플래그 스냅샷을 저장, 적용 시점에 크게 달라졌으면 폐기 |
 | 인터럽트가 큐를 독점 | 일반 재계획이 영원히 안 됨 | 인터럽트 슬롯을 큐 용량의 50%로 제한 |
 | 워커가 틱 루프를 블록 | 틱 p99 폭증 | 워커는 반드시 별도 `BackgroundService`. 공유 상태는 `Volatile` 읽기/쓰기만 |
+| **워커가 힙(`ReplanQueue`)을 직접 만진다** | **데이터 레이스 → `IndexOutOfRangeException`** | 힙은 틱 루프 단독 소유. 워커는 `ReplanHandoff` 로만 주고받는다 (§4 스레드 모델). **2026-07-28 에 실제로 났다** — `--tier none` 회차만 돌려서 여태 드러나지 않았다 |
 | T2 페일오버가 무한 재시도 | 외부 장애 시 지연 폭발 | 서킷 브레이커. 연속 실패 5회 → 60초 차단 |
 | 개별 플랜 풀 고갈 | 새 재계획이 반영 안 됨 | LRU 회수 + 풀 회전율 메트릭 감시 |
 | 가중치 튜닝을 감으로 | 재현 불가 | §2의 4세트 A/B를 스크립트로 자동화 |

@@ -97,6 +97,19 @@ public sealed class NpcServerLoop
     /// <summary>시간대 전환 지터. 없으면 전환이 한 틱에 몰린다 (docs/14 §5).</summary>
     public BucketTransition? Transition { get; init; }
 
+    /// <summary>
+    /// 재계획 워커와의 인계 통로 (docs/14 §4). <b>없으면 워커가 없다는 뜻이다</b> —
+    /// <c>--tier none</c> 회차가 그렇고, 그때 힙은 채워지기만 하고 비지 않는다
+    /// (그 성질을 보는 것이 P4 게이트 항목 10 이다).
+    ///
+    /// <b>붙어 있으면 힙을 만지는 것은 틱 루프뿐이다.</b> 워커는 이 통로만 본다 —
+    /// 그러지 않으면 힙에 데이터 레이스가 생긴다 (<see cref="ReplanHandoff"/> 주석).
+    /// </summary>
+    public ReplanHandoff? Handoff { get; init; }
+
+    /// <summary>한 틱에 통로로 옮길 상한. 0 이면 <see cref="ReplanHandoff.DefaultPumpPerTick"/>.</summary>
+    public int PumpPerTick { get; init; }
+
     /// <summary>처리한 틱 수.</summary>
     public long TicksProcessed { get; private set; }
 
@@ -162,7 +175,16 @@ public sealed class NpcServerLoop
         Observer?.OnTickBegin(tick);
 
         _bands.Rebalance();
+
+        // 워커가 되돌린 낡은 요청을 먼저 힙에 넣는다 — 이번 스캔이 그것까지 보고 순서를 잡는다.
+        Handoff?.DrainReturns(_replanQueue);
+
         _cognition.Scan(tick, _replanQueue);
+
+        // 힙에서 통로로 옮긴다. <b>힙을 만지는 것은 여기까지가 틱 루프의 전부다</b> —
+        // 워커는 통로만 본다 (ReplanHandoff 주석).
+        Handoff?.Pump(_replanQueue, PumpPerTick);
+
         _executor.Step(tick, _link);
 
         // 시간대 전환 예약은 스왑 적용 전에 걸어야 이번 틱의 스텝 경계에서 갈아탄다.

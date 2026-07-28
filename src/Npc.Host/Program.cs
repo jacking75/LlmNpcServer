@@ -346,16 +346,21 @@ internal sealed class NpcHost : IAsyncDisposable
 
         long totalTicks = options.Days == 0 ? 0 : clock.TicksForGameDays(options.Days);
 
+        // 틱 루프 ↔ 워커 인계 통로 (docs/14 §4). 힙은 틱 루프만 만지고 워커는 이 통로만 본다 —
+        // 워커가 힙을 직접 꺼내면 데이터 레이스다 (ReplanHandoff 주석).
+        var handoff = new ReplanHandoff();
+
         var loop = new NpcServerLoop(
             link, clock, applier, interrupts, cognition, executor, swapper, bands, replanQueue)
         {
             StopAtTick = totalTicks,
             Transition = new BucketTransition(store, plans, data) { ZoneStates = zoneStates },
+            Handoff = handoff,
         };
 
         // ── 재계획 티어 (docs/14 §4). --tier 가 결정한다 ──
         TierWiring tiers = TierWiring.Build(
-            options, data, masterDataDir, store, plans, replanQueue, snapshots,
+            options, data, masterDataDir, store, plans, replanQueue, handoff, snapshots,
             individualPool, swapper, zoneStates, clock, log, switches);
 
         var meter = new NpcMeter(

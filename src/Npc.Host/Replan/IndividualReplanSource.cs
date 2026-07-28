@@ -25,6 +25,7 @@ internal sealed class IndividualReplanSource : IReplanSource
 {
     private readonly NpcStore _store;
     private readonly ReplanQueue _queue;
+    private readonly ReplanHandoff _handoff;
     private readonly ReplanSnapshots _snapshots;
     private readonly IndividualPlanPool _pool;
     private readonly PlanSwapper _swapper;
@@ -37,6 +38,7 @@ internal sealed class IndividualReplanSource : IReplanSource
     public IndividualReplanSource(
         NpcStore store,
         ReplanQueue queue,
+        ReplanHandoff handoff,
         ReplanSnapshots snapshots,
         IndividualPlanPool pool,
         PlanSwapper swapper,
@@ -45,6 +47,7 @@ internal sealed class IndividualReplanSource : IReplanSource
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(queue);
+        ArgumentNullException.ThrowIfNull(handoff);
         ArgumentNullException.ThrowIfNull(snapshots);
         ArgumentNullException.ThrowIfNull(pool);
         ArgumentNullException.ThrowIfNull(swapper);
@@ -53,6 +56,7 @@ internal sealed class IndividualReplanSource : IReplanSource
 
         _store = store;
         _queue = queue;
+        _handoff = handoff;
         _snapshots = snapshots;
         _pool = pool;
         _swapper = swapper;
@@ -69,8 +73,14 @@ internal sealed class IndividualReplanSource : IReplanSource
     /// <inheritdoc />
     public string Name => "individual";
 
-    /// <inheritdoc />
-    public int Depth => _queue.Count;
+    /// <summary>
+    /// 대기 깊이. <b>힙과 통로를 합친다</b> — 스필오버 판정(docs/14 §4)이 보는 것은
+    /// "지금 T1 에 얼마나 밀려 있나" 이고, 통로에 놓인 것도 아직 처리 전이다.
+    ///
+    /// <c>_queue.Count</c> 를 워커 스레드에서 읽는 것은 안전하다. 한 필드 읽기이고
+    /// 한 틱 낡은 값을 봐도 임계(64) 판정이 흔들릴 뿐 메모리 안전과 무관하다.
+    /// </summary>
+    public int Depth => _queue.Count + _handoff.PendingCount;
 
     /// <summary>낡아서 폐기하고 재삽입한 요청 수 (T4-04).</summary>
     public long Discarded => Interlocked.Read(ref _discarded);
@@ -78,7 +88,10 @@ internal sealed class IndividualReplanSource : IReplanSource
     /// <inheritdoc />
     public bool TryTake(Tick now, out ReplanJob job)
     {
-        while (_queue.TryDequeue(out int npc, out float score))
+        // <b>힙(ReplanQueue)을 여기서 만지지 않는다.</b> 워커 스레드에서 힙을 꺼내거나 되넣으면
+        // 틱 루프의 TryEnqueue 와 경합해 _heap[_count] 가 범위를 벗어난다 (ReplanHandoff 주석).
+        // 통로에서만 가져오고, 되돌릴 것도 통로에 놓는다.
+        while (_handoff.TryClaim(out int npc, out float score))
         {
             // WorldFlags 는 8바이트 enum 이라 x64 에서 원자적으로 읽힌다.
             // Volatile.Read<T> 는 참조 형식만 받으므로 배열을 그대로 읽는다 — 틱 루프가 쓰고
@@ -86,10 +99,12 @@ internal sealed class IndividualReplanSource : IReplanSource
             WorldFlags flags = _store.Flags[npc];
 
             // 큐에 넣을 때와 상황이 크게 달라졌으면 폐기하고 지금 상태로 다시 넣는다 (T4-04).
+            // 힙에 되넣는 것은 다음 틱의 DrainReturns 가 한다 — 한 틱 늦지만 경합이 없다.
             if (!_snapshots.TryAccept(npc, flags, out ReplanRequestSnapshot snapshot))
             {
                 Interlocked.Increment(ref _discarded);
-                _snapshots.Requeue(npc, flags, now, score, _queue);
+                _snapshots.Capture(npc, flags, now, score);
+                _handoff.TryReturn(npc, score);
                 continue;
             }
 

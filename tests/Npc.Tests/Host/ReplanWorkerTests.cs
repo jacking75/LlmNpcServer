@@ -66,6 +66,7 @@ public sealed class ReplanWorkerTests
     private sealed record Rig(
         NpcStore Store,
         ReplanQueue Queue,
+        ReplanHandoff Handoff,
         ReplanSnapshots Snapshots,
         IndividualPlanPool Pool,
         PlanSwapper Swapper,
@@ -90,10 +91,12 @@ public sealed class ReplanWorkerTests
         var swapper = new PlanSwapper(store);
         PlanStore plans = PlanStore.CreateIdleOnly(s_data);
 
-        var source = new IndividualReplanSource(
-            store, queue, snapshots, pool, swapper, s_data, () => TimeOfDay.Morning);
+        var handoff = new ReplanHandoff();
 
-        return new Rig(store, queue, snapshots, pool, swapper, source, plans);
+        var source = new IndividualReplanSource(
+            store, queue, handoff, snapshots, pool, swapper, s_data, () => TimeOfDay.Morning);
+
+        return new Rig(store, queue, handoff, snapshots, pool, swapper, source, plans);
     }
 
     private static CompiledPlan SomePlan(PlanStore plans) => plans[PlanStore.IdlePlanId];
@@ -129,6 +132,8 @@ public sealed class ReplanWorkerTests
             rig.Snapshots.Capture(npc, rig.Store.Flags[npc], new Tick(0), npc);
         }
 
+        rig.Handoff.Pump(rig.Queue, max: 64);   // 틱 루프가 하는 일
+
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await worker.StartAsync(cts.Token);
 
@@ -149,7 +154,10 @@ public sealed class ReplanWorkerTests
             NewExecutor(rig),
             rig.Swapper,
             new LodBandSet(rig.Store),
-            rig.Queue);
+            rig.Queue)
+        {
+            Handoff = rig.Handoff,
+        };
 
         for (; ticks < 200; ticks++)
         {
@@ -166,7 +174,7 @@ public sealed class ReplanWorkerTests
 
         hold.Set();
 
-        while (rig.Queue.Count > 0 && !cts.IsCancellationRequested)
+        while ((rig.Queue.Count > 0 || rig.Handoff.PendingCount > 0) && !cts.IsCancellationRequested)
         {
             await Task.Delay(10, cts.Token);
         }
@@ -201,6 +209,7 @@ public sealed class ReplanWorkerTests
 
         rig.Queue.TryEnqueue(3, 5f);
         rig.Snapshots.Capture(3, rig.Store.Flags[3], new Tick(90), 5f);
+        rig.Handoff.Pump(rig.Queue);   // 틱 루프가 하는 일
 
         ulong before = rig.Store.StateHash();
 
@@ -249,17 +258,26 @@ public sealed class ReplanWorkerTests
 
         rig.Queue.TryEnqueue(2, 4f);
         rig.Snapshots.Capture(2, WorldFlags.AtHome | WorldFlags.IsDawn, new Tick(100), 4f);
+        rig.Handoff.Pump(rig.Queue);
 
         // 상황이 6비트 바뀌었다.
         rig.Store.Flags[2] = WorldFlags.InWilderness | WorldFlags.IsNight | WorldFlags.InCombat
             | WorldFlags.ThreatNearby | WorldFlags.IsInjured | WorldFlags.HasTool;
 
-        // 폐기 후 재삽입하므로 이번 TryTake 는 같은 NPC 를 새 스냅샷으로 집어 든다.
-        Assert.True(await worker.PumpOnceAsync(CancellationToken.None));
+        // 낡았으므로 폐기한다. <b>여기서 바로 다시 집지 않는다</b> — 워커는 힙을 만지지 않으므로
+        // 되돌리기만 하고 끝난다 (ReplanHandoff). 그래서 이번 회차는 일감이 없다.
+        Assert.False(await worker.PumpOnceAsync(CancellationToken.None));
         Assert.Equal(1, rig.Source.Discarded);
-        Assert.Equal(1, compiler.Calls);
+        Assert.Equal(0, compiler.Calls);
+        Assert.Equal(1, rig.Handoff.ReturnCount);
 
-        // 새로 집어 든 요청의 버킷은 지금 플래그에서 나온다.
+        // 다음 틱: 틱 루프가 되돌아온 것을 힙에 넣고 다시 통로로 보낸다.
+        Assert.Equal(1, rig.Handoff.DrainReturns(rig.Queue));
+        Assert.Equal(1, rig.Handoff.Pump(rig.Queue));
+
+        // 이제 처리된다. 버킷은 지금 플래그에서 나온다.
+        Assert.True(await worker.PumpOnceAsync(CancellationToken.None));
+        Assert.Equal(1, compiler.Calls);
         Assert.Equal(1, worker.Applied);
     }
 
@@ -272,6 +290,7 @@ public sealed class ReplanWorkerTests
         var worker = new ReplanWorker(rig.Source, compiler, () => new Tick(10), workers: 1);
 
         rig.Queue.TryEnqueue(1, 3f);
+        rig.Handoff.Pump(rig.Queue);   // 틱 루프가 하는 일
         rig.Snapshots.Capture(1, rig.Store.Flags[1], new Tick(10), 3f);
 
         Assert.True(await worker.PumpOnceAsync(CancellationToken.None));

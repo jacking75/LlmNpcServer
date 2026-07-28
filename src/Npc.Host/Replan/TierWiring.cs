@@ -68,6 +68,7 @@ internal sealed class TierWiring : IAsyncDisposable
         NpcStore store,
         PlanStore plans,
         ReplanQueue queue,
+        ReplanHandoff handoff,
         ReplanSnapshots snapshots,
         IndividualPlanPool pool,
         PlanSwapper swapper,
@@ -149,7 +150,7 @@ internal sealed class TierWiring : IAsyncDisposable
         if (t1 is not null)
         {
             wiring.Individual = new IndividualReplanSource(
-                store, queue, snapshots, pool, swapper, data, () => clock.TimeOfDay)
+                store, queue, handoff, snapshots, pool, swapper, data, () => clock.TimeOfDay)
             {
                 ZoneStates = zoneStates,
             };
