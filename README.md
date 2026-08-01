@@ -71,6 +71,7 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 | **실행 바이너리** | `Npc.Host`(NPC 서버) · `Npc.SimHost`(게임서버 대역) · `Npc.Prebake`(플랜 생성 CLI) · `Npc.Replay` |
 | **데이터 아티팩트** | 마스터데이터 11종 · **프리베이크 플랜 2,880개** · 골든 픽스처 50건 · 리플레이 로그 |
 | **관측** | 운영 대시보드 (단일 HTML) |
+| **테스트 베드** | `Npc.TestGameServer`(소켓 게임서버 대역) · `Npc.TestClient`(WinForms 뷰어) → [`testbed/`](testbed/README.md) |
 
 실질적 핵심 산출물은 코드가 아니라 **`planstore/`의 플랜 2,880개**다. 사람이 읽고 고칠 수 있는 JSON이며, 이것이 오써링 자동화의 증거물이다.
 
@@ -129,6 +130,11 @@ dotnet run -c Release --project src/Npc.Host -- \
     --loopback --npcs 5000 --time-scale 60 --days 7 \
     --scenario ./scenarios/siege.jsonl
 # → http://localhost:5080/dashboard
+
+# 7) 눈으로 보기 — 게임서버 대역 + 테스트 클라이언트를 소켓으로 붙여 띄운다 (Windows)
+#    게임서버 → NPC 서버 → 클라이언트를 순서대로 띄우고 Ctrl-C 에 셋 다 내린다.
+./testbed/run_demo.ps1 -Scenario siege
+# → testbed/README.md 에 화면 보는 법과 알려진 한계가 있다
 ```
 
 ### 주요 실행 옵션
@@ -166,9 +172,15 @@ src/
   Npc.Runtime/      틱 스케줄러 · 플랜 실행기 · 인지 LOD
   Npc.Planning/     플랜 캐시 · 버킷터 · 우선순위 재계획 큐
   Npc.Llm/          IChatClient 어댑터 · 프롬프트 조립 · 3-티어 라우터
-  Npc.Gateway/      IGameServerLink 구현체 (Loopback/Null/Recording/Replay)
+  Npc.Wire/         링크의 전송 표현 (MemoryPack DTO + 프레임 코덱)
+  Npc.Gateway/      IGameServerLink 구현체 (Loopback/Null/Recording/Replay/Tcp)
   Npc.Sim/          헤드리스 월드 = 게임서버 대역
   Npc.Host/         ASP.NET 호스트 · 메트릭 · 대시보드
+testbed/            테스트 베드 — 단방향 잎(아무도 참조하지 않는다)  → testbed/README.md
+  Npc.TestBed.Protocol/  클라이언트 프로토콜 (게임서버 ↔ 클라이언트)
+  Npc.TestGameServer/    게임서버 대역 프로세스 (소켓 :7010 링크 · :7020 클라이언트)
+  Npc.TestClient/        WinForms 클라이언트 (net10.0-windows)
+  scenarios/             데모 시나리오 3종 · run_demo.ps1
 tools/
   Npc.Prebake/      프리베이크 CLI
   Npc.Replay/       리플레이 CLI
@@ -213,6 +225,8 @@ docs/               설계 사양 (아래)
 | [`docs/13_Phase3_W7-8_Plan_Cache.md`](docs/13_Phase3_W7-8_Plan_Cache.md) · [`_TASKS`](docs/13_Phase3_W7-8_TASKS.md) | **W7–8** 플랜 캐시 · 프리베이크 · 사람 검수 (21) |
 | [`docs/14_Phase4_W9-10_Scheduler_Tiering.md`](docs/14_Phase4_W9-10_Scheduler_Tiering.md) · [`_TASKS`](docs/14_Phase4_W9-10_TASKS.md) | **W9–10** 우선순위 큐 · 3-티어 라우팅 · 부하 테스트 (24) |
 | [`docs/15_Phase5_W11-12_Verification.md`](docs/15_Phase5_W11-12_Verification.md) · [`_TASKS`](docs/15_Phase5_W11-12_TASKS.md) | **W11–12** 골든 · 결정론 · 장애주입 · 블라인드 평가 · 보고 (20) |
+| [`docs/20_TestBed_Spec.md`](docs/20_TestBed_Spec.md) · [`_TASKS`](docs/20_TestBed_TASKS.md) | **P6** 테스트 베드 — 소켓 링크 · 게임서버 대역 · 테스트 클라이언트 (38). W1–12 본편 밖의 트랙이다 |
+| [`testbed/README.md`](testbed/README.md) | **데모 띄우는 법** — 한 줄 실행 · 포트 · 화면 보는 법 · 알려진 한계 |
 
 AI 코딩 에이전트로 작업한다면 [`CLAUDE.md`](CLAUDE.md)를 먼저 읽는다.
 

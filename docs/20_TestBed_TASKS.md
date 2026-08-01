@@ -481,16 +481,20 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 >    NPC 를 16 으로 줄이고 **`--planstore` 를 없는 경로로 줘 254개 파일 로드를 뺐다** —
 >    이 회차가 보는 것은 소켓 경로이지 플랜 품질이 아니고, 폴백 40개로도 MoveTo → 도착이 돈다.
 >    `AllocationCollection`(병렬 끔)에도 같이 넣었다. 이후 전체 3회 연속 통과.
-- [ ] T6-36 문서와 원장
+- [x] T6-36 문서와 원장
 
 ### 게이트
-- [ ] G6-1 NPC 서버 본체 무변경
-- [ ] G6-2 마스터데이터 무변경
-- [ ] G6-3 소켓 종단 동작
-- [ ] G6-4 링크 계약 유지
-- [ ] G6-5 틱 예산 유지
-- [ ] G6-6 할당 0
-- [ ] G6-7 명령 유실 내성
-- [ ] G6-8 재접속
-- [ ] G6-9 데모 3종
-- [ ] G6-10 눈으로 보인다
+
+**6 통과 · 4 미판정 (2026-08-01).** 미판정 넷은 전부 **사람이 눈으로 보는 항목**이다 —
+코드 결함으로 미달한 것이 없다. 테스트로 판정되는 여섯은 CI 기본 회차에서 상시 확인된다.
+
+- [x] G6-1 NPC 서버 본체 무변경 — `git diff main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Contracts` 가 **비어 있다.** T6-13 의 훅 한 줄도 결국 필요 없었다
+- [x] G6-2 마스터데이터 무변경 — `git diff main -- masterdata/` 가 비어 있다
+- [x] G6-3 소켓 종단 동작 — `TestBed_EndToEnd_NpcArrives` 통과 (T6-35)
+- [~] G6-4 링크 계약 유지 — **테스트는 전부 통과하는데 판정 문구를 못 맞춘다.** `Category=Contracts` 6건 통과 · `Wire_NoStringOrDateTimeFields` 가 `Npc.Wire`·`Npc.TestBed.Protocol` 두 어셈블리에서 통과. 다만 **`Category=Wire` 를 단 테스트가 0개다** — §13 이 정한 카테고리를 T6-02~T6-04 가 안 붙였고 `CLAUDE.md` §5 표에도 없다. 트레이트를 붙일지 게이트 문구를 고칠지 결정이 필요하다 (`TASKS.md` §3 결정 대기)
+- [ ] G6-5 틱 예산 유지 — `--link tcp --npcs 500` 10분 회차를 **안 돌렸다.** 짧은 회차(NPC 50 · 13초)에서는 p99 4.0ms · Gen0 0
+- [x] G6-6 할당 0 — `TcpLink_FlushDoesNotAllocate` 통과
+- [x] G6-7 명령 유실 내성 — `TcpLink_CommandLossSynthesizesTimeout` 통과 (드롭 0.3 · 300틱 · 멈춘 NPC 0)
+- [ ] G6-8 재접속 — `TcpLink_ReconnectKeepsSequenceMonotonic` 은 통과한다. **NPC 서버 프로세스를 죽였다 살리는 수동 회차는 안 했다**
+- [ ] G6-9 데모 3종 — `run_demo.ps1` 로 세 시나리오를 끝까지 돌린 회차가 없다 (day 17분 · siege 4분 · blackout 3분)
+- [ ] G6-10 눈으로 보인다 — **이것이 이 Phase 의 목적이다.** 사람이 클라이언트에서 NPC 하나를 골라 왜 그 행동을 하는지 인스펙터로 설명할 수 있어야 한다. 화면은 다 붙었고 사람이 앉는 일만 남았다
