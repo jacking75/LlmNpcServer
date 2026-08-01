@@ -26,7 +26,9 @@ public readonly record struct LinkStats(
 ///
 /// 이것은 "게임서버의 인터페이스"가 아니라 <b>게임서버로 향하는 NPC 서버의 아웃바운드 포트</b>다.
 /// 이름의 "GameServer" 는 상대방을 가리킨다.
-/// 구현체는 인프로세스 루프백 / 널 / 기록·재생 데코레이터 / (미래) TCP.
+/// 구현체는 인프로세스 루프백 / 널 / 기록·재생 데코레이터 / <b>TCP</b>(<c>Npc.Gateway</c>, P6).
+/// TCP 링크는 이 파일을 <b>한 줄도 바꾸지 않고</b> 붙었다 — 그것이 P6 게이트 G6-1 이 잰 것이다
+/// (docs/20 §1 · §5·§6).
 ///
 /// N1: 명령은 fire-and-forget 이다. <b>반환값 있는 전송 메서드를 여기에 추가하지 않는다.</b>
 ///     결과는 <see cref="Events"/> 로만 돌아온다. RPC 왕복(await SendAndWait)을 만드는 순간
