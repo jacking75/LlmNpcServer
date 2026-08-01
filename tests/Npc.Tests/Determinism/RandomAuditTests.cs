@@ -120,12 +120,26 @@ public static class IlScanner
     /// <summary>
     /// 제네릭 메서드 인스턴스화(<c>MethodSpec</c>)는 원본 <c>MemberRef</c> 토큰으로 되돌린다.
     /// <c>RandomNumberGenerator.GetItems&lt;T&gt;</c> 처럼 제네릭인 것들이 이 경로로 불린다.
+    ///
+    /// <para>
+    /// <b>행 번호를 먼저 본다.</b> <see cref="Tokens"/> 는 IL 의 4바이트 피연산자를 <b>전부</b>
+    /// 모으므로 <c>ldc.i4</c> 상수나 분기 오프셋도 섞여 온다. 그중 상위 바이트가 우연히
+    /// <c>0x2B</c>(MethodSpec)면 <see cref="MetadataTokens.EntityHandle(int)"/> 는 통과하고
+    /// <c>GetMethodSpecification</c> 이 <c>BadImageFormatException</c> 을 던진다 —
+    /// 실제로 <c>Npc.Host</c> 를 훑다가 그렇게 됐다. <see cref="TryHandle"/> 의 주석이 말하는
+    /// "던지지 않는다" 는 여기까지 와야 성립한다.
+    /// </para>
     /// </summary>
     private static int Normalize(MetadataReader metadata, int token)
     {
         if (!TryHandle(token, out EntityHandle handle) || handle.Kind != HandleKind.MethodSpecification)
         {
             return token;
+        }
+
+        if (MetadataTokens.GetRowNumber(handle) > metadata.GetTableRowCount(TableIndex.MethodSpec))
+        {
+            return token;   // 토큰이 아니라 그냥 4바이트였다
         }
 
         EntityHandle method = metadata.GetMethodSpecification((MethodSpecificationHandle)handle).Method;
