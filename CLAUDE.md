@@ -221,7 +221,9 @@ testbed/Npc.TestClient        ←  MasterData, Protocol              [T6-26, 미
 
 - [ ] `dotnet test` 통과
 - [ ] `dotnet format --verify-no-changes` 통과
-- [ ] 틱 루프를 건드렸다면 부하 테스트로 p99 ≤ 20ms, Gen0 GC = 0 확인
+- [ ] 틱 루프를 건드렸다면 부하 테스트로 p99 ≤ 20ms, **`/metrics` 의 `bytesPerTick` = 0** 확인
+      (`gen0Collections` 로 재지 않는다 — 그 값은 `GC.CollectionCount(0)` 라 **프로세스 전역**이고,
+      대시보드 HTTP·소켓 리시버·직렬화가 전부 든다. 틱 루프를 재는 계기는 `bytesPerTick` 하나다)
 - [ ] 패킷을 건드렸다면 `Contracts_*` 테스트 통과 (N2/N3/N4)
 - [ ] 마스터데이터를 건드렸다면 무효화 범위 확인 (`docs/13` §3) — Full이면 프리베이크 재실행 필요
 - [ ] 프롬프트를 건드렸다면 프리픽스 해시 변경 → **플랜 스토어 전량 무효**. 의도한 것인지 확인
