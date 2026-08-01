@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10장 · 전송과 테스트 베드 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">5부 · 경계 밖</p>
+  <h1>10장 — 전송과 테스트 베드</h1>
+  <p class="lede">
+    3장에서 정한 계약이 <b>실제 소켓 위에서 성립하는지</b>를 확인하는 층이다.
+    P6는 게임서버 대역과 WinForms 클라이언트와 와이어 프로토콜을 통째로 새로 만들었는데,
+    <b><code>Npc.Runtime</code>·<code>Npc.Planning</code>·<code>Npc.Core</code>·<code>Npc.Contracts</code>의 diff가 0줄</b>이다.
+    그것이 이 Phase가 잰 것이다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/20_TestBed_Spec.md</span>
+    <span class="chip">그림 · <a href="../testbed_guide.html">testbed_guide.html</a></span>
+    <span class="chip">게이트 9/10</span>
+  </div>
+</div>
+
+<h2 id="why">1. 왜 <code>Npc.Wire</code>를 따로 두는가</h2>
+
+<div class="bad">
+  <span class="tag">계약 타입에 <code>[MemoryPackable]</code>을 붙이면</span>
+  <code>Npc.Contracts</code>가 <b>직렬화기 버전에 묶인다</b>.
+  이 프로젝트는 "외부 NuGet 의존 0"이 규칙이고, 그 규칙이 있는 이유는
+  <b>계약이 특정 라이브러리의 수명에 종속되면 안 되기 때문</b>이다.
+</div>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 260" role="img" aria-label="Contracts 와 Wire 의 1:1 매핑">
+      <rect x="40" y="50" width="240" height="150" rx="10" fill="var(--panel-2)" stroke="var(--line-2)" stroke-width="1.4"/>
+      <text x="160" y="76" text-anchor="middle" font-size="13" font-weight="700">Npc.Contracts</text>
+      <text x="160" y="98" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">외부 NuGet 의존 0</text>
+      <g font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">
+        <text x="60" y="128">NpcCommand</text>
+        <text x="60" y="150">GameEvent</text>
+        <text x="60" y="172">IGameServerLink</text>
+      </g>
+
+      <rect x="600" y="50" width="240" height="150" rx="10" fill="var(--panel-2)" stroke="var(--l0)" stroke-width="1.4"/>
+      <text x="720" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="var(--l0)">Npc.Wire</text>
+      <text x="720" y="98" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">+ MemoryPack</text>
+      <g font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">
+        <text x="620" y="128">WireCommand</text>
+        <text x="620" y="150">WireEvent</text>
+        <text x="620" y="172">FrameCodec</text>
+      </g>
+
+      <rect x="330" y="86" width="220" height="78" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="440" y="112" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--accent)">1:1 매핑</text>
+      <text x="440" y="132" text-anchor="middle" font-size="11" fill="var(--ink-2)">필드가 갈라지면</text>
+      <text x="440" y="150" text-anchor="middle" font-size="11" fill="var(--ink-2)"><tspan font-family="var(--mono)">Category=Wire</tspan> 가 잡는다</text>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3">
+        <path d="M280,125 L326,125"/><path d="M554,125 L596,125"/>
+      </g>
+
+      <text x="40" y="238" font-size="12" fill="var(--ink-3)">
+        <tspan font-weight="650">Npc.Runtime 은 Npc.Wire 를 참조하지 않는다</tspan> — 런타임이 전송 표현을 알 이유가 없다.
+      </text>
+    </svg>
+  </div>
+  <figcaption>드리프트를 막는 것은 규율이 아니라 <b>테스트 카테고리</b>다. <code>Wire</code> 26건 + <code>Contracts</code> 8건이 상시로 돈다.</figcaption>
+</figure>
+
+<h2 id="frame">2. 프레임 — 손으로 쓴 8바이트 헤더</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 210" role="img" aria-label="프레임 헤더 바이트 레이아웃">
+      <g font-size="11.5" font-family="var(--mono)">
+        <rect x="20" y="50" width="200" height="52" rx="6" fill="var(--l0)" opacity=".22" stroke="var(--l0)"/>
+        <text x="120" y="72" text-anchor="middle" font-weight="650" fill="var(--l0)">PayloadLength</text>
+        <text x="120" y="90" text-anchor="middle" fill="var(--ink-3)">u32 · little-endian</text>
+
+        <rect x="224" y="50" width="72" height="52" rx="6" fill="var(--l1)" opacity=".22" stroke="var(--l1)"/>
+        <text x="260" y="72" text-anchor="middle" font-weight="650" fill="var(--l1)">Kind</text>
+        <text x="260" y="90" text-anchor="middle" fill="var(--ink-3)">u8</text>
+
+        <rect x="300" y="50" width="72" height="52" rx="6" fill="var(--l2)" opacity=".22" stroke="var(--l2)"/>
+        <text x="336" y="72" text-anchor="middle" font-weight="650" fill="var(--l2)">Ver</text>
+        <text x="336" y="90" text-anchor="middle" fill="var(--ink-3)">u8 = 1</text>
+
+        <rect x="376" y="50" width="96" height="52" rx="6" fill="var(--panel-3)" stroke="var(--line-2)"/>
+        <text x="424" y="72" text-anchor="middle" fill="var(--ink-3)">Reserved</text>
+        <text x="424" y="90" text-anchor="middle" fill="var(--ink-3)">u16 = 0</text>
+
+        <rect x="476" y="50" width="384" height="52" rx="6" fill="var(--panel-2)" stroke="var(--line-2)" stroke-dasharray="5 4"/>
+        <text x="668" y="72" text-anchor="middle" font-weight="650">Payload</text>
+        <text x="668" y="90" text-anchor="middle" fill="var(--ink-3)">MemoryPack · 최대 1 MiB</text>
+      </g>
+
+      <g font-size="10.5" fill="var(--ink-3)">
+        <text x="20" y="42">byte 0</text><text x="224" y="42">4</text>
+        <text x="300" y="42">5</text><text x="376" y="42">6</text><text x="476" y="42">8 …</text>
+      </g>
+
+      <text x="20" y="140" font-size="12.5" font-weight="650">왜 헤더를 손으로 쓰나</text>
+      <text x="20" y="162" font-size="12" fill="var(--ink-2)">
+        MemoryPack 안에 길이를 또 넣지 않는다 — <tspan font-weight="650">진실의 출처를 둘로 만들면 언젠가 어긋나고,</tspan>
+      </text>
+      <text x="20" y="180" font-size="12" fill="var(--ink-2)">
+        어긋나는 순간 스트림이 통째로 깨진다.
+      </text>
+    </svg>
+  </div>
+  <figcaption><code>Kind</code>는 6종 — <code>Hello</code> · <code>HelloAck</code> · <code>CommandBatch</code> · <code>EventBatch</code> · <code>Heartbeat</code> · <code>Bye</code>.</figcaption>
+</figure>
+
+<div class="filepath">src/Npc.Wire/FrameCodec.cs</div>
+
+<pre><code><span class="c">// 버전을 길이보다 먼저 본다 — 버전이 다르면 길이 해석 자체를 믿을 수 없다.</span>
+<span class="k">if</span> (version != Version)
+    <span class="k">throw new</span> <span class="t">InvalidDataException</span>(<span class="s">$"와이어 버전이 다르다: 받은 {version}, 기대 {Version}."</span>);
+
+<span class="k">if</span> (length &gt; MaxPayloadLength)
+    <span class="k">throw new</span> <span class="t">InvalidDataException</span>(
+        <span class="s">$"페이로드가 상한을 넘는다: {length}B &gt; {MaxPayloadLength}B. 프레임 경계가 밀렸을 가능성이 높다."</span>);
+
+<span class="k">if</span> (buffer.Length &lt; total) <span class="k">return false</span>;   <span class="c">// 아직 다 안 왔다. 버퍼를 건드리지 않는다</span></code></pre>
+
+<div class="warn">
+  <span class="tag">길이 상한 검사를 빼지 않는다</span>
+  길이 접두 프로토콜에서 그 검사가 없으면 <b>잘못된 4바이트 하나로 프로세스가 죽는다</b>.
+  상대가 악의적이지 않아도 <b>프레임 경계가 한 번 밀리면 바로 그 상황</b>이 된다.
+  예외를 던지되 <b>연결만 끊고 프로세스는 산다</b> — 호출부가 잡아서 <code>Bye(ProtocolViolation)</code>를 보내고 소켓을 닫는다.
+</div>
+
+<h2 id="handshake">3. 핸드셰이크 — 네 값이 전부 맞아야 붙는다</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 300" id="hsSvg" role="img" aria-label="핸드셰이크 시퀀스">
+      <line x1="180" y1="50" x2="180" y2="250" stroke="var(--gs)" stroke-width="2"/>
+      <line x1="700" y1="50" x2="700" y2="250" stroke="var(--npc)" stroke-width="2"/>
+      <text x="180" y="38" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--gs)">게임서버 (:7010 접속)</text>
+      <text x="700" y="38" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--npc)">NPC 서버</text>
+      <g id="hsMsgs"></g>
+    </svg>
+  </div>
+  <div class="ctl">
+    <label>불일치 주입 <select id="hsFault">
+      <option value="none" selected>없음 — 정상 연결</option>
+      <option value="ver">프로토콜 버전이 다르다</option>
+      <option value="md">마스터데이터 해시가 다르다</option>
+      <option value="roster">로스터 해시가 다르다</option>
+      <option value="ts">타임스케일이 다르다</option>
+    </select></label>
+    <button class="btn" id="hsRun" type="button">연결 시도</button>
+  </div>
+  <div class="readout" id="hsOut"></div>
+  <figcaption><b>우회 옵션은 없다.</b> 마스터데이터가 어긋난 채로 붙으면 POI id가 서로 다른 곳을 가리킨다.</figcaption>
+</figure>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>검증 값</th><th>어긋나면 생기는 일</th><th>거절 코드</th></tr></thead>
+<tbody>
+<tr><td>프로토콜 버전</td><td>프레임 해석 자체가 안 된다</td><td><code>ProtocolVersion</code></td></tr>
+<tr><td>마스터데이터 콘텐츠 해시</td><td><b>POI code 1이 서로 다른 장소를 가리킨다</b></td><td><code>MasterDataMismatch</code></td></tr>
+<tr><td>NPC 로스터 해시</td><td><b>대장장이에게 밭을 갈라고 명령하게 된다</b> — 첨자가 어긋난다</td><td><code>RosterMismatch</code></td></tr>
+<tr><td>타임스케일</td><td>게임 초 → 틱 환산이 달라 타임아웃이 전부 어긋난다</td><td><code>TimeScaleMismatch</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag">로스터 해시가 필요한 이유</span>
+  NPC 선택 규칙(<code>NpcRoster.Select</code>)이 <b>한 곳에만</b> 있고 게임서버도 같은 함수를 부른다.
+  그래도 <code>--zone</code> 필터가 양쪽에서 다르면 집합이 갈리는데,
+  <b>그 사고는 조용히 일어난다</b> — 양쪽 다 정상적으로 돌면서 서로 다른 NPC를 가리킬 뿐이다.
+  해시를 핸드셰이크에 실어 <b>연결 시점에 터뜨린다</b>.
+</div>
+
+<h3>3.1 해시를 hex 문자열로 싣지 않는다</h3>
+
+<pre><code><span class="c">// SHA-256 32바이트를 ulong 4개로. N3(패킷에 string 금지)이 와이어에서도 그대로다.</span>
+[<span class="t">MemoryPackable</span>]
+<span class="k">public readonly partial record struct</span> <span class="t">WireHash</span>(<span class="k">ulong</span> A, <span class="k">ulong</span> B, <span class="k">ulong</span> C, <span class="k">ulong</span> D);</code></pre>
+
+<p class="small">
+  <code>ulong</code> 4개면 정확히 32바이트라 손실도 없다. hex로 실으면 64바이트에 파싱까지 붙는다.
+  사람이 읽어야 할 때만 <code>ToHex()</code>로 되돌린다 — <b>로그·비교 출력용이고 와이어에는 안 나간다</b>.
+</p>
+
+<h2 id="testbed">4. 테스트 베드 세 프로세스</h2>
+
+<pre><code>┌──────────────┐   TCP 7010 (링크)    ┌───────────────────┐
+│  Npc.Host    │◄────────────────────►│ Npc.TestGameServer │
+│ (NPC 서버)   │  명령/이벤트 (N1~N8) │  (게임서버 대역)   │
+└──────┬───────┘                      └────────┬──────────┘
+       │ HTTP 5080                             │ TCP 7020 (클라이언트)
+       │ /npc/{id} · /metrics                  │
+       │                              ┌────────▼──────────┐
+       └─────────────────────────────►│  Npc.TestClient   │
+              인스펙터가 직접 폴링     │   (WinForms)      │
+                                      └───────────────────┘</code></pre>
+
+<div class="note">
+  <span class="tag">클라이언트가 NPC 서버를 직접 보는 이유</span>
+  플랜 id·스텝 번호·월드 플래그는 <b>게임서버가 알 수 없는 정보</b>다.
+  링크에 그런 필드가 없고 <b>있어서도 안 된다</b>(N1·N3).
+  게임서버를 경유해 중계하면 <b>실제로는 존재하지 않는 결합</b>을 테스트 베드가 만들어 낸다.
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>프로젝트</th><th>참조</th><th>역할</th></tr></thead>
+<tbody>
+<tr><td><code>testbed/Npc.TestBed.Protocol</code></td><td><code>Wire</code></td><td>게임서버 ↔ 클라이언트 프로토콜 (링크와 다른 프로토콜이다)</td></tr>
+<tr><td><code>testbed/Npc.TestGameServer</code></td><td><code>Sim</code> · <code>MasterData</code> · <code>Wire</code> · <code>Protocol</code></td><td>소켓 게임서버 대역. 세계를 민다</td></tr>
+<tr><td><code>testbed/Npc.TestClient</code></td><td><code>MasterData</code> · <code>Protocol</code></td><td>WinForms 뷰어 (<code>net10.0-windows</code>)</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">테스트 프로젝트가 클라이언트를 참조하지 않는다</span>
+  <code>Npc.Tests</code>가 <code>Npc.TestClient</code>를 참조하면
+  <b>테스트 프로젝트 전체가 <code>net10.0-windows</code>로 끌려간다</b>.
+  P6의 테스트 베드는 <b>단방향 잎(leaf)</b>이다 — 아무도 참조하지 않는다.
+</div>
+
+<h3>4.1 띄우는 법</h3>
+
+<pre><code><span class="c"># 한 줄로 — 게임서버 → NPC 서버 → 클라이언트를 순서대로 띄우고 Ctrl-C 에 셋 다 내린다</span>
+./testbed/run_demo.ps1 -Scenario siege
+
+<span class="c"># 손으로 (터미널 셋)</span>
+dotnet run --project testbed/Npc.TestGameServer -- --npcs 300 --time-scale 60 --scenario ...
+dotnet run --project src/Npc.Host -- --link tcp --gs-port 7010 --npcs 300 --time-scale 60 --dev-control
+dotnet run --project testbed/Npc.TestClient</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th><code>run_demo.ps1</code> 옵션</th><th class="num">기본</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>-Scenario day｜siege｜blackout</code></td><td><code>day</code></td><td><code>testbed/scenarios/demo_&lt;이름&gt;.jsonl</code></td></tr>
+<tr><td><code>-Npcs N</code></td><td class="num">300</td><td><b>게임서버와 NPC 서버에 같은 값</b>이 간다 (아니면 로스터 해시가 어긋난다)</td></tr>
+<tr><td><code>-TimeScale N</code></td><td class="num">60</td><td>데모 시나리오의 틱 좌표가 60 기준이다</td></tr>
+<tr><td><code>-Tier none｜t1｜t2｜all</code></td><td><code>none</code></td><td><b>LLM이 필요 없다</b> — 기본이 <code>none</code>이라 한 번도 안 부른다</td></tr>
+<tr><td><code>-NoBuild</code></td><td>—</td><td>두 번째 실행부터는 이걸 준다 (첫 빌드가 30초쯤)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="gate">5. P6 게이트 — 9 통과 · 1 미판정</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>#</th><th>항목</th><th>실측</th><th>판정</th></tr></thead>
+<tbody>
+<tr><td><b>G6-1</b></td><td>NPC 서버 본체 무변경</td><td><b>T6-* 커밋 40개 중 네 프로젝트를 건드린 것이 0개</b></td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>G6-2</b></td><td>마스터데이터 무변경</td><td><code>git diff --stat</code>가 비어 있다 · <code>ContentHash</code> 동일</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>G6-3</b></td><td>소켓 종단 동작</td><td><code>TestBed_EndToEnd_NpcArrives</code></td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>G6-4</b></td><td>링크 계약 유지</td><td><code>Wire</code> 26건 · <code>Contracts</code> 8건 전량</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>G6-5</b></td><td>틱 예산 유지 (10분 회차)</td><td><b>p99 0.197 ms</b> · 오버런 0 · <code>bytesPerTick</code> 0 · 6,002틱</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>G6-6</b></td><td>할당 0</td><td><code>TcpLink_FlushDoesNotAllocate</code></td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>G6-7</b></td><td>명령 유실 내성</td><td><code>--drop-rate 0.3</code> · 300틱 후 멈춘 NPC <b>0</b></td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>G6-8</b></td><td>재접속</td><td>NPC 서버를 죽였다 살려도 게임서버 재기동 없이 다시 붙는다</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>G6-9</b></td><td>데모 3종</td><td>day 10,463틱 · siege 2,626틱 · blackout 2,034틱 · 크래시 0</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>G6-10</b></td><td><b>눈으로 보인다</b></td><td>화면은 다 붙었고 <b>사람이 앉는 일만 남았다</b></td><td><span class="pill warn">미판정</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">G6-10이 이 Phase의 목적이다</span>
+  <b>사람이 클라이언트에서 NPC 하나를 골라 왜 그 행동을 하는지 인스펙터로 설명할 수 있어야 한다.</b>
+  나머지 아홉은 그것이 거짓이 아님을 보증하는 장치다.
+</div>
+
+<h3>5.1 판정 명령이 틀려 있던 것을 고친 이야기</h3>
+
+<div class="bad">
+  <span class="tag">G6-1의 원래 판정 명령</span>
+  <code>git diff main -- src/Npc.Runtime ...</code> 이었는데,
+  <b><code>main</code> 위에서 자기 자신과 비교하니 언제나 비어 있었다.</b>
+  즉 <b>항상 통과하는 게이트</b>였다. 커밋 범위를 명시하는 형태로 고쳤고,
+  고친 뒤에도 <b>실제로 0줄</b>이었다.
+</div>
+
+<h3>5.2 G6-5의 판정 계기를 바꾼 이유</h3>
+
+<p>
+  원래 기준은 <b>"Gen0 증가 0"</b>이었는데, 그 계기는 <code>GC.CollectionCount(0)</code>이라
+  <b>프로세스 전역</b>이다. 대시보드 HTTP·소켓 리시버·직렬화가 전부 든다 —
+  <b>틱 루프를 재지 못한다.</b> 그래서 <code>bytesPerTick == 0</code>으로 바꿨다(결정 1-A).
+  <a href="ch05.html">5장 §4.1</a>과 같은 이야기다.
+</p>
+
+<h3>5.3 G6-9에서 관측된 것 — 사람이 볼 것 하나가 안 보였다</h3>
+
+<div class="warn">
+  <span class="tag">시간대가 바뀌어도 버킷 플랜을 안 갈아탄다</span>
+  데모 3종이 전부 끝까지 돌았고 지표도 전부 정상이었는데,
+  <b>인스펙터의 <code>planBucket</code>이 게임 시각을 따라가지 않았다</b>.
+  이대로면 <b>G6-10에서 사람이 볼 것이 안 보인다</b>.
+  <br><br>
+  <b>이 문제는 P6 밖이다</b> — 루프백 회차에서도 그대로 재현된다.
+  즉 테스트 베드의 결함이 아니라 본체 쪽 문제이고, 그래서 <b>P6 게이트로 덮지 않고 따로 남겼다</b>.
+</div>
+
+<h2 id="tcp">6. TCP 링크 — 호스트에서 어떻게 배선되나</h2>
+
+<div class="filepath">src/Npc.Host/Program.cs</div>
+
+<pre><code><span class="k">case</span> <span class="t">LinkKind</span>.Tcp:
+    <span class="c">// 대역을 만들지 않는다 — Replay 와 같은 경로다.</span>
+    <span class="c">// 세계를 미는 것은 게임서버이고, 우리는 이벤트를 받아 명령을 낼 뿐이다.</span>
+    link = tcp = TcpLink(options, data, roster);
+    <span class="k">break</span>;</code></pre>
+
+<div class="why">
+  <span class="tag">TCP 링크만 구체 타입으로 따로 들고 있는 이유</span>
+  접속·재접속 루프는 <code>IGameServerLink</code>에 <b>없는 동작</b>이다 —
+  계약이 <code>Enqueue</code>·<code>FlushAsync</code>·<code>Events</code>뿐이기 때문이다.
+  누군가는 구체 타입으로 <code>RunAsync</code>를 돌려야 하고,
+  <code>--link record</code>는 데코레이터라 감싼 참조로는 안쪽 소켓에 닿을 수 없다.
+  <br><br>
+  그리고 이 소켓 루프는 <b><code>WhenAll</code>에 넣지 않는다</b> —
+  취소될 때까지 끝나지 않으므로 <code>--days N</code>처럼 틱 루프가 먼저 끝나는 회차에서 종료를 막는다.
+</div>
+
+<h3>6.1 <code>--link record</code>가 무엇을 감쌀지 정하는 법</h3>
+
+<pre><code><span class="c">// --gs-host / --gs-port 를 명시했는가 로 가른다.</span>
+<span class="c">// 기본값과 명시값을 구별하지 못하면 "포트가 7010 이니까 TCP 겠지" 라는 추측이 된다.</span>
+<span class="k">public bool</span> UsesGameServer { <span class="k">get</span>; <span class="k">init</span>; }</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>명령</th><th>기록되는 것</th></tr></thead>
+<tbody>
+<tr><td><code>--link record</code></td><td>Sim 대역과의 왕복 — <b>재현 가능한 자료</b></td></tr>
+<tr><td><code>--link record --gs-port 7010</code></td><td>소켓 너머 게임서버와의 왕복 — <b>실전 트래픽</b></td></tr>
+<tr><td>둘 다 → <code>--link replay --trace &lt;path&gt;</code></td><td>같은 이벤트 열을 다시 먹여 결정론 검증</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="more">7. 더 자세히</h2>
+
+<div class="grid2">
+  <div class="card">
+    <h4><a href="../testbed_guide.html">docs/testbed_guide.html</a></h4>
+    <p class="small">
+      이 장의 확장판. <b>핸드셰이크·10단계 틱 루프 애니메이션</b>,
+      실행 중에 무엇을 바꾸며 테스트하는지, <b>코드 분석 순서</b>와 이음매 지도가 있다.
+    </p>
+  </div>
+  <div class="card">
+    <h4><a href="../../testbed/README.md">testbed/README.md</a></h4>
+    <p class="small">
+      실행에 필요한 것만 짧게. 포트·화면 보는 법·<b>알려진 한계</b>.
+    </p>
+  </div>
+</div>
+
+<div class="ok">
+  <span class="tag">10장 요약</span>
+  <ul style="margin-bottom:0">
+    <li><code>Npc.Wire</code>를 따로 둔 것은 <b>계약이 직렬화기 버전에 묶이지 않게</b> 하기 위해서다. 드리프트는 <code>Wire</code> 카테고리가 잡는다.</li>
+    <li>프레임 헤더는 <b>손으로 쓴 8바이트</b>다. 길이의 진실을 두 곳에 두지 않는다.</li>
+    <li>핸드셰이크는 <b>네 값</b>을 검증하고 <b>우회 옵션이 없다</b>. 로스터 해시가 없으면 첨자 어긋남이 조용히 진행된다.</li>
+    <li>클라이언트는 게임서버가 아니라 <b>NPC 서버를 직접 폴링</b>한다 — 링크에 없는 정보를 중계하면 가짜 결합이 생긴다.</li>
+    <li>P6가 잰 것은 <b>"본체 diff 0줄"</b>이고, 그 판정 명령이 틀려 있던 것도 찾아 고쳤다.</li>
+    <li>남은 게이트는 <b>사람이 화면 앞에 앉는 일</b> 하나다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 핸드셰이크 시퀀스 ---------- */
+(function () {
+  var g = document.getElementById('hsMsgs');
+  if (!g) return;
+  var el = window.NpcBook.el;
+  var out = document.getElementById('hsOut');
+
+  function run() {
+    g.innerHTML = '';
+    var fault = document.getElementById('hsFault').value;
+    var lines = [];
+
+    function arrow(y, from, text, color, dashed) {
+      var x1 = from === 'gs' ? 186 : 694, x2 = from === 'gs' ? 694 : 186;
+      var l = el('line', {
+        x1: x1, y1: y, x2: x2, y2: y, stroke: color, 'stroke-width': 1.4,
+        'stroke-dasharray': dashed ? '5 4' : null
+      }, g);
+      var head = from === 'gs'
+        ? [694, y, 686, y - 4, 686, y + 4]
+        : [186, y, 194, y - 4, 194, y + 4];
+      el('polygon', { points: head.join(','), fill: color }, g);
+      var t = el('text', {
+        x: 440, y: y - 8, 'text-anchor': 'middle', 'font-size': 11.5,
+        'font-family': 'var(--mono)', fill: color
+      }, g);
+      t.textContent = text;
+      /* 등장 애니메이션 */
+      l.setAttribute('opacity', 0); t.setAttribute('opacity', 0);
+      setTimeout(function () { l.setAttribute('opacity', 1); t.setAttribute('opacity', 1); }, 0);
+    }
+
+    arrow(78, 'gs', 'TCP connect :7010', 'var(--ink-3)', true);
+    lines.push('  게임서버가 NPC 서버의 링크 포트로 접속한다');
+
+    var hello = 'Hello{ver=1, tickRate=10, timeScale=60, npcCount=300, md=…, roster=…}';
+    if (fault === 'ver') hello = 'Hello{ver=2, …}';
+    if (fault === 'ts') hello = 'Hello{ver=1, timeScale=120, …}';
+    if (fault === 'md') hello = 'Hello{…, md=3f2a…(다름), …}';
+    if (fault === 'roster') hello = 'Hello{…, roster=91bc…(다름)}';
+    arrow(118, 'gs', hello, 'var(--gs)');
+    lines.push('  Hello — 검증 대상 넷: 프로토콜 버전 · 타임스케일 · 마스터데이터 해시 · 로스터 해시');
+
+    var ok = fault === 'none';
+    var reject = { ver: 'ProtocolVersion', ts: 'TimeScaleMismatch', md: 'MasterDataMismatch', roster: 'RosterMismatch' }[fault];
+
+    arrow(158, 'npc',
+      ok ? 'HelloAck{accepted=1}' : 'HelloAck{accepted=0, reject=' + reject + '}',
+      ok ? 'var(--npc)' : 'var(--bad)');
+    lines.push(ok
+      ? '  HelloAck accepted=1 — 링크 State = Connected'
+      : '  HelloAck accepted=0 · ' + reject);
+
+    if (ok) {
+      arrow(198, 'gs', 'EventBatch{TickSync, NpcSpawned × 300, …}', 'var(--gs)');
+      arrow(232, 'npc', 'CommandBatch{MoveTo × N}  ← 한 번의 FlushAsync = 한 프레임 (N8)', 'var(--npc)');
+      lines.push('  이후 매 틱 EventBatch ↔ CommandBatch 가 오간다');
+      lines.push('  Heartbeat 는 양방향이고 DateTime 이 없다 (N4) — 틱과 시퀀스로만 살아 있음을 말한다');
+      out.textContent = lines.join('\n');
+    } else {
+      arrow(198, 'npc', 'Bye{HandshakeRejected} → 소켓 닫음', 'var(--bad)');
+      lines.push('  Bye(HandshakeRejected) 후 연결 종료 · LinkState = Faulted');
+      lines.push('');
+      lines.push('  우회 옵션은 없다.');
+      lines.push(fault === 'md'
+        ? '  마스터데이터가 어긋난 채로 붙으면 POI code 1 이 서로 다른 장소를 가리킨다.'
+        : fault === 'roster'
+        ? '  로스터가 어긋나면 첨자가 밀려 대장장이에게 밭을 갈라고 명령하게 된다.\n  --zone 필터를 양쪽에 같게 주었는지 먼저 본다.'
+        : fault === 'ts'
+        ? '  타임스케일이 다르면 게임 초 → 틱 환산이 갈라져 timeout_s 가 전부 어긋난다.'
+        : '  버전이 다르면 프레임 해석 자체를 믿을 수 없다.');
+      out.textContent = lines.join('\n');
+    }
+  }
+
+  document.getElementById('hsRun').addEventListener('click', run);
+  document.getElementById('hsFault').addEventListener('change', run);
+  run();
+})();
+</script>
+</body>
+</html>

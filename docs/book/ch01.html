@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1장 · 문제와 해답 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">1부 · 왜 이 구조인가</p>
+  <h1>1장 — 문제와 해답</h1>
+  <p class="lede">
+    "로컬 LLM이 모든 NPC의 행동을 계획한다"는 원안은 <b>산술적으로 성립하지 않는다.</b>
+    이 장은 그 계산을 다시 해보고, 거기서 4계층 구조와 3-티어 라우팅이 어떻게 강제로 도출되는지를 따라간다.
+    뒤 장의 이상해 보이는 규칙들은 거의 전부 이 장의 산술에서 나온다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · LLM_NPC_Server_Plan.md §2~§4</span>
+    <span class="chip">실측 · W1_results.md</span>
+  </div>
+</div>
+
+<h2 id="orig">1. 원안 — 그리고 왜 안 되는가</h2>
+
+<p>원안은 한 문장이다.</p>
+
+<div class="card" style="text-align:center;font-size:17px;padding:24px">
+  <i>"로컬 LLM이 모든 NPC의 동작을 계획하고, 상태를 주기적으로 파악해서 행동 루틴을 결정한다."</i>
+</div>
+
+<p>
+  직관적이고, 데모로는 잘 돈다. NPC가 20마리면 훌륭하게 동작한다.
+  문제는 <b>5,000마리</b>와 <b>소비자용 GPU 한 장</b>이라는 두 조건이 동시에 붙을 때 생긴다.
+</p>
+
+<h3>1.1 처리량 — 필요량이 용량의 7배다</h3>
+
+<p>
+  NPC 5,000마리가 <b>게임 시간 1시간마다</b> 재계획한다고 하자. 아주 느슨한 주기다.
+  그래도 시간당 5,000건의 LLM 호출이 필요하다. 이제 한 장의 GPU가 낼 수 있는 처리량을 본다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>항목</th><th>계획 단계 추정</th><th>W1 실측 (8B)</th><th>판정</th></tr></thead>
+<tbody>
+<tr><td>고정 프리픽스 prefill</td><td>≈ 0 (캐시 적중)</td><td class="num">≈ 0 (적중 시)</td><td><span class="pill ok">맞음</span></td></tr>
+<tr><td>가변 서픽스 prefill</td><td class="num">0.25 s</td><td class="num">0.32 s</td><td><span class="pill ok">맞음</span></td></tr>
+<tr><td>출력 decode</td><td class="num">1.5 s (100 tok/s)</td><td class="num"><b>4.83 s</b> (44 tok/s)</td><td><span class="pill bad">3.2배 미달</span></td></tr>
+<tr><td><b>요청당 총 지연</b></td><td class="num">≈ 1.75 s</td><td class="num"><b>5.14 s</b></td><td><span class="pill bad">2.9배</span></td></tr>
+<tr><td><b>시간당 처리량</b></td><td class="num">2,050 req/h</td><td class="num"><b>700 req/h</b></td><td><span class="pill bad">7.1배 초과</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="stats">
+  <div class="stat badv"><div class="v">7.1×</div><div class="l">필요량 ÷ 실측 용량</div><div class="s">5,000 / 700 req·h⁻¹</div></div>
+  <div class="stat"><div class="v">5.14 s</div><div class="l">요청당 지연 (8B)</div><div class="s">W1_results.md M1</div></div>
+  <div class="stat"><div class="v">0.36</div><div class="l">동시 8에서 req/s</div><div class="s">동시 2의 2.15에서 붕괴</div></div>
+  <div class="stat"><div class="v">87.9 %</div><div class="l">프리픽스 캐시 prefill 감소</div><div class="s">이 설계의 유일한 검증된 승리</div></div>
+</div>
+
+<div class="bad">
+  <span class="tag">동시성으로 못 푼다</span>
+  "동시에 여러 건을 던지면 되지 않나"는 실측이 막았다. 8B 모델은 동시 2에서 2.15 req/s 까지 올랐다가
+  <b>동시 8에서 0.36 req/s 로 붕괴한다</b>. 배칭이 없어서가 아니라 <b>VRAM 8 GB에서 KV 캐시가 넘쳐
+  PCIe 페이징이 걸리기 때문</b>이다(<code>W1_env.md §1</code>). 재계획 주기를 4시간으로 늦춰도
+  1,250 req/h 라 여전히 용량 밖이다.
+</div>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 300" id="capacity" role="img" aria-label="주기 재계획 대 캐시+LOD 의 큐 적체 비교">
+      <text x="20" y="24" font-size="13" font-weight="700" fill="var(--bad)">원안 — 전원 주기 재계획</text>
+      <text x="470" y="24" font-size="13" font-weight="700" fill="var(--ok)">이 저장소 — 캐시 + 인지 LOD</text>
+
+      <!-- 왼쪽: 파이프 -->
+      <rect x="20" y="44" width="400" height="96" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+      <rect x="470" y="44" width="390" height="96" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+
+      <text x="30" y="64" font-size="11.5" fill="var(--ink-3)">유입 5,000 req/h</text>
+      <text x="480" y="64" font-size="11.5" fill="var(--ink-3)">유입 = 미스 + 이탈 + 인터럽트</text>
+
+      <g id="capLeft"></g>
+      <g id="capRight"></g>
+
+      <!-- GPU 게이트 -->
+      <rect x="352" y="52" width="60" height="80" rx="6" fill="var(--bad-soft)" stroke="var(--bad)"/>
+      <text x="382" y="86" text-anchor="middle" font-size="11" fill="var(--bad)">GPU</text>
+      <text x="382" y="102" text-anchor="middle" font-size="10.5" fill="var(--bad)">700/h</text>
+
+      <rect x="792" y="52" width="60" height="80" rx="6" fill="var(--ok-soft)" stroke="var(--ok)"/>
+      <text x="822" y="86" text-anchor="middle" font-size="11" fill="var(--ok)">GPU</text>
+      <text x="822" y="102" text-anchor="middle" font-size="10.5" fill="var(--ok)">700/h</text>
+
+      <!-- 적체 막대 -->
+      <text x="20" y="176" font-size="11.5" fill="var(--ink-3)">대기열</text>
+      <rect x="20" y="184" width="400" height="22" rx="5" fill="var(--panel-3)"/>
+      <rect id="qLeft" x="20" y="184" width="0" height="22" rx="5" fill="var(--bad)"/>
+      <text id="qLeftT" x="24" y="200" font-size="11" font-family="var(--mono)" fill="var(--panel)">0</text>
+
+      <text x="470" y="176" font-size="11.5" fill="var(--ink-3)">대기열</text>
+      <rect x="470" y="184" width="390" height="22" rx="5" fill="var(--panel-3)"/>
+      <rect id="qRight" x="470" y="184" width="0" height="22" rx="5" fill="var(--ok)"/>
+      <text id="qRightT" x="474" y="200" font-size="11" font-family="var(--mono)" fill="var(--panel)">0</text>
+
+      <text x="20" y="240" font-size="12" fill="var(--ink-2)">한 시간마다 4,300건씩 밀린다. 하루면 10만 건이다.</text>
+      <text x="470" y="240" font-size="12" fill="var(--ink-2)">유입 자체가 예산 안이라 큐가 자라지 않는다.</text>
+      <text x="20" y="266" font-size="12" fill="var(--ink-3)">→ 플레이어가 보는 NPC는 <tspan font-weight="650" fill="var(--bad)">몇 시간 전 계획</tspan>으로 움직인다</text>
+      <text x="470" y="266" font-size="12" fill="var(--ink-3)">→ 예산은 <tspan font-weight="650" fill="var(--ok)">보이는 NPC</tspan>에 먼저 쓰인다</text>
+    </svg>
+  </div>
+  <div class="ctl">
+    <button class="btn" id="capRun" type="button">시간 흐르게 하기</button>
+    <button class="btn" id="capReset" type="button">되돌리기</button>
+    <span class="small" id="capClock">게임 시각 0시</span>
+  </div>
+  <figcaption>같은 GPU, 같은 700 req/h. 다른 것은 <b>무엇을 요청하는가</b> 하나뿐이다.</figcaption>
+</figure>
+
+<h3>1.2 설계 문제이기도 하다 — 관측되지 않는 연산</h3>
+
+<p>
+  처리량을 해결했다고 해도 남는 문제가 있다.
+  플레이어가 동시에 인지하는 NPC는 <b>20~50마리</b> 수준이다.
+  5,000마리 전원에게 개별 지능을 부여해도 그 연산의 99 %는 <b>아무도 보지 않는다</b>.
+</p>
+
+<div class="why">
+  <span class="tag">여기서 나온 것</span>
+  렌더링에 LOD가 있듯 <b>인지(cognition)에도 LOD를 준다</b>는 발상. 이것이 6장의
+  <code>CognitionScheduler</code>·<code>LodBandSet</code>이 되고, 재계획 점수의 첫 번째 항
+  <code>W1 × 플레이어 근접도</code>가 된다. LOD 3(비활성) NPC의 근접 항은 <b>0</b>이라,
+  인터럽트가 없는 한 사실상 재계획되지 않는다.
+</div>
+
+<h3>1.3 "장시간 컨텍스트 관리"는 해결하지 않고 제거한다</h3>
+
+<p>
+  원안이 우려한 세 번째 문제 — NPC가 며칠씩 살아가면 대화 컨텍스트가 부풀고 드리프트한다 — 는
+  <b>풀 문제가 아니라 만들지 않을 문제</b>다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>흔한 방식</th><th>이 저장소</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td>대화 히스토리를 누적해 넘긴다</td><td><b>모든 호출이 무상태다.</b> 요청 하나에 필요한 것만 싣는다</td><td>드리프트가 원천 발생하지 않는다</td></tr>
+<tr><td>과거를 LLM으로 요약해 압축</td><td>기억은 <code>RingBuffer8&lt;RecentEvent&gt;</code> <b>값 타입 8칸</b>. 요약은 규칙</td><td>요약 호출 비용 0 · 결정론 유지</td></tr>
+<tr><td>NPC별 세션·스레드 유지</td><td>세션이 없다. 프리픽스는 <b>전 NPC 공유</b>라 캐시가 걸린다</td><td>프롬프트 캐시 적중이 성립한다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="idea">2. 발상 전환 — LLM을 실행기가 아니라 컴파일러로</h2>
+
+<div class="card" style="text-align:center;font-size:18px;padding:26px">
+  LLM은 행동 플랜을 <b>생성</b>하고, 결정론 런타임이 그것을 <b>실행</b>한다.<br>
+  <span class="small">생성은 느리고 비싸도 된다. 실행은 빠르고 재현 가능해야 한다.</span>
+</div>
+
+<p>
+  컴파일러 비유가 정확한 이유는 세 가지 성질이 실제로 그대로 옮겨오기 때문이다.
+</p>
+
+<div class="grid3">
+  <div class="card">
+    <h4>① 빌드 타임과 런타임이 갈린다</h4>
+    <p class="small">
+      플랜 2,880개는 <b>오프라인 프리베이크</b>로 만든다(<code>tools/Npc.Prebake</code>).
+      게임이 돌기 전에 이미 디스크에 JSON으로 있다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>② 산출물이 검사 가능하다</h4>
+    <p class="small">
+      플랜은 사람이 읽고 고칠 수 있는 JSON이다. <b>4단 검증기</b>가 통과시킨 것만 실행에 올라간다.
+      사람이 고친 것은 <code>pinned/</code>에 남아 재생성에도 살아남는다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>③ 컴파일러가 죽어도 프로그램은 돈다</h4>
+    <p class="small">
+      LLM 전면 차단(시나리오 C)에서도 NPC는 멈추지 않는다.
+      <code>PlanStore.Resolve</code>가 <b>절대 null을 반환하지 않기</b> 때문이다.
+    </p>
+  </div>
+</div>
+
+<h2 id="layers">3. 네 개의 층</h2>
+
+<p>
+  위 발상을 구조로 옮기면 층이 네 개 나온다. 각 층은 <b>위층이 아래층을 기다리지 않는다</b>는
+  한 가지 규칙으로 이어져 있다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 420" id="layers" role="img" aria-label="L0~L3 계층과 요청이 흐르는 경로">
+      <defs>
+        <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <rect x="140" y="20" width="600" height="80" rx="10" fill="var(--panel-2)" stroke="var(--l0)" stroke-width="1.6"/>
+      <text x="160" y="46" font-size="13.5" font-weight="700" fill="var(--l0)">L0 결정론 런타임 · 10Hz</text>
+      <text x="160" y="68" font-size="12" fill="var(--ink-2)">틱마다: 이벤트 배수 → 인지 스캔 → 스텝 실행 → 명령 송출</text>
+      <text x="160" y="88" font-size="11.5" fill="var(--ink-3)">여기에 await도 LLM도 할당도 없다</text>
+
+      <rect x="140" y="126" width="600" height="72" rx="10" fill="var(--panel-2)" stroke="var(--l1)" stroke-width="1.6"/>
+      <text x="160" y="152" font-size="13.5" font-weight="700" fill="var(--l1)">L1 플랜 스토어 · 배열 첨자</text>
+      <text x="160" y="174" font-size="12" fill="var(--ink-2)">2,880칸 고정 배열 + 폴백 40 + 개별 풀 512. 락이 없다</text>
+
+      <rect x="140" y="224" width="600" height="72" rx="10" fill="var(--panel-2)" stroke="var(--l2)" stroke-width="1.6"/>
+      <text x="160" y="250" font-size="13.5" font-weight="700" fill="var(--l2)">L2 재계획 큐 · 점수순 최대 힙</text>
+      <text x="160" y="272" font-size="12" fill="var(--ink-2)">시간이 아니라 <tspan font-weight="650">사건</tspan>이 재계획을 만든다. 용량 4,096, 넘치면 최하위를 버린다</text>
+
+      <rect x="140" y="322" width="600" height="80" rx="10" fill="var(--panel-2)" stroke="var(--l3)" stroke-width="1.6"/>
+      <text x="160" y="348" font-size="13.5" font-weight="700" fill="var(--l3)">L3 플랜 컴파일러 · 별도 워커 스레드</text>
+      <text x="160" y="370" font-size="12" fill="var(--ink-2)">T1 로컬 / T2 외부 · 프롬프트 캐시 · 4단 검증 · 재시도 1회</text>
+      <text x="160" y="390" font-size="11.5" fill="var(--ink-3)">여기가 몇 초 걸려도 L0의 틱은 흔들리지 않는다</text>
+
+      <!-- 흐르는 점 -->
+      <circle id="flowDot" r="7" fill="var(--accent)" opacity="0"/>
+      <text id="flowLabel" font-size="11.5" font-family="var(--mono)" fill="var(--accent)" opacity="0"></text>
+
+      <!-- 좌측 라벨 -->
+      <text x="120" y="66" text-anchor="end" font-size="11.5" fill="var(--ink-3)">틱 루프</text>
+      <text x="120" y="164" text-anchor="end" font-size="11.5" fill="var(--ink-3)">O(1) 조회</text>
+      <text x="120" y="262" text-anchor="end" font-size="11.5" fill="var(--ink-3)">예산 게이트</text>
+      <text x="120" y="366" text-anchor="end" font-size="11.5" fill="var(--ink-3)">초 단위 지연</text>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3" marker-end="url(#ar2)" color="var(--ink-3)">
+        <path d="M760,60 C800,60 800,162 760,162" transform="translate(0,0)"/>
+      </g>
+      <text x="812" y="115" text-anchor="middle" font-size="11" fill="var(--ink-3)">플랜</text>
+      <text x="812" y="130" text-anchor="middle" font-size="11" fill="var(--ink-3)">조회</text>
+    </svg>
+  </div>
+  <div class="ctl">
+    <button class="btn" id="flowRun" type="button">재계획 한 건 따라가기</button>
+    <span class="small" id="flowText">버튼을 누르면 요청 하나가 L0에서 L3까지 갔다 돌아온다.</span>
+  </div>
+  <figcaption>중요한 것은 <b>돌아오는 데 몇 초가 걸려도 L0의 틱은 그동안 100번을 더 돈다</b>는 사실이다.</figcaption>
+</figure>
+
+<h3>3.1 각 층이 지키는 계약</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>층</th><th>절대 하지 않는 것</th><th>왜</th><th>강제 수단</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="pill l0">L0</span></td>
+  <td><code>await</code>(<code>FlushAsync</code> 제외) · LLM 호출 · 힙 할당 · <code>lock</code> · <code>DateTime.Now</code></td>
+  <td>틱이 밀리면 5,000마리가 동시에 늦는다</td>
+  <td><code>TickAllocationTests</code> · <code>ClockAuditTests</code> · 프로젝트 참조 규칙</td>
+</tr>
+<tr>
+  <td><span class="pill l1">L1</span></td>
+  <td><code>Resolve</code>가 null 반환 · 읽기에 락</td>
+  <td>미스 하나로 NPC가 멈추면 안 된다</td>
+  <td><code>PlanStoreTests</code> · 시나리오 C</td>
+</tr>
+<tr>
+  <td><span class="pill l2">L2</span></td>
+  <td>같은 NPC 중복 삽입 · 무한 성장</td>
+  <td>큐가 즉시 포화하고 낡은 요청만 남는다</td>
+  <td><code>ReplanQueueTests</code> · 용량 4,096 상한</td>
+</tr>
+<tr>
+  <td><span class="pill l3">L3</span></td>
+  <td>프리픽스 변형 · 서픽스 300토큰 초과 · 재시도 2회 이상</td>
+  <td>캐시가 깨지고 비용이 튄다</td>
+  <td><code>Suffix_NeverExceeds300Tokens</code> · 프리픽스 SHA 유니크 카운트</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="tier">4. 3-티어 라우팅 — 재사용 횟수에 비례해 품질에 투자한다</h2>
+
+<p>
+  플랜을 만드는 경로는 하나가 아니다. <b>그 플랜을 몇 명이 쓰느냐</b>에 따라 어디서 만들지가 갈린다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>티어</th><th>무엇</th><th>대상</th><th>지연</th><th>비용</th><th>근거</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>T0</b></td><td>프리베이크 캐시</td><td>아키타입 × 상황 버킷</td>
+  <td class="num">O(1)</td><td class="num">0</td><td>수천 NPC가 공유한다</td>
+</tr>
+<tr>
+  <td><b>T1</b></td><td>로컬 dotLLM / llama.cpp</td><td>개별 NPC 1회용 재계획</td>
+  <td class="num">5.1 s</td><td class="num">전기값</td><td>1회용이라 품질보다 지연·무비용이 중요</td>
+</tr>
+<tr>
+  <td><b>T2</b></td><td>외부 OpenAI 호환 API</td><td>아키타입 버킷 미스 · 프리베이크</td>
+  <td class="num">2.9 s</td><td class="num">$0.001015 / 요청</td><td>수천 NPC가 재사용 → 품질에 투자</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">여기서 오해하기 쉬운 것</span>
+  T1이 "싸구려", T2가 "고급"이 아니다. <b>개별 재계획이 T1으로 가는 이유는 그 플랜을 한 마리가 한 번 쓰고 버리기 때문</b>이고,
+  아키타입 플랜이 T2로 가는 이유는 <b>같은 플랜을 수백 마리가 며칠 동안 쓰기 때문</b>이다.
+  같은 원리로 T1 큐가 64건 넘게 밀리면 개별 요청도 T2로 흘린다(<b>스필오버</b>) —
+  T1 지연 5.1 s 에서 64건이면 마지막 건은 5분 뒤라 그때는 이미 상황이 바뀐 뒤다.
+</div>
+
+<h2 id="defense">5. 세 겹의 방어선 — LLM이 전부 죽어도</h2>
+
+<p>
+  이 구조의 실질적 성과는 성능이 아니라 <b>가용성</b>이다.
+  <code>PlanStore.Resolve</code>가 절대 null을 반환하지 않는다는 한 줄이 아래 세 단계를 만든다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 860 250" role="img" aria-label="캐시 미스에서 최후 플랜까지의 3단 방어">
+      <g id="defense">
+        <rect x="24" y="40" width="190" height="86" rx="10" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="1.5"/>
+        <text x="119" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ok)">① 버킷 플랜</text>
+        <text x="119" y="90" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">프리베이크된 2,880칸</text>
+        <text x="119" y="110" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">실측 히트율 98.67 %</text>
+
+        <rect x="238" y="40" width="190" height="86" rx="10" fill="var(--warn-soft)" stroke="var(--warn)" stroke-width="1.5"/>
+        <text x="333" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--warn)">② 인접 버킷 재사용</text>
+        <text x="333" y="90" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">같은 아키타입의 비슷한 상황</text>
+        <text x="333" y="110" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">파일럿 288건 중 61건</text>
+
+        <rect x="452" y="40" width="190" height="86" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="547" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">③ 아키타입 폴백</text>
+        <text x="547" y="90" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">사람이 쓴 40개</text>
+        <text x="547" y="110" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">기동 시 V7이 4단 통과 보장</text>
+
+        <rect x="666" y="40" width="170" height="86" rx="10" fill="var(--panel-2)" stroke="var(--line-2)" stroke-width="1.5"/>
+        <text x="751" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink-2)">④ 최후 플랜</text>
+        <text x="751" y="90" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">Wait → Emote → Rest</text>
+        <text x="751" y="110" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">전제조건이 하나도 없다</text>
+      </g>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3" marker-end="url(#ar3)" color="var(--ink-3)">
+        <defs><marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <path d="M216,83 L234,83"/><path d="M430,83 L448,83"/><path d="M644,83 L662,83"/>
+      </g>
+      <text x="225" y="76" text-anchor="middle" font-size="10" fill="var(--ink-3)">미스</text>
+      <text x="439" y="76" text-anchor="middle" font-size="10" fill="var(--ink-3)">없음</text>
+      <text x="653" y="76" text-anchor="middle" font-size="10" fill="var(--ink-3)">없음</text>
+
+      <rect x="24" y="160" width="812" height="62" rx="10" fill="var(--panel-2)" stroke="var(--line)"/>
+      <text x="44" y="186" font-size="12.5" fill="var(--ink-2)">
+        시나리오 C — T2 차단 → T1 차단 → PlanStore 차단을 순서대로 발동한다.
+      </text>
+      <text x="44" y="208" font-size="12.5" fill="var(--ink-2)">
+        3단계에서 남는 것은 <tspan font-family="var(--mono)" fill="var(--accent)">폴백 40개</tspan>뿐인데,
+        그것만으로 NPC 5,000마리가 게임 7일을 완주한다. <tspan font-weight="650">그게 이 그림의 요점이다.</tspan>
+      </text>
+    </svg>
+  </div>
+  <figcaption>단계가 내려갈수록 플랜은 단조로워지지만 <b>NPC가 멈추는 지점은 없다</b>.</figcaption>
+</figure>
+
+<h2 id="deps">6. 구조가 코드에 남긴 흔적 — 프로젝트 의존 그래프</h2>
+
+<p>
+  "틱 루프에 LLM이 없다"는 말은 규율이 아니라 <b>컴파일러가 강제하는 사실</b>이어야 한다.
+  그래서 프로젝트를 이렇게 갈랐다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 400" role="img" aria-label="프로젝트 의존 그래프">
+      <defs><marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+
+      <!-- 기반 -->
+      <rect x="40" y="330" width="150" height="46" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="115" y="352" text-anchor="middle" font-size="12.5" font-weight="650">Npc.Contracts</text>
+      <text x="115" y="368" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">외부 의존 0</text>
+
+      <rect x="215" y="330" width="150" height="46" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="290" y="352" text-anchor="middle" font-size="12.5" font-weight="650">Npc.Core</text>
+      <text x="290" y="368" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">외부 의존 0</text>
+
+      <rect x="390" y="330" width="160" height="46" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="470" y="352" text-anchor="middle" font-size="12.5" font-weight="650">Npc.MasterData</text>
+
+      <!-- 중간 -->
+      <rect x="215" y="240" width="150" height="46" rx="8" fill="var(--panel-2)" stroke="var(--l1)" stroke-width="1.5"/>
+      <text x="290" y="262" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--l1)">Npc.Planning</text>
+      <text x="290" y="278" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">L1 · L2</text>
+
+      <rect x="580" y="240" width="150" height="46" rx="8" fill="var(--panel-2)" stroke="var(--l3)" stroke-width="1.5"/>
+      <text x="655" y="262" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--l3)">Npc.Llm</text>
+      <text x="655" y="278" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">L3 · IChatClient</text>
+
+      <rect x="40" y="240" width="150" height="46" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="115" y="266" text-anchor="middle" font-size="12.5" font-weight="650">Npc.Wire</text>
+
+      <!-- 런타임 -->
+      <rect x="215" y="150" width="150" height="46" rx="8" fill="var(--panel-2)" stroke="var(--l0)" stroke-width="1.7"/>
+      <text x="290" y="172" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--l0)">Npc.Runtime</text>
+      <text x="290" y="188" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">L0 · 틱 루프</text>
+
+      <rect x="40" y="150" width="150" height="46" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="115" y="176" text-anchor="middle" font-size="12.5" font-weight="650">Npc.Gateway</text>
+
+      <rect x="580" y="150" width="150" height="46" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="655" y="176" text-anchor="middle" font-size="12.5" font-weight="650">Npc.Sim</text>
+
+      <!-- 호스트 -->
+      <rect x="300" y="46" width="200" height="52" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.7"/>
+      <text x="400" y="70" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">Npc.Host</text>
+      <text x="400" y="88" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">유일하게 전부를 아는 곳</text>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.2" marker-end="url(#ar4)" color="var(--ink-3)" opacity=".7">
+        <path d="M290,240 L290,198"/>
+        <path d="M290,330 L290,288"/>
+        <path d="M420,330 L340,288"/>
+        <path d="M190,352 L213,352"/>
+        <path d="M370,150 L392,100"/>
+        <path d="M115,150 L300,98"/>
+        <path d="M655,150 L500,90"/>
+        <path d="M655,240 L640,198" stroke-dasharray="0"/>
+        <path d="M115,240 L115,198"/>
+      </g>
+
+      <!-- 금지 간선 -->
+      <g stroke="var(--bad)" fill="none" stroke-width="2" stroke-dasharray="6 4">
+        <path d="M370,168 L575,168"/>
+      </g>
+      <text x="472" y="158" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--bad)">이 간선이 없다</text>
+      <text x="472" y="186" text-anchor="middle" font-size="11" fill="var(--bad)">Runtime → Llm 참조를 만들지 않는다</text>
+      <line x1="455" y1="176" x2="490" y2="160" stroke="var(--bad)" stroke-width="2"/>
+      <line x1="455" y1="160" x2="490" y2="176" stroke="var(--bad)" stroke-width="2"/>
+
+      <text x="40" y="30" font-size="12" fill="var(--ink-3)">화살표 = "참조한다". 위로 갈수록 아는 것이 많다.</text>
+    </svg>
+  </div>
+  <figcaption>
+    <code>Npc.Runtime</code>이 <code>Npc.Llm</code>을 참조하지 않는 한, 누군가 실수로 틱 루프에 LLM 호출을 넣을 <b>길 자체가 없다</b>.
+    이 검사는 <code>tests/Npc.Tests/Architecture/ArchitectureTests.cs</code>가 상시로 한다.
+  </figcaption>
+</figure>
+
+<div class="warn">
+  <span class="tag">허용된 예외 하나</span>
+  <code>Npc.Runtime → Npc.Planning</code>은 허용한다. <code>CognitionScheduler.Scan</code>이
+  <code>PlanStore</code>·<code>ReplanQueue</code>를 직접 받기 때문이다.
+  <code>Npc.Planning</code>은 <code>Core</code>·<code>MasterData</code>만 참조하므로
+  <b>이 간선으로 LLM이 들어올 길은 없다</b>. 규칙은 "층을 나눈다"가 아니라 "LLM이 틱에 못 들어온다"이고,
+  그 목적을 해치지 않는 간선은 허용한다.
+</div>
+
+<h2 id="cost">7. 이 구조의 값 — 무엇을 포기했나</h2>
+
+<p>공짜는 없다. 위 설계는 아래를 대가로 낸다.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>포기한 것</th><th>대신 얻은 것</th><th>이 책에서 다루는 곳</th></tr></thead>
+<tbody>
+<tr>
+  <td>NPC별 즉흥 판단 — 플랜은 <b>선형 스텝 3~10개</b>다. 분기도 반복문도 없다</td>
+  <td>실행이 O(1)이고 리플레이가 100 % 일치한다</td>
+  <td><a href="ch04.html">4장</a></td>
+</tr>
+<tr>
+  <td>자연어 대사 — <code>Speak(DialogueId)</code>로 ID만 나간다</td>
+  <td>패킷에 <code>string</code>이 없어 프롬프트 인젝션 경로가 닫힌다</td>
+  <td><a href="ch03.html">3장</a> N3</td>
+</tr>
+<tr>
+  <td>상황 표현력 — 상황은 <b>버킷 4차원</b>으로 이산화된다</td>
+  <td>2,880칸 배열 첨자 하나로 조회가 끝난다</td>
+  <td><a href="ch02.html">2장</a> · <a href="ch09.html">9장</a></td>
+</tr>
+<tr>
+  <td>즉시성 — 재계획 결과는 <b>몇 초 뒤</b>에 반영된다</td>
+  <td>틱 p99가 20 ms 예산의 4 %(0.80 ms)에 머문다</td>
+  <td><a href="ch05.html">5장</a></td>
+</tr>
+<tr>
+  <td>런타임 유연성 — 액션은 <b>40개 상한</b>이다</td>
+  <td>프롬프트 프리픽스가 고정되고 캐시가 걸린다</td>
+  <td><a href="ch08.html">8장</a></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">1장 요약</span>
+  <ul style="margin-bottom:0">
+    <li>필요량 5,000 req/h, 실측 용량 700 req/h — <b>7.1배 초과</b>가 모든 설계의 출발점이다.</li>
+    <li>해답은 <b>생성과 실행의 분리</b>다. 생성은 오프라인·비동기, 실행은 결정론·10Hz.</li>
+    <li>층은 넷이고, <b>위층이 아래층을 기다리지 않는다</b>는 규칙 하나로 이어져 있다.</li>
+    <li>티어는 셋이고, 기준은 품질이 아니라 <b>그 플랜을 몇 명이 쓰는가</b>다.</li>
+    <li>LLM이 전부 죽어도 NPC는 멈추지 않는다 — <code>Resolve</code>가 null을 안 준다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 그림 1 — 처리량 비교 ---------- */
+(function () {
+  var svg = document.getElementById('capacity');
+  if (!svg) return;
+  var L = document.getElementById('capLeft'), R = document.getElementById('capRight');
+  var qL = document.getElementById('qLeft'), qR = document.getElementById('qRight');
+  var qLT = document.getElementById('qLeftT'), qRT = document.getElementById('qRightT');
+  var clock = document.getElementById('capClock');
+  var hour = 0, backlogL = 0, backlogR = 0, timer = null;
+
+  var CAPACITY = 700;      // req/h — W1 실측 8B
+  var DEMAND_L = 5000;     // 전원 주기 재계획
+  var DEMAND_R = 640;      // 미스 + 이탈 + 인터럽트 (예산 안)
+
+  function dots(g, n, x0, color) {
+    g.innerHTML = '';
+    for (var i = 0; i < n; i++) {
+      var c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('cx', x0 + (i % 14) * 22);
+      c.setAttribute('cy', 100 + Math.floor(i / 14) * 0);
+      c.setAttribute('r', 4.5);
+      c.setAttribute('fill', color);
+      c.setAttribute('opacity', 0.35 + 0.65 * ((i % 5) / 5));
+      g.appendChild(c);
+    }
+  }
+
+  function render() {
+    clock.textContent = '게임 시각 ' + hour + '시';
+    var wL = Math.min(400, backlogL / 30000 * 400);
+    var wR = Math.min(390, backlogR / 30000 * 390);
+    qL.setAttribute('width', wL);
+    qR.setAttribute('width', Math.max(wR, 2));
+    qLT.textContent = Math.round(backlogL).toLocaleString() + ' 건 대기';
+    qRT.textContent = Math.round(backlogR).toLocaleString() + ' 건 대기';
+    qLT.setAttribute('x', 24);
+    qRT.setAttribute('x', 474);
+    qLT.setAttribute('fill', wL > 120 ? 'var(--panel)' : 'var(--ink-2)');
+    qRT.setAttribute('fill', 'var(--ink-2)');
+    dots(L, 12, 40, 'var(--bad)');
+    dots(R, 4, 490, 'var(--ok)');
+  }
+
+  function step() {
+    hour++;
+    backlogL = Math.max(0, backlogL + DEMAND_L - CAPACITY);
+    backlogR = Math.max(0, backlogR + DEMAND_R - CAPACITY);
+    render();
+    if (hour >= 12) { stop(); }
+  }
+  function stop() { clearInterval(timer); timer = null; document.getElementById('capRun').textContent = '시간 흐르게 하기'; }
+
+  document.getElementById('capRun').addEventListener('click', function () {
+    if (timer) { stop(); return; }
+    this.textContent = '멈추기';
+    timer = setInterval(step, 420);
+  });
+  document.getElementById('capReset').addEventListener('click', function () {
+    stop(); hour = 0; backlogL = 0; backlogR = 0; render();
+  });
+  render();
+})();
+
+/* ---------- 그림 2 — 계층 흐름 ---------- */
+(function () {
+  var dot = document.getElementById('flowDot');
+  var label = document.getElementById('flowLabel');
+  var text = document.getElementById('flowText');
+  var btn = document.getElementById('flowRun');
+  if (!dot || !btn) return;
+
+  var STAGES = [
+    { x: 200, y: 60,  t: '① 인지 스캔이 이탈을 발견',        d: 'L0 · CognitionScheduler.Scan — 비트 연산 한 번' },
+    { x: 200, y: 160, t: '② 캐시를 먼저 본다',              d: 'L1 · PlanStore.Resolve — 미스면 아래로' },
+    { x: 200, y: 258, t: '③ 점수를 매겨 큐에 넣는다',        d: 'L2 · 근접 + 노후 + 이탈 + 긴급, 힙 삽입' },
+    { x: 200, y: 358, t: '④ 워커가 꺼내 LLM을 부른다',       d: 'L3 · 별도 스레드. 여기서 5초가 걸려도 틱은 50번 돈다' },
+    { x: 560, y: 358, t: '⑤ 4단 검증기를 통과시킨다',        d: 'L3 · 실패하면 재시도 1회, 그래도 실패면 폴백' },
+    { x: 560, y: 160, t: '⑥ 스토어에 원자 교체로 올린다',     d: 'L1 · Volatile.Write. 읽는 쪽에 락이 없다' },
+    { x: 560, y: 60,  t: '⑦ 스텝 경계에서 갈아탄다',         d: 'L0 · PlanSwapper — 스텝 중간에 바꾸면 상관 ID가 꼬인다' }
+  ];
+
+  var i = 0, running = false;
+  function show(k) {
+    var s = STAGES[k];
+    dot.setAttribute('cx', s.x); dot.setAttribute('cy', s.y);
+    dot.setAttribute('opacity', 1);
+    label.setAttribute('x', s.x + 14); label.setAttribute('y', s.y - 12);
+    label.setAttribute('opacity', 1);
+    label.textContent = s.t;
+    text.textContent = s.d;
+  }
+  btn.addEventListener('click', function () {
+    if (running) return;
+    running = true; i = 0;
+    show(0);
+    var id = setInterval(function () {
+      i++;
+      if (i >= STAGES.length) {
+        clearInterval(id); running = false;
+        text.textContent = '한 바퀴 끝. 이 왕복이 몇 초 걸려도 L0는 그동안 수십 틱을 정상 속도로 돌았다.';
+        return;
+      }
+      show(i);
+    }, 1150);
+  });
+})();
+</script>
+</body>
+</html>

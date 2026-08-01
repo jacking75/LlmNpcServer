@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4장 · 플랜 DSL과 4단 검증기 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">2부 · 공통 계약</p>
+  <h1>4장 — 플랜 DSL과 4단 검증기</h1>
+  <p class="lede">
+    LLM이 만들어 내는 산출물은 <b>이것 하나뿐</b>이다. 대사도, 설명도, 코드도 아니다 —
+    액션 3~10개를 늘어놓은 JSON 한 덩어리다.
+    이 장은 그 JSON이 어떻게 생겼고, 어떤 검사를 거쳐, 어떤 메모리 표현으로 바뀌어 실행되는지를 따라간다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/03_PlanDSL_Spec.md</span>
+    <span class="chip">스텝 3~10 · 분기 없음</span>
+    <span class="chip">검증 4단</span>
+  </div>
+</div>
+
+<h2 id="doc">1. 플랜 문서 — LLM이 내는 유일한 것</h2>
+
+<div class="filepath">planstore/plans/blacksmith@Morning.Peace.Fair.json</div>
+
+<pre><code>{
+  <span class="s">"schema"</span>: <span class="n">1</span>,
+  <span class="s">"goal"</span>: <span class="s">"restock_and_forge"</span>,          <span class="c">// ^[a-z][a-z0-9_]{2,31}$ — 로그·검수용 식별자</span>
+  <span class="s">"reasoning"</span>: <span class="s">"아침이라 광석부터 채운 뒤…"</span>,  <span class="c">// 200자 상한. 런타임은 무시한다</span>
+  <span class="s">"steps"</span>: [
+    { <span class="s">"action"</span>: <span class="s">"MoveTo"</span>, <span class="s">"args"</span>: { <span class="s">"poi"</span>: <span class="s">"$nearest_field"</span>, <span class="s">"speed"</span>: <span class="s">"walk"</span> }, <span class="s">"timeout_s"</span>: <span class="n">300</span> },
+    { <span class="s">"action"</span>: <span class="s">"Mine"</span>,   <span class="s">"args"</span>: { <span class="s">"resource"</span>: <span class="s">"iron_ore"</span>, <span class="s">"count"</span>: <span class="n">6</span> },       <span class="s">"timeout_s"</span>: <span class="n">900</span> },
+    { <span class="s">"action"</span>: <span class="s">"MoveTo"</span>, <span class="s">"args"</span>: { <span class="s">"poi"</span>: <span class="s">"$workplace"</span> },                    <span class="s">"timeout_s"</span>: <span class="n">300</span> },
+    { <span class="s">"action"</span>: <span class="s">"Craft"</span>,  <span class="s">"args"</span>: { <span class="s">"recipe"</span>: <span class="s">"iron_sword"</span>, <span class="s">"count"</span>: <span class="n">2</span> },      <span class="s">"timeout_s"</span>: <span class="n">1800</span> },
+    { <span class="s">"action"</span>: <span class="s">"Store"</span>,  <span class="s">"args"</span>: { <span class="s">"item"</span>: <span class="s">"iron_sword"</span>, <span class="s">"amount"</span>: <span class="n">2</span> },       <span class="s">"timeout_s"</span>: <span class="n">120</span> },
+    { <span class="s">"action"</span>: <span class="s">"MoveTo"</span>, <span class="s">"args"</span>: { <span class="s">"poi"</span>: <span class="s">"$home"</span> },                         <span class="s">"timeout_s"</span>: <span class="n">300</span> },
+    { <span class="s">"action"</span>: <span class="s">"Sleep"</span>,  <span class="s">"args"</span>: { <span class="s">"until"</span>: <span class="s">"Morning"</span> },                     <span class="s">"timeout_s"</span>: <span class="n">7200</span> }
+  ],
+  <span class="s">"on_step_fail"</span>: <span class="s">"fallback"</span>,
+  <span class="s">"loop"</span>: <span class="k">true</span>
+}</code></pre>
+
+<div class="grid2">
+  <div class="card">
+    <h4>여기 없는 것들</h4>
+    <ul>
+      <li><b>분기가 없다.</b> <code>if</code>도 <code>while</code>도 없다</li>
+      <li><b>POI id가 없다.</b> <code>$workplace</code> 같은 심볼뿐</li>
+      <li><b>NPC id가 없다.</b> <code>nearest:guard</code> 같은 심볼뿐</li>
+      <li><b>자연어가 없다.</b> <code>reasoning</code>만 예외고 런타임이 무시한다</li>
+      <li><b>절대 시각이 없다.</b> 시간대 열거값만</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>왜 이렇게까지 줄이나</h4>
+    <ul>
+      <li>플랜은 <b>(아키타입 × 버킷)</b> 단위로 <b>수백 마리가 공유</b>한다. 개체에 묶이면 캐시가 무의미해진다</li>
+      <li>분기가 있으면 <b>실행이 O(1)이 아니게</b> 되고, 상태 공간이 커져 검증도 못 한다</li>
+      <li>상황이 바뀌면 <b>분기하지 않고 재계획한다</b> — 그게 L2가 있는 이유다</li>
+    </ul>
+  </div>
+</div>
+
+<h3>1.1 POI 심볼 9종 — 개체 바인딩은 런타임이 한다</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>심볼</th><th>런타임이 무엇으로 바꾸나</th><th>세우는 장소 플래그</th></tr></thead>
+<tbody>
+<tr><td><code>$home</code></td><td>NPC 인스턴스의 <code>home_poi</code></td><td><code>AtHome</code></td></tr>
+<tr><td><code>$workplace</code></td><td>NPC 인스턴스의 <code>workplace_poi</code></td><td><code>AtWorkplace</code></td></tr>
+<tr><td><code>$market</code> <code>$tavern</code> <code>$temple</code> <code>$gate</code></td><td>같은 존에서 가장 가까운 해당 종류</td><td><code>AtMarket</code> 등</td></tr>
+<tr><td><code>$nearest_field</code></td><td>그 아키타입이 접근 가능한 가장 가까운 field</td><td><code>AtField</code></td></tr>
+<tr><td><code>$nearest_safe</code></td><td>가장 가까운 안전 지점 (gate 또는 home)</td><td><b>없음</b> — 어느 쪽인지 모른다</td></tr>
+<tr><td><code>$nearest_shelter</code></td><td>실내로 판정되는 가장 가까운 POI</td><td><b>없음</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag">뒤의 둘이 플래그를 안 세우는 이유</span>
+  검증기 3단은 "이 스텝이 끝나면 어떤 플래그가 서는가"를 시뮬레이션한다.
+  <code>$nearest_safe</code>는 성문일 수도 집일 수도 있으므로 <b>아무 장소 플래그도 세우지 않는다</b>.
+  관대하게 잡아 "둘 다 설 수 있다"고 하면 <b>V3 판정 자체가 무의미해진다</b> — 통과시키면 안 되는 플랜이 통과한다.
+</div>
+
+<h2 id="pipeline">2. 검증 4단 — 무엇이 어디서 걸리나</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 330" id="valSvg" role="img" aria-label="검증 4단 파이프라인">
+      <defs><marker id="va" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker></defs>
+
+      <rect x="20" y="40" width="150" height="90" rx="10" fill="var(--panel-2)" stroke="var(--line-2)" stroke-width="1.4"/>
+      <text x="95" y="66" text-anchor="middle" font-size="12.5" font-weight="700">1단 · 스키마</text>
+      <text x="95" y="86" text-anchor="middle" font-size="11" fill="var(--ink-3)">JSON 파싱 · 필드 · 범위</text>
+      <text x="95" y="104" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink-3)">V1.PARSE</text>
+      <text x="95" y="120" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink-3)">V1.SCHEMA</text>
+
+      <rect x="196" y="40" width="150" height="90" rx="10" fill="var(--panel-2)" stroke="var(--line-2)" stroke-width="1.4"/>
+      <text x="271" y="66" text-anchor="middle" font-size="12.5" font-weight="700">2단 · 어휘</text>
+      <text x="271" y="86" text-anchor="middle" font-size="11" fill="var(--ink-3)">액션 존재 · 허용 · 인자</text>
+      <text x="271" y="104" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink-3)">V2.UNKNOWN_ACTION</text>
+      <text x="271" y="120" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink-3)">V2.ACTION_NOT_ALLOWED</text>
+
+      <rect x="372" y="40" width="170" height="90" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.8"/>
+      <text x="457" y="66" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--accent)">3단 · 정합성</text>
+      <text x="457" y="86" text-anchor="middle" font-size="11" fill="var(--ink-2)">GOAP 상태 전이 시뮬</text>
+      <text x="457" y="104" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--accent)">V3.PRECONDITION_UNMET</text>
+      <text x="457" y="120" text-anchor="middle" font-size="11" fill="var(--accent)">여기가 가장 많이 잡는다</text>
+
+      <rect x="568" y="40" width="150" height="90" rx="10" fill="var(--panel-2)" stroke="var(--line-2)" stroke-width="1.4"/>
+      <text x="643" y="66" text-anchor="middle" font-size="12.5" font-weight="700">4단 · 드라이런</text>
+      <text x="643" y="86" text-anchor="middle" font-size="11" fill="var(--ink-3)">축소 세계 1~2 사이클</text>
+      <text x="643" y="104" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink-3)">V4.DEADLOCK</text>
+      <text x="643" y="120" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink-3)">V4.INFINITE_LOOP</text>
+
+      <rect x="744" y="40" width="116" height="90" rx="10" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="1.6"/>
+      <text x="802" y="72" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ok)">통과</text>
+      <text x="802" y="94" text-anchor="middle" font-size="11" fill="var(--ink-2)">CompiledPlan</text>
+      <text x="802" y="112" text-anchor="middle" font-size="11" fill="var(--ink-3)">스토어에 등록</text>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3" marker-end="url(#va)">
+        <path d="M170,85 L192,85"/><path d="M346,85 L368,85"/>
+        <path d="M542,85 L564,85"/><path d="M718,85 L740,85"/>
+      </g>
+
+      <!-- 반려 경로 -->
+      <path d="M95,132 L95,182 L457,182" stroke="var(--bad)" fill="none" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <path d="M271,132 L271,182" stroke="var(--bad)" fill="none" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <path d="M457,132 L457,182" stroke="var(--bad)" fill="none" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <path d="M643,132 L643,182 L457,182" stroke="var(--bad)" fill="none" stroke-width="1.2" stroke-dasharray="4 3"/>
+
+      <rect x="330" y="196" width="256" height="52" rx="9" fill="var(--bad-soft)" stroke="var(--bad)"/>
+      <text x="458" y="218" text-anchor="middle" font-size="12" font-weight="650" fill="var(--bad)">첫 실패에서 멈춘다</text>
+      <text x="458" y="238" text-anchor="middle" font-size="11" fill="var(--ink-2)">재시도 프롬프트에는 하나면 충분하다</text>
+
+      <path d="M330,222 L120,222 L120,206" stroke="var(--warn)" fill="none" stroke-width="1.4" marker-end="url(#va)"/>
+      <rect x="20" y="264" width="300" height="52" rx="9" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="170" y="286" text-anchor="middle" font-size="12" font-weight="650" fill="var(--warn)">재시도 — 딱 1회</text>
+      <text x="170" y="304" text-anchor="middle" font-size="11" fill="var(--ink-2)">실패 코드를 <tspan font-family="var(--mono)">서픽스에만</tspan> 붙인다 (캐시 유지)</text>
+
+      <rect x="600" y="264" width="260" height="52" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="730" y="286" text-anchor="middle" font-size="12" font-weight="650">두 번 다 실패하면</text>
+      <text x="730" y="304" text-anchor="middle" font-size="11" fill="var(--ink-2)">인접 버킷 재사용 → 아키타입 폴백</text>
+    </svg>
+  </div>
+  <figcaption>
+    <b>강제 디코딩(JSON Schema)을 신뢰하지 않는다.</b> 제공사별 <code>strict</code> 지원이 다르고,
+    W1 실측에서 강제 디코딩은 유효 JSON 99/100에 <b>어휘 검증 통과 0/100</b>이었다.
+  </figcaption>
+</figure>
+
+<h3>2.1 실패 코드 전체</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>단계</th><th>코드</th><th>무엇을 잡나</th></tr></thead>
+<tbody>
+<tr><td rowspan="2"><b>1단</b></td><td><code>V1.PARSE</code></td><td>JSON이 아니다. 울타리(<code>```json</code>)는 미리 벗긴다</td></tr>
+<tr><td><code>V1.SCHEMA</code></td><td>모르는 필드 · 스텝 수 3~10 밖 · <code>timeout_s</code> 5~7200 밖</td></tr>
+
+<tr><td rowspan="4"><b>2단</b></td><td><code>V2.UNKNOWN_ACTION</code></td><td>카탈로그에 없는 액션 이름</td></tr>
+<tr><td><code>V2.ACTION_NOT_ALLOWED</code></td><td>이 아키타입의 <code>allowed_actions</code>에 없다 <span class="pill warn">최다</span></td></tr>
+<tr><td><code>V2.UNKNOWN_POI</code> / <code>UNKNOWN_ITEM</code> / <code>UNKNOWN_RECIPE</code></td><td>심볼·아이템·레시피 오타</td></tr>
+<tr><td><code>V2.MISSING_REQUIRED_ARG</code> / <code>TYPE_MISMATCH</code> / <code>RANGE</code></td><td>파라미터 정의와 불일치</td></tr>
+
+<tr><td rowspan="6"><b>3단</b></td><td><code>V3.PRECONDITION_UNMET</code></td><td>앞선 스텝이 세워주지 않는 전제를 요구한다 <span class="pill warn">최다</span></td></tr>
+<tr><td><code>V3.FORBIDDEN_FLAG</code></td><td>금지 플래그가 선 상태에서 실행한다</td></tr>
+<tr><td><code>V3.UNREACHABLE_POI</code></td><td>이 아키타입이 갈 수 없는 POI 종류</td></tr>
+<tr><td><code>V3.RESOURCE_IMBALANCE</code></td><td>3개 모으고 5개 쓴다</td></tr>
+<tr><td><code>V3.DEGENERATE</code></td><td>같은 액션이 3연속</td></tr>
+<tr><td><code>V3.LOOP_NOT_CLOSED</code> / <code>NO_TERMINAL</code></td><td>루프인데 첫 스텝 전제가 안 서거나, 비루프인데 휴식으로 안 끝난다</td></tr>
+
+<tr><td rowspan="3"><b>4단</b></td><td><code>V4.DEADLOCK</code></td><td>어느 스텝에서 진행이 멈춘다</td></tr>
+<tr><td><code>V4.INFINITE_LOOP</code></td><td>한 사이클이 너무 짧다 (일과가 24시간을 못 채운다)</td></tr>
+<tr><td><code>V4.TIMEOUT</code></td><td>36 게임시간 안에 사이클이 안 끝난다</td></tr>
+
+<tr><td><b>-</b></td><td><code>V0.CALL_FAILED</code> / <code>V0.NO_TIER</code></td><td>LLM 호출 자체가 실패 · 킬스위치가 티어를 다 끊음</td></tr>
+<tr><td><b>-</b></td><td><code>T4.BUDGET_EXHAUSTED</code></td><td>예산 소진으로 요청을 내지 않았다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="stage3">3. 3단 정합성 — 이 프로젝트의 실질적 품질 게이트</h2>
+
+<p>
+  플랜을 <b>실행하지 않고</b>, 액션의 <code>requires</code>/<code>grants</code>/<code>clears</code>만으로
+  상태 전이를 앞에서 뒤로 시뮬레이션한다. 고전적인 GOAP 검사다.
+</p>
+
+<figure>
+  <div class="svgbox" style="padding:16px 14px">
+    <div class="ctl" style="margin-top:0;margin-bottom:12px">
+      <button class="btn" id="simPrev" type="button">◀</button>
+      <button class="btn" id="simPlay" type="button">한 스텝씩 실행</button>
+      <button class="btn" id="simNext" type="button">▶</button>
+      <label><input type="checkbox" id="simBreak"> 3번째 스텝을 빼기 (전제 붕괴)</label>
+    </div>
+    <svg viewBox="0 0 880 250" role="img" aria-label="GOAP 상태 전이 시뮬레이션">
+      <g id="simSteps"></g>
+      <g id="simFlags"></g>
+      <text id="simVerdict" x="20" y="238" font-size="13" font-weight="650"></text>
+    </svg>
+  </div>
+  <div class="readout" id="simOut"></div>
+  <figcaption>
+    <b>체크박스를 켜면</b> <code>MoveTo $workplace</code>가 빠져 <code>Craft</code>의 <code>AtWorkplace</code>가 서지 않는다.
+    실제 골든 테스트에서 가장 자주 나온 실패가 정확히 이 모양이다.
+  </figcaption>
+</figure>
+
+<h3>3.1 실패 설명을 영어로 만드는 이유</h3>
+
+<div class="filepath">src/Npc.Core/Validation/CoherenceValidator.cs</div>
+
+<pre><code><span class="k">return</span> <span class="t">ValidationResult</span>.Fail(
+    <span class="t">ValidationStage</span>.Coherence, <span class="s">"V3.PRECONDITION_UNMET"</span>, i,
+    <span class="s">$"{step.Action} requires {WorldFlagTable.Format(missing)} but no preceding step grants it. "</span>
+    + Remedy(missing)                                    <span class="c">// ★ 고치는 방법까지 적는다</span>
+    + <span class="s">$"State before this step: {WorldFlagTable.Format(state)}."</span>);</code></pre>
+
+<p>실제로 나가는 문장은 이렇다.</p>
+
+<pre><code>Craft requires HasRawMaterial but no preceding step grants it.
+Gather/Mine/Farm/Fish it first, or Withdraw a raw material at your home or workplace.
+State before this step: AtWorkplace|HasFood|HasWater|HasTool|HasProduct|HasCoin|IsDay|RegionPeaceful.</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>설계 결정</th><th>이유</th></tr></thead>
+<tbody>
+<tr><td>영어로 쓴다</td><td>이 문자열이 <b>그대로 재시도 프롬프트에 실린다</b>. 모델이 읽을 문장이다</td></tr>
+<tr><td>비트마스크 숫자를 절대 안 쓴다</td><td><code>0x8000</code>을 주면 모델이 못 고친다. <code>WorldFlagTable.Format</code>이 이름으로 편다</td></tr>
+<tr><td>아이템도 code가 아니라 이름</td><td>같은 이유. <code>V3.RESOURCE_IMBALANCE</code>가 <code>ItemName()</code>을 부른다</td></tr>
+<tr><td><b>처방</b>(<code>Remedy</code>)을 붙인다</td><td>"무엇이 틀렸다"보다 "이렇게 고쳐라"가 재시도 성공률을 올린다. 장소 플래그는 고치는 법이 하나(그 POI로 <code>MoveTo</code>)라 그걸 적어 준다</td></tr>
+<tr><td>실패 설명 길이를 <b>180자로 자른다</b></td><td>재시도 서픽스가 300 토큰 예산의 두 배를 넘겼다(실측 665 토큰). 앞쪽에 핵심이 있어 잘라도 살아남는다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>3.2 3단이 놓치는 것 — 그래서 4단이 있다</h3>
+
+<div class="grid2">
+  <div class="card">
+    <h4>3단은 <b>시간</b>을 모른다</h4>
+    <p class="small">
+      각 스텝이 몇 게임시간 걸리는지 보지 않는다. 그래서
+      "loop:true인데 한 사이클이 0.9 게임시간"인 플랜을 통과시킨다 —
+      하루 일과가 되어야 하는데 45분마다 반복하는 셈이다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>4단은 <b>세계를 굴린다</b></h4>
+    <p class="small">
+      <code>DryRunValidator</code>가 <code>SimWorld</code>를 축소해 1~2 사이클 돌린다.
+      틱을 10Hz로 굴리지 않고 <b>액션 소요시간만큼 게임시간을 건너뛴다</b> —
+      그래서 건당 <b>0.02 ms</b>다(사양의 추정 "~50 ms"보다 2,500배 빠르다).
+    </p>
+  </div>
+</div>
+
+<div class="note">
+  <span class="tag">4단의 시드는 버킷에서 유도한다</span>
+  <code>ValidationContext.SeedOf(bucket)</code> — <b>난수도 시각도 섞지 않는다</b>.
+  같은 플랜은 언제 어디서 돌려도 같은 판정을 받아야 골든 테스트가 안정된다.
+</div>
+
+<h2 id="compile">4. 컴파일 — JSON에서 실행 표현으로</h2>
+
+<p>
+  실행기는 JSON을 보지 않는다. <code>PlanCompiler.Compile</code>이 만든
+  <b>값 타입 배열</b>만 본다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 300" role="img" aria-label="PlanDocument 에서 CompiledPlan 으로">
+      <rect x="20" y="30" width="250" height="230" rx="10" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="145" y="54" text-anchor="middle" font-size="13" font-weight="700">PlanDocument</text>
+      <text x="145" y="74" text-anchor="middle" font-size="11" fill="var(--ink-3)">JSON 모델 · 저장·검수용</text>
+      <g font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">
+        <text x="40" y="104">string Action</text>
+        <text x="40" y="126">Dictionary&lt;string,</text>
+        <text x="52" y="144">JsonElement&gt; Args</text>
+        <text x="40" y="166">int? TimeoutSeconds</text>
+      </g>
+      <text x="145" y="200" text-anchor="middle" font-size="11" fill="var(--bad)">문자열 · 해시맵 · 참조</text>
+      <text x="145" y="220" text-anchor="middle" font-size="11" fill="var(--bad)">틱 루프에 못 들어온다</text>
+
+      <rect x="330" y="30" width="250" height="230" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6"/>
+      <text x="455" y="54" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">CompiledStep</text>
+      <text x="455" y="74" text-anchor="middle" font-size="11" fill="var(--ink-3)">readonly record struct · 14 B</text>
+      <g font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">
+        <text x="350" y="104">ActionId  Action</text>
+        <text x="350" y="124">PoiSymbol Poi</text>
+        <text x="350" y="144">ItemId    Item</text>
+        <text x="350" y="164">ushort    Count</text>
+        <text x="350" y="184">ushort    TimeoutSeconds</text>
+        <text x="350" y="204">byte      ArgFlags</text>
+        <text x="350" y="224">byte      NpcRef</text>
+        <text x="350" y="244">ushort    FlagSetIndex</text>
+      </g>
+
+      <rect x="640" y="30" width="220" height="230" rx="10" fill="var(--panel-2)" stroke="var(--l0)" stroke-width="1.5"/>
+      <text x="750" y="54" text-anchor="middle" font-size="13" font-weight="700" fill="var(--l0)">CompiledPlan</text>
+      <g font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">
+        <text x="658" y="84">ImmutableArray&lt;</text>
+        <text x="670" y="102">CompiledStep&gt; Steps</text>
+        <text x="658" y="128">ImmutableArray&lt;</text>
+        <text x="670" y="146">StepFlags&gt; FlagSets</text>
+        <text x="658" y="176">WorldFlags Required</text>
+        <text x="658" y="196">WorldFlags Forbidden</text>
+      </g>
+      <text x="750" y="228" text-anchor="middle" font-size="11" fill="var(--l0)">↑ 플랜 전체로 미리 OR</text>
+      <text x="750" y="246" text-anchor="middle" font-size="11" fill="var(--l0)">이탈 판정이 비트 두 번</text>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.4">
+        <path d="M272,145 L326,145"/><path d="M582,145 L636,145"/>
+      </g>
+      <text x="299" y="136" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">Compile</text>
+      <text x="609" y="136" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">묶음</text>
+    </svg>
+  </div>
+  <figcaption>
+    플래그 5종(각 8 B, 합 40 B)은 <code>CompiledStep</code> 밖의 <b>병렬 배열</b>로 뺐다.
+    스텝마다 인라인으로 물면 5,000 NPC × 10스텝이 캐시에서 넘친다.
+  </figcaption>
+</figure>
+
+<h3>4.1 진입 전제를 계산하는 방법 — 여기 미묘한 버그가 있었다</h3>
+
+<div class="filepath">src/Npc.Core/Plan/CompiledPlan.cs — PlanCompiler.Compile</div>
+
+<pre><code><span class="t">WorldFlags</span> granted = <span class="t">WorldFlags</span>.None, cleared = <span class="t">WorldFlags</span>.None;
+<span class="t">WorldFlags</span> required = <span class="t">WorldFlags</span>.None, forbidden = <span class="t">WorldFlags</span>.None;
+
+<span class="k">foreach</span> (<span class="k">var</span> step <span class="k">in</span> document.Steps)
+{
+    <span class="t">StepFlags</span> flags = vocabulary.FlagsOf(action);
+
+    <span class="hl">    required  |= flags.Requires &amp; ~granted;   <span class="c">// ★ 앞선 스텝이 세워주는 것은 빼고</span></span>
+    forbidden |= flags.Forbids  &amp; ~cleared;
+    granted = (granted &amp; ~flags.Clears) | flags.Grants;
+    cleared = (cleared &amp; ~flags.Grants) | flags.Clears;
+}</code></pre>
+
+<div class="bad">
+  <span class="tag">그냥 전부 OR 하면 무슨 일이 생기나</span>
+  <code>Mine</code>이 <code>HasRawMaterial</code>을 세워주는데 <code>Craft</code>가 그것을 요구한다.
+  전부 OR 하면 이 플랜의 <code>RequiredFlags</code>에 <code>HasRawMaterial</code>이 들어가고,
+  그러면 <b>플랜을 시작하기도 전에 원자재를 갖고 있어야 한다</b>는 뜻이 된다.
+  결과: 인지 스캔이 <b>매 틱 "이탈"이라고 답한다</b> → 재계획 큐가 즉시 포화한다.
+</div>
+
+<h3>4.2 <code>on_step_fail</code> — 스텝이 실패했을 때</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>정책</th><th>동작</th><th>언제 쓰나</th></tr></thead>
+<tbody>
+<tr><td><code>fallback</code> <span class="pill">기본</span></td><td>아키타입 폴백 플랜으로 전환</td><td>대부분. 안전한 기본값</td></tr>
+<tr><td><code>retry_once</code></td><td>같은 스텝을 <b>한 번만</b> 다시</td><td>일시적 실패가 예상될 때 (경로 막힘)</td></tr>
+<tr><td><code>skip</code></td><td>그 스텝을 건너뛰고 다음으로</td><td><b>폴백 플랜 자신</b>. 폴백에서 또 폴백으로 갈 곳이 없다</td></tr>
+<tr><td><code>replan</code></td><td>재계획 큐에 <b>점수 50</b>으로 넣고 다음 스텝으로</td><td>상황이 근본적으로 바뀐 경우</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">
+  점수 50은 인지 스캔의 이탈 판정(최대 9.5)보다는 크고 인터럽트(1000+)보다는 작다 —
+  <b>실제로 실패한 NPC는 "곧 이탈할지도 모르는" NPC보다 먼저 봐야 하지만, 도망치는 NPC보다는 급하지 않다.</b>
+</p>
+
+<h2 id="store">5. 스토어 포맷과 검수</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>경로</th><th>내용</th><th>버전 관리</th></tr></thead>
+<tbody>
+<tr><td><code>planstore/plans/</code></td><td>프리베이크 산출물. <code>blacksmith@Dawn.Peace.Fair.json</code></td><td><span class="pill bad">gitignore</span> — 재현 가능</td></tr>
+<tr><td><code>planstore/pinned/</code></td><td><b>사람이 검수·수정한 플랜</b></td><td><span class="pill ok">반드시 커밋</span> — 잃으면 검수가 날아간다</td></tr>
+<tr><td><code>planstore/rejected/</code></td><td>검증 실패 산출물 + 실패 코드</td><td><span class="pill bad">gitignore</span></td></tr>
+<tr><td><code>planstore/manifest.json</code></td><td>회차 기록 — 대상·생성 수·비용·프롬프트 SHA</td><td><span class="pill ok">반드시 커밋</span> — R&amp;D 보고서 원자료</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag"><code>pinned</code>이 재프리베이크에 살아남는 방법</span>
+  <code>PlanStore.SetBucket</code>은 <b><code>PlanOrigin.Pinned</code>인 버킷을 덮어쓰지 않는다.</b>
+  등록조차 하지 않고 이미 걸려 있던 id를 그대로 돌려준다 — 레지스트리에 쓰레기를 남기지 않기 위해서다.
+  강제로 올리는 <code>Pin()</code>은 <code>planstore/pinned/</code> 로드와 승격 도구만 부른다.
+</div>
+
+<div class="warn">
+  <span class="tag">검증 실패분을 조용히 버리지 않는다</span>
+  <code>RejectedStore</code>가 실패한 응답 텍스트를 실패 코드와 함께 <code>planstore/rejected/</code>에 남긴다.
+  이것을 버리면 <b>품질 개선의 원자료가 사라진다</b> — 통과율 50 % → 78.3 %로 올린 T2-21 개선 루프가
+  전부 이 파일들을 읽고 한 작업이었다.
+</div>
+
+<h2 id="golden">6. 골든 테스트 — 문자열이 아니라 속성을 본다</h2>
+
+<p>
+  LLM 출력은 매번 다르고 <b>그게 정상</b>이다. 그래서 골든 픽스처 50건은
+  정확한 문자열 비교를 하지 않고 <b>속성 단언</b>만 쓴다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>단언 종류</th><th>무엇을 보나</th><th class="num">W11 합격률</th></tr></thead>
+<tbody>
+<tr><td><code>validates(DryRun)</code></td><td>4단까지 통과하는가</td><td class="num">82.0 %</td></tr>
+<tr><td><code>step_count_between(3..10)</code></td><td>스텝 수</td><td class="num">98.0 %</td></tr>
+<tr><td><code>ends_with_any(Sleep/Rest)</code></td><td>일과가 휴식으로 끝나는가</td><td class="num">98.0 %</td></tr>
+<tr><td><code>contains_action(Craft)</code></td><td>그 아키타입다운 액션이 있는가</td><td class="num">90.9 %</td></tr>
+<tr><td><code>produces_item_of(product)</code></td><td>실제로 무언가를 만드는가</td><td class="num">90.0 %</td></tr>
+<tr><td><code>differs_from(...)</code></td><td><b>다른 버킷과 플랜이 달라야 한다</b></td><td class="num">100 %</td></tr>
+<tr><td><code>acquires_before_use</code></td><td>쓰기 전에 확보하는가</td><td class="num">100 %</td></tr>
+<tr><td><code>avoids_flag_while</code></td><td>금지 상태에서 실행 안 하는가</td><td class="num">100 %</td></tr>
+<tr><td><code>not_contains(...)</code></td><td>있으면 안 되는 액션</td><td class="num">100 %</td></tr>
+<tr><td colspan="2"><b>전체 (3회 중 2회 이상 통과 = 합격)</b></td><td class="num"><b>93.6 %</b> (206/220)</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">
+  <code>differs_from</code>이 100 %인 것이 중요하다 — 같은 아키타입이라도 <b>아침과 밤의 플랜이 실제로 다르다</b>는 뜻이고,
+  그게 "상황을 반영한다"의 조작적 정의다.
+</p>
+
+<div class="ok">
+  <span class="tag">4장 요약</span>
+  <ul style="margin-bottom:0">
+    <li>플랜은 <b>선형 스텝 3~10개</b>다. 분기·POI id·NPC id·자연어가 전부 없다.</li>
+    <li>검증은 4단이고 <b>3단(정합성)이 실질적으로 가장 많이 잡는다</b>. 실행하지 않고 플래그 전이만 시뮬한다.</li>
+    <li>실패 설명은 <b>영어 + 처방</b>이다. 그 문자열이 그대로 재시도 프롬프트에 실린다.</li>
+    <li>컴파일 시 <b>진입 전제만</b> 남긴다. 앞선 스텝이 세워주는 플래그를 요구로 넣으면 매 틱 이탈 판정이 난다.</li>
+    <li><code>pinned/</code>는 재프리베이크가 덮어쓰지 않는다. <code>rejected/</code>는 품질 개선의 원자료다.</li>
+    <li>골든 테스트는 <b>속성 단언</b>만 쓴다 — 매번 다른 출력이 정상이기 때문이다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- GOAP 상태 전이 시뮬 ---------- */
+(function () {
+  var stepsG = document.getElementById('simSteps');
+  var flagsG = document.getElementById('simFlags');
+  var verdict = document.getElementById('simVerdict');
+  var out = document.getElementById('simOut');
+  if (!stepsG) return;
+  var el = window.NpcBook.el;
+
+  /* actions.json 에서 옮긴 값 */
+  var FULL = [
+    { a: 'MoveTo', poi: '$nearest_field', req: [], grant: ['AtField'], clear: ['AtHome', 'AtWorkplace', 'AtField'] },
+    { a: 'Mine',   req: ['AtField', 'HasTool'], grant: ['HasRawMaterial'], clear: [] },
+    { a: 'MoveTo', poi: '$workplace', req: [], grant: ['AtWorkplace'], clear: ['AtHome', 'AtWorkplace', 'AtField'] },
+    { a: 'Craft',  req: ['AtWorkplace', 'HasTool', 'HasRawMaterial'], grant: ['HasProduct'], clear: ['HasRawMaterial'] },
+    { a: 'MoveTo', poi: '$home', req: [], grant: ['AtHome'], clear: ['AtHome', 'AtWorkplace', 'AtField'] },
+    { a: 'Sleep',  req: ['AtHome'], grant: ['IsRested'], clear: [] }
+  ];
+
+  var WATCH = ['AtHome', 'AtWorkplace', 'AtField', 'HasTool', 'HasRawMaterial', 'HasProduct', 'IsRested'];
+  var INITIAL = ['AtHome', 'HasTool'];
+
+  var cursor = 0, playing = null;
+
+  function plan() {
+    var brk = document.getElementById('simBreak').checked;
+    return brk ? FULL.filter(function (s, i) { return i !== 2; }) : FULL;
+  }
+
+  function simulate(upTo) {
+    var state = INITIAL.slice();
+    var log = ['초기 상태 (버킷이 함의) : ' + state.join('|')];
+    var failAt = -1, failMsg = '';
+
+    var P = plan();
+    for (var i = 0; i < Math.min(upTo + 1, P.length); i++) {
+      var s = P[i];
+      var missing = s.req.filter(function (r) { return state.indexOf(r) < 0; });
+      if (missing.length) {
+        failAt = i;
+        failMsg = s.a + ' requires ' + missing.join('|') + ' but no preceding step grants it.';
+        log.push('  X  step' + i + '  ' + s.a + '  →  V3.PRECONDITION_UNMET : ' + missing.join('|'));
+        break;
+      }
+      state = state.filter(function (f) { return s.clear.indexOf(f) < 0; });
+      s.grant.forEach(function (f) { if (state.indexOf(f) < 0) state.push(f); });
+      log.push('  OK step' + i + '  ' + s.a + (s.poi ? ' ' + s.poi : '') +
+        '  →  ' + state.slice().sort().join('|'));
+    }
+    return { state: state, log: log, failAt: failAt, failMsg: failMsg, plan: P };
+  }
+
+  function render() {
+    var P = plan();
+    if (cursor >= P.length) cursor = P.length - 1;
+    var r = simulate(cursor);
+
+    stepsG.innerHTML = ''; flagsG.innerHTML = '';
+
+    var w = 820 / P.length;
+    P.forEach(function (s, i) {
+      var done = i < cursor || (i === cursor && r.failAt !== i);
+      var failed = (r.failAt === i);
+      var active = i === cursor;
+      el('rect', {
+        x: 20 + i * w, y: 26, width: w - 8, height: 54, rx: 8,
+        fill: failed ? 'var(--bad-soft)' : done ? 'var(--ok-soft)' : 'var(--panel-2)',
+        stroke: failed ? 'var(--bad)' : active ? 'var(--accent)' : done ? 'var(--ok)' : 'var(--line-2)',
+        'stroke-width': active ? 2 : 1.2
+      }, stepsG);
+      var t = el('text', {
+        x: 20 + i * w + (w - 8) / 2, y: 50, 'text-anchor': 'middle',
+        'font-size': 12, 'font-weight': 650,
+        fill: failed ? 'var(--bad)' : 'var(--ink)'
+      }, stepsG);
+      t.textContent = s.a;
+      if (s.poi) {
+        var t2 = el('text', {
+          x: 20 + i * w + (w - 8) / 2, y: 68, 'text-anchor': 'middle',
+          'font-size': 10, 'font-family': 'var(--mono)', fill: 'var(--ink-3)'
+        }, stepsG);
+        t2.textContent = s.poi;
+      }
+    });
+
+    /* 플래그 보드 */
+    WATCH.forEach(function (f, i) {
+      var on = r.state.indexOf(f) >= 0;
+      var x = 20 + i * 122;
+      el('rect', {
+        x: x, y: 110, width: 112, height: 34, rx: 7,
+        fill: on ? 'var(--accent-soft)' : 'var(--panel-2)',
+        stroke: on ? 'var(--accent)' : 'var(--line)'
+      }, flagsG);
+      var t = el('text', {
+        x: x + 56, y: 132, 'text-anchor': 'middle', 'font-size': 10.5,
+        'font-family': 'var(--mono)', fill: on ? 'var(--accent)' : 'var(--ink-3)'
+      }, flagsG);
+      t.textContent = f;
+    });
+    el('text', { x: 20, y: 170, 'font-size': 11.5, fill: 'var(--ink-3)' }, flagsG)
+      .textContent = 'step ' + cursor + ' 을 실행한 뒤의 상태';
+
+    if (r.failAt >= 0) {
+      verdict.textContent = '반려 — V3.PRECONDITION_UNMET @ step' + r.failAt;
+      verdict.setAttribute('fill', 'var(--bad)');
+    } else if (cursor === P.length - 1) {
+      verdict.textContent = '통과 — 마지막 스텝이 IsRested 를 세운다 (loop:false 라면 V3.NO_TERMINAL 도 만족)';
+      verdict.setAttribute('fill', 'var(--ok)');
+    } else {
+      verdict.textContent = '진행 중…';
+      verdict.setAttribute('fill', 'var(--ink-3)');
+    }
+
+    out.textContent = r.log.join('\n') + (r.failMsg ? '\n\n재시도 프롬프트에 실릴 문장:\n  ' + r.failMsg : '');
+  }
+
+  document.getElementById('simNext').addEventListener('click', function () {
+    cursor = Math.min(cursor + 1, plan().length - 1); render();
+  });
+  document.getElementById('simPrev').addEventListener('click', function () {
+    cursor = Math.max(cursor - 1, 0); render();
+  });
+  document.getElementById('simBreak').addEventListener('change', function () { cursor = 0; render(); });
+  document.getElementById('simPlay').addEventListener('click', function () {
+    if (playing) { clearInterval(playing); playing = null; this.textContent = '한 스텝씩 실행'; return; }
+    cursor = 0; render();
+    this.textContent = '멈추기';
+    var self = this;
+    playing = setInterval(function () {
+      if (cursor >= plan().length - 1) {
+        clearInterval(playing); playing = null; self.textContent = '한 스텝씩 실행'; return;
+      }
+      cursor++; render();
+    }, 900);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

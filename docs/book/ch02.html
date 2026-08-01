@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2장 · 마스터데이터 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">2부 · 공통 계약</p>
+  <h1>2장 — 마스터데이터, 단일 원천</h1>
+  <p class="lede">
+    이 프로젝트에서 <b>액션·플래그·아키타입을 코드에 하드코딩하지 않는다</b>는 규칙은 취향이 아니다.
+    LLM 프롬프트의 본문이 이 JSON에서 <b>생성</b>되고, 검증기의 판정 기준도 여기서 나오며,
+    런타임의 비트 연산도 여기서 정한 비트 번호 위에서 돈다. 코드와 데이터가 갈라지면 세 곳이 한꺼번에 어긋난다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/01_MasterData_Spec.md</span>
+    <span class="chip">masterdata/ 11종</span>
+    <span class="chip">검증 V1~V11</span>
+  </div>
+</div>
+
+<h2 id="why">1. 왜 데이터가 먼저인가</h2>
+
+<p>같은 사실이 세 곳에서 동시에 쓰인다. 그래서 출처가 하나여야 한다.</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 860 300" role="img" aria-label="마스터데이터 한 항목이 세 곳에서 쓰이는 그림">
+      <rect x="300" y="18" width="260" height="72" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6"/>
+      <text x="430" y="46" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--accent)">actions.json 의 "Mine" 한 줄</text>
+      <text x="430" y="70" text-anchor="middle" font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">requires: AtField · grants: HasRawMaterial</text>
+
+      <g>
+        <rect x="24" y="160" width="240" height="106" rx="10" fill="var(--panel-2)" stroke="var(--l3)" stroke-width="1.5"/>
+        <text x="144" y="186" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--l3)">① 프롬프트 프리픽스</text>
+        <text x="144" y="208" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">CatalogRenderer 가 생성</text>
+        <text x="144" y="228" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">LLM은 이 표만 보고 조합한다</text>
+        <text x="144" y="252" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink-3)">6,182 토큰</text>
+      </g>
+
+      <g>
+        <rect x="310" y="160" width="240" height="106" rx="10" fill="var(--panel-2)" stroke="var(--ok)" stroke-width="1.5"/>
+        <text x="430" y="186" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--ok)">② 4단 검증기</text>
+        <text x="430" y="208" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">CoherenceValidator 의 판정 기준</text>
+        <text x="430" y="228" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">전제 미충족을 여기서 잡는다</text>
+        <text x="430" y="252" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink-3)">V3.PRECONDITION_UNMET</text>
+      </g>
+
+      <g>
+        <rect x="596" y="160" width="240" height="106" rx="10" fill="var(--panel-2)" stroke="var(--l0)" stroke-width="1.5"/>
+        <text x="716" y="186" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--l0)">③ 런타임 비트 연산</text>
+        <text x="716" y="208" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">CompiledPlan.NeedsReplan</text>
+        <text x="716" y="228" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">틱마다 최대 150회</text>
+        <text x="716" y="252" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink-3)">(Required &amp; ~cur) != 0</text>
+      </g>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3" opacity=".7">
+        <path d="M380,92 L160,156"/><path d="M430,92 L430,156"/><path d="M480,92 L700,156"/>
+      </g>
+      <text x="430" y="290" text-anchor="middle" font-size="12" fill="var(--ink-3)">
+        셋 중 하나만 손으로 고치면 <tspan fill="var(--bad)" font-weight="650">검증은 통과하는데 런타임에서 안 도는 플랜</tspan>이 생긴다.
+      </text>
+    </svg>
+  </div>
+  <figcaption>실제로 그런 사고가 있었다 — <code>OnDuty</code> 플래그를 런타임이 세우지 않아 5,000마리 하루에 이탈 판정이 29,535건 났다(§7).</figcaption>
+</figure>
+
+<h2 id="files">2. 파일 11종 — 무엇이 어디에 있나</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>파일</th><th class="num">크기</th><th>정하는 것</th><th>재배치 금지</th></tr></thead>
+<tbody>
+<tr><td><code>world_flags.json</code></td><td class="num">5 KB</td><td>64비트 상태 플래그 42개 (+예약 22)</td><td><b>bit</b> — 플랜 2,880개가 통째로 깨진다</td></tr>
+<tr><td><code>items.json</code></td><td class="num">16 KB</td><td>아이템 82종 · <code>grants</code> · 스택 · 레시피 입출력</td><td><b>code</b> — 인벤토리 배열 첨자다</td></tr>
+<tr><td><code>actions.json</code></td><td class="num">38 KB</td><td>액션 37종 · 전제/효과 · 파라미터 · <code>emits</code></td><td><b>code</b> — 카탈로그 배열 첨자다</td></tr>
+<tr><td><code>zones.json</code></td><td class="num">3.6 KB</td><td>존 12개 · 인접 그래프 · 기본 지역상태/기후</td><td><b>code</b></td></tr>
+<tr><td><code>pois.json</code></td><td class="num">114 KB</td><td>관심지점 243개 · 정원 · 개방시간 · <code>grants</code></td><td><b>code</b> — 거리 행렬의 첨자다</td></tr>
+<tr><td><code>poi_distances.bin</code></td><td class="num">118 KB</td><td>POI 간 거리 행렬 (생성물)</td><td><code>pois.json</code>과 첨자 일치</td></tr>
+<tr><td><code>archetypes.json</code></td><td class="num">55 KB</td><td>아키타입 40종 · 허용 액션 · 성향 · 인구 비중</td><td><b>code 0..39</b> — 버킷 키의 최상위 자리</td></tr>
+<tr><td><code>context_buckets.json</code></td><td class="num">1.9 KB</td><td>시간대 6 · 지역상태 4 · 기후 3 · 인덱스 공식</td><td><b>values 순서 = enum ordinal</b></td></tr>
+<tr><td><code>interrupts.json</code></td><td class="num">4.9 KB</td><td>즉시 반응 규칙 · 우선순위 · 긴급도</td><td>id 오름차순이 동점 판정 기준</td></tr>
+<tr><td><code>fallback_plans.json</code></td><td class="num">43 KB</td><td>아키타입당 폴백 플랜 1개 = 40개</td><td>—</td></tr>
+<tr><td><code>prompt/</code></td><td class="num">—</td><td><code>system_rules.md</code> + few-shot 예시</td><td><b>자동 생성 부분은 손대지 않는다</b></td></tr>
+<tr><td><code>npc_instances.json</code></td><td class="num">3.3 MB</td><td>NPC 5,000마리의 아키타입·집·일터·존</td><td><code>tools/gen_npcs.cs</code>가 만든다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="bad">
+  <span class="tag">이 저장소에서 가장 위험한 편집</span>
+  <b><code>code</code>·<code>bit</code> 번호를 재배치하는 것.</b> 프리베이크된 플랜은
+  액션을 문자열이 아니라 <b>번호</b>로 들고 있고, 플래그도 <b>비트 위치</b>로 들고 있다.
+  중간에 하나를 끼워 넣으면 그 뒤 전부가 다른 것을 가리키게 되는데,
+  <b>어떤 테스트도 그것을 잡지 못한다</b> — 모든 참조가 여전히 "유효한" 번호이기 때문이다.
+  <b>추가는 항상 뒤에만 한다.</b>
+</div>
+
+<h3>2.1 작업 순서 — 역순이면 계속 되돌아온다</h3>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 190" role="img" aria-label="마스터데이터 작성 순서">
+      <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker></defs>
+      <g font-size="11.5" text-anchor="middle">
+        <rect x="14"  y="60" width="92" height="42" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/><text x="60" y="86">world_flags</text>
+        <rect x="126" y="60" width="72" height="42" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/><text x="162" y="86">items</text>
+        <rect x="218" y="60" width="80" height="42" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/><text x="258" y="86">actions</text>
+        <rect x="318" y="60" width="72" height="42" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/><text x="354" y="86">zones</text>
+        <rect x="410" y="60" width="66" height="42" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/><text x="443" y="86">pois</text>
+        <rect x="496" y="60" width="96" height="42" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/><text x="544" y="86">archetypes</text>
+        <rect x="612" y="60" width="86" height="42" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/><text x="655" y="80">context</text><text x="655" y="94">buckets</text>
+        <rect x="718" y="60" width="86" height="42" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/><text x="761" y="80">interrupts</text><text x="761" y="94">fallbacks</text>
+        <rect x="612" y="126" width="192" height="42" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <text x="708" y="146" fill="var(--accent)">prompt/ (자동 생성)</text>
+        <text x="708" y="161" font-size="10.5" fill="var(--ink-3)">→ npc_instances (스크립트)</text>
+      </g>
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.2" marker-end="url(#a5)" opacity=".65">
+        <path d="M106,81 L124,81"/><path d="M198,81 L216,81"/><path d="M298,81 L316,81"/>
+        <path d="M390,81 L408,81"/><path d="M476,81 L494,81"/><path d="M592,81 L610,81"/>
+        <path d="M698,81 L716,81"/><path d="M761,104 L740,124"/>
+      </g>
+      <text x="14" y="34" font-size="12" fill="var(--ink-3)">왼쪽이 오른쪽의 어휘를 정한다. 오른쪽부터 쓰면 참조할 이름이 아직 없다.</text>
+    </svg>
+  </div>
+  <figcaption><code>CLAUDE.md §2.4</code>의 작업 순서. 여기서 <b>액션이 아이템 뒤</b>인 이유는 액션의 파라미터가 아이템 id를 참조하기 때문이다.</figcaption>
+</figure>
+
+<h2 id="flags">3. 월드 플래그 — 64비트 위의 세계관</h2>
+
+<p>
+  NPC의 상태는 <b><code>ulong</code> 한 개</b>다. 플랜의 전제조건, 액션의 효과, 인지 스캔의 이탈 판정,
+  검증기 3단의 GOAP 시뮬 — 전부 이 64비트 위에서 돈다.
+  <code>class NpcState</code>가 아니라 비트인 이유는 <b>판정이 비트 연산 한 번으로 끝나야 하기 때문</b>이다.
+</p>
+
+<div class="filepath">masterdata/world_flags.json → src/Npc.Core/WorldFlags.g.cs (소스 생성기)</div>
+
+<pre><code><span class="c">// 이 파일에서 enum 이 생성된다. 손으로 쓴 enum 을 두지 않는다.</span>
+{ <span class="s">"bit"</span>: <span class="n">0</span>,  <span class="s">"id"</span>: <span class="s">"AtHome"</span>,         <span class="s">"group"</span>: <span class="s">"location"</span>  }
+{ <span class="s">"bit"</span>: <span class="n">11</span>, <span class="s">"id"</span>: <span class="s">"HasRawMaterial"</span>, <span class="s">"group"</span>: <span class="s">"inventory"</span> }
+{ <span class="s">"bit"</span>: <span class="n">31</span>, <span class="s">"id"</span>: <span class="s">"OnDuty"</span>,         <span class="s">"group"</span>: <span class="s">"social"</span>    }
+{ <span class="s">"bit"</span>: <span class="n">40</span>, <span class="s">"id"</span>: <span class="s">"ThreatNearby"</span>,   <span class="s">"group"</span>: <span class="s">"threat"</span>    }
+
+<span class="s">"reserved_bits"</span>: [<span class="n">22</span>, <span class="n">23</span>, <span class="n">44</span>…<span class="n">63</span>]   <span class="c">// 추가는 여기에만</span>
+<span class="s">"exclusive_groups"</span>: [{ <span class="s">"id"</span>: <span class="s">"time"</span>, <span class="s">"flags"</span>: [<span class="s">"IsDawn"</span>,<span class="s">"IsDay"</span>,<span class="s">"IsEvening"</span>,<span class="s">"IsNight"</span>] }]</code></pre>
+
+<h3>3.1 직접 만져보기 — 플래그가 액션 가능 여부를 어떻게 정하나</h3>
+
+<figure>
+  <div class="svgbox" style="padding:16px 14px">
+    <div id="flagBoard" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:6px"></div>
+  </div>
+  <div class="ctl">
+    <button class="btn" id="fbReset" type="button">대장장이 아침 상태로</button>
+    <button class="btn" id="fbClear" type="button">전부 끄기</button>
+  </div>
+  <div class="readout" id="flagOut"></div>
+  <figcaption>
+    플래그를 눌러 켜고 끄면 아래에서 <b>세 액션의 실행 가능 판정</b>이 실시간으로 바뀐다.
+    이 판정이 <code>StepFlags.IsSatisfiedBy</code>의 실제 계산이고, 비트 연산 <b>세 번</b>이다.
+  </figcaption>
+</figure>
+
+<div class="filepath">src/Npc.Core/Plan/CompiledPlan.cs</div>
+
+<pre><code><span class="k">public bool</span> IsSatisfiedBy(<span class="t">WorldFlags</span> state) =&gt;
+    (Requires &amp; ~state) == <span class="n">0</span>                                        <span class="c">// 전부 서 있나 (AND)</span>
+    &amp;&amp; (RequiresAny == <span class="t">WorldFlags</span>.None || (RequiresAny &amp; state) != <span class="n">0</span>) <span class="c">// 하나라도 (OR)</span>
+    &amp;&amp; (Forbids &amp; state) == <span class="n">0</span>;                                     <span class="c">// 금지가 서 있나</span></code></pre>
+
+<div class="note">
+  <span class="tag">이 세 줄이 왜 중요한가</span>
+  인지 스캔은 <b>틱당 최대 150회</b> 돌고, 여기에 스텝 순회가 들어가면 그것만으로 예산이 날아간다.
+  그래서 <code>CompiledPlan</code>은 플랜 전체의 <code>RequiredFlags</code>·<code>ForbiddenFlags</code>를
+  <b>컴파일 시점에 한 번 OR</b> 해두고, 런타임에는 <code>NeedsReplan(current)</code> 비교 두 번으로 끝낸다.
+  자세한 것은 <a href="ch06.html">6장</a>.
+</div>
+
+<h2 id="actions">4. 액션 카탈로그 — LLM이 조합할 수 있는 유일한 원자</h2>
+
+<p>
+  액션은 <b>37개</b>이고 상한은 40이다. 새 액션을 추가하려면 하나를 빼거나 기존 액션의 파라미터로 흡수해야 한다.
+  이유는 프롬프트 프리픽스에 이 카탈로그가 <b>통째로</b> 실리기 때문이다 — 액션 하나가 대략 150~200 토큰이다.
+</p>
+
+<div class="filepath">masterdata/actions.json — MoveTo 전문</div>
+
+<pre><code>{
+  <span class="s">"id"</span>: <span class="s">"MoveTo"</span>,
+  <span class="s">"code"</span>: <span class="n">1</span>,                          <span class="c">// ActionCatalog 배열 첨자. 재배치 금지</span>
+  <span class="s">"category"</span>: <span class="s">"movement"</span>,
+  <span class="s">"desc"</span>: <span class="s">"지정한 POI 로 이동한다. 경로 계산과 충돌 처리는 게임서버가 …"</span>,   <span class="c">// 프롬프트에 그대로 실린다</span>
+  <span class="s">"params"</span>: {
+    <span class="s">"poi"</span>:   { <span class="s">"type"</span>: <span class="s">"poi_ref"</span>, <span class="s">"required"</span>: <span class="k">true</span> },
+    <span class="s">"speed"</span>: { <span class="s">"type"</span>: <span class="s">"enum"</span>, <span class="s">"values"</span>: [<span class="s">"walk"</span>,<span class="s">"run"</span>], <span class="s">"default"</span>: <span class="s">"walk"</span> }
+  },
+  <span class="s">"requires"</span>: [],                                       <span class="c">// AND — 전부 성립해야</span>
+  <span class="s">"requires_any"</span>: [],                                   <span class="c">// OR — 하나 이상</span>
+  <span class="s">"forbids"</span>: [<span class="s">"IsSleeping"</span>, <span class="s">"IsExhausted"</span>],           <span class="c">// 하나라도 서면 불가</span>
+  <span class="s">"grants"</span>: [],                                         <span class="c">// 완료 후 세우는 플래그</span>
+  <span class="s">"clears"</span>: [<span class="s">"AtHome"</span>,<span class="s">"AtWorkplace"</span>,<span class="s">"AtMarket"</span>,…],       <span class="c">// 완료 후 내리는 플래그</span>
+  <span class="s">"duration"</span>: { <span class="s">"kind"</span>: <span class="s">"distance"</span>, <span class="s">"per_meter_s"</span>: <span class="n">0.6</span> },
+  <span class="s">"cost"</span>: <span class="n">2</span>,
+  <span class="s">"default_timeout_s"</span>: <span class="n">300</span>,                            <span class="c">// 스텝이 timeout_s 를 생략하면 이 값</span>
+  <span class="hl">  <span class="s">"emits"</span>: [{ <span class="s">"command"</span>: <span class="s">"MoveTo"</span>, <span class="s">"priority"</span>: <span class="s">"Normal"</span>,
+              <span class="s">"map"</span>: { <span class="s">"TargetPoi"</span>: <span class="s">"$poi"</span>, <span class="s">"Flags"</span>: <span class="s">"$speed"</span> } }],</span>
+  <span class="s">"completes_on"</span>: [<span class="s">"NpcArrived"</span>],                       <span class="c">// 이 이벤트가 오면 스텝 완료</span>
+  <span class="s">"fails_on"</span>: [<span class="s">"NpcActionFailed"</span>]
+}</code></pre>
+
+<h3>4.1 <code>emits</code> — 액션이 명령으로 번역되는 자리</h3>
+
+<p>
+  <code>CommandEmitter</code>에는 <b>액션 이름이 하나도 없다</b>. 위 <code>emits</code>를 읽어서 필드를 채울 뿐이다.
+  덕분에 새 액션을 추가할 때 런타임 코드를 고칠 필요가 없다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th><code>map</code> 값 문법</th><th>어디서 오나</th><th>예</th></tr></thead>
+<tbody>
+<tr><td><code>"$param"</code></td><td>플랜 스텝의 <code>args</code></td><td><code>"$poi"</code> → 스텝이 지정한 POI 심볼</td></tr>
+<tr><td><code>"$home"</code> <code>"$workplace"</code> <code>"$self"</code> <code>"$zone"</code></td><td>NPC 인스턴스</td><td><code>npc_instances.json</code>의 그 NPC 행</td></tr>
+<tr><td><code>"$first:Flag"</code></td><td>그 플래그를 세우는 첫 인벤토리 아이템</td><td><code>Eat</code> → <code>$first:HasFood</code> = 빵</td></tr>
+<tr><td>그 외 문자열</td><td>아이템 id / 열거값 리터럴</td><td><code>"Walking"</code> → <code>VisualState.Walking</code></td></tr>
+<tr><td>숫자</td><td>정수 리터럴 (부호 있음)</td><td><code>-1</code> → <code>Amount</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag"><code>$first:HasFood</code> 가 있는 이유</span>
+  "빵을 먹으면 배가 부르다"를 코드가 알면 안 된다. 코드가 아는 것은 "<code>HasFood</code>를 세우는 아이템 중
+  인벤토리에 있는 첫 번째"라는 규칙뿐이고, <b>어떤 아이템이 그 플래그를 세우는지는 <code>items.json</code>의 <code>grants</code>가 정한다</b>.
+  치즈를 추가하고 <code>grants: ["HasFood"]</code>만 적으면 <code>Eat</code>이 그대로 치즈를 먹는다.
+</div>
+
+<h2 id="arch">5. 아키타입 40종 — 버킷 키의 최상위 자리</h2>
+
+<div class="filepath">masterdata/archetypes.json — blacksmith</div>
+
+<pre><code>{
+  <span class="s">"id"</span>: <span class="s">"blacksmith"</span>, <span class="s">"code"</span>: <span class="n">0</span>,          <span class="c">// 0..39 — 버킷 인덱스가 0..2879 전단사이려면 0부터여야 한다</span>
+  <span class="s">"desc"</span>: <span class="s">"마을의 대장장이. 광석을 제련해 …"</span>,  <span class="c">// 프롬프트에 그대로 실린다</span>
+  <span class="s">"allowed_actions"</span>: [<span class="s">"Craft"</span>,<span class="s">"Drink"</span>,<span class="s">"Eat"</span>, … <span class="s">"Work"</span>],   <span class="c">// 22개. V2.ACTION_NOT_ALLOWED 의 기준</span>
+  <span class="s">"home_poi_type"</span>: <span class="s">"home"</span>,
+  <span class="s">"workplace_poi_type"</span>: <span class="s">"smithy"</span>,             <span class="c">// $workplace 가 바인딩될 POI 종류. null 이면 일터 없음</span>
+  <span class="s">"primary_recipes"</span>: [<span class="s">"iron_sword"</span>,<span class="s">"iron_tool"</span>,<span class="s">"horseshoe"</span>],
+  <span class="s">"traits"</span>: { <span class="s">"diligence"</span>: <span class="n">80</span>, <span class="s">"sociability"</span>: <span class="n">40</span>, <span class="s">"courage"</span>: <span class="n">55</span>, <span class="s">"greed"</span>: <span class="n">50</span> },
+  <span class="s">"default_goals"</span>: [<span class="s">"restock_ore"</span>,<span class="s">"fulfill_orders"</span>,<span class="s">"maintain_shop"</span>],
+  <span class="s">"initial_inventory"</span>: [{<span class="s">"item"</span>:<span class="s">"smith_hammer"</span>,<span class="s">"count"</span>:<span class="n">1</span>}, …],
+  <span class="s">"fallback_plan"</span>: <span class="s">"fb_blacksmith"</span>,               <span class="c">// V7 — 없으면 기동 실패</span>
+  <span class="s">"combat_capable"</span>: <span class="k">true</span>,                        <span class="c">// 인터럽트 규칙이 본다</span>
+  <span class="s">"population_weight"</span>: <span class="n">0.012</span>                     <span class="c">// 40종 합 = 1.0 (V5)</span>
+}</code></pre>
+
+<div class="grid2">
+  <div class="card">
+    <h4><code>traits</code>는 장식이 아니다</h4>
+    <p class="small">
+      인터럽트 규칙이 <code>courage &lt; 40</code> 같은 비교로 이 값을 본다.
+      겁 많은 아키타입은 위협에 <code>Flee</code>, 용감하면 <code>Attack</code>,
+      둘 다 아니면 <code>Retreat</code>로 갈린다. <b>같은 이벤트에 아키타입마다 다르게 반응</b>하는 것이
+      시나리오 B 게이트 항목 하나다.
+    </p>
+  </div>
+  <div class="card">
+    <h4><code>allowed_actions</code>는 두 곳에 실린다</h4>
+    <p class="small">
+      프리픽스의 ARCHETYPES 표에 한 번, <b>서픽스에도 한 번</b> 더 싣는다.
+      프리픽스 표만으로는 모델이 자기 행을 안정적으로 못 찾아
+      <code>V2.ACTION_NOT_ALLOWED</code>가 최다 실패 원인이었기 때문이다(T2-21 실측).
+      서픽스가 약 80토큰 늘지만 300 예산 안이다.
+    </p>
+  </div>
+</div>
+
+<h2 id="bucket">6. 버킷 — 상황을 2,880칸으로 이산화한다</h2>
+
+<p>
+  플랜 캐시의 키다. <code>BucketKey</code>는 <b>전단사 정수 인덱스</b>를 갖기 때문에
+  플랜 스토어가 해시맵이 아니라 <b>2,880칸 고정 배열</b>일 수 있다.
+</p>
+
+<figure>
+  <div class="svgbox" style="padding:18px 16px">
+    <div class="ctl" style="margin-top:0;margin-bottom:14px">
+      <label>아키타입 <select id="bkA"></select></label>
+      <label>시간대 <select id="bkT"></select></label>
+      <label>지역상태 <select id="bkR"></select></label>
+      <label>기후 <select id="bkC"></select></label>
+    </div>
+    <svg viewBox="0 0 860 210" role="img" aria-label="버킷 인덱스 계산">
+      <text x="20" y="26" font-size="12.5" fill="var(--ink-3)">인덱스 공식 (context_buckets.json)</text>
+      <text x="20" y="56" font-size="15" font-family="var(--mono)" fill="var(--ink)">
+        ((<tspan fill="var(--l3)">A</tspan> × 6 + <tspan fill="var(--l0)">T</tspan>) × 4 + <tspan fill="var(--l2)">R</tspan>) × 3 + <tspan fill="var(--l1)">C</tspan>
+      </text>
+      <text id="bkCalc" x="20" y="90" font-size="15" font-family="var(--mono)" fill="var(--ink-2)"></text>
+      <text id="bkIdx"  x="20" y="126" font-size="22" font-family="var(--mono)" font-weight="700" fill="var(--accent)"></text>
+      <text id="bkName" x="20" y="156" font-size="13.5" font-family="var(--mono)" fill="var(--ink-2)"></text>
+      <text id="bkReach" x="20" y="186" font-size="12.5" fill="var(--ink-3)"></text>
+
+      <!-- 2880칸 미니맵 -->
+      <rect x="520" y="24" width="320" height="160" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+      <g id="bkMap"></g>
+      <text x="680" y="200" text-anchor="middle" font-size="11" fill="var(--ink-3)">2,880칸 · 가로 = 아키타입 40 · 세로 = 상황 72</text>
+    </svg>
+  </div>
+  <figcaption>차원 값의 <b>순서가 곧 enum ordinal</b>이고, 그 값이 <code>GameEvent.Code</code>에 그대로 실린다. 순서를 바꾸면 이벤트 해석까지 어긋난다.</figcaption>
+</figure>
+
+<h3>6.1 2,880칸 중 실제로 쓰이는 것은 264칸이다</h3>
+
+<p>
+  <code>bucket_usage.md</code>가 마스터데이터에서 <b>도달 가능 집합을 전수 계산</b>한 결과다. 표본이 아니다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>축</th><th class="num">전체</th><th class="num">시나리오 A 도달</th><th>왜</th></tr></thead>
+<tbody>
+<tr><td>아키타입</td><td class="num">40</td><td class="num">40</td><td>5,000마리가 40종을 다 채운다</td></tr>
+<tr><td>시간대</td><td class="num">6</td><td class="num">6</td><td>하루를 살면 다 거친다</td></tr>
+<tr><td>지역상태</td><td class="num">4</td><td class="num">2</td><td><b>어느 존의 기본값에도 War·Disaster 가 없다</b></td></tr>
+<tr><td>기후</td><td class="num">3</td><td class="num">2</td><td>기본값에 Storm 이 없다</td></tr>
+<tr><td colspan="2"><b>곱하면 960일 것 같지만 실제는</b></td><td class="num"><b>264</b></td><td>아키타입과 존이 묶여 있다 — 광부는 광산에만 산다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">이 발견이 만든 것</span>
+  전량 2,880을 만들면 <b>$5.12 · 19분</b>이다. 도달 집합 264만 만들면 <b>$0.37 · 97초</b>인데
+  시나리오 A 캐시 히트율이 <b>76.08 % → 98.67 %로 오히려 올랐다</b>.
+  <b>개수가 아니라 어느 버킷이냐가 히트율을 정한다.</b> 자세한 것은 <a href="ch09.html">9장</a>.
+</div>
+
+<h2 id="others">7. 나머지 파일들 — 짧게</h2>
+
+<h3>7.1 <code>items.json</code> — <code>grants</code>가 전부다</h3>
+
+<pre><code>{ <span class="s">"id"</span>: <span class="s">"iron_ore"</span>, <span class="s">"code"</span>: <span class="n">1</span>, <span class="s">"category"</span>: <span class="s">"raw"</span>,
+  <span class="s">"grants"</span>: [<span class="s">"HasRawMaterial"</span>], <span class="s">"stack"</span>: <span class="n">50</span> }</code></pre>
+
+<p>
+  인벤토리 변경 이벤트가 오면 <code>EventApplier.RecomputeItemFlags</code>가
+  <b>인벤토리 전체를 훑어 <code>grants</code>를 OR</b> 한다. code 구간은 의미가 있다 —
+  1~19 원자재 / 20~39·81~82 완제품 / 40~59 식음료 / 60~78·80 도구·무기 / 79 화폐.
+</p>
+
+<h3>7.2 <code>pois.json</code> · <code>zones.json</code> — 세계의 지형</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>필드</th><th>쓰는 곳</th></tr></thead>
+<tbody>
+<tr><td><code>grants</code></td><td>도착하면 서는 장소 플래그. <code>EventApplier.MoveTo</code>가 <b>장소 플래그를 통째로 지우고 이 값으로 바꾼다</b></td></tr>
+<tr><td><code>capacity</code></td><td>정원. <code>gen_npcs</code>가 이 값을 넘지 않게 배치한다 (V10)</td></tr>
+<tr><td><code>allowed_archetypes</code></td><td>비어 있으면 제한 없음. <code>V3.UNREACHABLE_POI</code>의 기준</td></tr>
+<tr><td><code>adjacent</code> (zones)</td><td>대칭이어야 하고 그래프가 연결돼야 한다 (V11)</td></tr>
+<tr><td><code>default_region_state</code> · <code>default_climate</code></td><td><b>도달 버킷 264를 결정하는 값</b>. 여기 War 를 넣으면 도달 집합이 확 는다</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">
+  POI 좌표는 <b>존 중심 기준 황금각 나선</b> 위의 결정론적 배치다 — 난수를 쓰지 않았다.
+  같은 이유로 <code>poi_distances.bin</code>도 생성물이며 <code>tools/gen_poi_distances.cs</code>가 만든다.
+</p>
+
+<h3>7.3 <code>interrupts.json</code> — LLM이 만들지 않는 유일한 행동 규칙</h3>
+
+<pre><code>{
+  <span class="s">"id"</span>: <span class="s">"flee_on_threat"</span>, <span class="s">"priority"</span>: <span class="n">100</span>,
+  <span class="s">"when"</span>: { <span class="s">"any_flag"</span>: [<span class="s">"ThreatNearby"</span>,<span class="s">"InCombat"</span>],
+             <span class="s">"archetype_trait"</span>: { <span class="s">"courage"</span>: <span class="s">"&lt;40"</span> } },
+  <span class="s">"then"</span>: { <span class="s">"action"</span>: <span class="s">"Flee"</span>, <span class="s">"params"</span>: { <span class="s">"poi"</span>: <span class="s">"$nearest_safe"</span> } },
+  <span class="s">"replan"</span>: { <span class="s">"urgency"</span>: <span class="n">100</span> }
+}</code></pre>
+
+<div class="note">
+  <span class="tag">순서가 정해져 있다</span>
+  <b>먼저 도망치고, 새 계획은 나중에 받는다.</b> <code>then</code>은 그 틱에 즉시 명령으로 나가고,
+  <code>replan.urgency</code>는 재계획 큐에 <code>1000 + urgency</code> 점수로 들어간다.
+  LLM은 이 경로에 끼어들지 않는다 — <b>반응 속도가 필요한 판단은 항상 규칙</b>이다(<code>CLAUDE.md §8</code>).
+</div>
+
+<h3>7.4 <code>fallback_plans.json</code> — 마지막 보루 40개</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>규칙</th><th>이유</th></tr></thead>
+<tbody>
+<tr><td>전부 <code>loop: true</code></td><td>폴백은 무한히 지속 가능해야 한다</td></tr>
+<tr><td><code>on_step_fail: skip</code></td><td>폴백에서 또 폴백으로 가면 갈 곳이 없다</td></tr>
+<tr><td><code>Guard</code>·<code>Patrol</code>을 쓰지 않는다</td><td>둘 다 <code>OnDuty</code>를 요구하는데 폴백은 근무 배정 없이도 돌아야 한다</td></tr>
+<tr><td>V7 — 기동 시 40개 전부가 <b>검증기 4단을 통과</b>해야 한다</td><td>이게 보장되지 않으면 시나리오 C가 성립하지 않는다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>7.5 <code>prompt/</code> — 손으로 편집하지 않는 부분</h3>
+
+<p>
+  <code>system_rules.md</code>와 <code>fewshot/*.json</code>은 사람이 쓴다.
+  하지만 <b>액션 카탈로그 절은 <code>actions.json</code>에서 생성된다</b>(<code>CatalogRenderer</code>).
+  few-shot 파일은 <b>파일명 정렬 순서</b>로 실린다 — 디렉터리 순회 순서에 의존하면 기계마다 프리픽스 SHA가 갈린다.
+</p>
+
+<h3>7.6 <code>npc_instances.json</code> — 5,000줄의 인구</h3>
+
+<p>
+  <code>tools/gen_npcs.cs</code>(파일 기반 .NET 앱)가 <code>population_weight</code>와 POI 정원을 보고 배치한다.
+  <b>이 파일이 월드 인구를 5,000으로 못 박는다</b> — P4 게이트에서 10,000 부하를 호스트로 재지 못한 이유가 이것이고
+  (<code>NpcHost.Create</code>가 <code>Math.Min</code>으로 자른다),
+  <code>pois.json</code> 총 정원 자체가 <b>9,238</b>이라 늘리려면 마스터데이터를 먼저 바꿔야 한다.
+</p>
+
+<h2 id="validate">8. 검증 V1~V11 — 실패는 경고가 아니라 기동 실패다</h2>
+
+<div class="filepath">src/Npc.MasterData/Validation/MasterDataValidator.cs</div>
+
+<pre><code>dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>#</th><th>검사</th><th>이걸 어기면</th></tr></thead>
+<tbody>
+<tr><td><b>V1</b></td><td>파일 내 <code>code</code> 유일성</td><td>배열 첨자가 겹쳐 엉뚱한 액션이 실행된다</td></tr>
+<tr><td><b>V2</b></td><td>flag id 참조가 <code>world_flags.json</code>에 존재</td><td>오타 하나가 "전제조건 없음"으로 조용히 읽힌다</td></tr>
+<tr><td><b>V3</b></td><td>poi/item/zone/action 참조가 실재</td><td>런타임에서 0번 POI(=없음)로 바인딩된다</td></tr>
+<tr><td><b>V4</b></td><td><code>allowed_actions</code>가 전부 카탈로그에 있음</td><td>프롬프트에 없는 액션 이름이 실린다</td></tr>
+<tr><td><b>V5</b></td><td><code>population_weight</code> 합 = 1.0 (±0.001)</td><td>인구 배치가 5,000에 못 미치거나 넘친다</td></tr>
+<tr><td><b>V6</b></td><td><code>total_keys</code> == 실제 조합 수 (2,880)</td><td>플랜 스토어 배열과 인덱스 공식이 어긋난다</td></tr>
+<tr><td><b>V7</b></td><td>모든 아키타입에 폴백이 있고 <b>4단을 통과</b></td><td>시나리오 C에서 NPC가 멈춘다</td></tr>
+<tr><td><b>V8</b></td><td>폴백이 그 아키타입의 <code>allowed_actions</code>만으로 구성됨</td><td>폴백 자체가 V2를 어긴다</td></tr>
+<tr><td><b>V9</b></td><td>프롬프트 프리픽스 ≥ 4,096 토큰</td><td>프롬프트 캐시가 <b>아예 안 걸린다</b> (제공사 최소 임계)</td></tr>
+<tr><td><b>V10</b></td><td>POI 정원 총합 ≥ 그 아키타입 인구</td><td><code>gen_npcs</code>가 배치 도중 멈춘다</td></tr>
+<tr><td><b>V11</b></td><td>모든 POI가 존 그래프에서 도달 가능</td><td>고립 POI로 이동 명령이 나가고 영원히 타임아웃</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">경고 후 진행을 허용하지 않는다</span>
+  V1~V11 실패는 <b>기동 실패</b>다. "경고만 하고 뜨게 하자"는 유혹이 반드시 오는데,
+  이 검사들이 잡는 것은 전부 <b>증상이 한참 뒤에, 엉뚱한 곳에서 나타나는</b> 종류다 —
+  V2 오타는 "왜 이 NPC만 이상하게 움직이지"로, V11 고립 POI는 "왜 타임아웃이 많지"로 나타난다.
+</div>
+
+<h2 id="impact">9. 무엇을 고치면 무엇이 무효화되나</h2>
+
+<p>
+  이 표가 이 장에서 <b>실무적으로 가장 자주 볼</b> 부분이다.
+  무효화 범위 판정은 <code>PlanStoreValidator.Compare</code>가 하고, 호스트가 기동할 때 경고로 알려준다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>고친 것</th><th>무효화 범위</th><th>해야 하는 일</th><th>프롬프트 SHA</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>world_flags.json</code> 비트 <b>추가</b> (예약 구간)</td>
+  <td><span class="pill warn">Partial</span></td>
+  <td>영향받는 액션의 버킷만 재생성</td>
+  <td><b>바뀐다</b> → 전량 무효</td>
+</tr>
+<tr>
+  <td><code>world_flags.json</code> 비트 <b>재배치</b></td>
+  <td><span class="pill bad">Full</span></td>
+  <td><b>플랜 2,880개 전량 재생성.</b> 하지 말 것</td>
+  <td>바뀐다</td>
+</tr>
+<tr>
+  <td><code>actions.json</code> 액션 추가 / <code>desc</code> 수정</td>
+  <td><span class="pill bad">Full</span></td>
+  <td>프리픽스가 바뀌므로 전량</td>
+  <td><b>바뀐다</b></td>
+</tr>
+<tr>
+  <td><code>actions.json</code> <code>emits</code>·<code>default_timeout_s</code>만 수정</td>
+  <td><span class="pill ok">None</span></td>
+  <td>재생성 불필요. 런타임 동작만 바뀐다</td>
+  <td>바뀐다(카탈로그에 실림) — 확인 필요</td>
+</tr>
+<tr>
+  <td><code>archetypes.json</code> <code>allowed_actions</code> 수정</td>
+  <td><span class="pill bad">Full</span></td>
+  <td>그 아키타입 72버킷 + 프리픽스 전량</td>
+  <td><b>바뀐다</b></td>
+</tr>
+<tr>
+  <td><code>archetypes.json</code> <code>population_weight</code>만</td>
+  <td><span class="pill ok">None</span></td>
+  <td><code>gen_npcs</code> 재실행 → <code>npc_instances.json</code></td>
+  <td>안 바뀐다</td>
+</tr>
+<tr>
+  <td><code>pois.json</code> POI 1개 추가</td>
+  <td><span class="pill warn">Partial</span></td>
+  <td>거리 행렬 재생성 + 그 존 관련 버킷</td>
+  <td>안 바뀐다</td>
+</tr>
+<tr>
+  <td><code>zones.json</code> <code>default_region_state</code> 변경</td>
+  <td><span class="pill warn">Partial</span></td>
+  <td><b>도달 버킷 집합이 바뀐다</b> — 새 조합을 프리베이크</td>
+  <td>안 바뀐다</td>
+</tr>
+<tr>
+  <td><code>interrupts.json</code> 규칙 추가</td>
+  <td><span class="pill ok">None</span></td>
+  <td>재기동만. 즉시 반영</td>
+  <td>안 바뀐다</td>
+</tr>
+<tr>
+  <td><code>prompt/system_rules.md</code> 한 글자</td>
+  <td><span class="pill bad">Full</span></td>
+  <td><b>프롬프트 캐시가 전면 미적중이 된다</b></td>
+  <td><b>바뀐다</b></td>
+</tr>
+<tr>
+  <td><code>fallback_plans.json</code> 수정</td>
+  <td><span class="pill ok">None</span></td>
+  <td>V7·V8 재검증만. 즉시 반영</td>
+  <td>안 바뀐다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="card">
+  <h4>무효화됐는지 어떻게 아나</h4>
+  <p>호스트가 기동할 때 <code>manifest.json</code>과 지금 마스터데이터를 비교해 알려준다.</p>
+<pre><code><span class="c">// src/Npc.Host/Program.cs — WarnIfStale</span>
+warn: 플랜 스토어가 낡았다 — 무효화 Full (바뀐 것: prompt_sha, actions)
+      tools/Npc.Prebake 로 재생성한다.</code></pre>
+  <p class="small" style="margin-bottom:0">
+    <b>기동을 막지는 않는다.</b> 낡은 플랜이라도 폴백보다는 나은 경우가 있고, 재생성 판단은 사람이 할 일이기 때문이다.
+  </p>
+</div>
+
+<div class="ok">
+  <span class="tag">2장 요약</span>
+  <ul style="margin-bottom:0">
+    <li>액션·플래그·아키타입은 코드가 아니라 <code>masterdata/</code>가 정한다. 같은 사실이 <b>프롬프트·검증기·런타임</b> 세 곳에서 쓰이기 때문이다.</li>
+    <li>상태는 <b>64비트 플래그 하나</b>다. 그래서 이탈 판정이 비트 연산 한 번이다.</li>
+    <li><code>code</code>·<code>bit</code> 재배치는 프리베이크된 플랜 2,880개를 조용히 깬다. <b>추가는 뒤에만.</b></li>
+    <li>버킷 2,880 중 실제로 조회되는 것은 <b>264</b>다 — 존 배치가 아키타입을 묶기 때문이다.</li>
+    <li>V1~V11 실패는 기동 실패다. 무효화 범위 표(§9)를 보고 재생성 여부를 정한다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 플래그 보드 ---------- */
+(function () {
+  var board = document.getElementById('flagBoard');
+  var out = document.getElementById('flagOut');
+  if (!board) return;
+
+  /* world_flags.json 에서 자주 쓰는 것만 골랐다. bit 번호는 파일 그대로다. */
+  var FLAGS = [
+    { b: 0,  id: 'AtHome',        g: 'location' },
+    { b: 1,  id: 'AtWorkplace',   g: 'location' },
+    { b: 2,  id: 'AtMarket',      g: 'location' },
+    { b: 6,  id: 'AtField',       g: 'location' },
+    { b: 10, id: 'HasTool',       g: 'inventory' },
+    { b: 11, id: 'HasRawMaterial',g: 'inventory' },
+    { b: 12, id: 'HasProduct',    g: 'inventory' },
+    { b: 13, id: 'HasCoin',       g: 'inventory' },
+    { b: 16, id: 'IsRested',      g: 'body' },
+    { b: 20, id: 'IsExhausted',   g: 'body' },
+    { b: 21, id: 'IsSleeping',    g: 'body' },
+    { b: 25, id: 'IsDay',         g: 'time' },
+    { b: 31, id: 'OnDuty',        g: 'social' },
+    { b: 36, id: 'RegionUnderAttack', g: 'world' },
+    { b: 38, id: 'ResourceDepleted',  g: 'world' },
+    { b: 40, id: 'ThreatNearby',  g: 'threat' }
+  ];
+
+  var GROUP_COLOR = {
+    location: 'var(--l0)', inventory: 'var(--l1)', body: 'var(--l2)',
+    time: 'var(--l3)', social: 'var(--accent)', world: 'var(--warn)', threat: 'var(--bad)'
+  };
+
+  /* actions.json 에서 옮긴 세 액션 */
+  var ACTIONS = [
+    { id: 'MoveTo', req: [], any: [], forbid: ['IsSleeping', 'IsExhausted'] },
+    { id: 'Mine',   req: ['AtField', 'HasTool'], any: [], forbid: ['IsExhausted', 'ResourceDepleted'] },
+    { id: 'Craft',  req: ['AtWorkplace', 'HasTool', 'HasRawMaterial'], any: [], forbid: ['IsExhausted'] }
+  ];
+
+  var state = {};
+  function bitOf(id) { var f = FLAGS.find(function (x) { return x.id === id; }); return f ? f.b : -1; }
+
+  function render() {
+    board.innerHTML = '';
+    FLAGS.forEach(function (f) {
+      var on = !!state[f.id];
+      var d = document.createElement('button');
+      d.type = 'button';
+      d.style.cssText =
+        'font:inherit;font-size:11.5px;font-family:var(--mono);cursor:pointer;text-align:left;' +
+        'padding:6px 8px;border-radius:7px;line-height:1.35;' +
+        'border:1px solid ' + (on ? GROUP_COLOR[f.g] : 'var(--line)') + ';' +
+        'background:' + (on ? GROUP_COLOR[f.g] : 'var(--panel-2)') + ';' +
+        'color:' + (on ? 'var(--panel)' : 'var(--ink-3)') + ';';
+      d.innerHTML = '<b>' + f.id + '</b><br><span style="opacity:.8">bit ' + f.b + '</span>';
+      d.addEventListener('click', function () { state[f.id] = !state[f.id]; render(); });
+      board.appendChild(d);
+    });
+    report();
+  }
+
+  function mask(list) {
+    var m = 0n;
+    list.forEach(function (id) { var b = bitOf(id); if (b >= 0) m |= (1n << BigInt(b)); });
+    return m;
+  }
+  function cur() {
+    var m = 0n;
+    FLAGS.forEach(function (f) { if (state[f.id]) m |= (1n << BigInt(f.b)); });
+    return m;
+  }
+
+  function report() {
+    var s = cur();
+    var lines = [];
+    lines.push('state = 0x' + s.toString(16).padStart(16, '0') +
+      '   (' + FLAGS.filter(function (f) { return state[f.id]; }).map(function (f) { return f.id; }).join('|') + ')');
+    lines.push('');
+    ACTIONS.forEach(function (a) {
+      var req = mask(a.req), fb = mask(a.forbid);
+      var missing = req & ~s;
+      var violated = fb & s;
+      var ok = missing === 0n && violated === 0n;
+      var why = ok ? '실행 가능' :
+        (missing !== 0n
+          ? '전제 부족: ' + a.req.filter(function (id) { return (mask([id]) & s) === 0n; }).join(', ')
+          : '금지 위반: ' + a.forbid.filter(function (id) { return (mask([id]) & s) !== 0n; }).join(', '));
+      lines.push((ok ? '  OK   ' : '  X    ') + a.id.padEnd(8) + ' — ' + why);
+      lines.push('         (Requires & ~state) = 0x' + missing.toString(16) +
+        '   (Forbids & state) = 0x' + violated.toString(16));
+    });
+    out.textContent = lines.join('\n');
+  }
+
+  document.getElementById('fbReset').addEventListener('click', function () {
+    state = { AtWorkplace: true, HasTool: true, HasCoin: true, IsRested: true, IsDay: true, OnDuty: true };
+    render();
+  });
+  document.getElementById('fbClear').addEventListener('click', function () { state = {}; render(); });
+
+  document.getElementById('fbReset').click();
+})();
+
+/* ---------- 버킷 인덱스 계산기 ---------- */
+(function () {
+  var A = document.getElementById('bkA'), T = document.getElementById('bkT');
+  var R = document.getElementById('bkR'), C = document.getElementById('bkC');
+  if (!A) return;
+
+  var ARCH = ['blacksmith', 'carpenter', 'tailor', 'alchemist', 'farmer', 'miner',
+    'hunter', 'shepherd', 'woodcutter', 'villager', 'child', 'elder', 'guard', 'merchant'];
+  var TOD = ['Dawn', 'Morning', 'Noon', 'Afternoon', 'Evening', 'Night'];
+  var REG = ['Peace', 'Alert', 'War', 'Disaster'];
+  var CLI = ['Fair', 'Cold', 'Storm'];
+
+  /* bucket_usage.md §2 — 조합 2개 이상을 겪는 아키타입은 넷뿐이다 */
+  var REACH = {
+    blacksmith: ['Peace.Fair'], carpenter: ['Peace.Fair'], tailor: ['Peace.Fair'],
+    alchemist: ['Peace.Fair'], farmer: ['Peace.Fair'], villager: ['Peace.Fair'],
+    child: ['Peace.Fair'], elder: ['Peace.Fair'], guard: ['Peace.Fair'], merchant: ['Peace.Fair'],
+    hunter: ['Alert.Fair', 'Peace.Cold'], miner: ['Alert.Cold', 'Peace.Fair'],
+    shepherd: ['Peace.Cold', 'Peace.Fair'], woodcutter: ['Alert.Fair', 'Peace.Fair']
+  };
+
+  function fill(sel, arr) {
+    arr.forEach(function (v, i) {
+      var o = document.createElement('option');
+      o.value = i; o.textContent = v; sel.appendChild(o);
+    });
+  }
+  fill(A, ARCH); fill(T, TOD); fill(R, REG); fill(C, CLI);
+  A.selectedIndex = 0; T.selectedIndex = 1; R.selectedIndex = 0; C.selectedIndex = 0;
+
+  var map = document.getElementById('bkMap');
+
+  function drawMap(idx) {
+    /* 40 × 72 를 320 × 160 안에 그린다 */
+    map.innerHTML = '';
+    var cw = 320 / 40, ch = 160 / 72;
+    var a = +A.value, rest = (+T.value * 4 + +R.value) * 3 + +C.value;
+    var r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r.setAttribute('x', 520 + a * cw); r.setAttribute('y', 24 + rest * ch);
+    r.setAttribute('width', Math.max(cw, 3)); r.setAttribute('height', Math.max(ch, 3));
+    r.setAttribute('fill', 'var(--accent)');
+    map.appendChild(r);
+    /* 세로 눈금 — 시간대 6구획 */
+    for (var t = 1; t < 6; t++) {
+      var l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      l.setAttribute('x1', 520); l.setAttribute('x2', 840);
+      l.setAttribute('y1', 24 + t * 12 * ch); l.setAttribute('y2', 24 + t * 12 * ch);
+      l.setAttribute('stroke', 'var(--line)'); l.setAttribute('stroke-width', .6);
+      map.appendChild(l);
+    }
+  }
+
+  function update() {
+    var a = +A.value, t = +T.value, r = +R.value, c = +C.value;
+    var idx = ((a * 6 + t) * 4 + r) * 3 + c;
+    document.getElementById('bkCalc').textContent =
+      '((' + a + ' × 6 + ' + t + ') × 4 + ' + r + ') × 3 + ' + c;
+    document.getElementById('bkIdx').textContent = '= ' + idx + '  /  2879';
+    document.getElementById('bkName').textContent =
+      ARCH[a] + '@' + TOD[t] + '.' + REG[r] + '.' + CLI[c];
+
+    var combo = REG[r] + '.' + CLI[c];
+    var reach = (REACH[ARCH[a]] || []).indexOf(combo) >= 0;
+    var el = document.getElementById('bkReach');
+    el.textContent = reach
+      ? '도달 가능 — 시나리오 A 264집합에 포함된다 (프리베이크 대상)'
+      : '도달 불가 — 이 조합의 NPC 가 없다. 만들어도 조회되지 않는다';
+    el.setAttribute('fill', reach ? 'var(--ok)' : 'var(--ink-3)');
+    drawMap(idx);
+  }
+  [A, T, R, C].forEach(function (s) { s.addEventListener('change', update); });
+  update();
+})();
+</script>
+</body>
+</html>

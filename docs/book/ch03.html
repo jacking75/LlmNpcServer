@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3장 · 게임서버 링크 계약 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">2부 · 공통 계약</p>
+  <h1>3장 — 게임서버 링크 계약</h1>
+  <p class="lede">
+    NPC 서버가 바깥과 닿는 유일한 자리다. 여기서 정한 여덟 개 규칙(N1~N8)이
+    "어떻게 붙일까"가 아니라 <b>"어떻게 붙여도 깨지지 않는가"</b>를 정한다.
+    실제로 P6에서 TCP 소켓 링크를 붙일 때 <b>이 파일을 한 줄도 바꾸지 않았다</b> — 그것이 이 계약이 잰 것이다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/02_GameServer_Link.md</span>
+    <span class="chip">패킷 29종 (명령 12 · 이벤트 17)</span>
+    <span class="chip">규칙 N1~N8</span>
+  </div>
+</div>
+
+<h2 id="view">1. 관점 — 이름에 속지 않는다</h2>
+
+<div class="bad">
+  <span class="tag">이 장에서 가장 많이 하는 오해</span>
+  <code>IGameServerLink</code>는 <b>"게임서버의 인터페이스"가 아니다.</b>
+  <b>게임서버로 향하는 NPC 서버의 아웃바운드 포트</b>이고, 이름의 "GameServer"는 <b>상대방</b>을 가리킨다.
+  우리가 만드는 것은 NPC 서버 하나뿐이다.
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>대상</th><th>만드나</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><b>NPC 서버</b> (<code>Npc.Host</code>)</td><td><span class="pill ok">만든다</span></td><td>본체</td></tr>
+<tr><td><b>경계 정의</b> (<code>IGameServerLink</code> + 패킷)</td><td><span class="pill ok">만든다</span></td><td>이 장의 내용</td></tr>
+<tr><td><b>게임서버 대역</b> (<code>Npc.Sim</code>)</td><td><span class="pill ok">만든다</span></td><td>혼자 돌려보기 위한 가짜</td></tr>
+<tr><td>실제 MMORPG 게임서버</td><td><span class="pill bad">안 만든다</span></td><td>"붙일 때 이렇게 붙는다"만 정의</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="iface">2. 인터페이스 — 메서드가 다섯 개뿐인 이유</h2>
+
+<div class="filepath">src/Npc.Contracts/IGameServerLink.cs</div>
+
+<pre><code><span class="k">public interface</span> <span class="t">IGameServerLink</span> : <span class="t">IAsyncDisposable</span>
+{
+    <span class="c">// NPC 서버 → 게임서버. 배치 큐에 쌓기만 한다. 반환값 없음 (N1).</span>
+    <span class="k">void</span> Enqueue(<span class="k">in</span> <span class="t">NpcCommand</span> command);
+
+    <span class="c">// 쌓인 배치를 내보낸다. 틱 루프 안에서 유일하게 허용되는 await 대상이다.</span>
+    <span class="t">ValueTask</span> FlushAsync(<span class="t">CancellationToken</span> ct);
+
+    <span class="c">// 게임서버 → NPC 서버.</span>
+    <span class="t">ChannelReader</span>&lt;<span class="t">GameEvent</span>&gt; Events { <span class="k">get</span>; }
+
+    <span class="t">LinkState</span> State { <span class="k">get</span>; }
+    <span class="t">LinkStats</span> Stats { <span class="k">get</span>; }
+    <span class="k">event</span> <span class="t">Action</span>&lt;<span class="t">LinkState</span>&gt;? StateChanged;
+}</code></pre>
+
+<div class="why">
+  <span class="tag">여기에 <code>Task&lt;bool&gt; SendAsync()</code> 를 추가하고 싶어질 때</span>
+  그 순간 <b>네트워크 RTT가 틱 루프를 블록한다.</b> 5,000마리가 한 틱에 명령을 내는데
+  하나라도 응답을 기다리면 10Hz가 성립하지 않는다.
+  그래서 N1은 "명령은 fire-and-forget"이 아니라 <b>"반환값 있는 전송 메서드를 이 인터페이스에 추가하지 않는다"</b>로 적혀 있고,
+  <code>ContractRuleTests</code>가 리플렉션으로 그것을 검사한다.
+</div>
+
+<h2 id="rules">3. N1~N8 — 여덟 개 규칙</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>#</th><th>규칙</th><th>어기면</th><th>강제</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>N1</b></td><td>명령은 fire-and-forget. 반환값 있는 메서드를 추가하지 않는다</td>
+  <td>RTT가 틱을 블록한다</td><td>리플렉션 검사</td>
+</tr>
+<tr>
+  <td><b>N2</b></td><td>모든 패킷은 <code>readonly record struct</code>. 참조 필드·가변 컬렉션·<code>object</code> 금지</td>
+  <td>발행 경로에 힙 할당이 생긴다</td><td>리플렉션 검사</td>
+</tr>
+<tr>
+  <td><b>N3</b></td><td><b>패킷에 <code>string</code> 필드 금지.</b> 전부 강타입 ID</td>
+  <td>직렬화 비용 + <b>프롬프트 인젝션 경로</b></td><td>리플렉션 검사</td>
+</tr>
+<tr>
+  <td><b>N4</b></td><td><b><code>DateTime</code>/<code>TimeSpan</code> 금지.</b> 시간은 <code>Tick</code>(long)만</td>
+  <td>리플레이가 깨진다</td><td>리플렉션 검사</td>
+</tr>
+<tr>
+  <td><b>N5</b></td><td>모든 명령에 <code>CorrelationId</code></td>
+  <td>낡은 응답을 새 스텝 완료로 오인한다</td><td>필드 존재 검사</td>
+</tr>
+<tr>
+  <td><b>N6</b></td><td>모든 이벤트에 <code>Sequence</code>. 갭 검출 → 경보</td>
+  <td>유실을 조용히 넘겨 NPC가 영원히 멈춘다</td><td><code>NpcServerLoop.EventGaps</code></td>
+</tr>
+<tr>
+  <td><b>N7</b></td><td>이벤트 처리는 <b>멱등</b>. 2회 주입 → 상태 해시 동일</td>
+  <td>재전송이 인벤토리를 두 번 더한다</td><td><code>NpcStore.StateHash()</code> 비교</td>
+</tr>
+<tr>
+  <td><b>N8</b></td><td>배치가 기본. <code>Enqueue</code> + <code>FlushAsync</code>만 노출</td>
+  <td>패킷당 syscall — 5,000 NPC에서 죽는다</td><td>인터페이스 형태</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h3>3.1 N3이 보안 규칙이기도 한 이유</h3>
+
+<p>
+  패킷에 <code>string</code>이 없다는 것은 성능 이야기로 들리지만, 실은 <b>프롬프트 인젝션 방어선</b>이다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 860 220" role="img" aria-label="문자열이 프롬프트에 도달하는 경로가 막혀 있음">
+      <rect x="20" y="30" width="180" height="66" rx="9" fill="var(--bad-soft)" stroke="var(--bad)"/>
+      <text x="110" y="56" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--bad)">플레이어 입력</text>
+      <text x="110" y="78" text-anchor="middle" font-size="11" fill="var(--ink-2)">캐릭터명 · 채팅 · 길드명</text>
+
+      <rect x="250" y="30" width="180" height="66" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="340" y="56" text-anchor="middle" font-size="12.5" font-weight="650">게임서버</text>
+      <text x="340" y="78" text-anchor="middle" font-size="11" fill="var(--ink-3)">GameEvent 로 변환</text>
+
+      <rect x="480" y="30" width="180" height="66" rx="9" fill="var(--panel-2)" stroke="var(--l0)"/>
+      <text x="570" y="56" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--l0)">NPC 서버 상태</text>
+      <text x="570" y="78" text-anchor="middle" font-size="11" fill="var(--ink-3)">WorldFlags · 강타입 ID</text>
+
+      <rect x="700" y="30" width="140" height="66" rx="9" fill="var(--panel-2)" stroke="var(--l3)"/>
+      <text x="770" y="56" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--l3)">LLM 프롬프트</text>
+      <text x="770" y="78" text-anchor="middle" font-size="11" fill="var(--ink-3)">서픽스 ≤ 300 토큰</text>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3">
+        <path d="M200,63 L246,63"/><path d="M430,63 L476,63"/><path d="M660,63 L696,63"/>
+      </g>
+
+      <g stroke="var(--bad)" stroke-width="2.5">
+        <line x1="440" y1="48" x2="468" y2="78"/><line x1="440" y1="78" x2="468" y2="48"/>
+      </g>
+      <text x="454" y="112" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--bad)">여기서 끊긴다</text>
+      <text x="454" y="130" text-anchor="middle" font-size="11" fill="var(--bad)">N3 — 패킷에 string 이 없다</text>
+
+      <rect x="20" y="152" width="820" height="52" rx="9" fill="var(--panel-2)" stroke="var(--line)"/>
+      <text x="40" y="176" font-size="12.5" fill="var(--ink-2)">
+        <tspan font-weight="650">결과 —</tspan> 플레이어가 캐릭터명을 <tspan font-family="var(--mono)">"Ignore previous instructions"</tspan> 로 지어도
+      </text>
+      <text x="40" y="194" font-size="12.5" fill="var(--ink-2)">
+        NPC 서버는 그 문자열을 <tspan font-weight="650">받을 방법 자체가 없다.</tspan> 받는 것은 <tspan font-family="var(--mono)">PlayerId(int)</tspan> 뿐이다.
+      </text>
+    </svg>
+  </div>
+  <figcaption>방어를 프롬프트 단계에서 하지 않고 <b>타입 단계에서</b> 한다. 이쪽이 우회 불가능하다.</figcaption>
+</figure>
+
+<h2 id="packets">4. 패킷 29종</h2>
+
+<h3>4.1 명령 12종 — NPC 서버 → 게임서버</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th class="num">code</th><th>Kind</th><th>쓰는 페이로드</th><th>기본 우선순위</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td><code>Spawn</code></td><td><code>Archetype</code> <code>Zone</code> <code>TargetPoi</code> <code>TargetPos</code></td><td><span class="pill bad">Critical</span></td></tr>
+<tr><td class="num">2</td><td><code>Despawn</code></td><td>—</td><td><span class="pill bad">Critical</span></td></tr>
+<tr><td class="num">3</td><td><code>MoveTo</code></td><td><code>TargetPoi</code> · <code>Flags</code>=<code>MoveSpeed</code></td><td><span class="pill">Normal</span></td></tr>
+<tr><td class="num">4</td><td><code>Stop</code></td><td>—</td><td><span class="pill">Normal</span></td></tr>
+<tr><td class="num">5</td><td><code>FaceTo</code></td><td><code>TargetNpc</code> · <code>TargetPos</code></td><td><span class="pill warn">Cosmetic</span></td></tr>
+<tr><td class="num">6</td><td><code>PlayAnimation</code></td><td><code>Animation</code> · <code>Amount</code>=반복</td><td><span class="pill warn">Cosmetic</span></td></tr>
+<tr><td class="num">7</td><td><code>SetVisualState</code></td><td><code>Visual</code></td><td><span class="pill warn">Cosmetic</span></td></tr>
+<tr><td class="num">8</td><td><code>Interact</code></td><td><code>TargetPoi</code> <code>TargetNpc</code> <code>Item</code></td><td><span class="pill">Normal</span></td></tr>
+<tr><td class="num">9</td><td><code>Speak</code></td><td><code>Dialogue</code> <code>TargetNpc</code></td><td><span class="pill warn">Cosmetic</span></td></tr>
+<tr><td class="num">10</td><td><code>InventoryChange</code></td><td><code>Item</code> · <code>Amount</code>(부호 있음)</td><td><span class="pill">Normal</span></td></tr>
+<tr><td class="num">11</td><td><code>CombatAction</code></td><td><code>TargetNpc</code>/<code>TargetPlayer</code> · <code>Flags</code>=<code>CombatActionKind</code></td><td><span class="pill bad">Critical</span></td></tr>
+<tr><td class="num">12</td><td><code>SetAggro</code></td><td><code>Flags</code>=0/1</td><td><span class="pill">Normal</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">판별 공용체를 struct 로</span>
+  <code>NpcCommand</code>는 <b>모든 페이로드 필드를 명시적으로 갖는다</b>.
+  <code>[StructLayout(LayoutKind.Explicit)]</code> 유니온을 쓰지 않은 이유는 두 가지다 —
+  직렬화기가 단순해지고, 디버거에서 값이 그대로 보인다.
+  <code>Kind</code>가 어느 필드가 유효한지를 정한다.
+</div>
+
+<h3>4.2 이벤트 17종 — 게임서버 → NPC 서버</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th class="num">code</th><th>Kind</th><th>NPC 서버가 하는 일</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td><code>TickSync</code></td><td><b>시계를 민다.</b> 이것이 유일한 시간 기준이다 (N4)</td></tr>
+<tr><td class="num">2</td><td><code>GameTimeChanged</code></td><td>전원의 시간대 플래그 + <code>OnDuty</code> 재계산</td></tr>
+<tr><td class="num">3·4</td><td><code>NpcSpawned</code> / <code>NpcDespawned</code></td><td><code>StepStatus</code>를 <code>Ready</code> / <code>Unspawned</code>로</td></tr>
+<tr><td class="num">5</td><td><code>NpcTransform</code></td><td>위치만 갱신. <b>기억에 남기지 않는다</b> (최다 이벤트라 8칸이 이것만으로 찬다)</td></tr>
+<tr><td class="num">6</td><td><code>NpcArrived</code></td><td>POI 갱신 → <b>장소 플래그를 통째로 교체</b> + 스텝 완료</td></tr>
+<tr><td class="num">7·8</td><td><code>NpcActionCompleted</code> / <code>NpcActionFailed</code></td><td>상관 ID 확인 후 <code>Completed</code>/<code>Failed</code></td></tr>
+<tr><td class="num">9</td><td><code>NpcVitalsChanged</code></td><td>HP&lt;50 → <code>IsInjured</code>, 스태미나&lt;20 → <code>IsExhausted</code></td></tr>
+<tr><td class="num">10</td><td><code>NpcInventoryChanged</code></td><td>인벤토리 갱신 → <b><code>items.json</code>의 grants 로 플래그 재계산</b></td></tr>
+<tr><td class="num">11·12</td><td><code>PlayerProximity</code> / <code>PlayerInteracted</code></td><td><code>PlayerNearby</code> 플래그 + <b>LOD 등급 갱신</b></td></tr>
+<tr><td class="num">13·14</td><td><code>CombatStarted</code> / <code>CombatEnded</code></td><td><code>InCombat</code>·<code>ThreatNearby</code></td></tr>
+<tr><td class="num">15</td><td><code>DamageTaken</code></td><td>같음 + 기억 중요도 <b>220</b> (최상위)</td></tr>
+<tr><td class="num">16</td><td><code>ZoneStateChanged</code></td><td>존 전체 플래그 + <b>War면 존 전체 LOD 1 승격</b> + 버킷 전환 예약</td></tr>
+<tr><td class="num">17</td><td><code>WeatherChanged</code></td><td><code>WeatherHarsh</code> + 버킷 전환 예약</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">거리 계산을 우리가 하지 않는다</span>
+  <code>PlayerProximity</code>는 게임서버가 <b>이미 계산해서</b> 보내는 값이다.
+  이것이 없어서 스캔 안에서 거리를 계산하면, NPC 5,000 × 플레이어 20 = <b>틱당 10만 회 거리 계산</b>이고
+  그것만으로 20 ms 예산이 날아간다. 인지 LOD 설계 전체가 이 이벤트에 얹혀 있다(<a href="ch06.html">6장</a>).
+</div>
+
+<h2 id="loss">5. 명령은 유실된다 — 이 전제가 만든 것들</h2>
+
+<p>
+  네트워크 링크에서 명령이 사라지는 것은 예외가 아니라 정상이다.
+  이 저장소는 그것을 <b>가정</b>하고, 유실돼도 NPC가 멈추지 않는 경로를 상시로 돌린다.
+</p>
+
+<figure>
+  <div class="svgbox" style="padding:16px 12px">
+    <svg viewBox="0 0 860 300" id="lossSvg" role="img" aria-label="명령 왕복과 타임아웃 합성">
+      <!-- 레인 -->
+      <line x1="120" y1="40" x2="120" y2="264" stroke="var(--npc)" stroke-width="2"/>
+      <line x1="740" y1="40" x2="740" y2="264" stroke="var(--gs)" stroke-width="2"/>
+      <text x="120" y="28" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--npc)">NPC 서버</text>
+      <text x="740" y="28" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--gs)">게임서버</text>
+
+      <g id="lossMsgs"></g>
+
+      <rect x="180" y="272" width="520" height="22" rx="6" fill="var(--panel-2)" stroke="var(--line)"/>
+      <text id="lossNote" x="440" y="288" text-anchor="middle" font-size="11.5" fill="var(--ink-2)"></text>
+    </svg>
+  </div>
+  <div class="ctl">
+    <label>명령 유실률 <input type="range" id="lossRate" min="0" max="100" step="10" value="0"> <span id="lossRateT" style="font-family:var(--mono)">0 %</span></label>
+    <button class="btn" id="lossRun" type="button">명령 5건 보내기</button>
+  </div>
+  <div class="readout" id="lossOut">유실률을 올리고 눌러 보면, 응답이 안 오는 스텝을 실행기가 어떻게 되살리는지 볼 수 있다.</div>
+  <figcaption>이 경로는 <code>--drop-rate</code> 옵션으로 <b>상시 테스트된다</b>. P1 실측에서 합성 타임아웃이 명령의 17.3 %였다.</figcaption>
+</figure>
+
+<h3>5.1 타임아웃 합성 — 모든 스텝에 <code>timeout_s</code>가 있는 이유</h3>
+
+<div class="filepath">src/Npc.Runtime/PlanExecutor.cs</div>
+
+<pre><code><span class="k">private bool</span> SynthesizeTimeout(<span class="k">int</span> npc, <span class="t">Tick</span> tick)
+{
+    <span class="t">CompiledPlan</span> plan = PlanOf(npc);
+    <span class="k">int</span> index = <span class="t">Math</span>.Min(_store.StepIndex[npc], plan.Steps.Length - <span class="n">1</span>);
+    <span class="k">long</span> budget = TimeoutTicks(plan.Steps[index].TimeoutSeconds);
+
+    <span class="k">if</span> (tick.Value - _store.StepIssuedTick[npc] &lt; budget) <span class="k">return false</span>;
+
+    _correlations.Invalidate(npc);                             <span class="c">// 늦게 온 응답을 무시한다</span>
+    _store.StepStatus[npc] = (<span class="k">byte</span>)<span class="t">StepStatus</span>.Failed;
+    _store.LastFailReason[npc] = (<span class="k">byte</span>)<span class="t">ActionFailReason</span>.Timeout;
+    TimeoutsSynthesized++;
+    <span class="k">return true</span>;
+}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>설계 결정</th><th>이유</th></tr></thead>
+<tbody>
+<tr><td><code>timeout_s</code>가 <b>0이면 안 된다</b>. 컴파일러가 최소 5초로 올린다</td><td>0이면 완료 이벤트를 못 받았을 때 NPC가 영구 정지한다</td></tr>
+<tr><td>합성한 실패도 <code>ActionFailReason.Timeout</code>이라는 <b>정상 실패 코드</b>다</td><td><code>on_step_fail</code> 정책이 그대로 적용된다 — 특수 경로가 없다</td></tr>
+<tr><td>합성 시 <b>상관 ID를 무효화</b>한다</td><td>뒤늦게 도착한 응답이 새 스텝의 완료로 오인되면 안 된다</td></tr>
+<tr><td>게임 초 → 틱 환산에 <code>TimeScale</code>이 들어간다</td><td>60배속이면 게임 300초는 실시간 5초 = 50틱이다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>5.2 상관 ID — 낡은 응답 거르기</h3>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 860 210" role="img" aria-label="상관 ID 무효화로 낡은 응답을 거르는 과정">
+      <line x1="90" y1="34" x2="90" y2="180" stroke="var(--npc)" stroke-width="2"/>
+      <line x1="700" y1="34" x2="700" y2="180" stroke="var(--gs)" stroke-width="2"/>
+      <text x="90" y="24" text-anchor="middle" font-size="12" font-weight="650" fill="var(--npc)">NPC 서버</text>
+      <text x="700" y="24" text-anchor="middle" font-size="12" font-weight="650" fill="var(--gs)">게임서버</text>
+
+      <g font-size="11.5" font-family="var(--mono)">
+        <line x1="90" y1="56" x2="694" y2="56" stroke="var(--ink-3)" stroke-width="1.2"/>
+        <polygon points="694,56 686,52 686,60" fill="var(--ink-3)"/>
+        <text x="392" y="48" text-anchor="middle" fill="var(--ink-2)">MoveTo · Correlation = 41</text>
+
+        <line x1="90" y1="92" x2="694" y2="92" stroke="var(--l3)" stroke-width="1.2" stroke-dasharray="5 3"/>
+        <text x="392" y="84" text-anchor="middle" fill="var(--l3)">플랜 스왑 → Invalidate(npc) · 현재 ID = 0</text>
+
+        <line x1="90" y1="128" x2="694" y2="128" stroke="var(--ink-3)" stroke-width="1.2"/>
+        <polygon points="694,128 686,124 686,132" fill="var(--ink-3)"/>
+        <text x="392" y="120" text-anchor="middle" fill="var(--ink-2)">Interact · Correlation = 42</text>
+
+        <line x1="700" y1="164" x2="96" y2="164" stroke="var(--bad)" stroke-width="1.2"/>
+        <polygon points="96,164 104,160 104,168" fill="var(--bad)"/>
+        <text x="392" y="156" text-anchor="middle" fill="var(--bad)">NpcArrived · Correlation = 41  ← 늦게 도착</text>
+      </g>
+
+      <text x="90" y="198" font-size="12" fill="var(--ink-2)">
+        <tspan font-weight="650" fill="var(--bad)">41은 이미 무효다.</tspan>
+        <tspan font-family="var(--mono)">IsStale()</tspan> 이 참이라 조용히 버린다 —
+        <tspan font-family="var(--mono)">StaleResponsesIgnored</tspan> 만 오른다.
+      </text>
+    </svg>
+  </div>
+  <figcaption>이 장치가 없으면 <b>직전 스텝의 도착 이벤트가 새 스텝의 완료로 읽혀</b> 플랜이 통째로 어긋난다.</figcaption>
+</figure>
+
+<h2 id="idem">6. N6·N7 — 시퀀스 갭과 멱등</h2>
+
+<p>모든 이벤트가 지나는 곳은 <code>NpcServerLoop.DrainEvents</code> <b>한 곳뿐</b>이라, 갭 검출도 거기서 한다.</p>
+
+<pre><code><span class="k">while</span> (drained &lt; MaxEventsPerTick &amp;&amp; _link.Events.TryRead(<span class="k">out</span> <span class="t">GameEvent</span> ev))
+{
+    <span class="k">if</span> (ev.Sequence &gt; _lastSequence)
+    {
+        <span class="k">if</span> (_lastSequence != <span class="n">0</span> &amp;&amp; ev.Sequence != _lastSequence + <span class="n">1</span>) EventGaps++;   <span class="c">// N6</span>
+        _lastSequence = ev.Sequence;
+    }
+
+    _applier.Apply(<span class="k">in</span> ev);            <span class="c">// N7 — 같은 시퀀스면 내부에서 무시한다</span>
+    Transition?.Observe(<span class="k">in</span> ev, _clock);
+    <span class="c">// … 인터럽트 판정 …</span>
+
+    <span class="hl">    <span class="k">if</span> (ev.Kind == <span class="t">GameEventKind</span>.TickSync) <span class="k">break</span>;   <span class="c">// ★ 여기서 끊는 것이 결정론의 조건이다</span></span>
+}</code></pre>
+
+<div class="why">
+  <span class="tag"><code>TickSync</code>에서 배수를 끊는 이유</span>
+  게임서버 대역은 틱마다 <code>TickSync</code>를 <b>마지막에</b> 낸다. 그래서 이 경계가 곧 틱 경계다.
+  끊지 않으면 생산자가 앞서 나간 만큼 <b>다음 틱의 이벤트까지 한 배수에 들어오고</b>,
+  아직 돌리지 않은 틱의 결과가 이번 틱의 판단에 반영된다.
+  얼마나 들어오는지는 스레드 스케줄이 정하므로 <b>같은 시나리오가 실행마다 갈라진다</b>
+  (실측: 이벤트 수 30,416 vs 30,649).
+</div>
+
+<h3>6.1 멱등성은 어떻게 확인하나</h3>
+
+<pre><code><span class="c">// 같은 이벤트 열을 두 번 주입하고 상태 해시를 비교한다.</span>
+<span class="t">ulong</span> first  = store.StateHash();
+Inject(events); Inject(events);      <span class="c">// 두 번</span>
+<span class="t">ulong</span> second = store.StateHash();
+<span class="t">Assert</span>.Equal(first, second);          <span class="c">// N7</span></code></pre>
+
+<p class="small">
+  <code>StateHash</code>는 FNV-1a 64이고 <b>부동소수 좌표를 비트 패턴 그대로</b> 섞는다 —
+  반올림 차이를 놓치지 않기 위해서다.
+</p>
+
+<h2 id="backpressure">7. 역압 — 무엇을 먼저 버리는가</h2>
+
+<div class="filepath">src/Npc.Gateway/PriorityCommandRing.cs</div>
+
+<p>
+  큐가 차면 <b>자기보다 낮은 우선순위부터</b> 밀어낸다. <code>Critical</code>은 무손실이다.
+  드롭은 예외를 던지지 않고 <code>Stats.CommandsDropped</code>에만 나타난다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 820 200" role="img" aria-label="우선순위별 링과 드롭 순서">
+      <g font-size="12">
+        <rect x="40" y="34" width="220" height="42" rx="8" fill="var(--bad-soft)" stroke="var(--bad)"/>
+        <text x="150" y="60" text-anchor="middle" font-weight="650" fill="var(--bad)">Critical — 무손실</text>
+        <text x="290" y="60" font-size="11.5" fill="var(--ink-3)">Spawn · Despawn · CombatAction</text>
+
+        <rect x="40" y="88" width="220" height="42" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="150" y="114" text-anchor="middle" font-weight="650">Normal — 두 번째로 버린다</text>
+        <text x="290" y="114" font-size="11.5" fill="var(--ink-3)">MoveTo · Interact · InventoryChange</text>
+
+        <rect x="40" y="142" width="220" height="42" rx="8" fill="var(--warn-soft)" stroke="var(--warn)"/>
+        <text x="150" y="168" text-anchor="middle" font-weight="650" fill="var(--warn)">Cosmetic — 먼저 버린다</text>
+        <text x="290" y="168" font-size="11.5" fill="var(--ink-3)">FaceTo · PlayAnimation · Speak · SetVisualState</text>
+      </g>
+      <text x="40" y="22" font-size="12" fill="var(--ink-3)">
+        연출이 몇 프레임 빠지는 것과 NPC가 스폰되지 않는 것은 다른 무게다.
+      </text>
+    </svg>
+  </div>
+  <figcaption>이 정책은 <b>루프백 링크와 TCP 링크가 같은 타입을 공유</b>한다(T6-05). 복사하면 반드시 갈라지기 때문이다.</figcaption>
+</figure>
+
+<div class="warn">
+  <span class="tag">드롭이 0이 아니면 사이징 실수일 수 있다</span>
+  링크 큐는 <b>한 틱치 명령</b>을 담아야 한다. 소비자(<code>FlushAsync</code>)가 매 틱 전량을 비우므로,
+  여기서 넘치는 것은 역압이 아니라 크기 계산 실수다 — 실제로 기본값 4,096을 그대로 두면
+  NPC 5,000의 <b>첫 틱에 904건이 버려지고</b> 그 NPC들은 <code>timeout_s</code>가 만료될 때까지 첫 걸음을 못 뗀다.
+  그래서 호스트가 <code>npcs × MaxCommandsPerStep</code>으로 다시 잡는다.
+</div>
+
+<h2 id="impls">8. 링크 구현체 5종 — 코드를 안 고치고 바꾼다</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>구현체</th><th><code>--link</code></th><th>무엇</th><th>쓰는 곳</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>LoopbackGameServerLink</code></td><td><code>loopback</code></td>
+  <td><code>Npc.Sim</code> 인프로세스 월드에 직결</td><td>기본. 개발·부하·게이트</td>
+</tr>
+<tr>
+  <td><code>NullGameServerLink</code></td><td><code>null</code></td>
+  <td>아무것도 보내지 않고 <code>TickSync</code>만 흘린다</td><td>링크 없이 뜨는지 확인</td>
+</tr>
+<tr>
+  <td><code>RecordingGameServerLink</code></td><td><code>record</code></td>
+  <td><b>데코레이터.</b> 안쪽 링크의 명령·이벤트를 jsonl로 기록</td><td>리플레이 자료 만들기</td>
+</tr>
+<tr>
+  <td><code>ReplayGameServerLink</code></td><td><code>replay</code></td>
+  <td>기록된 jsonl을 그대로 재생. <b>Sim을 만들지 않는다</b></td><td>결정론 검증 (W11 게이트)</td>
+</tr>
+<tr>
+  <td><code>TcpGameServerLink</code></td><td><code>tcp</code></td>
+  <td>실제 소켓. 핸드셰이크 + 프레임 코덱</td><td>P6 테스트 베드 · 실 게임서버</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">P6가 실제로 증명한 것</span>
+  TCP 링크를 붙이면서 <b><code>IGameServerLink.cs</code>를 한 줄도 바꾸지 않았고</b>,
+  <code>Npc.Runtime</code>의 세 프로젝트는 <code>Npc.Gateway</code>를 <b>참조조차 하지 않는다</b>.
+  링크 교체 시 런타임 diff = 0이 P5 게이트 항목 4였고, 그것이 통과했다.
+</div>
+
+<h3>8.1 데코레이터가 자연스럽게 되는 이유</h3>
+
+<pre><code><span class="c">// src/Npc.Host/Program.cs — --link record 는 안쪽이 무엇이든 감싼다</span>
+<span class="t">IGameServerLink</span> inner = options.UsesGameServer
+    ? TcpLink(options, data, roster)       <span class="c">// 소켓을 감싸면 실전 트래픽을 기록한다</span>
+    : SimDriver.Create(...).Link;          <span class="c">// 대역을 감싸면 재현 가능한 자료가 나온다</span>
+
+link = <span class="k">new</span> <span class="t">RecordingGameServerLink</span>(inner, path);</code></pre>
+
+<p>
+  인터페이스에 메서드가 다섯 개뿐이고 <b>반환값 있는 전송이 없기 때문에</b>(N1)
+  데코레이터가 상태를 들고 있을 필요가 없다. N1이 성능 규칙일 뿐 아니라 <b>구조 규칙</b>이기도 한 지점이다.
+</p>
+
+<h2 id="sim">9. <code>Npc.Sim</code> — 게임서버 대역</h2>
+
+<p>
+  실제 게임서버 없이 NPC 서버를 돌리려면 상대방이 필요하다. <code>Npc.Sim</code>이 그 역할이다.
+  <b>이것도 우리가 만든다</b> — 다만 "게임서버를 만든다"는 뜻은 아니다. 검증용 가짜다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>하위 시뮬</th><th>하는 일</th></tr></thead>
+<tbody>
+<tr><td><code>MovementSim</code></td><td><code>MoveTo</code>를 받아 거리·속도로 이동시키고 도착하면 <code>NpcArrived</code></td></tr>
+<tr><td><code>InteractionSim</code></td><td><code>Interact</code>·<code>InventoryChange</code> 처리</td></tr>
+<tr><td><code>TransformEmitter</code></td><td>이동 중인 NPC의 <code>NpcTransform</code> 발행</td></tr>
+<tr><td><code>NeedsSim</code></td><td>배고픔·갈증·스태미나 감소 → <code>NpcVitalsChanged</code></td></tr>
+<tr><td><code>PlayerBots</code></td><td>가상 플레이어가 POI를 돌며 <code>PlayerProximity</code> 발행</td></tr>
+<tr><td><code>ScenarioRunner</code></td><td>jsonl 시나리오를 재생 — 존 상태 전환·킬스위치</td></tr>
+<tr><td><code>FaultInjector</code></td><td><code>--fail-rate</code>·<code>--drop-rate</code> 주입</td></tr>
+<tr><td><code>DryRunValidator</code></td><td><b>검증기 4단</b>. 축소 세계에서 플랜을 1~2 사이클 돌린다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">Sim은 일부러 불완전하다</span>
+  <code>Craft</code>·<code>Trade</code> 같은 액션 중 일부를 <b>처리하지 않고 흘린다</b>(<code>SimWorld.Unhandled</code>).
+  그래서 P1 실측에서 합성 타임아웃이 명령의 17.3 %였다.
+  이것은 결함이 아니라 <b>타임아웃 합성 경로가 상시로 돌고 있다는 증거</b>다.
+  실제 게임서버가 붙으면 이 비율은 드롭률만큼으로 떨어진다.
+</div>
+
+<div class="ok">
+  <span class="tag">3장 요약</span>
+  <ul style="margin-bottom:0">
+    <li><code>IGameServerLink</code>는 <b>NPC 서버의 아웃바운드 포트</b>다. 이름의 GameServer는 상대방이다.</li>
+    <li>N1~N8은 취향이 아니라 <b>테스트로 강제되는 계약</b>이다. 특히 N3은 프롬프트 인젝션을 타입 단계에서 막는다.</li>
+    <li>명령은 유실된다고 <b>가정</b>한다. 모든 스텝에 <code>timeout_s</code>가 있고 응답이 없으면 로컬에서 실패를 합성한다.</li>
+    <li>낡은 응답은 <b>상관 ID 무효화</b>로 걸러진다. 이게 없으면 플랜 스왑이 상태를 망친다.</li>
+    <li><code>TickSync</code>에서 이벤트 배수를 끊는 것이 <b>리플레이 100 % 일치의 조건</b>이다.</li>
+    <li>링크 구현체 5종이 <b>코드 변경 0</b>으로 교체된다 — P5 게이트 항목 4.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 명령 유실 · 타임아웃 합성 ---------- */
+(function () {
+  var g = document.getElementById('lossMsgs');
+  var out = document.getElementById('lossOut');
+  var note = document.getElementById('lossNote');
+  var rate = document.getElementById('lossRate');
+  var rateT = document.getElementById('lossRateT');
+  var btn = document.getElementById('lossRun');
+  if (!g) return;
+
+  var el = window.NpcBook.el;
+  rate.addEventListener('input', function () { rateT.textContent = rate.value + ' %'; });
+
+  var STEPS = ['MoveTo $workplace', 'Work iron_sword', 'Trade iron_sword', 'MoveTo $tavern', 'Drink'];
+
+  function run() {
+    g.innerHTML = '';
+    var p = +rate.value / 100;
+    var lines = [];
+    var lost = 0, ok = 0;
+
+    STEPS.forEach(function (name, i) {
+      var y = 56 + i * 42;
+      /* 결정론 유실 — 슬라이더 값과 인덱스만으로 정한다 (난수를 쓰지 않는다) */
+      var drop = ((i * 37 + 11) % 100) / 100 < p;
+
+      var line = el('line', {
+        x1: 120, y1: y, x2: drop ? 430 : 734, y2: y,
+        stroke: drop ? 'var(--bad)' : 'var(--ink-3)', 'stroke-width': 1.4
+      }, g);
+      line.setAttribute('stroke-dasharray', '620');
+      line.setAttribute('stroke-dashoffset', '620');
+      line.style.animation = 'none';
+      requestAnimationFrame(function () {
+        line.style.transition = 'stroke-dashoffset .5s ' + (i * 0.35) + 's linear';
+        line.setAttribute('stroke-dashoffset', '0');
+      });
+
+      el('text', { x: 130, y: y - 8, 'font-size': 11.5, 'font-family': 'var(--mono)', fill: 'var(--ink-2)' }, g)
+        .textContent = 'cmd #' + (41 + i) + ' · ' + name;
+
+      if (drop) {
+        lost++;
+        el('text', { x: 440, y: y + 4, 'font-size': 12, fill: 'var(--bad)', 'font-weight': 650 }, g)
+          .textContent = '✕ 유실';
+        var t = el('text', {
+          x: 470, y: y + 4, 'font-size': 11.5, fill: 'var(--warn)', opacity: 0
+        }, g);
+        t.textContent = '→ timeout_s 만료 → ActionFailed(Timeout) 합성 → 다음 스텝';
+        setTimeout(function () { t.setAttribute('opacity', 1); }, 600 + i * 350);
+      } else {
+        ok++;
+        var back = el('line', {
+          x1: 740, y1: y + 16, x2: 126, y2: y + 16,
+          stroke: 'var(--gs)', 'stroke-width': 1.1, 'stroke-dasharray': '4 3', opacity: 0
+        }, g);
+        setTimeout(function () { back.setAttribute('opacity', .9); }, 600 + i * 350);
+        var t2 = el('text', {
+          x: 600, y: y + 12, 'font-size': 11, fill: 'var(--gs)', opacity: 0, 'text-anchor': 'end'
+        }, g);
+        t2.textContent = 'NpcArrived / Completed';
+        setTimeout(function () { t2.setAttribute('opacity', 1); }, 600 + i * 350);
+      }
+      lines.push((drop ? '  유실 ' : '  응답 ') + 'cmd #' + (41 + i) + '  ' + name);
+    });
+
+    note.textContent = '명령 ' + STEPS.length + '건 중 ' + lost + '건 유실 · ' + ok + '건 정상 응답';
+    out.textContent = lines.join('\n') + '\n\n' +
+      '합성 타임아웃 ' + lost + '건 — StepStatus 가 Failed 로 바뀌고 on_step_fail 정책이 적용된다.\n' +
+      'NPC 는 어느 경우에도 멈추지 않는다. 유실률 100 % 로 올려도 플랜은 계속 전진한다.';
+  }
+
+  btn.addEventListener('click', run);
+  window.NpcBook.onVisible(document.getElementById('lossSvg'), run);
+})();
+</script>
+</body>
+</html>

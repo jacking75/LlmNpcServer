@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12장 · 관측 · 테스트 · 게이트 · 실측 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">6부 · 돌려보고 고치기</p>
+  <h1>12장 — 관측 · 테스트 · 게이트 · 실측</h1>
+  <p class="lede">
+    무엇을 보고 정상인지 판단하는가, 무엇이 자동으로 검사되는가, 그리고
+    <b>계획의 추정이 실제로 어디서 얼마나 빗나갔는가</b>.
+    이 장은 이 저장소가 자기 자신에 대해 알아낸 것을 모은 곳이다 —
+    좋은 결과만이 아니라 <b>틀린 것도 틀렸다고 적힌 그대로</b> 옮겼다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/measurements/*</span>
+    <span class="chip">테스트 카테고리 9종</span>
+    <span class="chip">게이트 P0~P6</span>
+  </div>
+</div>
+
+<h2 id="endpoints">1. 관측 엔드포인트</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>경로</th><th>내용</th><th>누가 쓰나</th></tr></thead>
+<tbody>
+<tr><td><code>GET /dashboard</code></td><td>단일 HTML. <code>/metrics</code>를 폴링한다</td><td>사람</td></tr>
+<tr><td><code>GET /metrics</code></td><td><b>패널 8종 JSON 한 장</b></td><td>대시보드 · 게이트 러너</td></tr>
+<tr><td><code>GET /status</code></td><td>가벼운 상태 한 줄</td><td>헬스체크</td></tr>
+<tr><td><code>GET /npc/{id}</code></td><td><b>NPC 한 마리 추적</b> — 플랜·스텝·플래그·LOD</td><td>테스트 클라이언트 인스펙터</td></tr>
+<tr><td><code>GET /heatmap.csv</code></td><td>버킷별 조회 수 2,880행. <b>조회 0인 버킷도 전부 낸다</b></td><td>보고서 원자료</td></tr>
+<tr><td><code>POST /control/killswitch</code></td><td><code>--dev-control</code>일 때만. 없으면 404</td><td>데모 제어</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag"><code>/npc/{id}</code>가 틱 루프를 막지 않는 이유</span>
+  SoA 배열을 <b>읽기만 하고 값을 복사해</b> 나간다. 락도 없고 상태를 바꾸지도 않는다.
+  같은 이유로 개별 플랜 조회는 <code>TryPeek</code>을 쓴다 —
+  <code>TryGet</code>이면 <b>대시보드를 열어 두는 것만으로 LRU 순서가 바뀐다</b>.
+</div>
+
+<h2 id="panels">2. 지표를 읽는 법</h2>
+
+<h3>2.1 틱 패널 — 여기가 제일 먼저다</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>필드</th><th>정상</th><th>이상하면</th></tr></thead>
+<tbody>
+<tr><td><code>p50Ms</code> / <code>p99Ms</code> / <code>maxMs</code></td><td>p99 ≤ 20 ms</td><td>어느 단계가 늘었는지 <code>scanPerTick</code>·<code>bandMigrations</code>부터 본다</td></tr>
+<tr><td><code>overruns</code></td><td><b>0</b></td><td>0이 아니면 틱이 밀리고 있다. 예산 초과 틱 수다</td></tr>
+<tr><td><b><code>bytesPerTick</code></b></td><td><b>0</b></td><td><b>틱 루프를 재는 유일한 계기다.</b> 0이 아니면 할당이 들어갔다</td></tr>
+<tr><td><code>gen0Collections</code></td><td>참고용</td><td><b>프로세스 전역</b>이라 이걸로 판정하지 않는다 (§2.5)</td></tr>
+<tr><td><code>managedHeapMb</code></td><td>≤ 400 MB</td><td>실측 43.9 MB. 크게 늘면 어딘가 캐시가 새는 것</td></tr>
+<tr><td><code>gameDay</code> / <code>gameHour</code> / <code>timeOfDay</code></td><td>진행</td><td>안 늘면 <code>TickSync</code>가 안 오는 것이다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>2.2 링크 패널</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>필드</th><th>정상</th><th>이상하면</th></tr></thead>
+<tbody>
+<tr><td><code>commandsEnqueued</code> vs <code>commandsFlushed</code></td><td>거의 같음</td><td>차이가 크면 flush가 못 따라간다</td></tr>
+<tr><td><code>commandsDropped</code></td><td><b>0</b></td><td>역압이 아니라 <b>큐 사이징 실수</b>일 가능성이 높다 (<a href="ch03.html#backpressure">3장 §7</a>)</td></tr>
+<tr><td><code>eventGaps</code></td><td><b>0</b> (N6)</td><td>이벤트가 유실되고 있다. 링크·전송을 본다</td></tr>
+<tr><td><code>eventBacklogs</code></td><td>드물게</td><td>상시로 오르면 <code>MaxEventsPerTick</code>(4,096)에 계속 걸린다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>2.3 캐시 패널</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>필드</th><th>읽는 법</th></tr></thead>
+<tbody>
+<tr><td><code>hitRate</code></td><td>목표 ≥ 0.98. <b>채운 개수가 아니라 "채운 버킷이 조회되는가"가 정한다</b></td></tr>
+<tr><td><code>filledBuckets</code> / <code>coldBuckets</code></td><td>2,880 중. 도달 집합 방침이면 <code>cold</code>가 많은 것이 정상이다</td></tr>
+<tr><td><code>pinnedBuckets</code></td><td>사람이 검수해 고정한 수. 재프리베이크가 안 덮는다</td></tr>
+<tr><td><code>individualTurnover</code></td><td><code>Evicted / 512</code>. 크면 개별 재계획이 과다하다</td></tr>
+<tr><td><code>topMisses</code></td><td><b>프리베이크 우선순위 튜닝의 입력</b>. 미스 내림차순, 동점은 버킷 인덱스 오름차순 (순서가 흔들리면 대시보드가 깜빡인다)</td></tr>
+<tr><td><code>worstArchetypes</code></td><td>전체 평균만 보면 <b>재앙적 미스를 놓친다</b>. 아키타입별로 분해한다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>2.4 비용 패널</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>필드</th><th>읽는 법</th></tr></thead>
+<tbody>
+<tr><td><b><code>uniquePrefixHashes</code></b></td><td><b>1이 아니면 즉시 경보.</b> 프롬프트 캐시가 깨졌다는 뜻이다</td></tr>
+<tr><td><code>promptCacheHitRate</code> + <code>promptCacheReported</code></td><td><b>두 값을 같이 본다.</b> 로컬 엔진은 <code>cached_tokens</code>를 항상 0으로 보고하므로 0 %가 아니라 <b>"미보고"</b>로 그려야 한다</td></tr>
+<tr><td><code>tokenCapUsage</code> / <code>costCapUsage</code></td><td>0~1. 1에 닿으면 강등이 시작된다</td></tr>
+<tr><td><code>downgrades</code> / <code>rejections</code></td><td>거절이 크면 그만큼의 NPC가 기존 플랜을 쓴다 — <b>실패가 아니다</b></td></tr>
+<tr><td><code>spillovers</code></td><td>T2 호출의 상당 부분이면 <b>T1 워커가 모자란다</b></td></tr>
+<tr><td><code>breakerState</code></td><td>열려 있으면 외부 엔진 장애 중</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>2.5 <code>gen0Collections</code>로 판정하지 않는 이유 — 두 번 반복하는 이야기</h3>
+
+<div class="bad">
+  <span class="tag">같은 함정에 두 번 걸렸다</span>
+  P1 게이트도, P6 게이트(G6-5)도 처음엔 <b>"Gen0 증가 0"</b>을 기준으로 잡았다.
+  그런데 <code>GC.CollectionCount(0)</code>은 <b>프로세스 전역</b>이라
+  대시보드 HTTP·소켓 리시버·직렬화·Sim이 전부 든다 — <b>틱 루프를 재지 못한다</b>.
+  <br><br>
+  두 번 다 <code>bytesPerTick</code>(틱 창 안의 스레드 할당 델타)으로 계기를 바꿨다.
+  <code>CLAUDE.md §4</code>에 <b>"틱 루프를 재는 계기는 <code>bytesPerTick</code> 하나다"</b>라고 못 박혀 있는 이유가 이것이다.
+</div>
+
+<h2 id="tests">3. 테스트 카테고리 9종</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Category</th><th>내용</th><th>CI</th><th>비용</th></tr></thead>
+<tbody>
+<tr><td>(없음)</td><td>단위 테스트</td><td>항상</td><td>—</td></tr>
+<tr><td><code>Contracts</code></td><td><b>N1~N8 리플렉션 검사</b> — 패킷에 string·DateTime이 없는지</td><td>항상</td><td>—</td></tr>
+<tr><td><code>Wire</code></td><td>와이어 DTO 왕복 · 크기 고정 · 프레임 코덱. <b>계약 타입과의 드리프트를 여기서 잡는다</b></td><td>항상</td><td>—</td></tr>
+<tr><td><code>TestBed</code></td><td>게임서버 대역 · 클라이언트 세션 · 종단</td><td>항상</td><td>—</td></tr>
+<tr><td><code>Determinism</code></td><td>리플레이 일치 · 멱등성 · 시계/난수 감사</td><td>항상</td><td>—</td></tr>
+<tr><td><code>FaultInjection</code></td><td>시나리오 C · 링크 장애</td><td>야간</td><td>—</td></tr>
+<tr><td><code>Load</code></td><td>NPC 5,000 부하. 수 분. <b><code>W10_load.csv</code>를 덮어쓴다</b></td><td>야간</td><td>시간</td></tr>
+<tr><td><code>Golden</code></td><td>골든 50건 × 3회. <b>LLM 호출 · 실비용 발생</b></td><td>수동</td><td>$0.22</td></tr>
+<tr><td><code>Gate</code></td><td><b>실측 산출물이 있어야 판정되는 항목.</b> 산출물이 없으면 <b>실패한다</b></td><td>수동</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+
+<pre><code>dotnet test                                                  <span class="c"># 전체</span>
+dotnet test <span class="s">"--filter Category!=Golden&amp;Category!=Gate&amp;Category!=Load"</span>   <span class="c"># CI 기본 (= .\build.ps1)</span>
+dotnet test --filter Category=Determinism
+dotnet test --filter Category=Load                            <span class="c"># 측정 CSV 를 덮어쓴다 — git diff 확인</span></code></pre>
+
+<div class="ok">
+  <span class="tag"><code>Gate</code> 카테고리가 "산출물이 없으면 실패"인 이유</span>
+  <b>없는 것을 통과로 세면 게이트가 거짓이 된다.</b>
+  GPU 사용률 항목은 지금도 <b>미측정</b>이고, 테스트는 그렇게 실패한다 —
+  <code>tier != none &amp;&amp; t1_calls &gt; 0</code>인 행을 요구하고, 없으면
+  "장치 전체 사용률을 우리 부하로 읽을 수 없다"고 말하며 멈춘다.
+  <b>71 %를 적어 "초과 실패"로 세는 것도, 0 %로 적어 "통과"로 세는 것도 거짓이다.</b>
+</div>
+
+<h3>3.1 아키텍처 테스트가 지키는 것</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>검사</th><th>막는 것</th></tr></thead>
+<tbody>
+<tr><td><code>Npc.Runtime</code>이 <code>Npc.Llm</code>을 참조하지 않는다</td><td>틱 루프에 LLM이 들어올 <b>길 자체</b></td></tr>
+<tr><td>런타임 3프로젝트가 <code>Npc.Gateway</code>를 참조하지 않는다</td><td>링크 구현체가 런타임에 새어드는 것 (P5 게이트 항목 4)</td></tr>
+<tr><td><code>Npc.Core</code>·<code>Npc.Contracts</code>에 NuGet 의존 0</td><td>계약이 라이브러리 수명에 종속되는 것</td></tr>
+<tr><td>패킷 타입이 <code>readonly record struct</code></td><td>N2 — 발행 경로 힙 할당</td></tr>
+<tr><td>패킷에 <code>string</code>·<code>DateTime</code> 필드 없음</td><td>N3·N4 — 프롬프트 인젝션 · 비결정성</td></tr>
+<tr><td>게임 로직에 <code>DateTime.Now</code>·시드 없는 <code>Random</code> 없음</td><td>리플레이 불일치 (<code>ClockAuditTests</code>·<code>RandomAuditTests</code>)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="gates">4. 게이트 판정 — 지금 상태</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 320" id="gateSvg" role="img" aria-label="Phase 별 게이트 결과">
+      <g id="gateBars"></g>
+      <text x="20" y="24" font-size="13" font-weight="700">Phase 별 게이트 항목 판정</text>
+      <g id="gateLegend"></g>
+    </svg>
+  </div>
+  <figcaption>초록 = 통과 · 노랑 = 미판정/부분 · 빨강 = 미달. 막대 위 숫자는 항목 수다.</figcaption>
+</figure>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Phase</th><th>결과</th><th>남은 항목</th><th>닫는 방법</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>P0</b> 스파이크</td><td><span class="pill warn">2/4</span></td>
+  <td>G0-2 지연 가정 · G0-4 8B 품질 채점</td><td>8B 품질 20건 채점 · 외부 동시 32·64 측정</td>
+</tr>
+<tr>
+  <td><b>P1</b> 코어·런타임</td><td><span class="pill ok">8/8 통과</span></td>
+  <td>—</td><td>—</td>
+</tr>
+<tr>
+  <td><b>P2</b> 컴파일러</td><td><span class="pill warn">3/5</span></td>
+  <td>플랜 다양성 37.1 %</td><td>상위 모델 또는 다양성 처방</td>
+</tr>
+<tr>
+  <td><b>P3</b> 플랜 캐시</td><td><span class="pill warn">5 통과 · 3 미판정 · 1 미측정</span></td>
+  <td>wall-clock · 비용 · 캐시 적중률 · 사람 검수 40건</td><td><b>다음 프리베이크 회차부터 판정된다</b> (manifest에 <code>target</code>이 실린다)</td>
+</tr>
+<tr>
+  <td><b>P4</b> 스케줄러</td><td><span class="pill warn">9/10</span></td>
+  <td>GPU 사용률</td><td><code>models/</code>에 GGUF 배치 + <code>--tier t1</code>로 부하 회차</td>
+</tr>
+<tr>
+  <td><b>P5</b> 검증</td><td><span class="pill warn">6/9 · 1 부분 · 2 미달</span></td>
+  <td>블라인드 평가 · 오써링 축 A</td><td><b>사람 12명 × 40~60분.</b> 자료·양식·통계 처리기는 준비돼 있다</td>
+</tr>
+<tr>
+  <td><b>P6</b> 테스트 베드</td><td><span class="pill warn">9/10</span></td>
+  <td>G6-10 눈으로 보인다</td><td><b>사람이 화면 앞에 앉는 일.</b> 다만 <code>planBucket</code> 문제부터 갈라야 한다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">미달 항목의 공통점</span>
+  <b>코드 결함으로 미달한 항목은 사실상 없다.</b>
+  전부 "아직 안 돌렸다"(전량 프리베이크 · GPU 부하 회차)거나
+  "사람 시간이 필요하다"(블라인드 평가 · 검수 40건 · 인스펙터 확인)다.
+  <b>어느 것도 설계 변경을 요구하지 않는다.</b>
+</div>
+
+<h2 id="numbers">5. 실측 모음</h2>
+
+<h3>5.1 성능</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>지표</th><th class="num">목표</th><th class="num">실측</th><th>회차</th></tr></thead>
+<tbody>
+<tr><td>틱 p99 (NPC 5,000)</td><td class="num">≤ 20 ms</td><td class="num"><b>0.801 ms</b></td><td>P4 게이트</td></tr>
+<tr><td>틱 p99 (TCP · NPC 500 · 10분)</td><td class="num">≤ 20 ms</td><td class="num"><b>0.197 ms</b></td><td>G6-5</td></tr>
+<tr><td>인지 스캔/틱</td><td class="num">≤ 150</td><td class="num">150 (상한에 붙음)</td><td>P1 · P4</td></tr>
+<tr><td>상한 해제 시 스캔</td><td class="num">추정 612</td><td class="num"><b>637</b> (4.1 % 차)</td><td>W10 스케일</td></tr>
+<tr><td>틱당 할당</td><td class="num">0 B</td><td class="num"><b>0 B</b></td><td>P1 · P4 · G6-5</td></tr>
+<tr><td>명령 송출</td><td class="num">≥ 2,000 cmd/s</td><td class="num"><b>20,860 cmd/s</b></td><td>P5</td></tr>
+<tr><td>관리 힙</td><td class="num">≤ 400 MB</td><td class="num">43.9 MB</td><td>P1</td></tr>
+<tr><td>시퀀스 갭</td><td class="num">0</td><td class="num">0</td><td>전 회차</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>5.2 품질</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>지표</th><th class="num">목표</th><th class="num">실측</th><th>판정</th></tr></thead>
+<tbody>
+<tr><td>골든 50건 합격률</td><td class="num">≥ 90 %</td><td class="num"><b>93.6 %</b> (206/220)</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td>결정론 리플레이</td><td class="num">100 %</td><td class="num">기록 2회 <b>바이트 동일</b></td><td><span class="pill ok">통과</span></td></tr>
+<tr><td>플랜 검증 통과율</td><td class="num">≥ 90 %</td><td class="num">78.3 %</td><td><span class="pill warn">미달</span></td></tr>
+<tr><td>캐시 히트율 (시나리오 A)</td><td class="num">≥ 98 %</td><td class="num"><b>98.67 %</b></td><td><span class="pill ok">통과</span></td></tr>
+<tr><td>프롬프트 캐시 적중률</td><td class="num">≥ 95 %</td><td class="num">30.7~42.6 %</td><td><span class="pill bad">암시적 캐싱에서 도달 불가</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>5.3 비용 — 추정이 어디서 빗나갔나</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>항목</th><th class="num">계획 추정</th><th class="num">실측</th><th class="num">오차</th></tr></thead>
+<tbody>
+<tr><td>요청당 입력 토큰</td><td class="num">1,750</td><td class="num"><b>13,948</b></td><td class="num">8.0×</td></tr>
+<tr><td>요청당 출력 토큰</td><td class="num">150</td><td class="num">326</td><td class="num">2.2×</td></tr>
+<tr><td>프리베이크 총비용 (2,880)</td><td class="num">$0.94</td><td class="num"><b>$5.12</b></td><td class="num">+445 %</td></tr>
+<tr><td>월 운영비 (20,000건/일)</td><td class="num">$195</td><td class="num"><b>$609</b></td><td class="num">+212 %</td></tr>
+<tr><td>요청 하나 단가</td><td class="num">—</td><td class="num"><b>$0.001015</b></td><td class="num">실측</td></tr>
+<tr><td>캐시 절감</td><td class="num">"거의 100 %"</td><td class="num">33.4 % (적중률 40.6 %)</td><td class="num">방향은 맞음</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="card">
+  <h4>무엇이 맞았고 무엇이 틀렸나</h4>
+  <div class="tablewrap" style="margin:10px 0 0">
+  <table>
+  <thead><tr><th>항목</th><th>판정</th></tr></thead>
+  <tbody>
+  <tr><td>요청당 토큰</td><td><span class="pill bad">빗나갔다</span> 축소판 카탈로그로 추정한 탓</td></tr>
+  <tr><td>프리베이크 총비용</td><td><span class="pill bad">빗나갔다</span> 5.4배</td></tr>
+  <tr><td>월 운영비</td><td><span class="pill bad">빗나갔다</span> 3.1배. 단, 요청 수는 아직 미검증</td></tr>
+  <tr><td><b>캐시가 비용을 줄인다</b></td><td><span class="pill ok">맞았다</span> 적중률 40.6 %로 33.4 % 절감</td></tr>
+  <tr><td>캐시 적중률 95 %</td><td><span class="pill bad">빗나갔다</span> 명시적 캐싱 전제였다</td></tr>
+  <tr><td><b>절대 금액대</b></td><td><span class="pill ok">맞았다</span> 5배 틀려도 월 $609는 단일 월드 운영비로 여전히 작다</td></tr>
+  </tbody>
+  </table>
+  </div>
+  <p style="margin-bottom:0">
+    <b>오차의 90 %가 원인 하나다</b> — 프리픽스 크기를 축소판으로 추정했다.
+    <b>비용 모델 자체는 실측과 일치했다.</b>
+  </p>
+</div>
+
+<h3>5.4 지연 — W1 스파이크가 잰 것</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>#</th><th>항목</th><th class="num">목표</th><th class="num">실측</th><th>판정</th></tr></thead>
+<tbody>
+<tr><td><b>M1</b></td><td>로컬 요청당 지연 (8B)</td><td class="num">~1.75 s</td><td class="num"><b>5.14 s</b></td><td><span class="pill bad">미달 2.9배</span></td></tr>
+<tr><td><b>M2</b></td><td>prefill / decode</td><td class="num">0.25 / 1.5 s</td><td class="num">0.32 / <b>4.83 s</b></td><td>prefill 통과 · <b>decode 3.2배 미달</b></td></tr>
+<tr><td><b>M3</b></td><td>캐시 적중 시 prefill 감소</td><td class="num">≥ 70 %</td><td class="num"><b>87.9 %</b></td><td><span class="pill ok">통과</span></td></tr>
+<tr><td><b>M4</b></td><td>외부 API 동시성별 처리량</td><td class="num">32에서 16 req/s</td><td class="num">—</td><td><span class="pill warn">미측정</span></td></tr>
+<tr><td><b>M5</b></td><td>요청당 실비용</td><td class="num">—</td><td class="num">$0.001015</td><td>W1 미측정 · <b>W12 확정</b></td></tr>
+<tr><td><b>M6</b></td><td>모델별 품질 (10점)</td><td class="num">4B ≥ 8B의 80 %</td><td class="num">4B 7.54/10만</td><td><span class="pill warn">판정 불가</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">로컬 수치는 전부 VRAM 8 GB에 묶여 있다</span>
+  RTX 4060(8,188 MiB)이고 8B Q4_K_M 가중치만 <b>4,789 MiB</b>다.
+  KV 캐시를 <code>q8_0</code>으로 눌러야 겨우 올라가고, 다른 응용이 GPU를 점유하면 측정 자체가 무의미해진다.
+  <b>24 GB급 외삽에 이 표를 그대로 쓰지 않는다.</b>
+</div>
+
+<h3>5.5 T1 단독으로는 시나리오 B를 감당할 수 없다</h3>
+
+<div class="card">
+  <p>
+    전력비 모델(RTX 4060 TDP 115 W · 8B 5.1 s/요청 · 150원/kWh)로는 요청당 <b>약 0.024원</b>,
+    20,000건/일이면 월 <b>약 14,700원</b>이다. 싸 보인다.
+  </p>
+  <p style="margin-bottom:0">
+    <b>그런데 이 기기로는 20,000건/일이 나오지 않는다.</b>
+    동시 1에서 5.1 s면 하루 최대 16,944건이고, 동시성을 올리면 8B는 VRAM 부족으로
+    동시 8에서 <b>0.36 req/s까지 붕괴</b>한다.
+    <b>전력비가 싼 것이 아니라 처리량이 모자란 것이다</b> — 이것이 3-티어가 필요한 이유다.
+  </p>
+</div>
+
+<h2 id="lessons">6. 이 프로젝트가 스스로에 대해 배운 것</h2>
+
+<div class="grid2">
+  <div class="card">
+    <h4>① 추정을 실측인 척 적지 않는다</h4>
+    <p class="small">
+      드라이런 건당 소요를 사양이 <b>"~50 ms"</b>로 적어 두고 <b>추정치라고 명시</b>했다.
+      실측은 <b>0.02 ms</b> — 2,500배 차이였다.
+      명시해 두었기 때문에 그 값을 근거로 쓴 다른 결정이 없었고, 그래서 되돌릴 것도 없었다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>② 게이트를 스스로 고쳐 통과시키지 않는다</h4>
+    <p class="small">
+      P3 항목 1의 분모를 바꾸면 통과할 수 있었지만
+      <b>"기준을 고쳐서 통과시키지 않았다"</b>고 적고 사람 결정으로 올렸다.
+      실제로 고친 두 건(<code>RequireCompleteRun</code>, <code>bytesPerTick</code>)은
+      <b>기준이 재려던 것을 못 재고 있었기 때문</b>이고, 방어는 자리를 옮겼지 사라지지 않았다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>③ 진단이 틀렸으면 틀렸다고 적는다</h4>
+    <p class="small">
+      캐시 히트율 미달의 원인을 "채움 비율에 묶여 있다"고 적었다가
+      <b>"그 진단이 틀렸다"</b>로 바로잡았다. 실제 원인은 <b>어느 버킷이냐</b>였고,
+      버킷을 <b>줄였더니</b> 히트율이 22.6 %p 올랐다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>④ 개선을 자기 공으로 돌리지 않는다</h4>
+    <p class="small">
+      P4의 p99가 P1보다 낮게 나왔지만 <b>"이 개선을 P4의 공으로 돌리지 않는다"</b>고 적었다 —
+      다른 회차에 쟀고 통제된 비교가 아니며, 같은 셀의 부하 매트릭스 값이 그 차이만큼 흔들린다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>⑤ 잡음을 기본값으로 승격하지 않는다</h4>
+    <p class="small">
+      가중치 A/B에서 1위가 나왔지만 <b>1·2위 차이가 회차 간 변동보다 작았다</b>.
+      그래서 기본값을 바꾸지 않았고, <code>Choose</code>가 "회차 폭보다 크게 이겼을 때만" 갈아타게 만들었다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>⑥ 사양이 틀렸으면 사양을 고친다</h4>
+    <p class="small">
+      워밍업이 비용을 줄인다는 사양의 전제가 <b>이 엔진 계열에 없었다</b>.
+      코드를 사양에 맞추지도, 사양을 못 본 척하지도 않고 <b>사양의 문장을 실측으로 고쳤다</b>.
+      인지 스캔이 O(1)이라는 근거도 같은 방식으로 정정됐다.
+    </p>
+  </div>
+</div>
+
+<h2 id="reports">7. 실측 문서 지도</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>파일</th><th>무엇</th><th>누가 만드나</th></tr></thead>
+<tbody>
+<tr><td><code>W1_env.md</code></td><td><b>측정 기기와 제약.</b> 다른 W1 문서를 읽을 때 반드시 같이 본다</td><td>사람</td></tr>
+<tr><td><code>W1_results.md</code></td><td>숫자 6개(M1~M6)와 결정 5개</td><td>사람 (원자료는 도구)</td></tr>
+<tr><td><code>W1_concurrency.md</code> · <code>W1_quality.md</code> · <code>W1_schema.md</code></td><td>W1 원자료</td><td><code>spike</code> 도구</td></tr>
+<tr><td><code>W6_compile_stats.md</code> · <code>W6_failures.md</code> · <code>W6_diversity.md</code></td><td>P2 컴파일러 측정</td><td>도구 (손으로 안 고친다)</td></tr>
+<tr><td><code>W8_prebake.md</code></td><td>프리베이크 · 워밍업 실험 · 파일럿 288</td><td>사람 + <code>--report</code></td></tr>
+<tr><td><code>W10_load.csv</code> · <code>W10_scale.md</code> · <code>W10_weights.md</code></td><td>부하 · 스케일 곡선 · 가중치 A/B</td><td><code>Load</code> 카테고리 · <code>report_scale.cs</code></td></tr>
+<tr><td><code>W11_golden.md</code></td><td>골든 회귀</td><td><code>Category=Golden</code></td></tr>
+<tr><td><code>cost_actual.md</code></td><td><b>비용 정산 — 추정 vs 실측</b></td><td>사람</td></tr>
+<tr><td><code>bucket_usage.md</code></td><td><b>도달 버킷 264 계산</b></td><td>사람 (전수 계산)</td></tr>
+<tr><td><code>reach264_prebake.md</code></td><td>도달 집합 회차 실행 기록</td><td>사람</td></tr>
+<tr><td><code>P1~P5_gate.md</code></td><td>Phase별 게이트 판정</td><td>사람 + <code>Category=Gate</code></td></tr>
+<tr><td><code>blind_eval_*.md</code> · <code>authoring_result.md</code></td><td>블라인드 평가 · 오써링 공수</td><td>사람 (미완)</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">12장 요약</span>
+  <ul style="margin-bottom:0">
+    <li>먼저 볼 것은 <b><code>bytesPerTick</code> · <code>overruns</code> · <code>eventGaps</code> · <code>uniquePrefixHashes</code></b> 넷이다.</li>
+    <li><code>gen0Collections</code>는 프로세스 전역이라 <b>틱 루프 판정에 못 쓴다</b> — 두 게이트가 같은 함정에 걸렸다.</li>
+    <li><code>Gate</code> 카테고리는 <b>산출물이 없으면 실패</b>한다. 없는 것을 통과로 세지 않는다.</li>
+    <li>미달 항목은 대부분 <b>"아직 안 돌렸다" 또는 "사람 시간"</b>이다. 설계 변경을 요구하는 것은 없다.</li>
+    <li>비용 추정은 5.4배 빗나갔고, <b>원인은 프리픽스 크기 추정 하나</b>였다. 모델 자체는 맞았다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 게이트 막대 ---------- */
+(function () {
+  var g = document.getElementById('gateBars');
+  if (!g) return;
+  var el = window.NpcBook.el;
+
+  /* 각 measurements/*_gate.md · TASKS.md §3 에서 옮긴 값 */
+  var PHASES = [
+    { id: 'P0', name: '스파이크',     pass: 2, part: 2, fail: 0 },
+    { id: 'P1', name: '코어·런타임',  pass: 8, part: 0, fail: 0 },
+    { id: 'P2', name: '컴파일러',     pass: 3, part: 0, fail: 2 },
+    { id: 'P3', name: '플랜 캐시',    pass: 5, part: 4, fail: 0 },
+    { id: 'P4', name: '스케줄러',     pass: 9, part: 1, fail: 0 },
+    { id: 'P5', name: '검증',         pass: 6, part: 1, fail: 2 },
+    { id: 'P6', name: '테스트 베드',  pass: 9, part: 1, fail: 0 }
+  ];
+
+  var maxN = 10, baseY = 250, h = 190;
+  var bw = 92, gap = 26;
+
+  PHASES.forEach(function (p, i) {
+    var x = 40 + i * (bw + gap);
+    var total = p.pass + p.part + p.fail;
+    var unit = h / maxN;
+    var y = baseY;
+
+    [['fail', p.fail, 'var(--bad)'], ['part', p.part, 'var(--warn)'], ['pass', p.pass, 'var(--ok)']]
+      .forEach(function (seg) {
+        if (!seg[1]) return;
+        var sh = seg[1] * unit;
+        y -= sh;
+        el('rect', { x: x, y: y, width: bw, height: sh, rx: 4, fill: seg[2], opacity: .85 }, g);
+        var t = el('text', {
+          x: x + bw / 2, y: y + sh / 2 + 4, 'text-anchor': 'middle',
+          'font-size': 12, 'font-weight': 700, fill: 'var(--panel)'
+        }, g);
+        t.textContent = seg[1];
+      });
+
+    var lid = el('text', {
+      x: x + bw / 2, y: baseY + 20, 'text-anchor': 'middle',
+      'font-size': 13, 'font-weight': 700, fill: 'var(--ink)'
+    }, g); lid.textContent = p.id;
+    var ln = el('text', {
+      x: x + bw / 2, y: baseY + 38, 'text-anchor': 'middle',
+      'font-size': 11, fill: 'var(--ink-3)'
+    }, g); ln.textContent = p.name;
+    var lt = el('text', {
+      x: x + bw / 2, y: y - 8, 'text-anchor': 'middle',
+      'font-size': 11, 'font-family': 'var(--mono)', fill: 'var(--ink-3)'
+    }, g); lt.textContent = total + '항목';
+  });
+
+  el('line', { x1: 30, y1: baseY, x2: 850, y2: baseY, stroke: 'var(--line-2)', 'stroke-width': 1 }, g);
+
+  /* 범례 */
+  var leg = document.getElementById('gateLegend');
+  [['통과', 'var(--ok)'], ['미판정 · 부분', 'var(--warn)'], ['미달', 'var(--bad)']]
+    .forEach(function (l, i) {
+      el('rect', { x: 620 + i * 92, y: 12, width: 11, height: 11, rx: 3, fill: l[1] }, leg);
+      var t = el('text', { x: 636 + i * 92, y: 22, 'font-size': 11, fill: 'var(--ink-3)' }, leg);
+      t.textContent = l[0];
+    });
+})();
+</script>
+</body>
+</html>

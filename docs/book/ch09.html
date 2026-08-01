@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9장 · 티어 · 예산 · 캐시 · 프리베이크 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">4부 · 플랜 생성 L3</p>
+  <h1>9장 — 티어 · 예산 · 캐시 · 프리베이크</h1>
+  <p class="lede">
+    앞 장이 "요청 하나를 어떻게 만드나"였다면 이 장은 <b>"그 요청을 낼지 말지, 어디에 낼지,
+    그리고 언제 미리 만들어 둘지"</b>다.
+    여기가 비용과 가용성을 동시에 정하는 층이고, 이 프로젝트에서 <b>가장 큰 발견이 나온 곳</b>이기도 하다 —
+    2,880개 중 264개만 만들면 된다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/13 · docs/14 §3·§4</span>
+    <span class="chip">상한 4개</span>
+    <span class="chip">버킷 2,880 → 도달 264</span>
+  </div>
+</div>
+
+<h2 id="router">1. 티어 라우팅 — 무엇이 어디로 가나</h2>
+
+<figure>
+  <div class="svgbox" style="padding:16px 14px">
+    <div class="ctl" style="margin-top:0;margin-bottom:14px">
+      <label>요청 종류 <select id="rtQuality">
+        <option value="arch">아키타입 플랜 (버킷 미스 · 프리베이크)</option>
+        <option value="indiv" selected>개별 NPC 재계획</option>
+      </select></label>
+      <label>T1 큐 깊이 <input type="range" id="rtDepth" min="0" max="200" step="8" value="16"> <span id="rtDepthT" style="font-family:var(--mono)">16</span></label>
+      <label><input type="checkbox" id="rtT2Kill"> T2 킬스위치</label>
+      <label><input type="checkbox" id="rtT1Kill"> T1 킬스위치</label>
+      <label><input type="checkbox" id="rtBudget"> 일일 캡 소진</label>
+      <label><input type="checkbox" id="rtBreaker"> T2 브레이커 열림</label>
+    </div>
+    <svg viewBox="0 0 880 140" id="rtSvg" role="img" aria-label="티어 선택 결과">
+      <g id="rtNodes"></g>
+    </svg>
+  </div>
+  <div class="readout" id="rtOut"></div>
+  <figcaption>스위치를 켜 보면 <code>TieredPlanCompiler</code>가 실제로 밟는 분기를 그대로 볼 수 있다.</figcaption>
+</figure>
+
+<h3>1.1 선택 규칙 — 품질이 아니라 재사용 횟수</h3>
+
+<div class="filepath">src/Npc.Llm/TieredPlanCompiler.cs</div>
+
+<pre><code><span class="k">private</span> <span class="t">Tier</span> Wanted(<span class="k">in</span> <span class="t">PlanRequest</span> request)
+{
+    <span class="c">// 아키타입 플랜은 수천 NPC 가 재사용한다 → 품질에 투자한다.</span>
+    <span class="k">if</span> (request.Quality == <span class="t">PlanQuality</span>.Archetype) <span class="k">return</span> <span class="t">Tier</span>.T2;
+
+    <span class="c">// 개별 재계획은 1회용이라 LOD 와 무관하게 T1. 단, T1 이 밀려 있으면 T2 로 흘린다.</span>
+    <span class="k">return</span> LocalQueueDepth <span class="k">is</span> { } depth &amp;&amp; depth() &gt; SpilloverThreshold
+        ? <span class="t">Tier</span>.T2 : <span class="t">Tier</span>.T1;
+}</code></pre>
+
+<div class="why">
+  <span class="tag">스필오버 임계가 64인 근거</span>
+  T1 지연이 실측 <b>5.1초</b>이므로 큐에 64건이 밀려 있으면 마지막 건은 <b>5분 뒤</b>에 처리된다.
+  그 시점에는 스냅샷 낡음 판정(<a href="ch06.html">6장 §5.1</a>)이 거의 확실히 폐기한다 —
+  즉 <b>임계를 넘긴 뒤의 T1 요청은 대부분 헛일</b>이다. 그래서 T2로 흘린다.
+  <br><br>
+  이건 "늦게 오는 것보다 비싸게 오는 게 낫다"는 <b>임시 조치</b>다.
+  <code>Spillovers</code>가 T2 호출의 상당 부분이면 <b>T1 워커가 모자란 것</b>이고, 워커 수나 예산을 다시 잡아야 한다.
+</div>
+
+<h3>1.2 강등은 내려가기만 한다</h3>
+
+<pre><code><span class="k">private</span> <span class="t">Tier</span> Downgrade(<span class="t">Tier</span> wanted)
+{
+    <span class="k">if</span> (wanted == <span class="t">Tier</span>.T2 &amp;&amp; Available(<span class="t">Tier</span>.T2)) <span class="k">return</span> <span class="t">Tier</span>.T2;
+    <span class="k">return</span> Available(<span class="t">Tier</span>.T1) ? <span class="t">Tier</span>.T1 : <span class="t">Tier</span>.None;
+}</code></pre>
+
+<div class="note">
+  <span class="tag">올리지 않는 이유</span>
+  T1 차단은 <b>"재계획 전면 중단, 캐시 플랜만 남는다"</b>는 뜻이다.
+  개별 재계획을 T2로 올려 보내면 <b>시나리오 C 2단계가 측정하려던 것이 사라진다</b>.
+  킬스위치는 "무엇이 끊겼을 때 무엇이 남는가"를 재는 장치이지, 우회로가 아니다.
+</div>
+
+<h2 id="budget">2. 예산 — 상한 네 개</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>상한</th><th class="num">기본값</th><th>무엇이 상한인가</th><th>근거</th></tr></thead>
+<tbody>
+<tr>
+  <td>T1 초당 요청</td><td class="num">0.195 req/s</td><td><b>GPU 용량</b></td>
+  <td><code>W1_perf.csv</code> 8B <code>Cache=on</code> 30건 중앙값 5,139 ms → 1/5.139. 워커 N개면 곱한다</td>
+</tr>
+<tr>
+  <td>T2 초당 요청</td><td class="num">2.5 req/s</td><td><b>rate limit</b></td>
+  <td>파일럿 288버킷 115.0초 = 2.504 req/s, 최대 동시 24에서 429 <b>0회</b></td>
+</tr>
+<tr>
+  <td>일일 토큰 캡</td><td class="num">15 M</td><td><b>비용의 대리 지표</b>. T2만 센다</td>
+  <td>실측 23,109 tok/건이라 <b>T2 약 649건/일</b></td>
+</tr>
+<tr>
+  <td>일일 비용 캡</td><td class="num">$2.00</td><td><b>비용 방어 정책값</b></td>
+  <td>실측 $0.001777/건이면 약 1,125건/일 — <b>토큰 캡이 먼저 걸린다</b></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">T1 토큰을 캡에 세지 않는 이유</span>
+  <code>docs/14 §3</code>이 "T1(로컬)은 GPU 용량, T2(외부)는 rate limit + 비용이 상한"이라 했고,
+  <b>토큰 캡은 비용의 대리 지표이지 GPU 시간의 지표가 아니다</b>.
+  T1 토큰까지 세면 캡 초과 시 T1도 같이 막혀 <b>"T2 → T1 강등"이 성립하지 않는다</b>.
+</div>
+
+<h3>2.1 추정으로 선차감하고 실측으로 정산한다</h3>
+
+<pre><code><span class="c">// TieredPlanCompiler.RunAsync</span>
+<span class="k">int</span> estimated = Estimate(<span class="k">in</span> request);              <span class="c">// 기본 23,109 tok</span>
+<span class="t">PlanCompileResult</span> result = <span class="k">await</span> compiler.CompileAsync(request, ct);
+
+<span class="k">int</span> actual = result.Stats.PromptTokens + result.Stats.CompletionTokens;
+_budget.Settle(tier, actual - estimated,                     <span class="c">// ★ 정산을 빠뜨리면</span>
+    result.Stats.CostUsd - _budget.EstimateCost(tier, estimated));   <span class="c">//   캡이 실사용과 어긋난다</span></code></pre>
+
+<h3>2.2 강등과 거절이 실제로 어떻게 보이나</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>경보</th><th>뜻</th><th>NPC에게 일어나는 일</th></tr></thead>
+<tbody>
+<tr><td><code>RateLimited</code></td><td>초당 요청 상한. <b>일시적이라 로그에 안 남긴다</b></td><td>이번 틱에는 못 나간다. 다음에 다시</td></tr>
+<tr><td><code>TokenCapExceeded</code> / <code>CostCapExceeded</code></td><td>일일 캡 초과</td><td>T2 요청이 T1로 강등된다</td></tr>
+<tr><td><code>TierDowngraded</code></td><td>강등 발생</td><td>품질이 떨어지지만 <b>동작은 계속된다</b></td></tr>
+<tr><td><code>Rejected</code></td><td>T1마저 소진</td><td><b>기존 플랜을 계속 쓴다.</b> 다음 스캔에서 다시 큐에</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">P4 게이트에서 실제로 관측된 것</span>
+  토큰 캡 30,000에 요청 25,000 × 2를 던졌더니 <b>1번째는 T2, 2번째는 T1로 강등</b>됐고
+  T2 누계는 25,000에서 멈췄다. 경보는 <code>TokenCapExceeded</code> + <code>TierDowngraded</code> 2건.
+  <b>캡을 우회하는 경로가 없다.</b>
+</div>
+
+<h3>2.3 서킷 브레이커 — 죽은 엔드포인트에 예산을 쓰지 않는다</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>상황</th><th>동작</th></tr></thead>
+<tbody>
+<tr><td>T2 호출이 연속 실패</td><td>임계(5회)에서 브레이커가 열린다 → 이후 T2 시도 자체를 안 한다</td></tr>
+<tr><td>브레이커 열린 상태의 T2 요청</td><td>곧바로 T1으로. <b>외부 장애에 지연을 태우지 않는다</b></td></tr>
+<tr><td>호출이 서버에 <b>닿았고</b> 검증만 실패</td><td>브레이커에 세지 않는다 — <b>모델 품질 문제이지 외부 장애가 아니다</b></td></tr>
+<tr><td><code>TaskCanceledException</code></td><td><b>종류만 보고 거르지 않는다.</b> <code>HttpClient</code> 타임아웃도 같은 예외라, 거르면 브레이커가 영영 안 열린다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">P4 게이트 항목 8</span>
+  T2가 매번 예외를 던지게 하고 요청 8건을 넣었더니 <b>T2 시도 5회(브레이커 임계)에서 차단</b>,
+  이후 시도 없음. 페일오버 5회로 <b>T1이 8건 전부 처리 · 손실 0</b>.
+</div>
+
+<h2 id="store">3. 플랜 스토어 — 락 없는 조회</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 320" role="img" aria-label="플랜 스토어의 세 표">
+      <text x="20" y="24" font-size="12.5" fill="var(--ink-3)">표가 셋이다. 런타임이 들고 있는 것은 버킷이 아니라 <tspan font-family="var(--mono)">NpcStore.PlanId</tspan> 이기 때문이다.</text>
+
+      <rect x="20" y="44" width="260" height="112" rx="10" fill="var(--panel-2)" stroke="var(--l1)" stroke-width="1.5"/>
+      <text x="150" y="70" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--l1)">① 버킷 → PlanId</text>
+      <text x="150" y="92" text-anchor="middle" font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">int[2880] _byBucket</text>
+      <text x="150" y="112" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">BucketKey.ToIndex() 한 번</text>
+      <text x="150" y="132" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">해시맵이 필요 없다</text>
+      <text x="150" y="150" text-anchor="middle" font-size="11" fill="var(--ink-3)">0 = 미생성</text>
+
+      <rect x="308" y="44" width="260" height="112" rx="10" fill="var(--panel-2)" stroke="var(--l0)" stroke-width="1.5"/>
+      <text x="438" y="70" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--l0)">② PlanId → 플랜</text>
+      <text x="438" y="92" text-anchor="middle" font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">CompiledPlan[128][512]</text>
+      <text x="438" y="112" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">청크 배열 — 자라도 기존 청크를</text>
+      <text x="438" y="130" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">건드리지 않는다</text>
+      <text x="438" y="150" text-anchor="middle" font-size="11" fill="var(--ink-3)">상한 65,536</text>
+
+      <rect x="596" y="44" width="264" height="112" rx="10" fill="var(--panel-2)" stroke="var(--l2)" stroke-width="1.5"/>
+      <text x="728" y="70" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--l2)">③ 개별 플랜 풀</text>
+      <text x="728" y="92" text-anchor="middle" font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">512칸 링 · LRU 회수</text>
+      <text x="728" y="112" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">PlanId 가 음수면 이쪽</text>
+      <text x="728" y="132" text-anchor="middle" font-size="11.5" font-family="var(--mono)" fill="var(--ink-3)">~slot (슬롯 0 = -1)</text>
+
+      <rect x="20" y="184" width="840" height="52" rx="9" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="40" y="208" font-size="12.5" font-weight="650" fill="var(--accent)">락이 없다</text>
+      <text x="40" y="226" font-size="12" fill="var(--ink-2)">
+        읽기는 <tspan font-family="var(--mono)">Volatile.Read</tspan> 뿐이고 쓰기는 원자 참조 교체 +
+        <tspan font-family="var(--mono)">Interlocked</tspan> 다. 읽는 쪽이 조금 낡은 플랜을 봐도 다음 틱에 새 것을 본다.
+      </text>
+
+      <rect x="20" y="252" width="840" height="52" rx="9" fill="var(--ok-soft)" stroke="var(--ok)"/>
+      <text x="40" y="276" font-size="12.5" font-weight="650" fill="var(--ok)">Resolve 는 절대 null 을 반환하지 않는다</text>
+      <text x="40" y="294" font-size="12" fill="var(--ink-2)">
+        버킷 미스 → 아키타입 폴백 → 최후 플랜. <tspan font-weight="650">시나리오 C 가 통과하는 이유가 이 한 줄이다.</tspan>
+      </text>
+    </svg>
+  </div>
+  <figcaption>
+    <code>List&lt;T&gt;</code>를 안 쓰는 이유 — 내부 배열 교체와 <code>Count</code> 갱신 사이에 <b>창이 열려서 읽는 쪽이 범위 밖을 볼 수 있다</b>.
+  </figcaption>
+</figure>
+
+<h3>3.1 개별 플랜 풀 — 512칸이 의미하는 것</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th><code>PlanId</code> 값</th><th>가리키는 것</th></tr></thead>
+<tbody>
+<tr><td><code>&gt; 0</code></td><td>레지스트리 id. <b>버킷 인덱스가 아니다</b></td></tr>
+<tr><td><code>== 0</code></td><td>최후 플랜 (<code>IdlePlanId</code>)</td></tr>
+<tr><td><code>&lt; 0</code></td><td>개별 풀 슬롯. <code>~value</code>가 슬롯 번호</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag"><code>~slot</code>이고 <code>-slot</code>이 아닌 이유</span>
+  <code>NpcStore.PendingPlanId</code>도 <b>0 = 없음</b>이므로 개별 슬롯은 <b>반드시 음수</b>여야 한다.
+  <code>-slot</code>이면 <b>슬롯 0이 0과 겹친다</b>. <code>~slot</code>이면 슬롯 0이 −1이 된다.
+</div>
+
+<p>
+  512는 <b>"동시에 특별 대우를 받는 NPC 수"</b>의 상한이고, 이것이 곧 재계획 예산과 맞물린다.
+  <code>TurnoverRate</code>(<code>Evicted / 512</code>)가 크면 개별 재계획이 과다한 것이다.
+</p>
+
+<div class="warn">
+  <span class="tag">회수된 슬롯을 예전 주인이 읽으면</span>
+  <code>TryGet</code>이 <code>false</code>를 돌려주고, 호출부는 <b>버킷 플랜으로 되돌아가야 한다</b>.
+  실행기의 <code>PlanOf</code>가 그 일을 한다(<a href="ch07.html">7장 §2.3</a>).
+  <br><br>
+  <b>계측 경로는 <code>TryPeek</code>을 쓴다</b> — <code>TryGet</code>을 쓰면 <code>/metrics</code>를 폴링하는 것만으로
+  LRU 순서가 바뀌어 <b>어느 NPC가 슬롯을 잃는지가 대시보드 열람 여부에 달리게 된다</b>. 리플레이가 깨지는 길이다.
+</div>
+
+<h2 id="reach">4. 이 프로젝트의 가장 큰 발견 — 2,880 중 264</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 320" id="reachSvg" role="img" aria-label="도달 가능 버킷 집합">
+      <g id="reachGrid"></g>
+      <text x="20" y="24" font-size="13" font-weight="700">2,880칸 중 실제로 조회되는 칸</text>
+      <g id="reachLegend"></g>
+    </svg>
+  </div>
+  <div class="ctl">
+    <button class="btn on" id="rA" type="button">시나리오 A — 평시 (264)</button>
+    <button class="btn" id="rB" type="button">시나리오 B — 공성 (978)</button>
+    <button class="btn" id="rAll" type="button">전량 (2,880)</button>
+  </div>
+  <div class="readout" id="reachOut"></div>
+  <figcaption>가로 40칸 = 아키타입, 세로 72칸 = 시간대 6 × 지역상태 4 × 기후 3.</figcaption>
+</figure>
+
+<h3>4.1 왜 9.2 %인가</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>축</th><th class="num">전체</th><th class="num">도달</th><th>이유</th></tr></thead>
+<tbody>
+<tr><td>아키타입</td><td class="num">40</td><td class="num">40</td><td>5,000마리가 40종을 다 채운다</td></tr>
+<tr><td>시간대</td><td class="num">6</td><td class="num">6</td><td>하루를 살면 다 거친다 — <b>줄일 것이 없다</b></td></tr>
+<tr><td>지역상태</td><td class="num">4</td><td class="num">2</td><td>어느 존의 기본값에도 <code>War</code>·<code>Disaster</code>가 없다</td></tr>
+<tr><td>기후</td><td class="num">3</td><td class="num">2</td><td>기본값에 <code>Storm</code>이 없다</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+  곱하면 40 × 6 × 2 × 2 = 960일 것 같지만 실제는 <b>264</b>다.
+  <b>아키타입과 존이 묶여 있기 때문이다</b> — 광부는 광산 언덕(Alert.Cold)에만 살고
+  대장장이는 마을(Peace.Fair)에만 산다. 한 아키타입이 겪는 (지역상태, 기후) 조합은 보통 <b>하나</b>다.
+  두 조합 이상을 겪는 아키타입은 <code>hunter</code>·<code>miner</code>·<code>shepherd</code>·<code>woodcutter</code>
+  <b>넷뿐</b>이다. 36 × 6 + 4 × 12 = <b>264</b>.
+</p>
+
+<h3>4.2 실행 결과 — 예측이 맞았고, 예측하지 않은 것도 나왔다</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>예측 (<code>bucket_usage.md</code>)</th><th>실행 결과</th><th>판정</th></tr></thead>
+<tbody>
+<tr><td>도달 버킷 264</td><td><code>--plan</code>이 264버킷 산출</td><td><span class="pill ok">맞음</span></td></tr>
+<tr><td>조합 2개 이상 아키타입 4종</td><td><code>hunter</code>·<code>miner</code>·<code>shepherd</code>·<code>woodcutter</code></td><td><span class="pill ok">맞음</span></td></tr>
+<tr><td>비용 $0.47</td><td><b>$0.3727</b></td><td>21 % 더 쌌다</td></tr>
+<tr><td>미도달은 폴백이 덮는다</td><td>미스 4,659건 전부 폴백 해소 · 크래시 0</td><td><span class="pill ok">맞음</span></td></tr>
+<tr><td colspan="3" style="background:var(--ok-soft)"><b>예측하지 않았던 것 — 히트율이 오히려 올랐다</b></td></tr>
+<tr><td>시나리오 B 최소분 254버킷</td><td>시나리오 A 히트율 <b>76.08 %</b></td><td><span class="pill bad">미달</span></td></tr>
+<tr><td><b>도달 집합 195버킷</b></td><td>시나리오 A 히트율 <b>98.67 %</b></td><td><span class="pill ok">통과</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">진단이 틀렸다는 것을 인정한 자리</span>
+  최초 판정에서 히트율 미달의 원인을 <b>"히트율이 채움 비율에 묶여 있다 · 98 %는 2,880을 전부 채워야 나온다"</b>라고 적었는데,
+  <b>그 진단이 틀렸다.</b> 묶여 있는 것은 채움 비율이 아니라 <b>채운 버킷이 실제로 조회되는가</b>다.
+  <br><br>
+  254버킷 회차는 시나리오 B를 겨냥해 War 계열을 채웠고, 평시 주행에서 그 버킷들은 대부분 조회되지 않았다.
+  <b>버킷을 59개 줄였는데 히트율이 22.6 %p 올랐다.</b>
+</div>
+
+<div class="warn">
+  <span class="tag">그리고 반대 방향으로도 확인됐다</span>
+  도달 집합 A에는 War 버킷이 없어 <code>SiegeTests</code>가 7/7 → <b>5/7</b>로 내려갔다.
+  추가분 714버킷(War·Storm 계열)을 돌려 <b>978</b>로 만들자 7/7로 복구됐고,
+  <b>시나리오 A 히트율은 98.67 % 그대로였다</b> — 추가한 것은 평시에 조회되지 않으니까.
+  <br><br>
+  <b>"개수가 아니라 어느 버킷이냐"</b>가 양방향으로 확인됐다. 든 비용은 합계 <b>$1.0717</b>이다.
+</div>
+
+<h2 id="prebake">5. 프리베이크 — 오프라인으로 미리 만든다</h2>
+
+<pre><code>$env:OPENROUTER_API_KEY = <span class="s">"..."</span>
+dotnet run -c Release --project tools/Npc.Prebake -- `
+    --masterdata ./masterdata --out ./planstore `
+    --tier T2 --model openrouter-gemini-2.5-flash-lite `
+    --concurrency 8 --budget-usd 5.00 `
+    --report ./docs/measurements/runs/W8_run.jsonl</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>옵션</th><th class="num">기본</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>--out</code></td><td><code>./planstore</code></td><td>플랜 스토어 폴더. <code>plans/</code>·<code>pinned/</code>·<code>rejected/</code>가 그 밑</td></tr>
+<tr><td><code>--report</code></td><td>measurements 아래</td><td>버킷별 결과 JSONL. 회차 간 diff와 실패 집계가 읽는다</td></tr>
+<tr><td><code>--tier</code></td><td><code>T2</code></td><td>로컬(T1)로도 돌릴 수 있다</td></tr>
+<tr><td><code>--concurrency</code></td><td class="num">8</td><td><b>AIMD 초기값</b>. "동시 32"는 상위 계획의 추정이지 실측이 아니다</td></tr>
+<tr><td><code>--max-concurrency</code></td><td class="num">32</td><td>AIMD 상한</td></tr>
+<tr><td><code>--budget-usd</code></td><td class="num">5.00</td><td>하드 캡. 초과 시 중단하고 <code>partial: true</code>로 기록</td></tr>
+<tr><td><code>--resume</code></td><td>—</td><td>기존 스토어에서 <b>미생성 버킷만</b></td></tr>
+<tr><td><code>--only &lt;glob&gt;</code></td><td>—</td><td>부분 재생성. <b>도달 집합 회차가 이걸로 돌았다</b></td></tr>
+<tr><td><code>--dryrun-sample</code></td><td class="num">1.0</td><td>4단 드라이런 비율. <b>프리베이크는 전수가 기본</b></td></tr>
+<tr><td><code>--generated-at</code></td><td>빈 문자열</td><td>manifest에 실릴 시각 문자열. <b>도구가 <code>DateTime.Now</code>를 부르지 않는다</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>5.1 AIMD — 429를 맞으며 올리지 않는다</h3>
+
+<pre><code><span class="c">// 성공 16연속 → +1 (additive increase)</span>
+<span class="c">// throttle(429) → /2 (multiplicative decrease)</span>
+<span class="k">public const int</span> DefaultStart = <span class="n">8</span>;
+<span class="k">public const int</span> DefaultSuccessStreak = <span class="n">16</span>;</code></pre>
+
+<div class="note">
+  <span class="tag">초기값 8의 근거를 정직하게 적는 방식</span>
+  규칙은 "실측한 429 최초 발생 동시성의 <b>절반</b>, 그 실행 전이면 8"이다.
+  그런데 <b>OpenRouter 동시 18까지, Poe 동시 32까지 429가 한 번도 나지 않았다</b> —
+  절반 규칙이 발동할 값이 없어 8을 유지한다.
+  이 값과 근거는 회차마다 <code>manifest.json</code>의 <code>generated_by.concurrency</code>·
+  <code>first_rate_limit_concurrency</code>에 남는다.
+  <br><br>
+  <b>기준을 맞추려고 동시성을 올려 429를 맞지 않는다</b>는 것이 <code>docs/13 §7</code>의 규칙이다.
+</div>
+
+<h3>5.2 워밍업 — 사양이 틀렸다는 것을 실측이 보여준 사례</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>사양(<code>docs/13 §4</code>)의 전제</th><th>실측</th></tr></thead>
+<tbody>
+<tr><td>동시 N개가 전부 cache miss로 시작한다</td><td><b>아니다.</b> 파동 안에서 먼저 도착한 요청이 캐시를 만들고 나머지가 물려받는다 — 동시 32에서 워밍업 없이 <b>68.6 % 적중</b></td></tr>
+<tr><td>cache write에 할증(1.25~2배)이 붙는다</td><td><b>없다.</b> Gemini 암시적 캐싱은 write 할증이 없고 적중분이 오히려 0.25배로 싸다</td></tr>
+<tr><td>그래서 워밍업 1회가 N번의 할증을 막는다</td><td><b>막을 것이 없다.</b> 요청 1개가 늘어나는 만큼 순손실이다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="card">
+  <h4>그런데도 워밍업을 기본으로 켜 둔다 — 이유 셋, 전부 비용 논거가 아니다</h4>
+  <ol style="margin-bottom:0">
+    <li><b>Anthropic 계열에서는 전제가 성립한다.</b> 명시적 캐싱(<code>cache_control</code>)은 write 할증이 실제로 있다.
+      다만 그 실측은 <b>이 저장소의 어느 엔드포인트로도 못 한다</b> — OpenAI 호환 경유로는 <code>cache_control</code>을 실어 보낼 수 없다.</li>
+    <li><b>회차 전체의 예비 점검이다.</b> 2,880건을 던지기 전에 키·엔드포인트·프리픽스·스키마가 실제로 통하는지 요청 하나로 확인한다.</li>
+    <li><b>비용이 무시할 수준이다.</b> 2,880건 회차에서 요청 1개는 0.03 %다.</li>
+  </ol>
+</div>
+
+<p class="small">
+  <code>docs/13 §4·§8</code>의 "비용 3배" 표현은 이 실측으로 고쳤다.
+  <b>사양이 틀렸으면 사양을 고친다</b> — 코드를 사양에 맞추지도, 사양을 못 본 척하지도 않는다.
+</p>
+
+<h3>5.3 인접 버킷 재사용</h3>
+
+<pre><code><span class="c">// BucketNeighbors.Fill — 거리가 가까운 순으로 최대 5개</span>
+key <span class="k">with</span> { C = <span class="t">Climate</span>.Fair },                        <span class="c">// 기후만 완화</span>
+key <span class="k">with</span> { R = Relax(key.R) },                         <span class="c">// War→Alert, Alert→Peace</span>
+key <span class="k">with</span> { C = <span class="t">Climate</span>.Fair, R = Relax(key.R) },
+key <span class="k">with</span> { T = AdjacentTime(key.T) },                  <span class="c">// 인접 시간대</span>
+key <span class="k">with</span> { R = <span class="t">RegionState</span>.Peace, C = <span class="t">Climate</span>.Fair },  <span class="c">// 최후</span></code></pre>
+
+<div class="bad">
+  <span class="tag">아키타입은 절대 바꾸지 않는다</span>
+  대장장이 플랜을 농부에게 주면 <b>허용 액션 목록부터 어긋난다</b>.
+  거리가 가까운 것은 <b>상황(시간대·지역상태·기후)뿐</b>이다.
+  파일럿 288버킷 회차에서 인접 재사용이 <b>61건</b>을 건졌다.
+</div>
+
+<h3>5.4 manifest — 무효화 판정의 근거</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>manifest 필드</th><th>쓰는 곳</th></tr></thead>
+<tbody>
+<tr><td><code>prompt_sha</code></td><td>프리픽스가 바뀌었으면 <b>전량 무효(Full)</b></td></tr>
+<tr><td>마스터데이터 콘텐츠 해시</td><td>어느 파일이 바뀌었나 → 무효화 범위 판정</td></tr>
+<tr><td><code>counts.target</code></td><td><b>이번 회차가 만들기로 선언한 버킷 수</b></td></tr>
+<tr><td><code>counts.generated</code></td><td><b>스토어 총계</b> (회차 산출이 아니라)</td></tr>
+<tr><td><code>partial</code></td><td>예산 초과로 중단했는가</td></tr>
+<tr><td><code>concurrency</code> · <code>first_rate_limit_concurrency</code></td><td>동시성 결정의 근거를 회차마다 남긴다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">게이트 판정선을 고친 이야기 — 그러나 통과시키려고 고치지 않았다</span>
+  <code>RequireFullRun</code>이 <code>생성 / 2,880 ≥ 95 %</code>를 요구했는데,
+  <b>도달 집합 방침을 택한 이상 이 선은 영원히 넘을 수 없다</b>(6.8 %).
+  그래서 판정선을 <code>counts.target &gt; 0 &amp;&amp; !partial</code> — <b>"선언한 범위를 완주했는가"</b>로 바꿨다.
+  <br><br>
+  <b>방어는 자리를 옮겼지 사라지지 않았다.</b> 원래 목적("파일럿 115초를 상한 300초 통과로 세지 않는다")은
+  이제 <b>측정치에 범위 꼬리표를 강제</b>하는 것으로 지킨다 —
+  실패 메시지가 항상 <code>[대상 N버킷 · 스토어 M/2880]</code>을 찍는다.
+</div>
+
+<h2 id="numbers">6. 이 층의 실측 한눈에</h2>
+
+<div class="stats">
+  <div class="stat good"><div class="v">98.67 %</div><div class="l">시나리오 A 캐시 히트율</div><div class="s">도달 집합 195버킷</div></div>
+  <div class="stat"><div class="v">$1.07</div><div class="l">978집합 총 프리베이크 비용</div><div class="s">전량 외삽 $5.12의 1/5</div></div>
+  <div class="stat"><div class="v">2.5 req/s</div><div class="l">T2 실측 처리율</div><div class="s">288버킷 115초 · 429 0회</div></div>
+  <div class="stat"><div class="v">0.02 ms</div><div class="l">드라이런 건당</div><div class="s">사양 추정 50 ms의 1/2500</div></div>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>지표</th><th class="num">값</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td>파일럿 288버킷 소요</td><td class="num">115.0 s</td><td>동시성 8 시작 → 24 도달</td></tr>
+<tr><td>통과율</td><td class="num">67.7 %</td><td>195/288. 재시도로 96건 추가</td></tr>
+<tr><td>인접 재사용</td><td class="num">61건</td><td>폴백 32건 (11.1 %)</td></tr>
+<tr><td>전수 드라이런 2,880건</td><td class="num">0.02 s</td><td>병렬 16. 직렬로도 0.04 s</td></tr>
+<tr><td>프리픽스 SHA 종류</td><td class="num">1</td><td>캐시가 깨지지 않았다</td></tr>
+<tr><td>429 발생</td><td class="num">0회</td><td>최대 동시 24. 상향 여지가 남아 있다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">전량 2,880 회차는 아직 안 돌렸다</span>
+  외삽으로는 <b>1,150초(19.2분) · $5.12</b>라 게이트 기준(≤ 5분 · ≤ $5)을 그대로는 못 넘는다.
+  2026-07-26 결정은 <b>"전량 회차를 미룬다"</b>였다 —
+  전량은 통과율 판정을 바꾸지 못하고 비용·시간만 두 번 든다.
+  P2 게이트 결정(모델·기준)이 정해진 뒤 그 모델로 한 번에 돌린다.
+</div>
+
+<div class="ok">
+  <span class="tag">9장 요약</span>
+  <ul style="margin-bottom:0">
+    <li>티어 선택 기준은 품질이 아니라 <b>재사용 횟수</b>다. 아키타입 → T2, 개별 → T1, T1이 밀리면 스필오버.</li>
+    <li>예산 상한은 넷이고 <b>일일 캡은 T2만 센다</b> — T1까지 세면 강등이 성립하지 않는다.</li>
+    <li>플랜 스토어는 표가 셋이고 <b>락이 없다</b>. <code>Resolve</code>는 절대 null을 안 준다.</li>
+    <li><b>2,880 중 264만 조회된다.</b> 개수가 아니라 <b>어느 버킷이냐</b>가 히트율을 정한다.</li>
+    <li>워밍업은 이 엔진 계열에서 비용을 줄이지 않는다 — <b>사양이 틀렸고, 사양을 고쳤다.</b></li>
+    <li>게이트 판정선도 고쳤지만 <b>통과시키려고 고치지 않았다</b> — 방어는 자리를 옮겼다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 티어 라우팅 시뮬 ---------- */
+(function () {
+  var g = document.getElementById('rtNodes');
+  if (!g) return;
+  var el = window.NpcBook.el;
+  var out = document.getElementById('rtOut');
+
+  function decide() {
+    var quality = document.getElementById('rtQuality').value;
+    var depth = +document.getElementById('rtDepth').value;
+    var t2Kill = document.getElementById('rtT2Kill').checked;
+    var t1Kill = document.getElementById('rtT1Kill').checked;
+    var capped = document.getElementById('rtBudget').checked;
+    var breaker = document.getElementById('rtBreaker').checked;
+
+    var log = [];
+    var wanted;
+
+    if (quality === 'arch') {
+      wanted = 'T2'; log.push('Wanted  = T2   (Quality.Archetype — 수천 NPC 가 재사용한다)');
+    } else if (depth > 64) {
+      wanted = 'T2'; log.push('Wanted  = T2   (개별인데 T1 큐 ' + depth + ' > 64 → 스필오버)');
+    } else {
+      wanted = 'T1'; log.push('Wanted  = T1   (개별 재계획 · 1회용)');
+    }
+
+    /* Available — 킬스위치만 본다 */
+    var availT2 = !t2Kill, availT1 = !t1Kill;
+    var granted = wanted;
+    if (wanted === 'T2' && !availT2) {
+      log.push('Downgrade      T2 가 끊겼다 → T1 시도');
+      granted = availT1 ? 'T1' : 'None';
+    } else if (wanted === 'T1' && !availT1) {
+      log.push('Downgrade      T1 이 끊겼다 → 올리지 않는다 (시나리오 C 2단계 측정 대상)');
+      granted = 'None';
+    }
+
+    if (granted === 'None') {
+      log.push('결과    거절 — V0.NO_TIER. NPC 는 기존 플랜을 유지한다');
+      return { tier: 'None', log: log, reason: 'killswitch' };
+    }
+
+    if (granted === 'T2' && breaker) {
+      log.push('Breaker 열림   T2 를 시도조차 하지 않는다 (죽은 엔드포인트에 지연·예산을 쓰지 않는다)');
+      granted = availT1 ? 'T1' : 'None';
+      if (granted === 'None') { log.push('결과    거절 — 내려갈 곳이 없다'); return { tier: 'None', log: log }; }
+    }
+
+    if (granted === 'T2' && capped) {
+      log.push('Budget.Acquire T2 일일 캡 초과 → TokenCapExceeded · TierDowngraded 경보');
+      granted = 'T1';
+    }
+
+    log.push('결과    ' + granted + ' 로 요청을 낸다' +
+      (granted === 'T1' ? '   (무비용 · 지연 5.1s)' : '   ($0.001015 · 지연 2.9s)'));
+    return { tier: granted, log: log };
+  }
+
+  function render() {
+    var r = decide();
+    g.innerHTML = '';
+
+    var TIERS = [
+      { id: 'T2', x: 120, label: '외부 API', sub: '고품질 · 유료' },
+      { id: 'T1', x: 440, label: '로컬 엔진', sub: '저지연 · 무비용' },
+      { id: 'None', x: 740, label: '거절', sub: '기존 플랜 유지' }
+    ];
+
+    TIERS.forEach(function (t) {
+      var on = r.tier === t.id;
+      el('rect', {
+        x: t.x - 100, y: 24, width: 200, height: 78, rx: 10,
+        fill: on ? (t.id === 'None' ? 'var(--warn)' : 'var(--accent)') : 'var(--panel-2)',
+        stroke: on ? 'none' : 'var(--line-2)', 'stroke-width': 1.2
+      }, g);
+      var a = el('text', {
+        x: t.x, y: 54, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 700,
+        fill: on ? 'var(--panel)' : 'var(--ink-3)'
+      }, g); a.textContent = t.id;
+      var b = el('text', {
+        x: t.x, y: 76, 'text-anchor': 'middle', 'font-size': 12,
+        fill: on ? 'var(--panel)' : 'var(--ink-3)'
+      }, g); b.textContent = t.label;
+      var c = el('text', {
+        x: t.x, y: 94, 'text-anchor': 'middle', 'font-size': 10.5,
+        fill: on ? 'var(--panel)' : 'var(--ink-3)', opacity: .85
+      }, g); c.textContent = t.sub;
+    });
+
+    out.textContent = r.log.join('\n');
+  }
+
+  ['rtQuality', 'rtT2Kill', 'rtT1Kill', 'rtBudget', 'rtBreaker'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', render);
+  });
+  document.getElementById('rtDepth').addEventListener('input', function () {
+    document.getElementById('rtDepthT').textContent = this.value;
+    render();
+  });
+  render();
+})();
+
+/* ---------- 도달 버킷 히트맵 ---------- */
+(function () {
+  var grid = document.getElementById('reachGrid');
+  if (!grid) return;
+  var el = window.NpcBook.el;
+  var out = document.getElementById('reachOut');
+
+  /* bucket_usage.md §2 — 아키타입별 (지역상태, 기후) 조합.
+     실제 40종 중 대표 배치를 재현한다: 36종은 조합 1개, 4종은 2개. */
+  var COMBO = {};                       /* archIdx -> [ (R,C) 조합 ] */
+  var TWO = [6, 5, 7, 8];               /* hunter · miner · shepherd · woodcutter 자리 */
+  for (var a = 0; a < 40; a++) COMBO[a] = [[0, 0]];            /* Peace.Fair */
+  COMBO[6] = [[1, 0], [0, 1]];          /* Alert.Fair · Peace.Cold */
+  COMBO[5] = [[1, 1], [0, 0]];          /* Alert.Cold · Peace.Fair */
+  COMBO[7] = [[0, 1], [0, 0]];          /* Peace.Cold · Peace.Fair */
+  COMBO[8] = [[1, 0], [0, 0]];          /* Alert.Fair · Peace.Fair */
+
+  function rowOf(t, r, c) { return (t * 4 + r) * 3 + c; }
+
+  function draw(mode) {
+    grid.innerHTML = '';
+    var cw = 820 / 40, ch = 250 / 72;
+    var lit = 0;
+
+    for (var a = 0; a < 40; a++) {
+      for (var t = 0; t < 6; t++) {
+        for (var r = 0; r < 4; r++) {
+          for (var c = 0; c < 3; c++) {
+            var on = false;
+            if (mode === 'all') on = true;
+            else {
+              on = COMBO[a].some(function (p) { return p[0] === r && p[1] === c; });
+              if (mode === 'B' && !on) {
+                /* 공성 — 그 존들이 War/Storm 을 겪는다 */
+                on = (r === 2 || c === 2) && COMBO[a].some(function (p) { return p[1] === 0 || p[1] === c; });
+              }
+            }
+            if (!on) continue;
+            lit++;
+            el('rect', {
+              x: 20 + a * cw, y: 40 + rowOf(t, r, c) * ch,
+              width: Math.max(cw - 0.6, 1), height: Math.max(ch - 0.4, 1),
+              fill: mode === 'all' ? 'var(--ink-3)' : mode === 'B' ? 'var(--warn)' : 'var(--ok)',
+              opacity: mode === 'all' ? .35 : .9
+            }, grid);
+          }
+        }
+      }
+    }
+
+    /* 배경 격자 */
+    el('rect', {
+      x: 20, y: 40, width: 820, height: 250, rx: 4,
+      fill: 'none', stroke: 'var(--line)', 'stroke-width': 1
+    }, grid);
+
+    var cost = mode === 'all' ? '$5.12' : mode === 'B' ? '$1.07' : '$0.37';
+    var name = mode === 'all' ? '전량 2,880' : mode === 'B' ? '시나리오 B — 공성 978' : '시나리오 A — 평시 264';
+    out.textContent =
+      name + '\n' +
+      '  칠해진 칸 ' + lit.toLocaleString() + ' / 2,880  (' + (lit / 2880 * 100).toFixed(1) + ' %)\n' +
+      '  실측 프리베이크 비용 ' + cost + '\n\n' +
+      (mode === 'A'
+        ? '  세로로 6칸씩 뭉쳐 보이는 것이 시간대 6종이다. 한 아키타입이 겪는 (지역상태, 기후) 조합은\n' +
+          '  대개 하나뿐이라 그 6칸만 칠해진다. 두 뭉치인 열이 hunter · miner · shepherd · woodcutter 다.'
+        : mode === 'B'
+        ? '  공성 시나리오가 존을 War · Storm 으로 흔들면 그만큼 새 조합이 도달한다.\n' +
+          '  이 714칸을 추가하면 SiegeTests 가 5/7 → 7/7 로 복구된다. 평시 히트율은 98.67 % 그대로다.'
+        : '  전량을 만들면 2,616칸이 한 번도 조회되지 않는다. 그중 1,440칸은 War · Disaster 이고\n' +
+          '  960칸은 Storm 이다 — "낭비" 가 아니라 "비상 상황을 미리 만들어 두는 값" 인 것도 있다.');
+  }
+
+  function pick(id) {
+    ['rA', 'rB', 'rAll'].forEach(function (b) {
+      document.getElementById(b).classList.toggle('on', b === id);
+    });
+  }
+  document.getElementById('rA').addEventListener('click', function () { pick('rA'); draw('A'); });
+  document.getElementById('rB').addEventListener('click', function () { pick('rB'); draw('B'); });
+  document.getElementById('rAll').addEventListener('click', function () { pick('rAll'); draw('all'); });
+  draw('A');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM NPC 서버 — 코드 이해와 활용 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="hero">
+  <p class="kicker">사내 R&amp;D · 기술 검증 · .NET 10</p>
+  <h1>LLM NPC 서버</h1>
+  <p class="lead">
+    로컬·외부 LLM을 <b>행동 플랜 컴파일러</b>로 써서 MMORPG NPC 5,000마리의 하루 일과를
+    상황별로 자동 생성하고, 결정론 런타임이 그것을 10Hz로 실행하며 게임서버에 명령을 송출한다.
+    이 책은 <b>그 코드를 읽고 고치고 돌리기 위해 알아야 할 것</b>을 처음부터 끝까지 정리한 것이다.
+  </p>
+  <div class="chips">
+    <span class="chip a">코드 13 프로젝트 · 테스트 1</span>
+    <span class="chip">태스크 196 / 203 완료</span>
+    <span class="chip">NPC 5,000 · 틱 p99 0.80 ms</span>
+    <span class="chip">플랜 버킷 2,880 (도달 264)</span>
+    <span class="chip">문서 기준일 2026-08-01</span>
+  </div>
+  <p class="oneline">
+    <b>한 문장 —</b> LLM은 <i>느리고 비싸게 플랜을 만들고</i>, 런타임은 <i>빠르고 재현 가능하게 실행한다</i>.
+    LLM이 전부 죽어도 NPC는 멈추지 않는다. 이 분리가 이 저장소의 전부다.
+  </p>
+</div>
+
+<h2 id="what">이 책이 답하는 것</h2>
+
+<p>
+  저장소에는 이미 사양 문서가 20개 넘게 있다. 그것들은 <b>무엇을 왜 만드는가</b>를 정한 문서이고,
+  구현 순서를 지시하는 문서다. 반면 이 책은 <b>이미 만들어진 코드를 앞에 두고</b> 답한다 —
+  이 파일은 왜 여기 있고, 이 상수는 왜 이 값이며, 이 값을 바꾸면 무엇이 어떻게 달라지는가.
+</p>
+
+<div class="grid2">
+  <div class="card">
+    <h4>다루는 것</h4>
+    <ul>
+      <li>구조가 <b>왜</b> 이렇게 되었는지 — 산술과 실측으로</li>
+      <li>주요 타입·메서드의 <b>역할과 호출 관계</b></li>
+      <li>실행 옵션·설정·마스터데이터를 바꿨을 때의 <b>동작 변화</b></li>
+      <li>지표를 <b>어떻게 읽고</b> 무엇이 정상인지</li>
+      <li>확장 절차 — 액션 추가, 아키타입 추가, 링크 교체</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>다루지 않는 것</h4>
+    <ul>
+      <li>API 레퍼런스의 전수 나열 — 그건 소스 주석이 이미 한다</li>
+      <li>C#·.NET 입문 — <code>Span</code>·<code>Volatile</code> 정도는 안다고 본다</li>
+      <li>게임서버 구현 — 이 저장소는 <b>NPC 서버</b>만 만든다</li>
+      <li>측정하지 않은 값의 추정 — 미측정은 미측정이라고 적는다</li>
+    </ul>
+  </div>
+</div>
+
+<div class="note">
+  <span class="tag">읽기 전에 알아둘 관점 하나</span>
+  우리가 만드는 것은 <b>NPC 서버</b>다. 게임서버는 만들지 않는다.
+  <code>IGameServerLink</code>의 "GameServer"는 <b>상대방</b>을 가리키는 말이고,
+  이 인터페이스는 "게임서버의 인터페이스"가 아니라 <b>게임서버로 향하는 NPC 서버의 아웃바운드 포트</b>다.
+  이 한 문장을 놓치면 3장 이후가 전부 뒤집혀 읽힌다.
+</div>
+
+<h2 id="map">시스템 한 장 — 어디를 읽으면 무엇이 나오나</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 920 470" role="img" aria-label="4계층 구조와 각 장의 대응">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <!-- 게임서버 -->
+      <g>
+        <rect x="30" y="24" width="200" height="70" rx="10" fill="none" stroke="var(--gs)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="130" y="52" text-anchor="middle" font-size="14" font-weight="650" fill="var(--gs)">게임서버 (남이 만든다)</text>
+        <text x="130" y="74" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">Npc.Sim · TestGameServer 가 대역</text>
+      </g>
+
+      <!-- L0 -->
+      <a href="ch05.html">
+        <rect x="290" y="24" width="600" height="106" rx="12" fill="var(--panel-2)" stroke="var(--l0)" stroke-width="1.6"/>
+        <text x="308" y="50" font-size="13" font-weight="700" fill="var(--l0)">L0 · 결정론 NPC 런타임 — 10Hz, LLM 무관</text>
+        <text x="308" y="74" font-size="12" fill="var(--ink-2)">틱 루프 · SoA 저장소 · 플랜 실행기 · 인지 LOD · 명령 발행</text>
+        <text x="308" y="96" font-size="11.5" fill="var(--ink-3)">Npc.Runtime · Npc.Contracts · Npc.Gateway</text>
+        <text x="870" y="118" text-anchor="end" font-size="11.5" font-family="var(--mono)" fill="var(--l0)">5 · 6 · 7장</text>
+      </a>
+
+      <!-- L1 -->
+      <a href="ch09.html">
+        <rect x="290" y="150" width="600" height="94" rx="12" fill="var(--panel-2)" stroke="var(--l1)" stroke-width="1.6"/>
+        <text x="308" y="176" font-size="13" font-weight="700" fill="var(--l1)">L1 · 플랜 스토어 — 배열 첨자 조회, 락 프리</text>
+        <text x="308" y="200" font-size="12" fill="var(--ink-2)">key = 아키타입 40 × 시간대 6 × 지역상태 4 × 기후 3 = 2,880</text>
+        <text x="308" y="222" font-size="11.5" fill="var(--ink-3)">Npc.Planning · 폴백 40 · 개별 풀 512</text>
+        <text x="870" y="232" text-anchor="end" font-size="11.5" font-family="var(--mono)" fill="var(--l1)">9장</text>
+      </a>
+
+      <!-- L2 -->
+      <a href="ch06.html">
+        <rect x="290" y="264" width="600" height="86" rx="12" fill="var(--panel-2)" stroke="var(--l2)" stroke-width="1.6"/>
+        <text x="308" y="290" font-size="13" font-weight="700" fill="var(--l2)">L2 · 우선순위 재계획 큐 — 사건 기반, 예산 상한</text>
+        <text x="308" y="314" font-size="12" fill="var(--ink-2)">점수 = 플레이어근접 + 플랜노후 + 전제이탈 + 긴급도</text>
+        <text x="870" y="338" text-anchor="end" font-size="11.5" font-family="var(--mono)" fill="var(--l2)">6장</text>
+      </a>
+
+      <!-- L3 -->
+      <a href="ch08.html">
+        <rect x="290" y="370" width="600" height="86" rx="12" fill="var(--panel-2)" stroke="var(--l3)" stroke-width="1.6"/>
+        <text x="308" y="396" font-size="13" font-weight="700" fill="var(--l3)">L3 · 플랜 컴파일러 — T0 캐시 → T1 로컬 → T2 외부</text>
+        <text x="308" y="420" font-size="12" fill="var(--ink-2)">무상태 호출 · 프롬프트 캐시 · 4단 검증기 · 재시도 1회</text>
+        <text x="870" y="444" text-anchor="end" font-size="11.5" font-family="var(--mono)" fill="var(--l3)">8 · 9장</text>
+      </a>
+
+      <!-- 화살표 -->
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.4" marker-end="url(#ar)" color="var(--ink-3)">
+        <path d="M232,59 L286,59"/>
+        <path d="M330,150 L330,132"/>
+        <path d="M330,264 L330,246"/>
+        <path d="M330,370 L330,352"/>
+      </g>
+      <text x="352" y="146" font-size="11" fill="var(--ink-3)">플랜 조회 O(1)</text>
+      <text x="352" y="260" font-size="11" fill="var(--ink-3)">미스 · 이탈 · 인터럽트</text>
+      <text x="352" y="366" font-size="11" fill="var(--ink-3)">예산 안에서만</text>
+      <text x="240" y="52" font-size="11" fill="var(--ink-3)" text-anchor="end">이벤트</text>
+      <text x="240" y="80" font-size="11" fill="var(--ink-3)" text-anchor="end">명령</text>
+
+      <!-- 마스터데이터 기둥 -->
+      <a href="ch02.html">
+        <rect x="30" y="150" width="200" height="306" rx="12" fill="var(--panel-2)" stroke="var(--line-2)" stroke-width="1.4"/>
+        <text x="130" y="182" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">masterdata/</text>
+        <text x="130" y="206" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">단일 원천 (SSOT)</text>
+        <text x="130" y="240" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">world_flags · items</text>
+        <text x="130" y="262" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">actions · zones · pois</text>
+        <text x="130" y="284" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">archetypes · buckets</text>
+        <text x="130" y="306" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">interrupts · fallbacks</text>
+        <text x="130" y="328" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">prompt · npc_instances</text>
+        <text x="130" y="368" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">이 11개가 네 계층</text>
+        <text x="130" y="388" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">전부의 어휘를 정한다</text>
+        <text x="130" y="430" text-anchor="middle" font-size="11.5" font-family="var(--mono)" fill="var(--accent)">2장</text>
+      </a>
+    </svg>
+  </div>
+  <figcaption>네모를 누르면 해당 장으로 간다. 왼쪽 기둥이 전체 어휘를 공급하고, 오른쪽 네 층이 그 어휘로 돈다.</figcaption>
+</figure>
+
+<h2 id="paths">독자별 읽는 경로</h2>
+
+<div class="paths">
+  <div class="path">
+    <h4>① 처음 보는 사람 (2시간)</h4>
+    <ol>
+      <li><a href="ch01.html">1장</a> 왜 이 구조인가</li>
+      <li><a href="ch05.html">5장</a> 틱 루프 — 심장부</li>
+      <li><a href="ch08.html">8장</a> LLM은 어디서 부르나</li>
+      <li><a href="ch11.html">11장</a> 직접 돌려보기</li>
+    </ol>
+  </div>
+  <div class="path">
+    <h4>② 코드를 고쳐야 하는 사람</h4>
+    <ol>
+      <li><a href="ch02.html">2장</a> · <a href="ch03.html">3장</a> · <a href="ch04.html">4장</a> 계약 3종 <b>전부</b></li>
+      <li>고칠 층의 장 (5~10장)</li>
+      <li><a href="ch12.html">12장</a> 테스트·게이트</li>
+      <li><a href="ch13.html">13장</a> 확장 레시피</li>
+    </ol>
+  </div>
+  <div class="path">
+    <h4>③ 성능·비용을 봐야 하는 사람</h4>
+    <ol>
+      <li><a href="ch06.html">6장</a> 인지 LOD 상한</li>
+      <li><a href="ch09.html">9장</a> 예산·캐시·프리베이크</li>
+      <li><a href="ch11.html">11장</a> 설정 매트릭스</li>
+      <li><a href="ch12.html">12장</a> 실측과 빗나간 추정</li>
+    </ol>
+  </div>
+  <div class="path">
+    <h4>④ 게임서버를 붙일 사람</h4>
+    <ol>
+      <li><a href="ch03.html">3장</a> N1~N8 계약</li>
+      <li><a href="ch10.html">10장</a> 와이어·핸드셰이크</li>
+      <li><a href="../testbed_guide.html">테스트 베드 안내서</a></li>
+      <li><a href="ch11.html">11장</a> <code>--link tcp</code></li>
+    </ol>
+  </div>
+</div>
+
+<h2 id="toc">목차</h2>
+<div class="tocgrid" id="tocgrid"></div>
+
+<h2 id="status">지금 이 저장소의 상태</h2>
+
+<p>
+  실제로 돌아가는 코드가 있고, 게이트 판정도 대부분 끝났다.
+  아래 표는 <code>TASKS.md §3</code> 진행 원장과 <code>docs/measurements/*_gate.md</code>를 그대로 옮긴 것이다.
+  <b>미달·미판정을 통과로 적지 않는다</b> — 그렇게 적는 순간 게이트가 거짓이 된다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Phase</th><th>내용</th><th class="num">태스크</th><th>게이트</th><th>남은 것</th></tr></thead>
+<tbody>
+<tr><td><b>P0</b> W1</td><td>스파이크 — 숫자 6개 뽑기</td><td class="num">9 / 13</td><td><span class="pill warn">2/4</span></td><td>8B 품질 채점 · 외부 동시 32·64</td></tr>
+<tr><td><b>P1</b> W2–4</td><td>코어 · 런타임 · Sim</td><td class="num">62 / 62</td><td><span class="pill ok">통과</span></td><td>—</td></tr>
+<tr><td><b>P2</b> W5–6</td><td>플랜 컴파일러 · 검증기</td><td class="num">23 / 24</td><td><span class="pill warn">3/5</span></td><td>플랜 다양성 37.1 %</td></tr>
+<tr><td><b>P3</b> W7–8</td><td>플랜 캐시 · 프리베이크</td><td class="num">19 / 21</td><td><span class="pill warn">5 통과 · 4 미판정</span></td><td>전량 회차 · 사람 검수 40건</td></tr>
+<tr><td><b>P4</b> W9–10</td><td>스케줄러 · 3-티어 · 부하</td><td class="num">24 / 24</td><td><span class="pill warn">9/10</span></td><td>GPU 사용률 (T1 켠 회차 필요)</td></tr>
+<tr><td><b>P5</b> W11–12</td><td>골든 · 결정론 · 장애주입 · 보고</td><td class="num">21 / 21</td><td><span class="pill warn">6/9</span></td><td>블라인드 평가 (사람 12명)</td></tr>
+<tr><td><b>P6</b></td><td>테스트 베드 — 소켓 · 대역 · 뷰어</td><td class="num">38 / 38</td><td><span class="pill warn">9/10</span></td><td>사람이 인스펙터로 설명하기</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">읽는 요령</span>
+  미달 항목이 여럿 보이지만 <b>코드 결함으로 미달한 항목은 사실상 없다</b>.
+  대부분 "아직 안 돌렸다"(전량 프리베이크 회차 · GPU 로드 회차)거나 "사람 시간이 필요하다"(블라인드 평가 · 검수)다.
+  자세한 판정 근거는 <a href="ch12.html">12장</a>에 있다.
+</div>
+
+<h2 id="convention">이 책의 표기 규약</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>표기</th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><span class="filepath" style="margin:0">src/Npc.Runtime/PlanExecutor.cs</span></td><td>바로 아래 코드가 나온 파일</td></tr>
+<tr><td><span class="pill l0">L0</span> <span class="pill l1">L1</span> <span class="pill l2">L2</span> <span class="pill l3">L3</span></td><td>4계층 색. 책 전체에서 같은 색을 쓴다</td></tr>
+<tr><td><span class="pill">N1</span> ~ <span class="pill">N8</span></td><td>게임서버 연동 규칙 (<code>docs/02 §1</code>). 테스트로 강제된다</td></tr>
+<tr><td><span class="pill">V1</span> ~ <span class="pill">V11</span></td><td>마스터데이터 검증 규칙. 실패는 기동 실패다</td></tr>
+<tr><td><b>실측</b></td><td><code>docs/measurements/</code>에 원자료가 있는 값. 출처를 같이 적는다</td></tr>
+<tr><td><b>추정</b> · <b>미측정</b></td><td>재지 않은 값. 실측인 척하지 않는다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag">왜 수치마다 출처를 다는가</span>
+  이 프로젝트의 계획 단계 추정은 실제로 크게 빗나갔다 — 요청당 입력 토큰이 <b>1,750 가정 → 13,948 실측(8배)</b>,
+  프리베이크 총비용이 <b>$0.94 → $5.12(5.4배)</b>였다(<code>cost_actual.md</code>).
+  그 경험 때문에 이 저장소는 추정과 실측을 문장 단위로 구분해 적는 규칙을 갖고 있고, 이 책도 같은 규칙을 따른다.
+</div>
+
+<h2 id="other">같이 보면 좋은 문서</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>문서</th><th>성격</th><th>이 책과의 관계</th></tr></thead>
+<tbody>
+<tr><td><a href="../index.html">docs/index.html</a></td><td>한 장짜리 안내서</td><td>이 책의 축약본. 5분 훑기용</td></tr>
+<tr><td><a href="../startup_flow.html">docs/startup_flow.html</a></td><td>기동 흐름 시각화</td><td>5장과 같이 보면 조립 순서가 명확해진다</td></tr>
+<tr><td><a href="../testbed_guide.html">docs/testbed_guide.html</a></td><td>테스트 베드 안내서</td><td>10장의 확장판. 실제로 띄우는 법</td></tr>
+<tr><td><a href="../../LLM_NPC_Server_Plan.md">LLM_NPC_Server_Plan.md</a></td><td>상위 계획</td><td>1장의 원문. 판단 근거와 리스크 대장</td></tr>
+<tr><td><a href="../01_MasterData_Spec.md">docs/01</a> · <a href="../02_GameServer_Link.md">02</a> · <a href="../03_PlanDSL_Spec.md">03</a></td><td>공통 계약 사양</td><td>2·3·4장의 원문. <b>코드를 고칠 땐 이쪽이 정답이다</b></td></tr>
+<tr><td><a href="../RnD_Report.md">docs/RnD_Report.md</a></td><td>R&amp;D 보고서</td><td>12장의 결론부</td></tr>
+<tr><td><a href="../../CLAUDE.md">CLAUDE.md</a></td><td>작업 규칙</td><td>코드를 고치기 전에 읽는다. 이 책은 그 규칙의 <i>이유</i>를 설명한다</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="small" style="margin-top:34px">
+  키보드 <b>←</b> / <b>→</b> 로 장을 넘길 수 있다. 왼쪽 아래 버튼으로 테마와 애니메이션을 끄고 켠다.
+</p>
+
+</main>
+</div>
+<script src="book.js"></script>
+</body>
+</html>

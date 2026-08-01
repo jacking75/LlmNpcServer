@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5장 · 틱 루프와 SoA 저장소 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">3부 · 결정론 런타임 L0</p>
+  <h1>5장 — 틱 루프와 SoA 저장소</h1>
+  <p class="lede">
+    여기가 심장부다. 10Hz로 돌고, 한 틱에 5,000마리를 전부 훑고, 예산은 20 ms이며,
+    <b>힙 할당이 0바이트</b>다. 이 장은 그 루프의 여섯 단계를 하나씩 열어 보고,
+    <code>class Npc</code>를 5,000개 만들지 않는 이유를 메모리 그림으로 확인한다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/11 §3·§5</span>
+    <span class="chip">실측 p99 0.801 ms</span>
+    <span class="chip">틱당 할당 0 B</span>
+  </div>
+</div>
+
+<h2 id="budget">1. 예산 — 100 ms 중 20 ms만 쓴다</h2>
+
+<div class="stats">
+  <div class="stat"><div class="v">10 Hz</div><div class="l">틱 주파수</div><div class="s">한 틱 = 100 ms</div></div>
+  <div class="stat"><div class="v">20 ms</div><div class="l">틱 예산</div><div class="s">100 ms 의 20 %</div></div>
+  <div class="stat good"><div class="v">0.801 ms</div><div class="l">실측 p99 (NPC 5,000)</div><div class="s">P4 게이트 · 예산의 4 %</div></div>
+  <div class="stat good"><div class="v">0 B</div><div class="l">틱당 할당</div><div class="s">bytesPerTick</div></div>
+</div>
+
+<div class="why">
+  <span class="tag">예산을 100 ms 전부로 잡지 않는 이유</span>
+  같은 프로세스에서 <b>다른 것들도 돈다</b> — 대시보드 HTTP, 소켓 리시버, 직렬화, GC.
+  틱 루프가 100 ms를 다 쓰면 그 순간 다음 틱이 밀리고, 밀린 틱은 <b>영원히 따라잡지 못한다</b>
+  (게임서버가 계속 <code>TickSync</code>를 보내기 때문이다).
+  20 %로 잡으면 나머지 80 ms가 완충이 된다 — 실측에서 틱 사이 여유는 <b>98.3 ms</b>였다.
+</div>
+
+<h2 id="loop">2. 틱 루프 여섯 단계</h2>
+
+<div class="filepath">src/Npc.Runtime/NpcServerLoop.cs</div>
+
+<pre><code><span class="k">public async</span> <span class="t">Task</span> RunAsync(<span class="t">CancellationToken</span> ct)
+{
+    <span class="k">while</span> (<span class="k">await</span> _link.Events.WaitToReadAsync(ct))       <span class="c">// ① await — 이벤트 대기</span>
+    {
+        <span class="k">int</span> drained = DrainEvents();                      <span class="c">// 이벤트 배수 (멱등, N7)</span>
+
+        <span class="k">while</span> (_clock.TryAdvance(<span class="k">out</span> <span class="t">Tick</span> tick))            <span class="c">// TickSync 를 받은 만큼만 진행</span>
+        {
+            RunTick(tick, drained);
+            drained = <span class="n">0</span>;
+
+            <span class="k">await</span> _link.FlushAsync(ct);                    <span class="c">// ② await — 유일하게 허용된 것</span>
+            TicksCommitted = tick.Value;
+        }
+
+        <span class="k">await</span> _link.FlushAsync(ct);   <span class="c">// 인터럽트가 틱 밖에서 낸 명령도 내보낸다</span>
+    }
+}
+
+<span class="k">public void</span> RunTick(<span class="t">Tick</span> tick, <span class="k">int</span> drained = <span class="n">0</span>)
+{
+    Observer?.OnTickBegin(tick);
+
+    _bands.Rebalance();                       <span class="c">// ③ LOD 밴드 이동 — 틱당 최대 64건</span>
+    Handoff?.DrainReturns(_replanQueue);      <span class="c">// ④ 워커가 되돌린 요청을 힙에 복귀</span>
+    _cognition.Scan(tick, _replanQueue);      <span class="c">// ⑤ 인지 스캔 — 틱당 최대 150건</span>
+    Handoff?.Pump(_replanQueue, PumpPerTick); <span class="c">//    힙 → 워커 통로</span>
+    _executor.Step(tick, _link);              <span class="c">// ⑥ 플랜 실행 + 명령 발행</span>
+    Transition?.Tick(_clock, _swapper);       <span class="c">// ⑦ 버킷 전환 예약 처리</span>
+    _swapper.ApplyPendingSwaps(_executor);    <span class="c">// ⑧ 스텝 경계 플랜 스왑</span>
+
+    TicksProcessed++;
+    Observer?.OnTickEnd(tick, _cognition.LastScanned, drained);
+}</code></pre>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 340" id="tickSvg" role="img" aria-label="틱 루프 단계별 동작">
+      <g id="tickStages"></g>
+      <rect x="20" y="238" width="840" height="86" rx="10" fill="var(--panel-2)" stroke="var(--line)"/>
+      <text id="tickTitle" x="40" y="264" font-size="13.5" font-weight="700" fill="var(--accent)"></text>
+      <text id="tickDesc1" x="40" y="288" font-size="12" fill="var(--ink-2)"></text>
+      <text id="tickDesc2" x="40" y="308" font-size="12" fill="var(--ink-2)"></text>
+    </svg>
+  </div>
+  <div class="ctl">
+    <button class="btn" id="tickPlay" type="button">한 틱 돌리기</button>
+    <button class="btn" id="tickStep" type="button">한 단계씩 ▶</button>
+  </div>
+  <figcaption>단계 상자를 눌러도 된다. 각 단계에 <b>상한</b>이 붙어 있는 것이 이 루프의 핵심 설계다.</figcaption>
+</figure>
+
+<h3>2.1 각 단계에 상한이 있다</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>단계</th><th>상한</th><th>넘치면</th><th>왜 이 값</th></tr></thead>
+<tbody>
+<tr><td>이벤트 배수</td><td><code>MaxEventsPerTick</code> = <b>4,096</b></td><td>다음 틱으로 넘긴다 (<code>EventBacklogs</code>++)</td><td>이벤트 폭주가 틱을 삼키지 못하게</td></tr>
+<tr><td>LOD 밴드 이동</td><td><code>MaxBandMigrationsPerTick</code> = <b>64</b></td><td>커서를 들고 다음 틱에 이어서</td><td>존 전체 승격이 한 틱에 배열을 다시 짜면 그게 스파이크다</td></tr>
+<tr><td>인지 스캔</td><td><code>MaxScansPerTick</code> = <b>150</b></td><td>밴드별 커서로 다음 틱에 이어서</td><td>상한이 없으면 실측 <b>637건</b>까지 오른다</td></tr>
+<tr><td>워커 통로 펌프</td><td><code>PumpPerTick</code> (기본값 존재)</td><td>다음 틱에</td><td>힙을 만지는 것은 틱 루프뿐이어야 한다</td></tr>
+<tr><td>플랜 실행</td><td><b>상한 없음</b> — 전원 순회</td><td>—</td><td>SoA 배열 순회 한 번이라 5,000이어도 싸다</td></tr>
+<tr><td>버킷 전환</td><td>지터로 분산 (±300 또는 ±14틱)</td><td>—</td><td>5,000마리가 한 틱에 갈아타면 스파이크</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">"굶는 NPC 는 없다"</span>
+  상한에 걸려 잘린 몫은 버려지지 않는다. <b>밴드별 커서</b>가 잘린 뒤쪽을 기억했다가 다음 틱에 이어 본다.
+  군중이 생기면 판정 <b>주기가 늘어날 뿐</b>이고, 어떤 NPC도 영원히 스캔되지 않는 상태에 빠지지 않는다.
+</div>
+
+<h2 id="soa">3. SoA — <code>class Npc</code>를 5,000개 만들지 않는다</h2>
+
+<p>
+  매 틱 전원을 훑는다. 그러면 <b>캐시 지역성이 곧 성능</b>이다.
+  객체 배열(AoS)과 배열의 구조체(SoA)의 차이가 여기서 결정적이다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 380" id="memSvg" role="img" aria-label="AoS 와 SoA 의 캐시 라인 접근 비교">
+      <text x="20" y="24" font-size="13" font-weight="700" fill="var(--bad)">AoS — class Npc[5000]</text>
+      <text x="20" y="44" font-size="11.5" fill="var(--ink-3)">StepStatus 하나를 읽으려고 200 B 짜리 객체를 통째로 가져온다</text>
+      <g id="aosRow"></g>
+      <text id="aosNote" x="20" y="150" font-size="12" fill="var(--bad)"></text>
+
+      <text x="20" y="204" font-size="13" font-weight="700" fill="var(--ok)">SoA — byte[] StepStatus</text>
+      <text x="20" y="224" font-size="11.5" fill="var(--ink-3)">캐시 라인 64 B 하나에 StepStatus 64개가 들어온다</text>
+      <g id="soaRow"></g>
+      <text id="soaNote" x="20" y="330" font-size="12" fill="var(--ok)"></text>
+
+      <text x="20" y="364" font-size="12" fill="var(--ink-2)">
+        붉은 칸이 <tspan font-weight="650">실제로 쓰는 바이트</tspan>, 회색이 캐시 라인에 같이 끌려온 낭비다.
+      </text>
+    </svg>
+  </div>
+  <div class="ctl">
+    <button class="btn" id="memRun" type="button">스캔 애니메이션</button>
+  </div>
+  <figcaption>같은 5,000마리를 훑는데 <b>메모리 트래픽이 수십 배 차이 난다</b>. 틱 예산 20 ms를 지키는 근거가 이것이다.</figcaption>
+</figure>
+
+<h3>3.1 핫 · 웜 · 콜드</h3>
+
+<div class="filepath">src/Npc.Runtime/NpcStore.cs</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>구분</th><th>배열</th><th class="num">NPC당 바이트</th><th>언제 읽나</th></tr></thead>
+<tbody>
+<tr>
+  <td rowspan="6"><b>핫</b><br><span class="small">매 틱</span></td>
+  <td><code>WorldFlags[] Flags</code></td><td class="num">8</td><td rowspan="6">틱 루프가 전원을 순회하며</td>
+</tr>
+<tr><td><code>int[] PlanId</code></td><td class="num">4</td></tr>
+<tr><td><code>byte[] StepIndex</code></td><td class="num">1</td></tr>
+<tr><td><code>byte[] StepStatus</code></td><td class="num">1</td></tr>
+<tr><td><code>long[] StepIssuedTick</code></td><td class="num">8</td></tr>
+<tr><td><code>byte[] Lod</code></td><td class="num">1</td></tr>
+<tr><td colspan="2"><b>핫 합계</b> (<code>HotBytesPerNpc</code>)</td><td class="num"><b>23 B</b></td><td>× 5,000 = <b>115 KB</b> → L2에 들어간다</td></tr>
+
+<tr>
+  <td rowspan="3"><b>웜</b><br><span class="small">이벤트 수신 시</span></td>
+  <td><code>WorldPos[] Pos</code> · <code>short[] Hp</code> · <code>short[] Stamina</code></td><td class="num">16</td>
+  <td rowspan="3"><code>EventApplier</code>가 그 NPC만</td>
+</tr>
+<tr><td><code>ushort[] ZoneCode</code> · <code>ArchetypeCode</code> · <code>CurrentPoi</code></td><td class="num">6</td></tr>
+<tr><td colspan="2"></td><td class="num"></td></tr>
+
+<tr>
+  <td rowspan="4"><b>콜드</b><br><span class="small">재계획·바인딩 시</span></td>
+  <td><code>int[] Inventory</code> (평탄 배열 + 스트라이드)</td><td class="num">4 × 83</td>
+  <td rowspan="4">워커·발행 경로에서만</td>
+</tr>
+<tr><td><code>RingBuffer8&lt;RecentEvent&gt;[] Recent</code></td><td class="num">8칸</td></tr>
+<tr><td><code>long[] PlanAssignedTick</code> · <code>byte[] PendingUrgency</code></td><td class="num">9</td></tr>
+<tr><td><code>int[] PendingPlanId</code> · <code>long[] LastEventSequence</code> · …</td><td class="num">—</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag"><code>PlanAssignedTick</code>이 콜드인 이유</span>
+  재계획 점수의 "노후" 항이 읽는 값이라 <b>재계획 경로에서만</b> 쓴다.
+  이것을 핫 배열에 넣으면 <code>HotBytesPerNpc</code>가 8 B 늘어 <b>115 KB → 155 KB</b>가 되고,
+  L2 목표가 깨진다. 주석에 그 이유가 적혀 있는 이유가 이것이다 — 나중에 누가 "여기 있는 게 자연스러운데"라며 옮길 것이기 때문이다.
+</div>
+
+<h3>3.2 인벤토리가 <code>int[][]</code>가 아닌 이유</h3>
+
+<pre><code><span class="c">// 평탄한 1차원 배열 + 스트라이드</span>
+<span class="k">public</span> <span class="k">int</span>[] Inventory = [];
+<span class="k">public</span> <span class="k">int</span> InventoryStride { <span class="k">get</span>; }   <span class="c">// = 최대 item code + 1 = 83</span>
+
+<span class="k">public</span> <span class="t">Span</span>&lt;<span class="k">int</span>&gt; InventoryOf(<span class="k">int</span> npc) =&gt;
+    Inventory.AsSpan(npc * InventoryStride, InventoryStride);   <span class="c">// 할당 0</span></code></pre>
+
+<p class="small">
+  5,000개의 작은 배열은 <b>참조 추적이 늘고 캐시 라인이 흩어진다</b>. 평탄 배열이면 한 NPC의 인벤토리가
+  연속 메모리에 있고, <code>Span</code>으로 잘라 쓰므로 할당도 없다.
+</p>
+
+<h3>3.3 <code>RingBuffer8</code> — 구조화 기억</h3>
+
+<pre><code><span class="k">public readonly record struct</span> <span class="t">RecentEvent</span>(
+    <span class="t">GameEventKind</span> Kind, <span class="t">Tick</span> At, <span class="k">int</span> Subject, <span class="k">byte</span> Salience);</code></pre>
+
+<div class="grid2">
+  <div class="card">
+    <h4>자연어 요약이 아닌 이유</h4>
+    <p class="small">
+      이 값이 <b>프롬프트 서픽스 300토큰 예산 안에</b> 들어가야 한다.
+      "어제 대장장이와 다퉜다" 같은 문장을 저장하면 요약 호출이 필요하고, 그 순간
+      <b>드리프트와 비용이 동시에</b> 생긴다. 값 타입 8칸이면 둘 다 없다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>왜 하필 8칸인가</h4>
+    <p class="small">
+      서픽스에 실리는 것은 <b>salience 상위 3개</b>뿐이다. 8칸이면 최근 사건 중 중요한 것이
+      밀려나기 전에 뽑힐 만큼은 된다. 더 늘리면 콜드 메모리만 커진다.
+      <code>NpcTransform</code>은 <b>중요도 0</b>이라 아예 안 들어간다 — 최다 이벤트라 넣으면 8칸이 그것만으로 찬다.
+    </p>
+  </div>
+</div>
+
+<h2 id="alloc">4. 할당 0을 지키는 방법</h2>
+
+<p>
+  "할당하지 말자"는 구호로는 지켜지지 않는다. 아래는 이 저장소가 실제로 쓰는 <b>구체적인 장치</b>들이다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>흔한 코드</th><th>여기서 쓰는 것</th><th>왜</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>foreach (var npc in list.Where(...))</code></td>
+  <td><code>for (int i = 0; i &lt; _store.Count; i++)</code></td>
+  <td>LINQ는 이터레이터 객체를 할당한다</td>
+</tr>
+<tr>
+  <td><code>logger.LogDebug($"npc {id} failed")</code></td>
+  <td><code>[LoggerMessage]</code> 소스 생성 로거</td>
+  <td>문자열 보간은 박싱 + 할당이다</td>
+</tr>
+<tr>
+  <td><code>IEnumerable&lt;NpcCommand&gt; Emit(...)</code></td>
+  <td><code>int Emit(..., Span&lt;NpcCommand&gt; destination)</code></td>
+  <td>호출자가 준 버퍼에 쓴다. 사전 할당 <code>_batch[4]</code></td>
+</tr>
+<tr>
+  <td><code>new ConcurrentQueue&lt;T&gt;()</code></td>
+  <td>사전 할당 링 버퍼 (<code>CommandRing</code>)</td>
+  <td>큐 노드가 할당이다</td>
+</tr>
+<tr>
+  <td><code>Dictionary</code> 순회</td>
+  <td>정렬된 배열 + 첨자</td>
+  <td>할당 + <b>순서 비결정성</b> 둘 다 문제</td>
+</tr>
+<tr>
+  <td><code>lock (_gate) { ... }</code></td>
+  <td><code>Volatile.Read/Write</code> + 원자 참조 교체</td>
+  <td>락 경합 자체가 틱을 밀어낸다</td>
+</tr>
+<tr>
+  <td>클로저를 캡처하는 람다</td>
+  <td>정적 메서드 · 값 타입 컨텍스트 (<code>EmitContext</code>)</td>
+  <td>캡처는 디스플레이 클래스 할당이다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h3>4.1 계측 — <code>gen0Collections</code>로 재지 않는다</h3>
+
+<div class="bad">
+  <span class="tag">틱 루프를 재는 계기는 <code>bytesPerTick</code> 하나다</span>
+  <code>GC.CollectionCount(0)</code>은 <b>프로세스 전역</b> 카운터다.
+  같은 프로세스에서 대시보드 HTTP·소켓 리시버·직렬화·Sim이 전부 할당하므로,
+  Gen0가 0이 아니라고 해서 틱 루프가 할당한 것이 아니다.
+  <code>bytesPerTick</code>은 <b>틱 창 안의 스레드 할당 델타</b>라 그 혼입이 없다.
+</div>
+
+<div class="card">
+  <h4>P4 게이트에서 이 판정 기준이 한 번 개정됐다</h4>
+  <p>
+    718버킷 스토어로 돌렸더니 틱 창 할당 누계가 <b>264 B</b>가 나와 실패했다.
+    추적해 보니 <b>틱당 누수가 아니라 콜드 스타트</b>였다 —
+    회차를 3배(1,440틱 → 4,320틱)로 늘려도 할당이 <b>정확히 같은 세 틱(1 · 148 · 396)에서만</b> 나고 누계도 264 B 그대로였다.
+    그 코드 경로가 틱 창 안에서 <b>처음 실행될 때의 JIT·정적 초기화 비용</b>이었다.
+  </p>
+<pre><code><span class="c">// 전:  AllocatedInTicks == 0                  → JIT 런타임에서 달성 불가능</span>
+<span class="c">// 후:  LastAllocatingTick * 2 &lt; TicksProcessed  → "회차 후반부에 할당이 없다"</span>
+<span class="c">//      BytesPerTick == 0                       (그대로)</span></code></pre>
+  <p class="small" style="margin-bottom:0">
+    <b>임의의 워밍업 상수를 두지 않았다.</b> 실측(396틱)에 맞춰 상수를 정하면 게이트를 실측에 맞추는 것이다.
+    "후반부"는 회차 길이에 따라 자동으로 정해지고, <b>진짜 누수는 계속 나므로 반드시 후반부에도 걸린다</b>.
+  </p>
+</div>
+
+<h2 id="determinism">5. 결정론 — 리플레이 100 % 일치</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>금지</th><th>대체</th><th>어기면</th></tr></thead>
+<tbody>
+<tr><td><code>DateTime.Now</code> · <code>Stopwatch</code></td><td><code>Tick</code></td><td>재생마다 시간이 달라진다</td></tr>
+<tr><td>시드 없는 <code>Random</code></td><td><code>PlanHash.Mix(npcId, salt)</code></td><td>지터가 매번 다르다</td></tr>
+<tr><td><code>Guid.NewGuid()</code></td><td>순증 <code>CorrelationId</code></td><td>상관 ID가 매번 다르다</td></tr>
+<tr><td><code>Dictionary</code>/<code>HashSet</code> 순회 의존</td><td>정렬된 배열</td><td>순회 순서가 런타임 구현에 달린다</td></tr>
+<tr><td>병렬 실행 순서 의존</td><td>틱 루프는 <b>단일 스레드</b>. 워커 결과는 <b>스텝 경계</b>에서만 반영</td><td>스레드 스케줄이 결과를 바꾼다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="filepath">src/Npc.Core/Plan/PoiSymbol.cs — PlanHash</div>
+
+<pre><code><span class="c">// NPC 별 결정론 지터. [-span, +span]. Random 을 쓰지 않는다.</span>
+<span class="k">public static int</span> Jitter(<span class="t">NpcId</span> npc, <span class="k">int</span> salt, <span class="k">int</span> span)
+{
+    <span class="k">int</span> period = (span * <span class="n">2</span>) + <span class="n">1</span>;
+    <span class="k">return</span> (<span class="k">int</span>)(Mix(npc.Value, salt) % (<span class="k">uint</span>)period) - span;
+}</code></pre>
+
+<h3>5.1 페이싱과 결정론 — <code>TicksCommitted</code>가 따로 있는 이유</h3>
+
+<p>
+  이 부분은 실제로 <b>버그를 잡고 나서</b> 생긴 코드다. 결정론 리플레이가 처음에 안 맞았고,
+  원인이 여기 있었다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 250" role="img" aria-label="TicksProcessed 와 TicksCommitted 의 차이">
+      <text x="20" y="26" font-size="13" font-weight="700" fill="var(--bad)">잘못된 페이싱 — TicksProcessed 기준</text>
+      <g font-size="11.5">
+        <rect x="20" y="40" width="180" height="34" rx="6" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="110" y="62" text-anchor="middle">RunTick(N) 끝</text>
+        <rect x="212" y="40" width="220" height="34" rx="6" fill="var(--bad-soft)" stroke="var(--bad)"/>
+        <text x="322" y="62" text-anchor="middle" fill="var(--bad)">TicksProcessed = N ↑</text>
+        <rect x="444" y="40" width="230" height="34" rx="6" fill="var(--warn-soft)" stroke="var(--warn)"/>
+        <text x="559" y="62" text-anchor="middle" fill="var(--warn)">명령은 아직 링크 큐 안</text>
+        <rect x="686" y="40" width="174" height="34" rx="6" fill="var(--bad-soft)" stroke="var(--bad)"/>
+        <text x="773" y="62" text-anchor="middle" fill="var(--bad)">세계가 N+1 로 전진</text>
+      </g>
+      <text x="20" y="100" font-size="12" fill="var(--bad)">
+        → 어떤 명령이 N+1 에 반영되는지가 <tspan font-weight="650">스레드 스케줄에 달린다.</tspan>
+        같은 시나리오를 두 번 돌려도 이벤트 수가 갈린다 (실측 30,416 vs 30,649).
+      </text>
+
+      <text x="20" y="150" font-size="13" font-weight="700" fill="var(--ok)">지금 — TicksCommitted 기준</text>
+      <g font-size="11.5">
+        <rect x="20" y="164" width="180" height="34" rx="6" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="110" y="186" text-anchor="middle">RunTick(N) 끝</text>
+        <rect x="212" y="164" width="220" height="34" rx="6" fill="var(--ok-soft)" stroke="var(--ok)"/>
+        <text x="322" y="186" text-anchor="middle" fill="var(--ok)">await FlushAsync — 명령 송출</text>
+        <rect x="444" y="164" width="230" height="34" rx="6" fill="var(--ok-soft)" stroke="var(--ok)"/>
+        <text x="559" y="186" text-anchor="middle" fill="var(--ok)">TicksCommitted = N ↑</text>
+        <rect x="686" y="164" width="174" height="34" rx="6" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="773" y="186" text-anchor="middle">세계가 N+1 로 전진</text>
+      </g>
+      <text x="20" y="224" font-size="12" fill="var(--ok)">
+        → 이번 틱의 명령이 <tspan font-weight="650">전부 나간 뒤에만</tspan> 세계가 전진한다. 창이 닫혔다.
+      </text>
+    </svg>
+  </div>
+  <figcaption>
+    드라이버는 <code>tick - TicksCommitted &gt; MaxLeadTicks(1)</code>인 동안 <code>SpinWait</code>로 기다린다.
+    사실상 락스텝이다.
+  </figcaption>
+</figure>
+
+<div class="warn">
+  <span class="tag"><code>SpinOnce(sleep1Threshold: -1)</code></span>
+  락스텝이라 매 틱 한 번은 기다리게 되는데, 여기서 <code>Thread.Sleep(1)</code>로 넘어가면
+  1,440틱짜리 게임 하루가 그것만으로 20초를 더 쓴다 — <b>실측 1분 39초 → 9분 8초</b>였다.
+  그래서 스핀만 하고 절대 재우지 않는다.
+</div>
+
+<h2 id="assembly">6. 조립 — 무엇이 무엇을 아는가</h2>
+
+<p>
+  <code>NpcHost.Create</code>가 유일하게 전부를 아는 곳이다. 순서에 이유가 있다.
+</p>
+
+<div class="filepath">src/Npc.Host/Program.cs — NpcHost.Create</div>
+
+<pre><code><span class="c">// ① 마스터데이터 → ② 로스터 → ③ 할당 → ④ 런타임 → ⑤ 인구 배치 → ⑥ 링크 → ⑦ 티어</span>
+
+<span class="t">MasterDataSet</span> data = <span class="t">MasterDataLoader</span>.Load(masterDataDir);
+<span class="t">NpcInstanceTable</span> instances = <span class="t">NpcInstanceTable</span>.Load(instancePath, data);
+
+<span class="hl"><span class="c">// ★ 로스터를 할당보다 먼저 뽑는다 — --zone 이 걸리면 실제 마릿수가 --npcs 보다 작다</span>
+<span class="t">NpcRoster</span> roster = <span class="t">NpcRoster</span>.Select(instances, options.Npcs, zoneFilter);
+<span class="k">int</span> npcs = roster.Count;</span>
+
+<span class="k">var</span> store = <span class="k">new</span> <span class="t">NpcStore</span>();
+store.Allocate(npcs, data.Items.MaxCode + <span class="n">1</span>);      <span class="c">// 기동 시 1회. 이후 재할당 없음</span>
+
+<span class="k">var</span> clock   = <span class="k">new</span> <span class="t">GameClock</span>(data.Buckets, options.TimeScale);
+<span class="k">var</span> bands   = <span class="k">new</span> <span class="t">LodBandSet</span>(store);
+<span class="k">var</span> queue   = <span class="k">new</span> <span class="t">ReplanQueue</span>(npcs);
+<span class="c">// … 실행기 · 스캐너 · 인터럽트 매처 …</span>
+
+<span class="k">for</span> (<span class="k">int</span> i = <span class="n">0</span>; i &lt; npcs; i++)                     <span class="c">// ⑤ 인구 배치</span>
+{
+    applier.Seed(i, def.Home, def.Zone, def.Archetype, def.Home, def.Workplace);
+    store.StepStatus[i] = (<span class="k">byte</span>)<span class="t">StepStatus</span>.Ready;
+    executor.AssignPlan(i, <span class="k">new</span> <span class="t">PlanId</span>(fallbackOf[def.Archetype.Value]));
+}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>순서 이유</th><th>어기면</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>로스터가 할당보다 먼저</b></td>
+  <td><code>--zone</code>이 걸리면 뒤쪽이 영원히 빈 배열이 되고, <b>로스터 해시가 게임서버와 어긋나 연결이 거절된다</b></td>
+</tr>
+<tr>
+  <td><b>폴백을 버킷보다 먼저 등록</b></td>
+  <td>버킷이 하나도 없을 때 <code>Resolve</code>가 유효한 플랜을 못 준다 (시나리오 C가 깨진다)</td>
+</tr>
+<tr>
+  <td><b>인구 배치 후 <code>bands.Rebalance()</code></b></td>
+  <td>전원이 초기 밴드에 몰린 채 첫 틱을 맞는다</td>
+</tr>
+<tr>
+  <td><b>워커는 틱 루프가 멈춘 뒤에 세운다</b></td>
+  <td>순서가 반대면 마지막 스왑이 유실된다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">기동 흐름을 더 자세히 보려면</span>
+  <a href="../startup_flow.html">docs/startup_flow.html</a>에 조립 단계가 애니메이션으로 있다.
+</div>
+
+<h2 id="numbers">7. 실측 — 이 설계가 실제로 낸 값</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>지표</th><th class="num">P1 (T1-62)</th><th class="num">P4 (T4-24)</th><th class="num">목표</th></tr></thead>
+<tbody>
+<tr><td>틱 p50</td><td class="num">0.183 ms</td><td class="num">0.231 ms</td><td class="num">≤ 8 ms</td></tr>
+<tr><td><b>틱 p99</b></td><td class="num">2.375 ms</td><td class="num"><b>0.801 ms</b></td><td class="num">≤ 20 ms</td></tr>
+<tr><td>틱 max</td><td class="num">10.482 ms</td><td class="num">1.045 ms</td><td class="num">—</td></tr>
+<tr><td>예산 초과(오버런)</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+<tr><td>인지 스캔/틱</td><td class="num">150</td><td class="num">150</td><td class="num">≤ 150</td></tr>
+<tr><td><b>틱당 할당</b></td><td class="num"><b>0 B</b></td><td class="num"><b>0 B</b></td><td class="num">0</td></tr>
+<tr><td>Gen0 컬렉션</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+<tr><td>관리 힙</td><td class="num">43.9 MB</td><td class="num">—</td><td class="num">≤ 400 MB</td></tr>
+<tr><td>시퀀스 갭 (N6)</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+<tr><td>발행 명령 (게임 1일)</td><td class="num">2,441,122</td><td class="num">—</td><td class="num">—</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">P4의 p99가 P1보다 낮은 것을 P4의 공으로 돌리지 않는다</span>
+  두 값은 <b>다른 회차</b>에 쟀고 같은 세션에서 다시 재지 않았다 — 통제된 비교가 아니다.
+  같은 셀의 부하 매트릭스 값(<code>W10_load.csv</code>)은 1.122 ms라 <b>회차 간 폭이 이 차이만큼 있다</b>.
+  이 저장소가 자기 개선을 과장하지 않는 방식이 이렇다.
+</div>
+
+<h3>7.1 <code>--max-speed</code>는 처리량 측정이지 지연 측정이 아니다</h3>
+
+<p>
+  게이트 회차는 대부분 <code>--max-speed</code>로 돈다 — 10Hz 페이싱을 끄고 최대 속도로 민다.
+  <b>게임 로직은 여전히 <code>Tick</code>만 보므로 결과는 페이싱 유무와 무관</b>하지만,
+  거기서 나온 "초당 명령 수"는 벽시계 기준 처리량이다.
+  실서비스 10Hz 회차의 p99는 <b>1.674 ms</b>이고, 틱 사이 여유는 100 − 1.7 = <b>98.3 ms</b>다.
+</p>
+
+<div class="ok">
+  <span class="tag">5장 요약</span>
+  <ul style="margin-bottom:0">
+    <li>틱 루프의 <code>await</code>은 <b>두 개</b>뿐이다 — 이벤트 대기와 <code>FlushAsync</code>.</li>
+    <li>각 단계에 <b>상한</b>이 있고, 잘린 몫은 커서로 다음 틱에 이어 본다. 굶는 NPC는 없다.</li>
+    <li>핫 배열 <b>23 B × 5,000 = 115 KB</b>가 L2에 들어가는 것이 20 ms 예산의 근거다.</li>
+    <li>할당 0은 구호가 아니라 <b>LINQ 금지 · Span 반환 · 소스 생성 로거 · 사전 할당 링</b>의 결과다.</li>
+    <li>계측은 <code>bytesPerTick</code>으로 한다. <code>gen0Collections</code>는 프로세스 전역이라 못 쓴다.</li>
+    <li><code>TicksCommitted</code> 기준 페이싱이 <b>리플레이 100 % 일치의 조건</b>이다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 틱 루프 단계 ---------- */
+(function () {
+  var g = document.getElementById('tickStages');
+  if (!g) return;
+  var el = window.NpcBook.el;
+
+  var STAGES = [
+    { n: '①', t: 'DrainEvents', k: '이벤트 배수',
+      d1: '링크 채널에서 이벤트를 읽어 월드 뷰에 반영한다. 멱등이고(N7) 시퀀스 갭을 센다(N6).',
+      d2: 'TickSync 를 만나면 거기서 끊는다 — 그 경계가 곧 틱 경계이고, 결정론의 조건이다.' },
+    { n: '②', t: 'bands.Rebalance', k: 'LOD 밴드 이동',
+      d1: '등급이 바뀐 NPC 를 밴드 사이로 옮긴다. 틱당 최대 64건.',
+      d2: '존 전체가 War 로 승격되면 잠시 밀리지만, 커서가 있어 어느 NPC도 굶지 않는다.' },
+    { n: '③', t: 'Handoff.DrainReturns', k: '워커 반환 복귀',
+      d1: '워커가 처리하지 못하고 되돌린 재계획 요청을 힙에 다시 넣는다.',
+      d2: '이번 스캔이 그것까지 보고 순서를 잡도록 스캔보다 먼저 한다.' },
+    { n: '④', t: 'cognition.Scan', k: '인지 스캔',
+      d1: '밴드별 슬라이스를 훑으며 플랜 이탈을 비트 연산 한 번으로 판정한다. 틱당 최대 150건.',
+      d2: '이탈이면 점수를 매겨 재계획 큐에 넣는다. 여기에 거리 계산은 없다.' },
+    { n: '⑤', t: 'Handoff.Pump', k: '워커 통로 펌프',
+      d1: '힙에서 꺼내 워커 통로로 옮긴다. 힙을 만지는 것은 여기까지가 틱 루프의 전부다.',
+      d2: '워커는 통로만 본다 — 워커가 힙을 직접 꺼내면 데이터 레이스다.' },
+    { n: '⑥', t: 'executor.Step', k: '플랜 실행 · 명령 발행',
+      d1: 'SoA 배열을 순서대로 훑으며 완료·실패를 처리하고 준비된 스텝의 명령을 낸다.',
+      d2: '응답이 timeout_s 안에 안 오면 여기서 ActionFailed(Timeout) 을 합성한다.' },
+    { n: '⑦', t: 'Transition.Tick', k: '버킷 전환',
+      d1: '시간대가 바뀌었으면 전원을, 존 이벤트면 그 존만 지터에 흩어 예약한다.',
+      d2: '이번 틱 몫의 예약을 실행해 PlanSwapper 에 스왑을 건다.' },
+    { n: '⑧', t: 'swapper.ApplyPendingSwaps', k: '스텝 경계 스왑',
+      d1: '워커·전환이 걸어둔 새 플랜을 스텝 경계에서만 원자적으로 갈아끼운다.',
+      d2: '스텝 중간에 바꾸면 직전 스텝의 응답이 새 스텝의 완료로 오인된다.' },
+    { n: '⑨', t: 'await FlushAsync', k: '명령 송출',
+      d1: '이번 틱에 쌓인 명령 배치를 한 번에 내보낸다 (N8). 틱 루프의 유일한 await 대상이다.',
+      d2: '그 뒤에 TicksCommitted 가 오른다 — 게임서버 대역은 이 값을 보고 다음 틱을 민다.' }
+  ];
+
+  var w = 92, gap = 4;
+  STAGES.forEach(function (s, i) {
+    var x = 20 + i * (w + gap);
+    var r = el('rect', {
+      x: x, y: 40, width: w, height: 170, rx: 9,
+      fill: 'var(--panel-2)', stroke: 'var(--line-2)', 'stroke-width': 1.2,
+      style: 'cursor:pointer'
+    }, g);
+    r.dataset.i = i;
+    var tn = el('text', { x: x + w / 2, y: 68, 'text-anchor': 'middle', 'font-size': 15, fill: 'var(--ink-3)' }, g);
+    tn.textContent = s.n;
+    var tt = el('text', {
+      x: x + w / 2, y: 96, 'text-anchor': 'middle', 'font-size': 11,
+      'font-weight': 650, fill: 'var(--ink)'
+    }, g);
+    tt.textContent = s.k;
+    /* 메서드 이름은 세로로 잘라 넣는다 */
+    var parts = s.t.replace('.', '.\n').split('\n');
+    parts.forEach(function (p, k) {
+      var tm = el('text', {
+        x: x + w / 2, y: 124 + k * 15, 'text-anchor': 'middle',
+        'font-size': 9.5, 'font-family': 'var(--mono)', fill: 'var(--ink-3)'
+      }, g);
+      tm.textContent = p;
+    });
+    r.addEventListener('click', function () { show(i); });
+  });
+
+  var boxes = g.querySelectorAll('rect');
+  function show(i) {
+    boxes.forEach(function (b, k) {
+      b.setAttribute('stroke', k === i ? 'var(--accent)' : 'var(--line-2)');
+      b.setAttribute('stroke-width', k === i ? 2.2 : 1.2);
+      b.setAttribute('fill', k === i ? 'var(--accent-soft)' : 'var(--panel-2)');
+    });
+    document.getElementById('tickTitle').textContent = STAGES[i].n + ' ' + STAGES[i].k + '  —  ' + STAGES[i].t;
+    document.getElementById('tickDesc1').textContent = STAGES[i].d1;
+    document.getElementById('tickDesc2').textContent = STAGES[i].d2;
+  }
+
+  var cur = 0, timer = null;
+  document.getElementById('tickStep').addEventListener('click', function () {
+    cur = (cur + 1) % STAGES.length; show(cur);
+  });
+  document.getElementById('tickPlay').addEventListener('click', function () {
+    if (timer) { clearInterval(timer); timer = null; this.textContent = '한 틱 돌리기'; return; }
+    cur = 0; show(0);
+    this.textContent = '멈추기';
+    var self = this;
+    timer = setInterval(function () {
+      cur++;
+      if (cur >= STAGES.length) {
+        clearInterval(timer); timer = null; self.textContent = '한 틱 돌리기'; cur = STAGES.length - 1; return;
+      }
+      show(cur);
+    }, 1400);
+  });
+
+  show(0);
+})();
+
+/* ---------- AoS vs SoA 메모리 ---------- */
+(function () {
+  var aos = document.getElementById('aosRow'), soa = document.getElementById('soaRow');
+  if (!aos) return;
+  var el = window.NpcBook.el;
+
+  var CELLS = 26;
+  function build(g, y, mode) {
+    g.innerHTML = '';
+    for (var i = 0; i < CELLS; i++) {
+      var x = 20 + i * 32;
+      el('rect', {
+        x: x, y: y, width: 28, height: 44, rx: 4,
+        fill: 'var(--panel-2)', stroke: 'var(--line)', 'stroke-width': 1,
+        'data-i': i, class: mode
+      }, g);
+      if (mode === 'aos') {
+        /* 객체 하나가 여러 칸 — 4칸마다 경계 */
+        if (i % 4 === 0) {
+          el('line', { x1: x - 2, y1: y - 6, x2: x - 2, y2: y + 50, stroke: 'var(--line-2)', 'stroke-width': 1.5 }, g);
+          var t = el('text', { x: x + 60, y: y - 10, 'font-size': 9.5, 'text-anchor': 'middle', fill: 'var(--ink-3)' }, g);
+          t.textContent = 'npc[' + (i / 4) + ']';
+        }
+      }
+    }
+    /* 캐시 라인 표시 */
+    for (var c = 0; c < 4; c++) {
+      el('rect', {
+        x: 20 + c * 208, y: y - 4, width: 204, height: 52, rx: 5,
+        fill: 'none', stroke: 'var(--l3)', 'stroke-width': 1, 'stroke-dasharray': '4 3', opacity: .6
+      }, g);
+    }
+  }
+
+  build(aos, 58, 'aos');
+  build(soa, 240, 'soa');
+
+  function reset() {
+    aos.querySelectorAll('rect.aos').forEach(function (r) {
+      r.setAttribute('fill', 'var(--panel-2)'); r.setAttribute('stroke', 'var(--line)');
+    });
+    soa.querySelectorAll('rect.soa').forEach(function (r) {
+      r.setAttribute('fill', 'var(--panel-2)'); r.setAttribute('stroke', 'var(--line)');
+    });
+    document.getElementById('aosNote').textContent = '';
+    document.getElementById('soaNote').textContent = '';
+  }
+
+  document.getElementById('memRun').addEventListener('click', function () {
+    reset();
+    var a = aos.querySelectorAll('rect.aos'), s = soa.querySelectorAll('rect.soa');
+    var i = 0;
+    var id = setInterval(function () {
+      if (i >= CELLS) {
+        clearInterval(id);
+        document.getElementById('aosNote').textContent =
+          'StepStatus 6개를 읽는 데 캐시 라인 4개(회색 포함 전부)를 끌어왔다 — 실제로 쓴 것은 6 B, 가져온 것은 수백 B.';
+        document.getElementById('soaNote').textContent =
+          '같은 6개가 캐시 라인 하나 안에 연속으로 있다. 프리페처가 다음 라인까지 미리 가져온다.';
+        return;
+      }
+      /* AoS: 4칸마다 한 칸만 쓸모있다 */
+      if (a[i]) {
+        var useful = (i % 4 === 1);
+        a[i].setAttribute('fill', useful ? 'var(--bad)' : 'var(--panel-3)');
+        a[i].setAttribute('stroke', useful ? 'var(--bad)' : 'var(--line-2)');
+      }
+      /* SoA: 전부 쓸모있다 */
+      if (s[i]) {
+        s[i].setAttribute('fill', 'var(--ok)');
+        s[i].setAttribute('stroke', 'var(--ok)');
+      }
+      i++;
+    }, 55);
+  });
+})();
+</script>
+</body>
+</html>

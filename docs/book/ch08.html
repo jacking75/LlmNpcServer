@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8장 · 프롬프트와 LLM 컴파일러 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">4부 · 플랜 생성 L3</p>
+  <h1>8장 — 프롬프트와 LLM 컴파일러</h1>
+  <p class="lede">
+    이 층의 설계는 한 가지 사실 위에 서 있다 — <b>프리픽스는 캐시되고 서픽스는 매번 prefill 된다.</b>
+    그래서 프리픽스는 13,488토큰이어도 되고, 서픽스는 300토큰을 넘으면 안 된다.
+    이 장은 그 비대칭이 만든 모든 결정을 따라간다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/01 §10 · docs/12</span>
+    <span class="chip">프리픽스 13,488 tok</span>
+    <span class="chip">서픽스 ≤ 300 tok</span>
+    <span class="chip">재시도 1회</span>
+  </div>
+</div>
+
+<h2 id="cache">1. 프롬프트 캐시 — 이 설계의 유일한 검증된 승리</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>엔진</th><th class="num">미적중 prefill</th><th class="num">적중 prefill</th><th class="num">감소율</th></tr></thead>
+<tbody>
+<tr><td><code>llamacpp-qwen3-8b</code></td><td class="num">2,608.4 ms</td><td class="num"><b>315.9 ms</b></td><td class="num"><b>87.9 %</b></td></tr>
+<tr><td><code>llamacpp-gemma3-4b</code></td><td class="num">1,530.8 ms</td><td class="num"><b>236.6 ms</b></td><td class="num"><b>84.5 %</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">W1 스파이크의 결론 한 줄</span>
+  <b>"캐시 설계는 옳았고(M3 통과), 지연 가정은 2~3배 틀렸다(M1 미달)."</b>
+  prefill은 캐시가 걸리면 목표(0.25 s)에 붙었다 — <b>설계가 겨눈 곳은 맞았고, 겨누지 않은 쪽(decode)이 발목을 잡았다.</b>
+</div>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 250" id="budgetSvg" role="img" aria-label="프리픽스와 서픽스의 비대칭">
+      <text x="20" y="26" font-size="13" font-weight="700">요청 하나의 입력 토큰 구성</text>
+
+      <!-- 막대 -->
+      <rect x="20" y="46" width="700" height="52" rx="8" fill="var(--l3)" opacity=".25" stroke="var(--l3)" stroke-width="1.4"/>
+      <text x="370" y="70" text-anchor="middle" font-size="13" font-weight="650" fill="var(--l3)">고정 프리픽스 — 13,488 토큰</text>
+      <text x="370" y="90" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">기동 시 1회 조립 · 이후 불변 · 전 NPC 공유 · 캐시 적중 시 prefill ≈ 0</text>
+
+      <rect x="726" y="46" width="42" height="52" rx="8" fill="var(--warn)" opacity=".5" stroke="var(--warn)" stroke-width="1.4"/>
+      <text x="747" y="122" text-anchor="middle" font-size="11.5" font-weight="650" fill="var(--warn)">≤ 300</text>
+      <text x="747" y="138" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">서픽스</text>
+
+      <text x="800" y="76" font-size="11.5" fill="var(--ink-3)">매번 prefill</text>
+
+      <!-- 절 구성 -->
+      <g id="sections"></g>
+      <text x="20" y="238" font-size="12" fill="var(--ink-3)">
+        절을 누르면 무엇이 들어 있고 왜 프리픽스에 있는지 아래 표에서 확인할 수 있다.
+      </text>
+    </svg>
+  </div>
+  <figcaption>
+    <b>프리픽스에 상한이 없다.</b> 상한은 비용 문제일 뿐이고, 카탈로그를 줄이면
+    <code>V2.ACTION_NOT_ALLOWED</code>·<code>V3.PRECONDITION_UNMET</code>이 늘어난다.
+    반대로 서픽스는 <b>줄이면 곧바로 지연이 준다</b>.
+  </figcaption>
+</figure>
+
+<h2 id="prefix">2. 프리픽스 다섯 절</h2>
+
+<div class="filepath">src/Npc.Llm/PromptPrefix.cs — Build</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>절</th><th>출처</th><th class="num">토큰</th><th>왜 여기 있나</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>system_rules</code></td><td><code>masterdata/prompt/system_rules.md</code> (사람이 쓴다)</td><td class="num">1,745</td>
+  <td>출력 규칙·금지사항. T2-21 개선 루프에서 905 → 1,745로 늘었다</td>
+</tr>
+<tr>
+  <td><code>action_catalog</code></td><td><b>생성</b> — <code>actions.json</code> + <code>items.json</code></td><td class="num">6,182</td>
+  <td>액션 37종 + <b>플래그 5종 표</b> + 레시피 37종 입출력. 가장 큰 절이다</td>
+</tr>
+<tr>
+  <td><code>archetypes</code></td><td><b>생성</b> — <code>archetypes.json</code></td><td class="num">2,392</td>
+  <td>아키타입 40종의 허용 액션 표. <b>서픽스에 넣으면 300 예산을 넘긴다</b></td>
+</tr>
+<tr>
+  <td><code>dsl_summary</code></td><td>사람이 쓴 요약 + <b>생성된 JSON Schema</b></td><td class="num">1,718</td>
+  <td>플랜 형식 설명. 스키마 본문도 같이 싣는다</td>
+</tr>
+<tr>
+  <td><code>fewshot</code></td><td><code>masterdata/prompt/fewshot/*.json</code></td><td class="num">1,451</td>
+  <td>예시 3~4건. <b>반려→수정 예시</b>가 포함된다</td>
+</tr>
+<tr><td colspan="2"><b>합계</b></td><td class="num"><b>13,488</b></td><td>하한 4,096의 3.3배. SHA <code>56a0c601f48392e0</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>2.1 결정론 — SHA가 흔들리면 캐시가 전면 미적중이다</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>흔들릴 수 있는 곳</th><th>어떻게 막았나</th></tr></thead>
+<tbody>
+<tr>
+  <td>파일이 CRLF로 체크아웃된 기계</td>
+  <td><code>Normalize()</code>가 <b>절마다</b> CR을 걷어낸다. <code>ReadText</code>만으로는 부족했다 —
+      <code>RenderDsl</code>의 raw string literal이 <code>.cs</code> 소스의 줄 끝을 그대로 들고 나온다</td>
+</tr>
+<tr>
+  <td>few-shot 파일 순서</td>
+  <td><b>파일명 <code>Ordinal</code> 정렬</b>. 디렉터리 순회 순서에 의존하면 기계마다 SHA가 갈린다</td>
+</tr>
+<tr>
+  <td>아키타입 액션 순서</td>
+  <td><code>archetypes.json</code> <b>등장 순서 그대로</b>. 정렬하면 파일과 어긋난다</td>
+</tr>
+<tr>
+  <td>플래그·액션·레시피 열거</td>
+  <td>전부 <b>code 순서 또는 이름 순서</b>로만 돈다 (<code>CatalogRenderer</code>)</td>
+</tr>
+<tr>
+  <td>엔진별 꼬리표 (Qwen3의 <code>/no_think</code>)</td>
+  <td><b>서픽스 끝에만</b> 붙인다 (<code>SuffixTag</code>). 프리픽스는 절대 건드리지 않는다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="bad">
+  <span class="tag">유니크 프리픽스 SHA가 2개 이상 = 즉시 경보</span>
+  <code>/metrics</code>의 <code>uniquePrefixHashes</code>가 1이 아니면 프롬프트 캐시가 깨진 것이다.
+  실제로 288버킷 파일럿 회차에서 이 값은 <b>1종</b>이었다 — 캐시가 깨지지 않았다는 뜻이다.
+</div>
+
+<h2 id="suffix">3. 서픽스 — 300 토큰 예산과 덜어내기</h2>
+
+<div class="filepath">src/Npc.Llm/PlanRequestSuffix.cs</div>
+
+<pre><code># REQUEST
+
+{<span class="s">"archetype"</span>:<span class="s">"blacksmith"</span>,
+ <span class="s">"allowed_actions"</span>:[<span class="s">"Craft"</span>,<span class="s">"Drink"</span>,<span class="s">"Eat"</span>,…],       <span class="c">// T2-21 처방. 약 80토큰</span>
+ <span class="s">"time_of_day"</span>:<span class="s">"Morning"</span>,<span class="s">"region_state"</span>:<span class="s">"Peace"</span>,<span class="s">"climate"</span>:<span class="s">"Fair"</span>,
+ <span class="s">"flags"</span>:[<span class="s">"AtHome"</span>,<span class="s">"HasTool"</span>,<span class="s">"HasCoin"</span>,<span class="s">"IsRested"</span>,<span class="s">"IsDay"</span>,<span class="s">"OnDuty"</span>],  <span class="c">// 참인 것만</span>
+ <span class="s">"traits"</span>:{<span class="s">"diligence"</span>:<span class="n">80</span>,<span class="s">"sociability"</span>:<span class="n">40</span>,<span class="s">"courage"</span>:<span class="n">55</span>,<span class="s">"greed"</span>:<span class="n">50</span>},
+ <span class="s">"goals"</span>:[<span class="s">"restock_ore"</span>,<span class="s">"fulfill_orders"</span>,<span class="s">"maintain_shop"</span>]}
+
+Output the plan JSON for this request. JSON only.</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>압축 원칙</th><th>이유</th></tr></thead>
+<tbody>
+<tr><td><b>키 이름은 줄이지 않는다</b></td><td><code>archetype</code>을 <code>a</code>로 줄이면 모델 이해도가 떨어진다. 절약보다 손해가 크다</td></tr>
+<tr><td>값은 열거형 문자열만. 설명 문장 금지</td><td>설명은 프리픽스에 이미 있다</td></tr>
+<tr><td>플래그는 <b>참인 것만</b></td><td>거짓 42개를 나열하면 그것만으로 예산을 먹는다</td></tr>
+<tr><td>인벤토리는 0이 아닌 항목만, 최대 8종</td><td>아이템 82종이라 만재 인벤을 실으면 300을 넘는다</td></tr>
+<tr><td><code>recent</code>는 salience 상위 3개만</td><td>8칸 링 중 중요한 것만</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>3.1 예산은 테스트가 아니라 조립기가 지킨다</h3>
+
+<div class="warn">
+  <span class="tag">중요한 구분</span>
+  <code>Suffix_NeverExceeds300Tokens</code> 테스트만 있으면, <b>실제로 넘치는 입력이 들어왔을 때 그대로 나간다</b>.
+  그래서 <code>Build()</code>가 예산을 넘기면 <b>우선순위대로 덜어낸다</b>.
+  테스트는 그 조립기가 실제로 동작하는지를 볼 뿐이다.
+</div>
+
+<figure>
+  <div class="svgbox" style="padding:16px 14px">
+    <svg viewBox="0 0 880 260" id="trimSvg" role="img" aria-label="서픽스 덜어내기 단계">
+      <g id="trimBars"></g>
+      <line x1="20" y1="30" x2="20" y2="220" stroke="var(--line-2)" stroke-width="1"/>
+      <line id="trimLimit" x1="20" y1="0" x2="860" y2="0" stroke="var(--bad)" stroke-width="1.4" stroke-dasharray="6 4"/>
+      <text id="trimLimitT" x="864" y="0" font-size="11" fill="var(--bad)" text-anchor="end">300 예산</text>
+      <text id="trimNote" x="20" y="248" font-size="12" fill="var(--ink-2)"></text>
+    </svg>
+  </div>
+  <div class="ctl">
+    <label>입력 <select id="trimCase">
+      <option value="arch">아키타입 요청 (평범)</option>
+      <option value="worst">플래그 31종 최악</option>
+      <option value="indiv">개별 요청 (인벤 만재 · recent 만재)</option>
+      <option value="retry" selected>재시도까지 겹친 최악</option>
+    </select></label>
+    <button class="btn" id="trimRun" type="button">덜어내기 실행</button>
+  </div>
+  <div class="readout" id="trimOut"></div>
+  <figcaption>
+    <b>상황·플래그·허용 액션은 어느 단계에서도 덜어내지 않는다.</b>
+    그건 플랜의 <b>유효성</b>을 결정하는 정보다. 덜어내는 것은 <b>성격</b>을 정하는 정보뿐이다.
+  </figcaption>
+</figure>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th class="num">단계</th><th>빼는 것</th><th>왜 이 순서</th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td>전부 싣는다</td><td>—</td></tr>
+<tr><td class="num">1</td><td><code>recent</code></td><td>재시도 블록이 더 구체적이다</td></tr>
+<tr><td class="num">2</td><td><code>last_plan_outcome</code></td><td>결과보다 지금 상태가 중요하다</td></tr>
+<tr><td class="num">3</td><td>인벤토리 8종 → 4종</td><td>code 오름차순이라 원자재가 먼저 남는다</td></tr>
+<tr><td class="num">4</td><td>인벤토리 제거 + 실패 설명 절반</td><td>인벤토리는 플래그로도 어느 정도 드러난다</td></tr>
+<tr><td class="num">5</td><td>성향 · 목표</td><td><b>최후다</b> — 이 단계에서는 "무엇이 유효한가"가 "어떤 성격인가"를 이긴다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>3.2 재시도 피드백은 서픽스에만 붙는다</h3>
+
+<pre><code># PREVIOUS ATTEMPT REJECTED
+
+{<span class="s">"previous_attempt_failed"</span>:{<span class="s">"stage"</span>:<span class="s">"Coherence"</span>,<span class="s">"code"</span>:<span class="s">"V3.PRECONDITION_UNMET"</span>,
+  <span class="s">"step"</span>:<span class="n">3</span>,<span class="s">"detail"</span>:<span class="s">"Craft requires HasRawMaterial but no preceding step grants it. …"</span>}}
+
+Fix exactly that and output the corrected plan. JSON only.</code></pre>
+
+<div class="note">
+  <span class="tag">블록을 새로 만들지 않는다</span>
+  <b>검증기가 만든 문자열을 그대로 붙인다</b>(<code>CoherenceValidator.Explain</code>).
+  다만 <code>detail</code> 길이만 <b>180자로 자른다</b> — 안 자르면 재시도 서픽스가 예산의 두 배를 넘긴다(T2-07 실측 665토큰).
+  자를 수 있는 이유는 <b>핵심(액션 이름·모자란 플래그·스텝 번호)이 문장 앞쪽에 있어서</b>다.
+</div>
+
+<h2 id="flow">4. 컴파일러 흐름</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 380" role="img" aria-label="LlmPlanCompiler 흐름">
+      <defs><marker id="c1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker></defs>
+
+      <rect x="20" y="30" width="180" height="56" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="110" y="54" text-anchor="middle" font-size="12.5" font-weight="650">PlanRequest</text>
+      <text x="110" y="72" text-anchor="middle" font-size="11" fill="var(--ink-3)">버킷 + 플래그 + 품질</text>
+
+      <rect x="240" y="30" width="200" height="56" rx="9" fill="var(--l3)" opacity=".18" stroke="var(--l3)"/>
+      <text x="340" y="54" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--l3)">시도 1</text>
+      <text x="340" y="72" text-anchor="middle" font-size="11" fill="var(--ink-2)">temperature 0.4</text>
+
+      <rect x="480" y="30" width="180" height="56" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="570" y="54" text-anchor="middle" font-size="12.5" font-weight="650">4단 검증</text>
+      <text x="570" y="72" text-anchor="middle" font-size="11" fill="var(--ink-3)">1→2→3→4 · 첫 실패에서 멈춤</text>
+
+      <rect x="700" y="30" width="160" height="56" rx="9" fill="var(--ok-soft)" stroke="var(--ok)"/>
+      <text x="780" y="54" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--ok)">통과</text>
+      <text x="780" y="72" text-anchor="middle" font-size="11" fill="var(--ink-2)">CompiledPlan 반환</text>
+
+      <rect x="240" y="124" width="200" height="56" rx="9" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="340" y="148" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--warn)">시도 2 — 딱 한 번</text>
+      <text x="340" y="166" text-anchor="middle" font-size="11" fill="var(--ink-2)">temperature 0.6 · 실패 코드를 서픽스에</text>
+
+      <rect x="480" y="124" width="180" height="56" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="570" y="148" text-anchor="middle" font-size="12.5" font-weight="650">4단 검증</text>
+      <text x="570" y="166" text-anchor="middle" font-size="11" fill="var(--ink-3)">비용은 두 시도 합산</text>
+
+      <rect x="240" y="216" width="200" height="52" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="340" y="238" text-anchor="middle" font-size="12.5" font-weight="650">① 인접 버킷 재사용</text>
+      <text x="340" y="256" text-anchor="middle" font-size="11" fill="var(--ink-3)">같은 아키타입의 비슷한 상황</text>
+
+      <rect x="240" y="284" width="200" height="52" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+      <text x="340" y="306" text-anchor="middle" font-size="12.5" font-weight="650">② 아키타입 폴백</text>
+      <text x="340" y="324" text-anchor="middle" font-size="11" fill="var(--ink-3)">V7 이 4단 통과를 보장한다</text>
+
+      <rect x="480" y="248" width="380" height="56" rx="9" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="670" y="272" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--accent)">Plan 은 절대 null 이 아니다</text>
+      <text x="670" y="290" text-anchor="middle" font-size="11" fill="var(--ink-2)">단, Validation 은 실패한 채로 남는다 — 통과율 집계의 원자료</text>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3" marker-end="url(#c1)">
+        <path d="M200,58 L236,58"/><path d="M440,58 L476,58"/><path d="M660,58 L696,58"/>
+        <path d="M570,88 L570,104 L340,104 L340,120"/>
+        <path d="M440,152 L476,152"/>
+        <path d="M570,182 L570,198 L340,198 L340,212"/>
+        <path d="M340,270 L340,280"/>
+        <path d="M440,242 L476,266"/><path d="M440,310 L476,286"/>
+      </g>
+      <text x="470" y="100" font-size="10.5" fill="var(--bad)">실패</text>
+      <text x="470" y="194" font-size="10.5" fill="var(--bad)">또 실패</text>
+    </svg>
+  </div>
+  <figcaption>
+    <b>재시도는 1회만.</b> 2회 이상은 성공률이 거의 안 오르고 토큰만 태우며,
+    지연이 선형으로 늘어 <b>런타임 재계획이 무의미해진다</b>.
+  </figcaption>
+</figure>
+
+<h3>4.1 실패해도 예외를 던지지 않는다</h3>
+
+<pre><code><span class="c">// 실패는 결과로 돌려준다. 호출부(워커)는 기존 플랜을 그대로 둔다.</span>
+<span class="k">private static</span> <span class="t">PlanCompileResult</span> RejectedResult(<span class="t">Tier</span> wanted) =&gt; <span class="k">new</span>(
+    <span class="k">null</span>,
+    <span class="t">ValidationResult</span>.Fail(<span class="t">ValidationStage</span>.None, <span class="s">"T4.BUDGET_EXHAUSTED"</span>, -<span class="n">1</span>,
+        <span class="s">"예산 소진으로 요청을 거절했다. NPC 는 기존 플랜을 유지한다."</span>),
+    <span class="t">CompileStats</span>.None <span class="k">with</span> { Error = <span class="s">"budget_exhausted"</span> },
+    <span class="k">string</span>.Empty);</code></pre>
+
+<div class="why">
+  <span class="tag">거절은 실패가 아니다</span>
+  예산 소진으로 거절된 NPC는 <b>기존 플랜을 계속 쓰고, 다음 인지 스캔에서 다시 큐에 들어온다</b>.
+  이 성질을 확인하는 것이 P4 게이트 항목 10이다 — 게임 2일 · 5,000마리에서
+  <b>거절 28,943건</b>이 났는데도 <b>플랜 없는 NPC는 0/5,000</b>이었다.
+</div>
+
+<h2 id="engine">5. 엔진 설정 — 코드를 안 고치고 바꾼다</h2>
+
+<div class="filepath">appsettings.Llm.json</div>
+
+<pre><code>{
+  <span class="s">"preferred"</span>: [<span class="s">"poe-gemini-2.5-flash-lite"</span>, <span class="s">"openrouter-gemini-2.5-flash-lite"</span>, …],
+  <span class="s">"default"</span>: <span class="s">"openrouter-gemini-2.5-flash-lite"</span>,
+  <span class="s">"engines"</span>: [{
+    <span class="s">"id"</span>: <span class="s">"llamacpp-qwen3-8b"</span>,
+    <span class="s">"kind"</span>: <span class="s">"LlamaCpp"</span>,                   <span class="c">// DotLlm | LlamaCpp | External</span>
+    <span class="s">"model"</span>: <span class="s">"qwen3-8b"</span>,
+    <span class="s">"endpoint"</span>: <span class="s">"http://localhost:1234/v1"</span>,
+    <span class="s">"api_key_env"</span>: <span class="k">null</span>,                  <span class="c">// ★ 키 자체를 파일에 쓰지 않는다. 환경변수 이름만</span>
+    <span class="s">"input_usd_per_m_tok"</span>: <span class="n">0</span>,
+    <span class="s">"cached_input_usd_per_m_tok"</span>: <span class="n">0</span>,
+    <span class="s">"output_usd_per_m_tok"</span>: <span class="n">0</span>,
+    <span class="s">"suffix_tag"</span>: <span class="s">" /no_think"</span>,            <span class="c">// 엔진 전용 꼬리표 — 서픽스 끝에만</span>
+    <span class="s">"temperature"</span>: <span class="n">0.4</span>,
+    <span class="s">"max_output_tokens"</span>: <span class="n">1024</span>,
+    <span class="s">"force_json_schema"</span>: <span class="k">false</span>,             <span class="c">// ★ 기본 false. 이유는 아래</span>
+    <span class="s">"timeout_seconds"</span>: <span class="n">900</span>
+  }]
+}</code></pre>
+
+<h3>5.1 강제 디코딩을 기본으로 켜지 않는 이유</h3>
+
+<div class="bad">
+  <span class="tag">W1(T0-09) 실측</span>
+  <code>response_format=json_schema</code>는 <b>유효 JSON 99/100</b>을 내면서
+  <b>어휘 검증 통과 0/100</b>이었다. 실패 코드는 전부 <code>V2.UNKNOWN_ARG</code> —
+  <b>문법을 지키면서 인자를 지어낸다.</b>
+  <br><br>
+  그래서 스키마는 <b>프롬프트에 실리는 문서</b>가 주 용도이고,
+  <code>response_format</code>으로 강제할지는 엔진별 설정으로 뺐다.
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>스키마에서 뺀 것</th><th>W1 실패 건수</th><th>대신 잡는 곳</th></tr></thead>
+<tbody>
+<tr><td><code>minItems</code>/<code>maxItems</code></td><td class="num">7건</td><td><code>V1.STEP_COUNT</code></td></tr>
+<tr><td><code>additionalProperties: false</code></td><td class="num">1건</td><td><code>V1.EXTRA_FIELD</code></td></tr>
+<tr><td><code>required</code></td><td class="num">1건</td><td><code>V2.MISSING_REQUIRED_ARG</code></td></tr>
+<tr><td><code>maximum</code>/<code>minimum</code></td><td class="num">1건</td><td><code>V2.RANGE</code></td></tr>
+<tr><td><code>pattern</code></td><td>제공사별 지원 편차</td><td><code>V1.SCHEMA</code>가 goal 정규식을 본다</td></tr>
+<tr><td><code>oneOf</code>/<code>anyOf</code></td><td>—</td><td>액션 37종 분기는 강제 디코딩 FSM을 폭발시킨다</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">
+  <b>스키마를 강제할수록 나빠졌다</b>는 것이 이 표의 요약이다.
+  다만 <code>args</code>는 <b>전 액션 파라미터의 평탄화 합집합</b>을 싣는다(<code>SchemaProfile.Full</code>) —
+  properties 없는 object로 두면 강제 디코딩이 매 스텝 <code>args: {}</code>만 뱉는다.
+</p>
+
+<h2 id="quality">6. 통과율 개선 — 무엇을 고쳐서 50 %를 78 %로 올렸나</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th class="num">차수</th><th class="num">버킷</th><th class="num">통과율</th><th>무엇을 바꿨나</th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td class="num">20</td><td class="num">50.0 %</td><td>기준선</td></tr>
+<tr><td class="num">2</td><td class="num">20</td><td class="num">70.0 %</td><td>액션 카탈로그에 <b>플래그 5종 표</b> 추가</td></tr>
+<tr><td class="num">4</td><td class="num">40</td><td class="num">67.5 %</td><td>표본을 늘리자 내려갔다 — 20건은 흔들림이 크다</td></tr>
+<tr><td class="num">6</td><td class="num">40</td><td class="num">80.0 %</td><td>서픽스에 <code>allowed_actions</code> 추가 + <b>처방 문장</b>(<code>Remedy</code>)</td></tr>
+<tr><td class="num">7~10</td><td class="num">60</td><td class="num"><b>78.3 %</b></td><td>안정. 이 값이 현재 수준이다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h4>가장 크게 먹은 처방 둘</h4>
+    <ol style="margin:0">
+      <li><b>액션 카탈로그의 플래그 표</b> — 산문으로 흩어 놓으면 모델이 "무엇이 무엇을 세워 주는가"를 읽어내지 못한다</li>
+      <li><b>서픽스의 <code>allowed_actions</code></b> — 프리픽스 표만으로는 모델이 자기 행을 안정적으로 못 찾았다. <code>V2.ACTION_NOT_ALLOWED</code>가 최다 실패였다</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h4>표본 크기 주의</h4>
+    <p class="small">
+      <b>n=60의 95 % 신뢰구간은 ±10 %p 수준</b>이다.
+      <code>gemini-2.5-flash</code> 두 회차가 85 % → 75 %로 갈린 것도 흔들림이고,
+      <b>그 표본으로 두 모델의 차이를 가를 수 없다</b>.
+      이 저장소는 그럴 때 "가를 수 없다"고 적는다.
+    </p>
+  </div>
+</div>
+
+<h3>6.1 모델별 비교 — 같은 60버킷 표본</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>엔진</th><th class="num">통과율</th><th class="num">60건 비용</th><th class="num">2,880건 환산</th><th class="num">평균 지연</th><th class="num">캐시 적중</th></tr></thead>
+<tbody>
+<tr><td><code>google/gemini-2.5-flash</code></td><td class="num">75~85 %</td><td class="num">$0.264~0.277</td><td class="num">~$13</td><td class="num">2.9 s</td><td class="num">53~59 %</td></tr>
+<tr><td><b><code>google/gemini-2.5-flash-lite</code></b> <span class="pill ok">가성비</span></td><td class="num">78.3 %</td><td class="num">$0.124</td><td class="num">~$6</td><td class="num">2.9 s</td><td class="num">10~14 %</td></tr>
+<tr><td><code>qwen/qwen3-30b-a3b-instruct</code></td><td class="num">63.3 %</td><td class="num">$0.071</td><td class="num">~$3.4</td><td class="num">8.0 s</td><td class="num">73 %</td></tr>
+<tr><td><code>z-ai/glm-4.7-flash</code></td><td class="num"><b>0 %</b></td><td class="num">$0.105</td><td class="num">—</td><td class="num">28.3 s</td><td class="num">57 %</td></tr>
+<tr><td><code>openai/gpt-5-nano</code></td><td class="num"><b>0 %</b></td><td class="num">$0.037</td><td class="num">—</td><td class="num">47.8 s</td><td class="num">92 %</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">추론형 모델이 0 %인 이유</span>
+  <code>gpt-5-nano</code>·<code>glm-4.7-flash</code>는 <b>추론 토큰으로 출력 상한을 먼저 소진해 JSON을 못 낸다</b>.
+  이 워크로드에 추론형을 쓰려면 <b>추론 예산을 따로 눌러야 한다</b>.
+  이것은 모델 품질 문제가 아니라 <b>워크로드 적합성</b> 문제다.
+</div>
+
+<h2 id="cost">7. 비용 — 계획 추정이 어디서 빗나갔나</h2>
+
+<div class="stats">
+  <div class="stat badv"><div class="v">8.0×</div><div class="l">요청당 입력 토큰</div><div class="s">1,750 가정 → 13,948 실측</div></div>
+  <div class="stat badv"><div class="v">+445 %</div><div class="l">프리베이크 총비용</div><div class="s">$0.94 → $5.12</div></div>
+  <div class="stat"><div class="v">$0.001015</div><div class="l">요청 하나 실측 단가</div><div class="s">W11 골든 216회</div></div>
+  <div class="stat"><div class="v">33.4 %</div><div class="l">캐시가 줄인 비용</div><div class="s">적중률 40.6 %에서</div></div>
+</div>
+
+<div class="bad">
+  <span class="tag">오차의 90 %가 원인 하나다</span>
+  계획의 프리픽스 1,500토큰은 <b>W1 축소판(액션 12 · 플래그 16) 기준</b>이었다.
+  정식 카탈로그는 액션 37 · 플래그 42이고, 여기에 W1에는 없던 <b>액션별 플래그 5종 표 · 레시피 37종 입출력 ·
+  아키타입 40종 허용 액션 표</b>가 더 붙는다. 셋 다 통과율 개선의 처방이다.
+  <br><br>
+  <b>비용 모델 자체(토큰 × 단가, 캐시 1/10 할인)는 실측과 일치했다.</b> 틀린 것은 입력값이었다.
+</div>
+
+<h3>7.1 프롬프트 캐시 적중률 95 %는 왜 도달 불가인가</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>회차</th><th class="num">적중률</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td>P3 프리베이크 파일럿 (288버킷)</td><td class="num">42.6 %</td><td>Poe 경유 Gemini 2.5 Flash Lite</td></tr>
+<tr><td>W11 골든 (216회)</td><td class="num">40.6 %</td><td>OpenRouter</td></tr>
+<tr><td>W12 블라인드 A군 (120버킷)</td><td class="num">30.7 %</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+  <b>우리 쪽 조건은 지켜졌다</b> — 프리픽스 SHA는 1종이다. 원인은 제공사 쪽이다.
+</p>
+
+<div class="note">
+  <span class="tag">암시적 캐싱의 성질</span>
+  Gemini의 암시적 캐싱은 <b>요청 단위로 전부 적중하거나 전부 미적중</b>이고 그 판정이 비결정적이다 —
+  <code>cached_tokens</code> 값이 프리픽스 크기의 <b>정수배</b>로만 나온다.
+  하한 95 %는 <b>명시적 캐싱</b>(Anthropic <code>cache_control</code> 블록)을 전제한 값이라
+  이 엔진 계열에서는 도달할 수 없다. <b>기준에 엔진 계열을 명시해야 한다</b>는 것이 P3 게이트의 결론이었다.
+</div>
+
+<div class="ok">
+  <span class="tag">8장 요약</span>
+  <ul style="margin-bottom:0">
+    <li><b>프리픽스는 캐시되고 서픽스는 매번 prefill 된다</b> — 이 비대칭이 모든 결정의 근거다.</li>
+    <li>프리픽스 13,488토큰은 다섯 절이고 <b>세 절이 마스터데이터에서 생성</b>된다. SHA가 흔들리면 캐시가 전면 미적중이다.</li>
+    <li>서픽스 300토큰 예산은 <b>테스트가 아니라 조립기가</b> 지킨다 — 넘치면 5단계로 덜어낸다.</li>
+    <li><b>강제 디코딩을 신뢰하지 않는다.</b> 유효 JSON 99 %에 어휘 통과 0 %였던 실측이 근거다.</li>
+    <li>재시도는 1회. 두 번 실패하면 <b>인접 버킷 재사용 → 아키타입 폴백</b>으로 반드시 플랜이 나온다.</li>
+    <li>비용 추정이 5.4배 빗나간 원인은 <b>프리픽스 크기를 축소판으로 추정한 것</b> 하나다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 프리픽스 절 구성 ---------- */
+(function () {
+  var g = document.getElementById('sections');
+  if (!g) return;
+  var el = window.NpcBook.el;
+
+  var SEC = [
+    { n: 'system_rules', t: 1745, c: 'var(--l0)' },
+    { n: 'action_catalog', t: 6182, c: 'var(--l3)' },
+    { n: 'archetypes', t: 2392, c: 'var(--l1)' },
+    { n: 'dsl_summary', t: 1718, c: 'var(--l2)' },
+    { n: 'fewshot', t: 1451, c: 'var(--accent)' }
+  ];
+  var total = SEC.reduce(function (a, s) { return a + s.t; }, 0);
+
+  var x = 20;
+  SEC.forEach(function (s) {
+    var w = 700 * s.t / total;
+    el('rect', { x: x, y: 150, width: w - 2, height: 34, rx: 5, fill: s.c, opacity: .55 }, g);
+    if (w > 70) {
+      var t = el('text', {
+        x: x + w / 2, y: 171, 'text-anchor': 'middle', 'font-size': 10.5,
+        'font-family': 'var(--mono)', fill: 'var(--ink)'
+      }, g);
+      t.textContent = s.n;
+    }
+    var n = el('text', {
+      x: x + w / 2, y: 200, 'text-anchor': 'middle', 'font-size': 10,
+      'font-family': 'var(--mono)', fill: 'var(--ink-3)'
+    }, g);
+    n.textContent = s.t.toLocaleString();
+    x += w;
+  });
+  el('text', { x: 20, y: 138, 'font-size': 11.5, fill: 'var(--ink-3)' }, g)
+    .textContent = '프리픽스 절별 토큰 (o200k_base 기준)';
+})();
+
+/* ---------- 서픽스 덜어내기 ---------- */
+(function () {
+  var bars = document.getElementById('trimBars');
+  if (!bars) return;
+  var el = window.NpcBook.el;
+  var out = document.getElementById('trimOut');
+
+  /* W6_compile_stats.md §1 의 실측 + 단계별 감소분 추정 구성 */
+  var CASES = {
+    arch:  { base: 166, label: '아키타입 요청 (실제 초기 플래그)',
+             parts: [['기본 필드', 60], ['allowed_actions', 80], ['traits+goals', 26]] },
+    worst: { base: 253, label: '동시에 설 수 있는 플래그 31종 최악',
+             parts: [['기본 필드', 60], ['flags 31종', 87], ['allowed_actions', 80], ['traits+goals', 26]] },
+    indiv: { base: 300, label: '개별 요청 (인벤 만재 · recent 만재)',
+             parts: [['기본 필드', 60], ['allowed_actions', 80], ['inventory 8종', 64],
+                     ['recent 3건', 40], ['last_outcome', 12], ['traits+goals', 26], ['flags', 18]] },
+    retry: { base: 374, label: '재시도까지 겹친 최악',
+             parts: [['기본 필드', 60], ['allowed_actions', 80], ['inventory 8종', 64],
+                     ['recent 3건', 40], ['last_outcome', 12], ['traits+goals', 26],
+                     ['flags', 18], ['재시도 블록', 74]] }
+  };
+
+  /* 덜어내기 단계별로 무엇이 빠지는가 */
+  var TRIM = [
+    { lv: 0, drop: [], note: '전부 싣는다' },
+    { lv: 1, drop: ['recent 3건'], note: 'recent 를 뺀다 — 재시도 블록이 더 구체적이다' },
+    { lv: 2, drop: ['recent 3건', 'last_outcome'], note: 'last_plan_outcome 도 뺀다' },
+    { lv: 3, drop: ['recent 3건', 'last_outcome'], half: 'inventory 8종', note: '인벤토리를 4종으로 줄인다' },
+    { lv: 4, drop: ['recent 3건', 'last_outcome', 'inventory 8종'], halfText: true, note: '인벤토리 제거 + 실패 설명 절반' },
+    { lv: 5, drop: ['recent 3건', 'last_outcome', 'inventory 8종', 'traits+goals'], halfText: true, note: '성향·목표까지 뺀다 — 최후다' }
+  ];
+
+  function tokensAt(cs, step) {
+    var t = 0;
+    cs.parts.forEach(function (p) {
+      var name = p[0], v = p[1];
+      if (step.drop.indexOf(name) >= 0) return;
+      if (step.half === name) v = Math.round(v / 2);
+      if (step.halfText && name === '재시도 블록') v = Math.round(v / 2);
+      t += v;
+    });
+    return t;
+  }
+
+  function run() {
+    var cs = CASES[document.getElementById('trimCase').value];
+    bars.innerHTML = '';
+    var lines = ['입력: ' + cs.label + '  (덜어내기 전 ' + cs.base + ' 토큰)', ''];
+
+    var limitY = 220 - (300 / 400 * 190);
+    document.getElementById('trimLimit').setAttribute('y1', limitY);
+    document.getElementById('trimLimit').setAttribute('y2', limitY);
+    document.getElementById('trimLimitT').setAttribute('y', limitY - 5);
+
+    var stopped = -1;
+    TRIM.forEach(function (step, i) {
+      var t = tokensAt(cs, step);
+      var over = t > 300;
+      if (!over && stopped < 0) stopped = i;
+
+      var x = 60 + i * 132;
+      var h = Math.max(3, t / 400 * 190);
+      var use = stopped < 0 || i <= stopped;
+
+      el('rect', {
+        x: x, y: 220 - h, width: 86, height: h, rx: 5,
+        fill: !use ? 'var(--panel-3)' : over ? 'var(--bad)' : 'var(--ok)',
+        opacity: !use ? .4 : .85
+      }, bars);
+      var tv = el('text', {
+        x: x + 43, y: 214 - h, 'text-anchor': 'middle', 'font-size': 11,
+        'font-family': 'var(--mono)', fill: !use ? 'var(--ink-3)' : over ? 'var(--bad)' : 'var(--ok)',
+        'font-weight': 650
+      }, bars);
+      tv.textContent = t;
+      var tl = el('text', {
+        x: x + 43, y: 236, 'text-anchor': 'middle', 'font-size': 10.5, fill: 'var(--ink-3)'
+      }, bars);
+      tl.textContent = 'trim ' + step.lv;
+
+      lines.push('  trim ' + step.lv + '   ' + String(t).padStart(3) + ' tok   ' +
+        (over ? '초과 → 다음 단계' : (i === stopped ? '★ 여기서 확정' : '(도달하지 않음)')) +
+        '   ' + step.note);
+    });
+
+    out.textContent = lines.join('\n') +
+      '\n\n조립기는 예산 안에 들어오는 첫 단계에서 멈춘다. 5단계까지 가도 안 들어오면 그대로 내보낸다 —\n' +
+      '상황·플래그·허용 액션은 어느 단계에서도 덜어내지 않기 때문이다.';
+    document.getElementById('trimNote').textContent =
+      '가로: 덜어내기 단계 · 세로: 서픽스 토큰 수 · 점선: 300 예산';
+  }
+
+  document.getElementById('trimRun').addEventListener('click', run);
+  document.getElementById('trimCase').addEventListener('change', run);
+  run();
+})();
+</script>
+</body>
+</html>

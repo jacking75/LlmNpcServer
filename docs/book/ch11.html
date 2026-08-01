@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11장 · 설정을 바꾸면 무엇이 달라지나 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">6부 · 돌려보고 고치기</p>
+  <h1>11장 — 설정을 바꾸면 무엇이 달라지나</h1>
+  <p class="lede">
+    이 장은 <b>레퍼런스이자 실습서</b>다. 실행 옵션 26개, <code>appsettings.Llm.json</code>,
+    코드 안의 튜닝 상수 20여 개를 <b>"바꾸면 무엇이 어떻게 달라지는가"</b> 기준으로 정리했다.
+    아래 시뮬레이터로 조합을 골라 보면 그 회차에 무슨 일이 벌어지는지 미리 볼 수 있다.
+  </p>
+  <div class="chips">
+    <span class="chip a">가장 자주 볼 장</span>
+    <span class="chip">옵션 26개</span>
+    <span class="chip">튜닝 상수 20+</span>
+  </div>
+</div>
+
+<h2 id="quick">1. 먼저 — 다섯 줄로 돌려보기</h2>
+
+<pre><code><span class="c"># 0) 확인</span>
+dotnet --version                          <span class="c"># 10.x</span>
+
+<span class="c"># 1) 빌드 + 테스트 (LLM 안 부른다)</span>
+dotnet build -c Release
+dotnet test <span class="s">"--filter Category!=Golden&amp;Category!=Gate&amp;Category!=Load"</span>
+
+<span class="c"># 2) 마스터데이터만 검증 (V1~V11)</span>
+dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata
+
+<span class="c"># 3) LLM 없이 스모크 — 500마리 · 게임 7일 · 600배속</span>
+dotnet run -c Release --project src/Npc.Host -- `
+    --loopback --npcs 500 --time-scale 600 --days 7 --no-llm
+
+<span class="c"># 4) 대시보드 보면서 5,000마리</span>
+dotnet run -c Release --project src/Npc.Host -- `
+    --loopback --npcs 5000 --time-scale 60 --days 7 --scenario ./scenarios/siege.jsonl
+<span class="c"># → http://localhost:5080/dashboard</span></code></pre>
+
+<div class="ok">
+  <span class="tag">LLM 없이도 전부 돈다</span>
+  기본이 <code>--tier none</code>이라 <b>LLM을 한 번도 부르지 않는다</b>.
+  API 키도 GPU도 없이 NPC 5,000마리가 게임 7일을 완주한다 — 폴백 40개 + 프리베이크 플랜으로.
+  P1 게이트가 잰 것이 정확히 이것이다.
+</div>
+
+<h2 id="sim">2. 조합 시뮬레이터</h2>
+
+<figure>
+  <div class="svgbox" style="padding:18px 16px">
+    <div class="grid3" style="margin-bottom:14px">
+      <label class="small">NPC 수 <select id="oNpcs" style="width:100%">
+        <option>500</option><option selected>5000</option><option>10000</option>
+      </select></label>
+      <label class="small">시간 배속 <select id="oScale" style="width:100%">
+        <option>1</option><option selected>60</option><option>600</option>
+      </select></label>
+      <label class="small">티어 <select id="oTier" style="width:100%">
+        <option value="none" selected>none — 캐시+폴백만</option>
+        <option value="t1">t1 — 로컬 개별 재계획</option>
+        <option value="t2">t2 — 외부 버킷 미스</option>
+        <option value="all">all — 전부</option>
+      </select></label>
+      <label class="small">링크 <select id="oLink" style="width:100%">
+        <option value="loopback" selected>loopback</option>
+        <option value="null">null</option>
+        <option value="record">record</option>
+        <option value="replay">replay</option>
+        <option value="tcp">tcp</option>
+      </select></label>
+      <label class="small">플레이어 봇 <select id="oBots" style="width:100%">
+        <option>0</option><option selected>20</option><option>100</option>
+      </select></label>
+      <label class="small">플랜 스토어 <select id="oStore" style="width:100%">
+        <option value="none">없음 (폴백 40개만)</option>
+        <option value="264" selected>도달 집합 264</option>
+        <option value="978">도달+공성 978</option>
+      </select></label>
+      <label class="small">페이싱 <select id="oSpeed" style="width:100%">
+        <option value="paced" selected>10Hz 실시간</option>
+        <option value="max">--max-speed</option>
+      </select></label>
+      <label class="small">유실률 <select id="oDrop" style="width:100%">
+        <option value="0" selected>0</option><option value="0.1">0.1</option><option value="0.3">0.3</option>
+      </select></label>
+      <label class="small">스캔 상한 <select id="oCap" style="width:100%">
+        <option value="150" selected>150 (기본)</option><option value="0">0 = 해제</option>
+      </select></label>
+    </div>
+    <div class="readout" id="simCmd" style="margin-top:0"></div>
+  </div>
+  <div class="readout" id="simOut"></div>
+  <figcaption>고른 조합의 <b>명령줄</b>과 <b>예상 동작</b>이 아래에 나온다. 숫자는 실측 회차에서 온 것이고, 없는 것은 없다고 적는다.</figcaption>
+</figure>
+
+<h2 id="cli">3. 실행 옵션 전체</h2>
+
+<h3>3.1 규모와 시간</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>옵션</th><th class="num">기본</th><th>바꾸면 무엇이 달라지나</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>--npcs N</code></td><td class="num">500</td>
+  <td>SoA 배열 크기 · 인지 스캔 대상 · 명령 수. <b>상한은 <code>npc_instances.json</code>의 5,000</b> — 넘겨도 <code>Math.Min</code>으로 잘린다</td>
+</tr>
+<tr>
+  <td><code>--time-scale N</code></td><td class="num">60</td>
+  <td>게임 초 ↔ 틱 환산. <b><code>timeout_s</code>가 전부 이 값으로 나뉜다</b> — 600배속이면 게임 300초 타임아웃이 5틱이다</td>
+</tr>
+<tr>
+  <td><code>--days N</code></td><td class="num">1</td>
+  <td>돌릴 게임 일수. 0이면 무제한. 총 틱 = <code>86,400 × 10 ÷ TimeScale × days</code></td>
+</tr>
+<tr>
+  <td><code>--player-bots N</code></td><td class="num">20</td>
+  <td><b>0이면 모든 NPC가 LOD 3(비활성)에 머문다</b> — 인지 스캔이 0이 되고 재계획이 사실상 멈춘다</td>
+</tr>
+<tr>
+  <td><code>--seed N</code></td><td class="num">20260725</td>
+  <td>Sim의 시드. <b>게임 로직의 지터는 이 값과 무관</b>하다 — 그건 <code>Hash(npcId)</code>다</td>
+</tr>
+<tr>
+  <td><code>--zone id[,id]</code></td><td>전체</td>
+  <td>로스터 필터. <b>게임서버와 같아야 한다</b> — 다르면 로스터 해시가 어긋나 핸드셰이크에서 거절된다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h3>3.2 링크</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>옵션</th><th class="num">기본</th><th>바꾸면 무엇이 달라지나</th></tr></thead>
+<tbody>
+<tr><td><code>--loopback</code></td><td>기본</td><td><code>Npc.Sim</code> 인프로세스 월드에 직결</td></tr>
+<tr><td><code>--link null</code></td><td>—</td><td><b><code>TickSync</code>만 흐른다.</b> 링크 없이 기동되는지 확인용. 명령은 전부 버려진다</td></tr>
+<tr><td><code>--link record</code></td><td>—</td><td>안쪽 링크를 감싸 jsonl로 기록. <b>안쪽이 무엇인지는 <code>--gs-*</code> 명시 여부로 갈린다</b></td></tr>
+<tr><td><code>--link replay</code></td><td>—</td><td>기록을 재생. <b>Sim을 만들지 않는다.</b> <code>--trace</code>가 필수</td></tr>
+<tr><td><code>--link tcp</code></td><td>—</td><td>실제 소켓. <b>Sim을 만들지 않는다</b> — 세계를 미는 것은 게임서버다</td></tr>
+<tr><td><code>--trace &lt;path&gt;</code></td><td>—</td><td><code>record</code>의 출력 · <code>replay</code>의 입력</td></tr>
+<tr><td><code>--gs-host</code> / <code>--gs-port</code></td><td><code>127.0.0.1</code> / 7010</td><td>게임서버 주소. <b>명시하면 <code>--link record</code>가 TCP를 감싼다</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>3.3 티어와 재계획</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>옵션</th><th class="num">기본</th><th>바꾸면 무엇이 달라지나</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>--tier none｜t1｜t2｜all</code></td><td><code>none</code></td>
+  <td><b>워커를 띄울지 정한다.</b> <code>none</code>이면 <code>ReplanWorker</code>가 아예 없어서
+      <b>큐가 채워지기만 하고 비지 않는다</b> — 그 성질을 보는 것이 P4 게이트 항목 10이다</td>
+</tr>
+<tr><td><code>--no-llm</code></td><td>—</td><td><code>--tier none</code>의 별칭</td></tr>
+<tr>
+  <td><code>--t1-workers N</code></td><td class="num">2</td>
+  <td><b>T1 예산 상한이 <code>0.195 × N</code> req/s로 곱해진다.</b> W1 실측에서 8B는 동시 8에서 <b>0.36 req/s로 붕괴</b>한다 — 무작정 올리면 오히려 준다</td>
+</tr>
+<tr><td><code>--t2-workers N</code></td><td class="num">8</td><td>외부 동시 요청 수. 파일럿에서 동시 24까지 429가 0회였다</td>
+</tr>
+<tr><td><code>--t1-engine</code> / <code>--t2-engine</code></td><td>설정 파일</td><td><code>appsettings.Llm.json</code>의 엔진 id. <b>키가 없으면 그 티어가 꺼지고 경고만 남는다</b></td></tr>
+<tr>
+  <td><code>--weights A｜B｜C｜D</code></td><td><code>B</code></td>
+  <td>재계획 점수 가중치 세트. <b>오타는 기동 실패</b>다 — 조용히 기본값으로 떨어지면 A/B 결과가 거짓이 된다</td>
+</tr>
+<tr>
+  <td><code>--scan-cap N</code></td><td class="num">150</td>
+  <td><b>0이면 상한 해제.</b> 측정 전용이다 — 운영에서 풀면 그것이 틱 예산을 지키는 장치를 없애는 것이다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h3>3.4 장애 주입과 측정</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>옵션</th><th class="num">기본</th><th>바꾸면 무엇이 달라지나</th></tr></thead>
+<tbody>
+<tr><td><code>--fail-rate 0~1</code></td><td class="num">0</td><td>Sim이 액션을 실패시키는 확률 → <code>on_step_fail</code> 정책이 돈다</td></tr>
+<tr>
+  <td><code>--drop-rate 0~1</code></td><td class="num">0</td>
+  <td>명령 유실 확률 → <b>타임아웃 합성 경로가 돈다</b>. G6-7이 0.3에서 "멈춘 NPC 0"을 확인한다</td>
+</tr>
+<tr>
+  <td><code>--max-speed</code></td><td>—</td>
+  <td>10Hz 페이싱을 끈다. <b>처리량 측정이지 지연 측정이 아니다.</b> 게임 로직은 여전히 <code>Tick</code>만 보므로 결과는 같다</td>
+</tr>
+<tr><td><code>--scenario &lt;jsonl&gt;</code></td><td>—</td><td>존 상태·기후·킬스위치 주입</td></tr>
+<tr><td><code>--port N</code></td><td class="num">5080</td><td>대시보드·메트릭 포트</td></tr>
+<tr><td><code>--no-dashboard</code></td><td>—</td><td>웹 호스트를 안 띄운다. 헤드리스 스모크·CI용</td></tr>
+<tr>
+  <td><code>--dev-control</code></td><td>꺼짐</td>
+  <td><code>POST /control/killswitch</code>를 <b>연다</b>. 조건부 401이 아니라 <b>조건부 라우트 등록</b>이라 없으면 404다</td>
+</tr>
+<tr><td><code>--masterdata</code> / <code>--planstore</code></td><td><code>./masterdata</code> / <code>./planstore</code></td><td>없으면 <b>저장소 루트를 위로 찾아 올라간다</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="recipes">4. 자주 쓰는 조합 레시피</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>하고 싶은 것</th><th>명령</th></tr></thead>
+<tbody>
+<tr>
+  <td>가장 빠른 스모크</td>
+  <td><code>--loopback --npcs 500 --time-scale 600 --days 1 --max-speed --no-dashboard</code><br>
+      <span class="small">P1 게이트 회차와 같은 조건. 13초쯤 걸린다</span></td>
+</tr>
+<tr>
+  <td>부하 재기</td>
+  <td><code>--npcs 5000 --time-scale 600 --days 1 --max-speed --player-bots 20</code><br>
+      <span class="small">p99 · <code>bytesPerTick</code>을 <code>/metrics</code>에서 본다</span></td>
+</tr>
+<tr>
+  <td>인지 스캔 차수 재기</td>
+  <td><code>--scan-cap 0 --npcs 500|1000|2500|5000 --max-speed</code><br>
+      <span class="small">상한이 걸린 채로는 차수를 판정할 수 없다 — 무엇을 넣어도 150에서 잘린다</span></td>
+</tr>
+<tr>
+  <td>결정론 확인</td>
+  <td>① <code>--link record --trace a.jsonl</code> ② 같은 명령 다시 → <code>b.jsonl</code><br>
+      ③ 두 파일 바이트 비교 ④ <code>--link replay --trace a.jsonl</code></td>
+</tr>
+<tr>
+  <td>유실 내성 보기</td>
+  <td><code>--drop-rate 0.3 --npcs 500 --days 1</code><br>
+      <span class="small">종료 요약의 <code>timeouts</code>가 크게 오르지만 <code>steps</code>는 계속 는다</span></td>
+</tr>
+<tr>
+  <td>공성 보기</td>
+  <td><code>--scenario ./scenarios/siege.jsonl --time-scale 600 --npcs 5000</code><br>
+      <span class="small">시나리오 틱 좌표가 600배속 기준이다 — 배속을 바꾸면 타임라인이 어긋난다</span></td>
+</tr>
+<tr>
+  <td>전면 차단 보기</td>
+  <td><code>--scenario ./scenarios/blackout.jsonl --time-scale 60 --days 2</code><br>
+      <span class="small">6,000틱 T2 → 12,000틱 T1 → 18,000틱 PlanStore 순으로 끊긴다</span></td>
+</tr>
+<tr>
+  <td>실제 소켓으로</td>
+  <td><code>./testbed/run_demo.ps1 -Scenario siege</code><br>
+      <span class="small">게임서버 대역 + 클라이언트까지 셋을 띄운다</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="llm">5. <code>appsettings.Llm.json</code></h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>필드</th><th>바꾸면</th></tr></thead>
+<tbody>
+<tr><td><code>preferred</code> (배열)</td><td>앞에서부터 <b>키가 채워져 있는 첫 엔진</b>을 쓴다. 사람이 매번 <code>--model</code>을 바꾸면 회차마다 엔진이 달라져 실측을 나란히 못 놓는다</td></tr>
+<tr><td><code>default</code></td><td><code>--t2-engine</code>을 안 줬을 때의 엔진</td></tr>
+<tr><td><code>kind</code></td><td><code>DotLlm</code> / <code>LlamaCpp</code> / <code>External</code>. <b>비용 계산과 캐시 판정 방식이 갈린다</b></td></tr>
+<tr><td><code>api_key_env</code></td><td><b>환경변수 이름만</b> 적는다. 키 자체를 파일에 쓰지 않는다</td></tr>
+<tr><td><code>*_usd_per_m_tok</code></td><td>비용 집계와 <b>예산 캡 판정</b>에 그대로 쓰인다. 모델을 바꾸면 이 값도 바꾼다</td></tr>
+<tr><td><code>suffix_tag</code></td><td>엔진 전용 꼬리표(Qwen3의 <code>/no_think</code>). <b>서픽스 끝에만</b> 붙는다 — 프리픽스는 안 건드린다</td></tr>
+<tr><td><code>temperature</code></td><td>시도 1의 값. <b>재시도는 +0.2</b>다</td></tr>
+<tr><td><code>max_output_tokens</code></td><td>플랜 하나는 300~700 토큰. <b>추론형 모델은 이 상한을 추론 토큰으로 먼저 소진한다</b></td></tr>
+<tr><td><code>force_json_schema</code></td><td><b>기본 <code>false</code></b>. 켜면 유효 JSON은 오르지만 어휘 검증이 무너진다(W1 실측 통과 0/100)</td></tr>
+<tr><td><code>timeout_seconds</code></td><td>로컬 CPU 추론은 분 단위가 나온다. 로컬 엔진은 900을 쓴다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">엔진을 바꿨을 때 같이 확인할 것</span>
+  <ol style="margin-bottom:0">
+    <li><b>단가</b>를 갱신했나 — 안 하면 예산 캡이 실사용과 어긋난다</li>
+    <li>이 엔진이 <code>cached_tokens</code>를 <b>보고하는가</b> — dotLLM은 항상 0을 보고한다. 대시보드가 "미보고"로 그려야 한다</li>
+    <li><b>추론형인가</b> — 그렇다면 추론 예산을 따로 눌러야 JSON이 나온다</li>
+  </ol>
+</div>
+
+<h2 id="knobs">6. 코드 안의 튜닝 상수</h2>
+
+<p>
+  아래 값들은 CLI로 못 바꾼다. 바꾸려면 코드를 고쳐야 하고, <b>대부분은 바꾸면 안 되는 이유가 주석에 적혀 있다</b>.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>상수</th><th class="num">값</th><th>파일</th><th>올리면 / 내리면</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>TickBudgetMs</code></td><td class="num">20</td><td><code>NpcServerLoop</code></td>
+  <td>오버런 판정 기준. 올리면 문제가 안 보이게 될 뿐이다</td>
+</tr>
+<tr>
+  <td><code>MaxEventsPerTick</code></td><td class="num">4,096</td><td><code>NpcServerLoop</code></td>
+  <td>올리면 이벤트 폭주가 틱을 삼킨다 / 내리면 <code>EventBacklogs</code>가 는다</td>
+</tr>
+<tr>
+  <td><code>MaxScansPerTick</code></td><td class="num">150</td><td><code>CognitionScheduler</code></td>
+  <td><b>이것이 O(1)을 만든다.</b> 올리면 틱 시간이 선형으로 늘고, 내리면 판정 주기가 늘어난다</td>
+</tr>
+<tr>
+  <td><code>MaxBandMigrationsPerTick</code></td><td class="num">64</td><td><code>LodBandSet</code></td>
+  <td>내리면 <code>PendingMigrations</code>가 상시로 커진다 / 올리면 공성 때 스파이크</td>
+</tr>
+<tr>
+  <td><code>ReplanQueue</code> 용량</td><td class="num">4,096</td><td><code>ReplanQueue</code></td>
+  <td>올리면 <b>이미 상황이 바뀐 NPC</b>가 쌓인다. 낡음 판정이 그만큼 더 폐기한다</td>
+</tr>
+<tr>
+  <td><code>MaxUrgentSlots</code></td><td>용량의 50 %</td><td><code>ReplanQueue</code></td>
+  <td>올리면 공성 때 <b>일반 재계획이 영원히 안 된다</b></td>
+</tr>
+<tr>
+  <td><code>UrgentBase</code></td><td class="num">1,000</td><td><code>ReplanQueue</code></td>
+  <td>일반 점수 상한(9.5)과 겹치지 않게 잡은 값</td>
+</tr>
+<tr>
+  <td><code>ReplanOnFailScore</code></td><td class="num">50</td><td><code>PlanExecutor</code></td>
+  <td>이탈(≤9.5)보다 크고 인터럽트(1000+)보다 작다</td>
+</tr>
+<tr>
+  <td><code>DefaultPumpPerTick</code></td><td class="num">64</td><td><code>ReplanHandoff</code></td>
+  <td>틱 예산 방어. 포화 시 한 틱에 전부 옮기면 그 틱만 <code>O(4096 log n)</code></td>
+</tr>
+<tr>
+  <td><code>DefaultMaxDrift</code></td><td class="num">4</td><td><code>ReplanSnapshots</code></td>
+  <td>내리면 폐기가 늘어 예산이 헛돈다 / 올리면 낡은 플랜이 반영된다</td>
+</tr>
+<tr>
+  <td><code>DefaultStaleTicks</code></td><td class="num">36,000</td><td><code>Weights</code></td>
+  <td>노후 항이 1.0이 되는 틱. 배속 60에서 게임 6시간</td>
+</tr>
+<tr>
+  <td><code>DeviationScale</code></td><td class="num">8</td><td><code>ReplanScorer</code></td>
+  <td>42로 나누면 실제 이탈이 0.05 밑으로 깔려 <b>항이 죽는다</b></td>
+</tr>
+<tr>
+  <td><code>IndividualPlanPool.Capacity</code></td><td class="num">512</td><td><code>IndividualPlanPool</code></td>
+  <td>"동시에 특별 대우받는 NPC 수". 올리면 <code>TurnoverRate</code>가 준다</td>
+</tr>
+<tr>
+  <td><code>SpilloverThreshold</code></td><td class="num">64</td><td><code>TieredPlanCompiler</code></td>
+  <td>T1 지연 5.1 s × 64 = 5분. 그 이후 요청은 대부분 낡아서 폐기된다</td>
+</tr>
+<tr>
+  <td><code>DefaultEstimatedTokens</code></td><td class="num">23,109</td><td><code>TieredPlanCompiler</code></td>
+  <td>예산 선차감량. 실측(6,655,438 / 288)이다. <b>프리픽스를 바꾸면 같이 바꾼다</b></td>
+</tr>
+<tr>
+  <td><code>MaxAttempts</code></td><td class="num">2</td><td><code>LlmPlanCompiler</code></td>
+  <td>올리면 성공률은 거의 안 오르고 <b>지연이 선형으로 는다</b></td>
+</tr>
+<tr>
+  <td><code>TokenBudget</code> (서픽스)</td><td class="num">300</td><td><code>PlanRequestSuffix</code></td>
+  <td>올리면 <b>매 요청의 prefill이 그만큼 는다</b>. 캐시가 안 걸리는 부분이다</td>
+</tr>
+<tr>
+  <td><code>TokenFloor</code> (프리픽스)</td><td class="num">4,096</td><td><code>PromptPrefix</code></td>
+  <td>미달하면 <b>프롬프트 캐시가 아예 안 걸린다</b> (제공사 최소 임계)</td>
+</tr>
+<tr>
+  <td><code>JitterSpread</code> / <code>ZoneJitterSpread</code></td><td class="num">300 / 14</td><td><code>BucketTransition</code></td>
+  <td>존 쪽을 올리면 공성 3초 요구를 못 지킨다</td>
+</tr>
+<tr>
+  <td><code>PoiBinder.CandidateCount</code></td><td class="num">4</td><td><code>PoiBinder</code></td>
+  <td>1이면 수백 마리가 같은 POI로 몰린다 / 크게 하면 먼 곳까지 간다</td>
+</tr>
+<tr>
+  <td><code>MaxCommandsPerStep</code></td><td class="num">4</td><td><code>CommandEmitter</code></td>
+  <td>액션 하나가 낼 수 있는 명령 수. 링크 큐 사이징의 곱수이기도 하다</td>
+</tr>
+<tr>
+  <td><code>PriorityCommandRing.DefaultCapacity</code></td><td class="num">4,096</td><td><code>PriorityCommandRing</code></td>
+  <td>호스트가 <code>npcs × 4</code>로 다시 잡는다. 그대로 두면 <b>첫 틱에 904건이 버려진다</b></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="mdknobs">7. 마스터데이터로 바꾸는 것들</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>바꾸고 싶은 것</th><th>어디를</th><th>주의</th></tr></thead>
+<tbody>
+<tr>
+  <td>NPC가 어떤 행동을 할 수 있나</td><td><code>archetypes.json</code>의 <code>allowed_actions</code></td>
+  <td><b>프리픽스가 바뀐다 → 플랜 전량 무효</b></td>
+</tr>
+<tr>
+  <td>NPC 성격 (겁 많음 · 부지런함)</td><td><code>archetypes.json</code>의 <code>traits</code></td>
+  <td>인터럽트 규칙이 이 값을 본다. 프리픽스에도 실린다</td>
+</tr>
+<tr>
+  <td>인구 구성</td><td><code>population_weight</code> → <code>gen_npcs</code> 재실행</td>
+  <td>합이 1.0이어야 한다 (V5). 프롬프트 SHA는 안 바뀐다</td>
+</tr>
+<tr>
+  <td>어느 존이 위험한가</td><td><code>zones.json</code>의 <code>default_region_state</code></td>
+  <td><b>도달 버킷 집합이 바뀐다</b> — 새 조합을 프리베이크해야 한다</td>
+</tr>
+<tr>
+  <td>즉시 반응 규칙</td><td><code>interrupts.json</code></td>
+  <td>재기동만 하면 즉시 반영. <b>프리베이크 불필요</b></td>
+</tr>
+<tr>
+  <td>액션의 타임아웃</td><td><code>actions.json</code>의 <code>default_timeout_s</code></td>
+  <td>스텝이 <code>timeout_s</code>를 명시하면 그쪽이 이긴다</td>
+</tr>
+<tr>
+  <td>액션이 어떤 명령을 내나</td><td><code>actions.json</code>의 <code>emits</code></td>
+  <td><b>런타임 코드를 안 고쳐도 된다</b></td>
+</tr>
+<tr>
+  <td>최후의 보루 행동</td><td><code>fallback_plans.json</code></td>
+  <td>V7·V8이 기동 시 검사한다. <code>loop: true</code>·<code>skip</code> 유지</td>
+</tr>
+<tr>
+  <td>LLM에게 주는 지시</td><td><code>prompt/system_rules.md</code></td>
+  <td><b>한 글자만 바꿔도 프리픽스 SHA가 바뀐다 → 전량 무효</b></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">무효화 범위 전체 표는 <a href="ch02.html#impact">2장 §9</a>에 있다.</p>
+
+<h2 id="scenario">8. 시나리오 파일</h2>
+
+<div class="filepath">scenarios/siege.jsonl</div>
+
+<pre><code>{<span class="s">"at_tick"</span>: <span class="n">100</span>, <span class="s">"event"</span>: <span class="s">"ZoneStateChanged"</span>, <span class="s">"zone"</span>: <span class="s">"town_center"</span>, <span class="s">"code"</span>: <span class="s">"Alert"</span>}
+{<span class="s">"at_tick"</span>: <span class="n">200</span>, <span class="s">"event"</span>: <span class="s">"ZoneStateChanged"</span>, <span class="s">"zone"</span>: <span class="s">"town_center"</span>, <span class="s">"code"</span>: <span class="s">"War"</span>}
+{<span class="s">"at_tick"</span>: <span class="n">240</span>, <span class="s">"event"</span>: <span class="s">"WeatherChanged"</span>,   <span class="s">"zone"</span>: <span class="s">"town_center"</span>, <span class="s">"code"</span>: <span class="s">"Storm"</span>}
+{<span class="s">"at_tick"</span>: <span class="n">400</span>, <span class="s">"event"</span>: <span class="s">"KillSwitch"</span>, <span class="s">"target"</span>: <span class="s">"T2"</span>}
+{<span class="s">"at_tick"</span>: <span class="n">500</span>, <span class="s">"event"</span>: <span class="s">"KillSwitch"</span>, <span class="s">"target"</span>: <span class="s">"T1"</span>}
+{<span class="s">"at_tick"</span>: <span class="n">700</span>, <span class="s">"event"</span>: <span class="s">"ZoneStateChanged"</span>, <span class="s">"zone"</span>: <span class="s">"town_center"</span>, <span class="s">"code"</span>: <span class="s">"Peace"</span>}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>필드</th><th>값</th></tr></thead>
+<tbody>
+<tr><td><code>at_tick</code></td><td>주입 틱. <b>틱 좌표는 특정 <code>--time-scale</code> 기준이다</b> — 파일 맨 위 주석에 적혀 있다</td></tr>
+<tr><td><code>event</code></td><td><code>ZoneStateChanged</code> · <code>WeatherChanged</code> · <code>KillSwitch</code></td></tr>
+<tr><td><code>zone</code></td><td><code>zones.json</code>의 id여야 한다</td></tr>
+<tr><td><code>code</code></td><td><code>Peace｜Alert｜War｜Disaster</code> · <code>Fair｜Cold｜Storm</code></td></tr>
+<tr><td><code>target</code></td><td>킬스위치 대상 — <code>T2｜T1｜PlanStore</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">배속을 바꾸면 타임라인이 어긋난다</span>
+  <code>scenarios/siege.jsonl</code>은 <b><code>--time-scale 600</code> 기준</b>이고
+  <code>blackout.jsonl</code>은 <b>60 기준</b>, <code>testbed/scenarios/demo_*.jsonl</code>도 <b>60 기준</b>이다.
+  다른 배속으로 돌리면 "공성이 새벽에 터진다" 같은 일이 생긴다.
+</div>
+
+<h3>8.1 킬스위치를 손으로 쏘기</h3>
+
+<pre><code><span class="c"># --dev-control 로 띄웠을 때만 열린다 (아니면 404)</span>
+curl -X POST <span class="s">"http://localhost:5080/control/killswitch?target=T2"</span></code></pre>
+
+<p class="small">
+  <b>한 번 켜지면 꺼지지 않는다</b> — 되돌리려면 재기동한다.
+  멱등이라(N7) 두 번 눌러도 같은 상태고 200을 그대로 준다.
+</p>
+
+<h2 id="trouble">9. 자주 막히는 곳</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>증상</th><th>원인</th><th>해결</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>마스터데이터 폴더를 찾지 못했다</code></td>
+  <td><code>dotnet run --project</code>는 작업 폴더를 <b>프로젝트 폴더</b>로 잡는다</td>
+  <td>보통은 알아서 위로 찾아 올라간다. 안 되면 <code>--masterdata</code>에 절대경로</td>
+</tr>
+<tr>
+  <td><code>--zone</code>을 줬더니 <code>NPC가 없다</code></td>
+  <td>존 id 오타. <b>조용히 무시하지 않는다</b></td>
+  <td>에러 메시지가 있는 존 목록을 찍어 준다</td>
+</tr>
+<tr>
+  <td>인지 스캔이 <b>0</b>이다</td>
+  <td><code>--player-bots 0</code> — 전원이 LOD 3</td>
+  <td>봇을 20 이상으로</td>
+</tr>
+<tr>
+  <td>재계획 큐가 <b>항상 가득</b></td>
+  <td><code>--tier none</code>이라 <b>비우는 워커가 없다</b></td>
+  <td>정상이다. 그 상태에서도 NPC는 기존 플랜으로 돈다</td>
+</tr>
+<tr>
+  <td>합성 타임아웃이 <b>17 %</b>나 된다</td>
+  <td>Sim이 <code>Craft</code>·<code>Trade</code> 일부를 <b>일부러 흘린다</b></td>
+  <td>결함이 아니라 <b>유실 대응 경로가 상시로 돈다는 증거</b>다</td>
+</tr>
+<tr>
+  <td>첫 틱에 명령이 <b>수백 건 드롭</b></td>
+  <td>링크 큐 크기가 <code>npcs × 4</code>보다 작다</td>
+  <td>호스트가 자동으로 잡는다. 커스텀 배선이면 직접 계산</td>
+</tr>
+<tr>
+  <td><code>--link replay</code>가 안 뜬다</td>
+  <td><code>--trace</code> 없이 실행</td>
+  <td>파싱 단계에서 막는다 — 필수 인자다</td>
+</tr>
+<tr>
+  <td>TCP 연결이 <code>RosterMismatch</code>로 거절</td>
+  <td>양쪽 <code>--npcs</code>·<code>--zone</code>이 다르다</td>
+  <td><b>같은 값을 준다.</b> 우회 옵션은 없다</td>
+</tr>
+<tr>
+  <td><code>--tier t2</code>인데 LLM을 안 부른다</td>
+  <td>API 키 환경변수가 없다 → <b>티어가 꺼지고 경고만</b></td>
+  <td>기동 로그의 <code>warn: T2 엔진 '…' 의 키(…)가 없다</code>를 본다</td>
+</tr>
+<tr>
+  <td><code>planstore 없음</code> 경고</td>
+  <td>프리베이크를 아직 안 돌렸다</td>
+  <td><b>정상 동작한다</b> — 폴백 40개로 돈다</td>
+</tr>
+<tr>
+  <td><code>플랜 스토어가 낡았다 — 무효화 Full</code></td>
+  <td>마스터데이터·프롬프트가 스토어보다 새롭다</td>
+  <td>기동은 막지 않는다. 재생성 판단은 사람이 한다 (<a href="ch02.html#impact">2장 §9</a>)</td>
+</tr>
+<tr>
+  <td>PowerShell에서 <code>.ps1</code>이 깨진다</td>
+  <td>한국어 주석 + BOM 없음 → 5.1이 ANSI로 읽는다</td>
+  <td><b>UTF-8 BOM으로 저장</b>한다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">11장 요약</span>
+  <ul style="margin-bottom:0">
+    <li><b>LLM 없이 전부 돈다.</b> 기본이 <code>--tier none</code>이고 그것이 P1 게이트의 조건이었다.</li>
+    <li><code>--player-bots 0</code>은 인지 LOD를 통째로 죽인다. 실수하기 쉬운 옵션 1위다.</li>
+    <li><code>--scan-cap 0</code>과 <code>--max-speed</code>는 <b>측정 전용</b>이다. 운영에서 쓰지 않는다.</li>
+    <li>시나리오 파일의 틱 좌표는 <b>특정 배속 기준</b>이다. 배속을 바꾸면 타임라인이 어긋난다.</li>
+    <li>코드 상수는 대부분 <b>바꾸면 안 되는 이유가 주석에 있다</b>. 바꾸기 전에 읽는다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 조합 시뮬레이터 ---------- */
+(function () {
+  var ids = ['oNpcs', 'oScale', 'oTier', 'oLink', 'oBots', 'oStore', 'oSpeed', 'oDrop', 'oCap'];
+  if (!document.getElementById('oNpcs')) return;
+
+  function v(id) { return document.getElementById(id).value; }
+
+  function render() {
+    var npcs = +v('oNpcs'), scale = +v('oScale'), tier = v('oTier'), link = v('oLink');
+    var bots = +v('oBots'), store = v('oStore'), speed = v('oSpeed');
+    var drop = +v('oDrop'), cap = +v('oCap');
+
+    /* 명령줄 */
+    var args = [];
+    args.push(link === 'loopback' ? '--loopback' : '--link ' + link);
+    if (link === 'replay') args.push('--trace ./artifacts/link.jsonl');
+    if (link === 'record') args.push('--trace ./artifacts/link.jsonl');
+    if (link === 'tcp') args.push('--gs-port 7010');
+    args.push('--npcs ' + npcs);
+    args.push('--time-scale ' + scale);
+    args.push('--days 1');
+    if (tier === 'none') args.push('--no-llm'); else args.push('--tier ' + tier);
+    if (bots !== 20) args.push('--player-bots ' + bots);
+    if (drop > 0) args.push('--drop-rate ' + drop);
+    if (cap === 0) args.push('--scan-cap 0');
+    if (speed === 'max') args.push('--max-speed');
+
+    document.getElementById('simCmd').textContent =
+      'dotnet run -c Release --project src/Npc.Host -- `\n    ' +
+      args.join(' ').replace(/((?:\S+ ){5})/g, '$1`\n    ');
+
+    /* 예상 동작 */
+    var L = [];
+    var actual = Math.min(npcs, 5000);
+
+    L.push('■ 규모');
+    if (npcs > 5000) {
+      L.push('  요청 ' + npcs + ' 이지만 실제는 ' + actual + ' 이다 —');
+      L.push('  npc_instances.json 에 5,000 마리뿐이고 NpcHost.Create 가 Math.Min 으로 자른다.');
+      L.push('  늘리려면 pois.json 정원(총 9,238)부터 손대야 한다 = 마스터데이터 변경이다.');
+    } else {
+      L.push('  NPC ' + actual + ' · 핫 배열 ' + (actual * 23 / 1024).toFixed(0) + ' KB (23 B × N) → L2 안');
+    }
+    var ticksPerDay = Math.round(86400 * 10 / scale);
+    L.push('  게임 1일 = ' + ticksPerDay.toLocaleString() + ' 틱' +
+      (speed === 'paced' ? '  (실시간 ' + (ticksPerDay / 10 / 60).toFixed(1) + ' 분)' : '  (--max-speed — 벽시계 무관)'));
+
+    L.push('');
+    L.push('■ 인지 LOD · 재계획');
+    if (bots === 0) {
+      L.push('  ⚠ 플레이어 봇이 0 이다 — 전원이 LOD 3(비활성)에 머문다.');
+      L.push('  인지 스캔 0 · 재계획 사실상 없음. LOD 를 보려는 회차라면 봇을 20 이상으로.');
+    } else {
+      L.push('  봇 ' + bots + ' 마리가 POI 를 돌며 PlayerProximity 를 낸다 → LOD 0/1 이 생긴다.');
+      L.push(cap === 0
+        ? '  ⚠ 상한 해제 — 스캔이 NPC 수에 비례한다. 실측 5,000 에서 637 건/틱, 틱 p99 4.5 ms.'
+        : '  스캔 상한 150 — 실측에서 이 값에 붙는다. 잘린 몫은 커서로 다음 틱에 이어 본다.');
+    }
+    L.push(tier === 'none'
+      ? '  --tier none 이라 워커가 없다 → 큐가 채워지기만 하고 비지 않는다 (정상).'
+      : '  워커가 큐를 비운다. T1 예산 0.195 × 워커수 req/s, T2 2.5 req/s 가 상한이다.');
+
+    L.push('');
+    L.push('■ 플랜 공급');
+    if (store === 'none') {
+      L.push('  planstore 없음 → 아키타입 폴백 40 개만. 전원이 fb_* 플랜으로 돈다.');
+      L.push('  동작에 구멍은 없다 (시나리오 C 3단계가 확인한 상태와 같다).');
+    } else if (store === '264') {
+      L.push('  도달 집합 264 — 평시 캐시 히트율 실측 98.67 %.');
+      L.push('  ⚠ War 버킷이 없어 공성 시나리오에서는 갈아탈 대상이 없다 (SiegeTests 5/7).');
+    } else {
+      L.push('  도달+공성 978 — 평시 98.67 % 유지 · SiegeTests 7/7. 실측 비용 $1.07.');
+    }
+
+    L.push('');
+    L.push('■ 링크');
+    var linkNote = {
+      loopback: '  Npc.Sim 인프로세스 월드. 명령 → ApplyCommand → 이벤트 왕복이 전부 메모리 안에서.',
+      null: '  TickSync 만 흐른다. 명령은 전부 버려지고 응답이 없어 전 스텝이 타임아웃으로 진행한다.',
+      record: '  안쪽 링크를 감싸 jsonl 로 기록한다. --gs-port 를 명시하지 않았으므로 Sim 을 감싼다.',
+      replay: '  기록된 jsonl 을 재생한다. Sim 을 만들지 않는다 — 채널에 이미 이벤트가 다 들어 있다.',
+      tcp: '  실제 소켓. Sim 을 만들지 않는다. 게임서버가 먼저 떠 있어야 하고 핸드셰이크 4 값이 맞아야 한다.'
+    }[link];
+    L.push(linkNote);
+    if (drop > 0) {
+      L.push('  --drop-rate ' + drop + ' → 명령 ' + (drop * 100) + ' % 가 사라진다.');
+      L.push('  timeout_s 만료 시 ActionFailed(Timeout) 합성 → on_step_fail 정책 적용. 멈추는 NPC 는 없다.');
+    }
+
+    L.push('');
+    L.push('■ 예상 지표 (실측 회차 기준)');
+    if (actual >= 5000 && tier === 'none' && cap === 150) {
+      L.push('  틱 p99 0.80 ~ 2.53 ms · 오버런 0 · bytesPerTick 0 · Gen0 0 · 시퀀스 갭 0');
+      L.push('  (P1/P4 게이트 회차. 회차 간 폭이 이 범위만큼 있다)');
+    } else if (actual <= 500) {
+      L.push('  틱 p50/p99/max 0.022 / 0.097 / 0.867 ms · 게임 7일 완주 13.4 초 (--max-speed)');
+    } else {
+      L.push('  이 조합의 실측 회차는 W10_load.csv 에 있다. 없으면 없다고 적는다 — 추정치를 쓰지 않는다.');
+    }
+    if (speed === 'max') {
+      L.push('  ⚠ --max-speed 는 처리량 측정이지 지연 측정이 아니다.');
+      L.push('  실서비스 10Hz 회차의 p99 는 1.674 ms 이고 틱 사이 여유는 98.3 ms 다.');
+    }
+
+    document.getElementById('simOut').textContent = L.join('\n');
+  }
+
+  ids.forEach(function (id) { document.getElementById(id).addEventListener('change', render); });
+  render();
+})();
+</script>
+</body>
+</html>

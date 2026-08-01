@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>부록 · 코드 맵 · 확장 레시피 · 용어집 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">부록</p>
+  <h1>부록 — 코드 맵 · 확장 레시피 · 용어집</h1>
+  <p class="lede">
+    앞 장들이 "왜 이런가"였다면 여기는 <b>"어디에 있고 어떻게 손대나"</b>다.
+    파일 하나하나가 무엇을 하는지, 새 액션·아키타입·링크를 추가하는 절차,
+    그리고 이 저장소에서 실제로 자주 나온 실수들이다.
+  </p>
+</div>
+
+<h2 id="tree">1. 저장소 구조</h2>
+
+<pre><code>src/
+  Npc.Contracts/    게임서버 연동 IF + 패킷 DTO        (외부 의존 0)
+  Npc.Core/         플랜 DSL · 4단 검증기 · WorldFlags  (외부 의존 0)
+  Npc.MasterData/   로더 · 검증 · 읽기전용 인덱스
+  Npc.Runtime/      틱 스케줄러 · 플랜 실행기 · 인지 LOD
+  Npc.Planning/     플랜 캐시 · 버킷터 · 우선순위 재계획 큐
+  Npc.Llm/          IChatClient 어댑터 · 프롬프트 조립 · 3-티어 라우터
+  Npc.Wire/         링크의 전송 표현 (MemoryPack DTO + 프레임 코덱)
+  Npc.Gateway/      IGameServerLink 구현체 5종
+  Npc.Sim/          헤드리스 월드 = 게임서버 대역
+  Npc.Host/         ASP.NET 호스트 · 메트릭 · 대시보드 · <b>조립 루트</b>
+testbed/            테스트 베드 — 단방향 잎(아무도 참조하지 않는다)
+  Npc.TestBed.Protocol/  클라이언트 프로토콜
+  Npc.TestGameServer/    게임서버 대역 프로세스 (:7010 링크 · :7020 클라이언트)
+  Npc.TestClient/        WinForms 클라이언트 (net10.0-windows)
+tools/
+  Npc.Prebake/      프리베이크 CLI
+  Npc.Narrate/      플랜을 사람 말로 풀어 주는 도구
+  *.cs              파일 기반 .NET 앱 (gen_npcs · report_scale · …)
+masterdata/         마스터데이터 11종
+planstore/          프리베이크 플랜 (plans/ 는 gitignore, pinned/ 는 버전관리)
+scenarios/          시나리오 스크립트 (jsonl)
+tests/Npc.Tests/    단위 · 골든 · 부하 · 장애주입
+docs/               설계 사양 + 이 책</code></pre>
+
+<h2 id="map">2. 파일 지도</h2>
+
+<div class="ctl" style="justify-content:flex-start">
+  <input type="search" id="mapFilter" placeholder="파일명·역할로 거르기 (예: 큐, Emit, 캐시)"
+         style="font:inherit;font-size:13.5px;padding:6px 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);min-width:320px">
+  <span class="small" id="mapCount"></span>
+</div>
+
+<div class="tablewrap">
+<table id="mapTable">
+<thead><tr><th>파일</th><th>역할</th><th>장</th></tr></thead>
+<tbody id="mapBody"></tbody>
+</table>
+</div>
+
+<h2 id="order">3. 코드를 처음 읽는 순서</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th class="num">#</th><th>파일</th><th>여기서 얻는 것</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td><code>Npc.Contracts/IGameServerLink.cs</code></td><td>경계가 얼마나 좁은지. 메서드 다섯 개가 전부다</td></tr>
+<tr><td class="num">2</td><td><code>Npc.Contracts/NpcCommand.cs</code> · <code>GameEvent.cs</code></td><td>주고받는 것의 전부. string도 DateTime도 없다</td></tr>
+<tr><td class="num">3</td><td><code>Npc.Runtime/NpcServerLoop.cs</code></td><td><b>심장부.</b> 여섯 단계와 상한들</td></tr>
+<tr><td class="num">4</td><td><code>Npc.Runtime/NpcStore.cs</code></td><td>상태가 어떻게 놓여 있나. 핫/웜/콜드</td></tr>
+<tr><td class="num">5</td><td><code>Npc.Core/Plan/CompiledPlan.cs</code></td><td>플랜의 실행 표현. <code>NeedsReplan</code> 두 줄이 핵심</td></tr>
+<tr><td class="num">6</td><td><code>Npc.Runtime/PlanExecutor.cs</code></td><td>스텝 상태 기계와 타임아웃 합성</td></tr>
+<tr><td class="num">7</td><td><code>Npc.Runtime/CognitionScheduler.cs</code></td><td>누구를 볼 것인가</td></tr>
+<tr><td class="num">8</td><td><code>Npc.Planning/PlanStore.cs</code></td><td>왜 <code>Resolve</code>가 null을 안 주나</td></tr>
+<tr><td class="num">9</td><td><code>Npc.Host/Program.cs</code></td><td><b>전부가 어떻게 조립되나.</b> 여기가 유일하게 전부를 안다</td></tr>
+<tr><td class="num">10</td><td><code>Npc.Llm/TieredPlanCompiler.cs</code></td><td>LLM이 어디서 불리고 어떻게 막히나</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">주석을 먼저 읽는다</span>
+  이 저장소의 타입 주석은 <b>"무엇을 하는가"가 아니라 "왜 이렇게 했는가"</b>를 적는다.
+  대부분의 <code>&lt;summary&gt;</code>가 <b>대안을 왜 버렸는지</b>까지 담고 있어서,
+  코드보다 주석이 정보 밀도가 높은 경우가 많다.
+</div>
+
+<h2 id="recipes">4. 확장 레시피</h2>
+
+<h3>4.1 새 액션 추가</h3>
+
+<div class="card">
+  <p class="small" style="margin-top:0"><b>전제 — 액션은 40개 상한이다.</b> 지금 37개다. 넘기려면 하나를 빼거나 기존 액션의 파라미터로 흡수한다.</p>
+<pre><code><span class="c">// ① masterdata/actions.json 맨 뒤에 추가 (code 는 38부터. 중간 삽입 금지)</span>
+{
+  <span class="s">"id"</span>: <span class="s">"Bargain"</span>, <span class="s">"code"</span>: <span class="n">38</span>, <span class="s">"category"</span>: <span class="s">"social"</span>,
+  <span class="s">"desc"</span>: <span class="s">"…"</span>,                                   <span class="c">// 프롬프트에 그대로 실린다. 신중히</span>
+  <span class="s">"params"</span>: { <span class="s">"item"</span>: {<span class="s">"type"</span>:<span class="s">"item_ref"</span>,<span class="s">"required"</span>:<span class="k">true</span>} },
+  <span class="s">"requires"</span>: [<span class="s">"AtMarket"</span>], <span class="s">"forbids"</span>: [<span class="s">"IsSleeping"</span>],
+  <span class="s">"grants"</span>: [<span class="s">"HasCoin"</span>], <span class="s">"clears"</span>: [<span class="s">"HasProduct"</span>],
+  <span class="s">"default_timeout_s"</span>: <span class="n">300</span>,
+  <span class="s">"emits"</span>: [{<span class="s">"command"</span>:<span class="s">"Interact"</span>,<span class="s">"map"</span>:{<span class="s">"Item"</span>:<span class="s">"$item"</span>}}],
+  <span class="s">"completes_on"</span>: [<span class="s">"NpcActionCompleted"</span>], <span class="s">"fails_on"</span>: [<span class="s">"NpcActionFailed"</span>]
+}
+
+<span class="c">// ② 쓸 아키타입의 allowed_actions 에 추가 (archetypes.json)</span>
+<span class="c">// ③ 검증</span>
+dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata
+<span class="c">// ④ 프리픽스가 바뀌었으므로 플랜 전량 무효 → 프리베이크 재실행</span></code></pre>
+  <p class="small" style="margin-bottom:0">
+    <b>런타임 코드는 한 줄도 안 고친다.</b> <code>CommandEmitter</code>가 <code>emits</code>를 읽어 필드를 채우고,
+    카탈로그·검증기·프롬프트가 전부 이 JSON에서 나온다.
+  </p>
+</div>
+
+<h3>4.2 새 아키타입 추가</h3>
+
+<div class="card">
+<pre><code><span class="c">// ① archetypes.json 맨 뒤 (code 40 — 단, BucketKey.ArchetypeCount 가 40이라 상한이다)</span>
+<span class="c">// ② 그 아키타입의 폴백 플랜을 fallback_plans.json 에 추가   ← V7 이 없으면 기동 실패</span>
+<span class="c">//    · loop: true · on_step_fail: skip · allowed_actions 만으로 구성 (V8)</span>
+<span class="c">// ③ population_weight 를 넣고 다른 것들을 줄여 합을 1.0 으로 (V5)</span>
+<span class="c">// ④ workplace_poi_type 에 해당하는 POI 정원이 인구를 감당하는지 (V10)</span>
+<span class="c">// ⑤ npc_instances.json 재생성</span>
+dotnet run tools/gen_npcs.cs
+<span class="c">// ⑥ 버킷이 72개 늘어난다 → 프리베이크</span></code></pre>
+  <div class="warn" style="margin-bottom:0">
+    <span class="tag">40을 넘기려면</span>
+    <code>BucketKey.ArchetypeCount</code>를 늘려야 하고, 그 순간 <b>버킷 인덱스 공식이 바뀌어
+    기존 플랜 2,880개가 전부 다른 곳을 가리킨다</b>. 전량 재생성이 강제된다.
+  </div>
+</div>
+
+<h3>4.3 새 월드 플래그 추가</h3>
+
+<div class="card">
+<pre><code><span class="c">// ① world_flags.json 의 reserved_bits (22·23·44~63) 중 하나를 쓴다</span>
+{ <span class="s">"bit"</span>: <span class="n">44</span>, <span class="s">"id"</span>: <span class="s">"HasContract"</span>, <span class="s">"group"</span>: <span class="s">"social"</span>, <span class="s">"desc"</span>: <span class="s">"…"</span> }
+
+<span class="c">// ② WorldFlags.g.cs 는 소스 생성기가 자동으로 갱신한다 — 손으로 쓰지 않는다</span>
+<span class="c">// ③ 누가 이 비트를 세우는가를 정한다:</span>
+<span class="c">//     · 아이템이면 items.json 의 grants</span>
+<span class="c">//     · POI 면 pois.json 의 grants</span>
+<span class="c">//     · 액션이면 actions.json 의 grants/clears</span>
+<span class="c">//     · 이벤트면 EventApplier 에 반영 코드 (← 이때만 코드를 고친다)</span></code></pre>
+  <div class="bad" style="margin-bottom:0">
+    <span class="tag">가장 위험한 실수</span>
+    <b>런타임이 세우지 않는 플래그를 액션이 요구하는 것.</b>
+    검증기 3단은 <code>MasterDataSet.InitialFlags</code>에서 그 플래그를 세워 두고 판정하므로 <b>검증은 통과한다</b>.
+    그런데 런타임에서는 아무도 안 세우니 인지 스캔이 <b>매 틱 이탈</b>로 읽고 재계획 큐가 포화한다.
+    실제로 <code>OnDuty</code>가 그랬다 — <b>5,000마리 하루에 이탈 29,535건</b>이었다.
+  </div>
+</div>
+
+<h3>4.4 새 인터럽트 규칙</h3>
+
+<div class="card">
+<pre><code><span class="c">// interrupts.json 에 추가. 재기동만 하면 즉시 반영된다 — 프리베이크 불필요.</span>
+{
+  <span class="s">"id"</span>: <span class="s">"seek_shelter_in_storm"</span>, <span class="s">"priority"</span>: <span class="n">60</span>,
+  <span class="s">"when"</span>: { <span class="s">"all_flag"</span>: [<span class="s">"WeatherHarsh"</span>], <span class="s">"none_flag"</span>: [<span class="s">"AtHome"</span>,<span class="s">"AtWorkplace"</span>] },
+  <span class="s">"then"</span>: { <span class="s">"action"</span>: <span class="s">"MoveTo"</span>, <span class="s">"params"</span>: { <span class="s">"poi"</span>: <span class="s">"$nearest_shelter"</span> } },
+  <span class="s">"replan"</span>: { <span class="s">"urgency"</span>: <span class="n">40</span> }
+}</code></pre>
+  <ul class="small" style="margin-bottom:0">
+    <li><code>then.action</code>이 그 아키타입의 <code>allowed_actions</code>에 없으면 <b>규칙을 건너뛴다</b></li>
+    <li>우선순위가 같으면 <b>id 오름차순</b>으로 결정 — 매칭이 결정론이어야 리플레이가 된다</li>
+    <li>조건이 오래 참으로 남는 규칙이면 <b>엣지 트리거</b>가 되먹임을 막아 준다 (자동)</li>
+  </ul>
+</div>
+
+<h3>4.5 새 링크 구현체 (실제 게임서버 붙이기)</h3>
+
+<div class="card">
+<pre><code><span class="c">// ① IGameServerLink 를 구현한다. 메서드 다섯 개뿐이다.</span>
+<span class="c">//    Enqueue / FlushAsync / Events / State / Stats / StateChanged</span>
+<span class="c">// ② 역압 정책은 PriorityCommandRing 을 그대로 쓴다 — 복사하면 반드시 갈라진다</span>
+<span class="c">// ③ HostOptions.LinkKind 에 값을 추가하고 Program.cs 의 switch 에 한 줄</span>
+<span class="c">// ④ Wire 카테고리 테스트를 붙인다 (계약 타입과의 드리프트 검출)</span></code></pre>
+  <p class="small" style="margin-bottom:0">
+    <b>런타임 코드는 안 고친다.</b> P6가 TCP 링크를 붙일 때 <code>Npc.Runtime</code>·<code>Npc.Planning</code>·
+    <code>Npc.Core</code>·<code>Npc.Contracts</code>의 diff가 <b>0줄</b>이었다.
+  </p>
+</div>
+
+<h3>4.6 LLM 엔진 교체</h3>
+
+<div class="card">
+<pre><code><span class="c">// ① appsettings.Llm.json 의 engines 에 추가</span>
+<span class="c">// ② preferred 배열 앞쪽에 두거나 --t2-engine 으로 지정</span>
+<span class="c">// ③ 단가 세 값을 실제 공개가로 갱신 (예산 캡 판정에 그대로 쓰인다)</span>
+<span class="c">// ④ 확인: 추론형인가? cached_tokens 를 보고하는가? force_json_schema 가 맞나?</span>
+$env:OPENROUTER_API_KEY = <span class="s">"..."</span>
+dotnet run -c Release --project tools/Npc.Prebake -- --model &lt;id&gt; --limit 20 --report ./tmp.jsonl</code></pre>
+  <p class="small" style="margin-bottom:0">
+    20건 정도로 <b>통과율과 지연부터</b> 재고 판단한다. 60건이어도 신뢰구간이 ±10 %p 수준이다.
+  </p>
+</div>
+
+<h2 id="mistakes">5. 자주 하는 실수</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>실수</th><th>결과</th><th>방지</th></tr></thead>
+<tbody>
+<tr><td>틱 루프에 LINQ 한 줄 추가</td><td>Gen0 GC 폭증 · p99 초과</td><td>부하 테스트를 야간 CI에</td></tr>
+<tr><td>서픽스에 필드 추가</td><td>300 → 800 토큰, prefill 3배</td><td><code>Suffix_NeverExceeds300Tokens</code></td></tr>
+<tr><td>프리픽스에 동적 값 혼입</td><td>캐시 전면 미적중, 비용 급증</td><td><code>uniquePrefixHashes</code> 감시</td></tr>
+<tr><td>프리베이크 전 워밍업 생략</td><td>(이 엔진 계열에선 문제없음. 다른 계열에선 write 할증)</td><td><code>W8_prebake.md §1</code></td></tr>
+<tr><td><code>world_flags.json</code> 비트 재배치</td><td><b>플랜 2,880개 전부 무효</b> — 아무 테스트도 못 잡는다</td><td>추가는 예약 구간에만</td></tr>
+<tr><td>재계획 큐에 같은 NPC 중복 삽입</td><td>큐 즉시 포화</td><td><code>_heapPos</code>로 검출 후 점수 갱신</td></tr>
+<tr><td>워커가 틱 루프 상태를 직접 수정</td><td>데이터 레이스 · 비결정성</td><td><code>PendingPlanId</code>에 <code>Volatile.Write</code>만</td></tr>
+<tr><td>워커가 재계획 힙을 직접 꺼냄</td><td><b>실측 8회 중 2회 <code>IndexOutOfRangeException</code></b></td><td><code>ReplanHandoff</code> 링 두 개로만</td></tr>
+<tr><td>검증 실패분을 조용히 폐기</td><td>품질 개선 원자료 소실</td><td><code>planstore/rejected/</code>에 보존</td></tr>
+<tr><td><code>manifest.json</code>에 <code>DateTime.Now</code></td><td>결정론 파괴</td><td>시각은 <code>--generated-at</code>으로 주입</td></tr>
+<tr><td><code>Npc.Runtime</code>에서 <code>Npc.Llm</code> 참조</td><td>틱 루프에 LLM이 들어올 길</td><td><code>ArchitectureTests</code></td></tr>
+<tr><td>계측 경로에서 <code>TryGet</code> 사용</td><td>대시보드 열람이 LRU 순서를 바꾼다</td><td><code>TryPeek</code>을 쓴다</td></tr>
+<tr><td>스텝 중간에 플랜 스왑</td><td>직전 응답이 새 스텝 완료로 오인</td><td><code>AdvanceStep</code>에서만 <code>TryTake</code></td></tr>
+<tr><td>진입 전제를 전부 OR로 계산</td><td>매 틱 이탈 판정 → 큐 포화</td><td><code>required |= flags.Requires &amp; ~granted</code></td></tr>
+<tr><td>플래그에서 지역상태를 추정</td><td><code>Alert</code>를 못 내 <b>평시 전원을 Alert로 판정</b></td><td><code>ZoneStateTable</code>을 붙인다</td></tr>
+<tr><td><code>.ps1</code>을 BOM 없이 저장</td><td>PowerShell 5.1이 ANSI로 읽어 파서 오류</td><td><b>UTF-8 BOM</b>으로 저장</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="judge">6. 판단이 필요할 때 기준</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>상황</th><th>기준</th></tr></thead>
+<tbody>
+<tr><td>성능 vs 가독성 (틱 루프)</td><td><b>성능.</b> 대신 주석으로 이유를 남긴다</td></tr>
+<tr><td>성능 vs 가독성 (그 외)</td><td><b>가독성</b></td></tr>
+<tr><td>LLM에 시킬까 규칙으로 짤까</td><td><b>반응 속도가 필요하면 규칙.</b> 인터럽트·전제조건 판정은 항상 규칙</td></tr>
+<tr><td>캐시 vs 실시간 생성</td><td><b>재사용 횟수에 비례해 품질에 투자한다.</b> 수천이 공유하면 T2, 1회용이면 T1</td></tr>
+<tr><td>정확성 vs 처리량 (검증)</td><td><b>정확성.</b> 검증을 건너뛴 플랜을 런타임에 올리지 않는다</td></tr>
+<tr><td>새 액션 추가 요청</td><td><b>40개 상한.</b> 하나를 빼거나 기존 액션의 파라미터로 흡수</td></tr>
+<tr><td>새 마스터데이터 필드</td><td>프롬프트 서픽스에 실리는가 확인. 실린다면 <b>300토큰 예산부터</b></td></tr>
+<tr><td>실측이 사양과 다르다</td><td><b>사양을 고친다.</b> 코드를 사양에 맞추지도, 사양을 못 본 척하지도 않는다</td></tr>
+<tr><td>게이트가 안 닫힌다</td><td><b>기준을 고쳐서 통과시키지 않는다.</b> 기준이 재려던 것을 못 재고 있을 때만 계기를 바꾼다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="glossary">7. 용어집</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>용어</th><th>뜻</th><th>어디서</th></tr></thead>
+<tbody>
+<tr><td><b>아키타입</b> (Archetype)</td><td>NPC의 직업·역할 40종. 버킷 키의 최상위 자리</td><td><a href="ch02.html">2장</a></td></tr>
+<tr><td><b>버킷</b> (Bucket)</td><td>(아키타입 × 시간대 × 지역상태 × 기후) = 2,880칸의 플랜 캐시 키</td><td><a href="ch02.html">2장</a> · <a href="ch09.html">9장</a></td></tr>
+<tr><td><b>도달 집합</b></td><td>마스터데이터상 실제로 조회될 수 있는 버킷 264개</td><td><a href="ch09.html">9장</a></td></tr>
+<tr><td><b>월드 플래그</b> (WorldFlags)</td><td>NPC 상태를 담는 64비트. 전제조건·효과·이탈 판정이 전부 이 위에서</td><td><a href="ch02.html">2장</a></td></tr>
+<tr><td><b>플랜</b> (Plan)</td><td>액션 3~10개의 선형 시퀀스. LLM이 내는 유일한 산출물</td><td><a href="ch04.html">4장</a></td></tr>
+<tr><td><b>스텝</b> (Step)</td><td>플랜의 한 칸. 액션 + 인자 + <code>timeout_s</code></td><td><a href="ch04.html">4장</a></td></tr>
+<tr><td><b>인지 LOD</b></td><td>플레이어와의 거리로 정하는 판정 주기 등급 0~3</td><td><a href="ch06.html">6장</a></td></tr>
+<tr><td><b>밴드</b> (Band)</td><td>같은 LOD 등급의 NPC 집합. 슬라이스로 나눠 순회한다</td><td><a href="ch06.html">6장</a></td></tr>
+<tr><td><b>이탈</b> (Deviation)</td><td>현재 플랜의 전제가 깨진 상태. 재계획 트리거</td><td><a href="ch06.html">6장</a></td></tr>
+<tr><td><b>인터럽트</b> (Interrupt)</td><td>이벤트에 대한 즉시 반응 규칙. <b>LLM이 개입하지 않는다</b></td><td><a href="ch07.html">7장</a></td></tr>
+<tr><td><b>버킷 전환</b></td><td>시간대·존 상태가 바뀌어 다른 버킷의 플랜으로 갈아타는 것</td><td><a href="ch07.html">7장</a></td></tr>
+<tr><td><b>프리픽스 / 서픽스</b></td><td>프롬프트의 고정부(캐시됨) / 가변부(매번 prefill)</td><td><a href="ch08.html">8장</a></td></tr>
+<tr><td><b>티어</b> (T0/T1/T2)</td><td>캐시 / 로컬 LLM / 외부 API</td><td><a href="ch09.html">9장</a></td></tr>
+<tr><td><b>스필오버</b></td><td>T1 큐가 밀려 개별 요청을 T2로 흘리는 것</td><td><a href="ch09.html">9장</a></td></tr>
+<tr><td><b>강등</b> (Downgrade)</td><td>예산 소진으로 T2 → T1로 내려가는 것</td><td><a href="ch09.html">9장</a></td></tr>
+<tr><td><b>폴백</b> (Fallback)</td><td>아키타입별 최후 플랜 40개. 사람이 쓴다</td><td><a href="ch02.html">2장</a></td></tr>
+<tr><td><b>최후 플랜</b> (Idle)</td><td>폴백도 없을 때. Wait → Emote → Rest. 전제조건이 하나도 없다</td><td><a href="ch09.html">9장</a></td></tr>
+<tr><td><b>pinned</b></td><td>사람이 검수·수정해 고정한 플랜. 재프리베이크가 안 덮는다</td><td><a href="ch04.html">4장</a></td></tr>
+<tr><td><b>상관 ID</b> (CorrelationId)</td><td>명령↔이벤트를 잇는 순증 번호. 낡은 응답을 거른다</td><td><a href="ch03.html">3장</a></td></tr>
+<tr><td><b>타임아웃 합성</b></td><td>응답이 안 와도 진행하도록 로컬에서 실패를 만드는 것</td><td><a href="ch03.html">3장</a></td></tr>
+<tr><td><b>SoA</b></td><td>Struct of Arrays. 필드별 배열. 캐시 지역성을 위해</td><td><a href="ch05.html">5장</a></td></tr>
+<tr><td><b>게임서버 대역</b> (Sim)</td><td>실제 게임서버 없이 검증하기 위한 우리 쪽 가짜 구현</td><td><a href="ch03.html">3장</a></td></tr>
+<tr><td><b>킬스위치</b></td><td>티어·스토어를 끊어 가용성을 시험하는 장치. 한 번 켜지면 재기동까지 유지</td><td><a href="ch09.html">9장</a></td></tr>
+<tr><td><b>게이트</b> (Gate)</td><td>Phase를 끝냈다고 선언하기 위한 판정 항목</td><td><a href="ch12.html">12장</a></td></tr>
+<tr><td><b>N1~N8</b></td><td>게임서버 연동 규칙 8개. 테스트로 강제된다</td><td><a href="ch03.html">3장</a></td></tr>
+<tr><td><b>V1~V11</b></td><td>마스터데이터 검증 규칙. 실패는 기동 실패</td><td><a href="ch02.html">2장</a></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="cheat">8. 한 장 요약</h2>
+
+<div class="grid2">
+  <div class="card">
+    <h4>절대 규칙 — 틱 루프</h4>
+    <ul class="small" style="margin-bottom:0">
+      <li><code>await</code> 금지 (<code>FlushAsync</code> 하나 예외)</li>
+      <li>LLM 호출 금지 — 참조 자체가 없다</li>
+      <li>힙 할당 금지 — <code>new</code> · LINQ · 문자열 보간 · 클로저</li>
+      <li><code>lock</code> 금지 — <code>Volatile</code> + 원자 교체만</li>
+      <li><code>Dictionary</code> 순회 금지 — 순서 비결정성</li>
+      <li><code>DateTime.Now</code> · <code>Stopwatch</code> 금지</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>절대 규칙 — 패킷</h4>
+    <ul class="small" style="margin-bottom:0">
+      <li>반환값 있는 전송 메서드 금지 (N1)</li>
+      <li><code>readonly record struct</code>만 (N2)</li>
+      <li><code>string</code> 필드 금지 (N3)</li>
+      <li><code>DateTime</code>/<code>TimeSpan</code> 금지 — <code>Tick</code>만 (N4)</li>
+      <li>모든 명령에 <code>CorrelationId</code> (N5)</li>
+      <li>모든 이벤트에 <code>Sequence</code> (N6)</li>
+      <li>처리는 멱등 (N7) · 배치가 기본 (N8)</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>절대 규칙 — 프롬프트</h4>
+    <ul class="small" style="margin-bottom:0">
+      <li>프리픽스는 기동 시 1회 조립, 이후 불변</li>
+      <li>프리픽스 토큰 하한 4,096 (상한 없음)</li>
+      <li>서픽스 ≤ 300 토큰 (조립기가 지킨다)</li>
+      <li>재시도 피드백은 <b>서픽스에만</b></li>
+      <li><b>플레이어 작성 문자열을 넣지 않는다</b></li>
+      <li>프리픽스 SHA를 모든 요청 메트릭에 태그</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>작업 후 체크리스트</h4>
+    <ul class="small" style="margin-bottom:0">
+      <li><code>dotnet test</code> 통과</li>
+      <li><code>dotnet format --verify-no-changes</code></li>
+      <li>틱 루프를 건드렸으면 <code>bytesPerTick</code> = 0 확인</li>
+      <li>패킷을 건드렸으면 <code>Contracts_*</code> 통과</li>
+      <li>마스터데이터를 건드렸으면 무효화 범위 확인</li>
+      <li>프롬프트를 건드렸으면 <b>플랜 전량 무효</b> — 의도한 것인가</li>
+      <li>문서와 어긋나면 <b>같은 커밋에서 문서도</b> 고친다</li>
+    </ul>
+  </div>
+</div>
+
+<div class="ok" style="margin-top:34px">
+  <span class="tag">마지막으로</span>
+  이 저장소를 관통하는 규칙은 하나다 — <b>모르는 것은 모른다고 적는다.</b>
+  미측정을 빈칸으로 두지 않고 "미측정"이라 쓰고, 추정을 실측인 척하지 않으며,
+  게이트가 안 닫히면 기준을 고치는 대신 왜 안 닫히는지를 적는다.
+  코드를 고칠 때도 같은 태도를 유지하면, 다음 사람이 이 문서들을 근거로 쓸 수 있다.
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 파일 지도 ---------- */
+(function () {
+  var body = document.getElementById('mapBody');
+  if (!body) return;
+
+  var MAP = [
+    ['Npc.Contracts/Ids.cs', '강타입 ID 전부 — NpcId · PoiId · Tick · CorrelationId · WorldPos', '3'],
+    ['Npc.Contracts/NpcCommand.cs', '명령 12종 + 우선순위 + 페이로드 필드', '3'],
+    ['Npc.Contracts/GameEvent.cs', '이벤트 17종 + 실패 사유', '3'],
+    ['Npc.Contracts/IGameServerLink.cs', '경계. 메서드 다섯 개', '3'],
+
+    ['Npc.Core/Plan/PlanDocument.cs', 'LLM이 내는 JSON 모델 + 스텝 수·타임아웃 상한', '4'],
+    ['Npc.Core/Plan/CompiledPlan.cs', '실행 표현 + PlanCompiler + NeedsReplan', '4'],
+    ['Npc.Core/Plan/PoiSymbol.cs', 'POI 심볼 9종 + PlanHash(결정론 지터)', '4·7'],
+    ['Npc.Core/Plan/PlanJsonContext.cs', '소스 생성 JSON 컨텍스트 (AOT·할당 절감)', '4'],
+    ['Npc.Core/Planning/BucketKey.cs', '버킷 키 + 인덱스 공식 + TimeOfDay/RegionState/Climate', '2'],
+    ['Npc.Core/Planning/Tier.cs', 'T0/T1/T2 열거 + IReplanBudget 인터페이스', '9'],
+    ['Npc.Core/Validation/SchemaValidator.cs', '검증 1단 — 파싱·필드·범위', '4'],
+    ['Npc.Core/Validation/VocabularyValidator.cs', '검증 2단 — 액션 존재·허용·인자', '4'],
+    ['Npc.Core/Validation/CoherenceValidator.cs', '검증 3단 — GOAP 상태 전이 + 실패 설명 생성', '4'],
+    ['Npc.Core/Validation/IDryRunValidator.cs', '검증 4단 계약 (구현은 Npc.Sim)', '4'],
+    ['Npc.Core/Generators/WorldFlagsGenerator.cs', 'world_flags.json → WorldFlags enum 소스 생성', '2'],
+    ['Npc.Core/KillSwitch.cs', '킬스위치 상태 — T2·T1·PlanStore', '9'],
+
+    ['Npc.MasterData/MasterDataLoader.cs', '11종 로드 + 콘텐츠 해시', '2'],
+    ['Npc.MasterData/MasterDataSet.cs', '읽기전용 인덱스. IPlanVocabulary 구현', '2·4'],
+    ['Npc.MasterData/ActionCatalog.cs', '액션 37종 배열 인덱스 + emits 파싱', '2·7'],
+    ['Npc.MasterData/ArchetypeTable.cs', '아키타입 40종 + duty_hours 판정', '2'],
+    ['Npc.MasterData/ItemTable.cs', '아이템 + grants → 플래그 계산', '2'],
+    ['Npc.MasterData/PlanTable.cs', '폴백 플랜 로드 + 심볼 해석', '2'],
+    ['Npc.MasterData/InterruptRules.cs', '인터럽트 규칙 매칭 (플래그·성향·이벤트)', '7'],
+    ['Npc.MasterData/NpcRoster.cs', 'NPC 선택 규칙 + 로스터 해시', '5·10'],
+    ['Npc.MasterData/Validation/MasterDataValidator.cs', 'V1~V11', '2'],
+
+    ['Npc.Runtime/NpcServerLoop.cs', '틱 루프 여섯 단계 + DrainEvents + 시퀀스 갭', '5'],
+    ['Npc.Runtime/NpcStore.cs', 'SoA 저장소 + StateHash', '5'],
+    ['Npc.Runtime/PlanExecutor.cs', '스텝 상태 기계 + 타임아웃 합성 + 실패 정책', '7'],
+    ['Npc.Runtime/CognitionScheduler.cs', '인지 스캔 + 상한 150 + 커서', '6'],
+    ['Npc.Runtime/LodBand.cs', '밴드 멤버십 + 슬라이스 + Rebalance 64', '6'],
+    ['Npc.Runtime/LodUpdater.cs', 'LOD 등급 산출 (거리·존 상태)', '6'],
+    ['Npc.Runtime/EventApplier.cs', '이벤트 → 월드 뷰 반영 (멱등) + 기억', '3·7'],
+    ['Npc.Runtime/InterruptMatcher.cs', '인터럽트 매칭 + 엣지 트리거 + 존 전체 평가', '7'],
+    ['Npc.Runtime/CommandEmitter.cs', 'CompiledStep → NpcCommand (emits 기반)', '7'],
+    ['Npc.Runtime/PoiBinder.cs', '심볼 → 실제 POI (후보 4개 중 해시)', '7'],
+    ['Npc.Runtime/PlanSwapper.cs', '스텝 경계 플랜 교체 (Volatile + Interlocked)', '7'],
+    ['Npc.Runtime/BucketTransition.cs', '전환 예약 + 지터 + 슬롯 연결 리스트', '7'],
+    ['Npc.Runtime/CorrelationTable.cs', '상관 ID 발급·무효화', '3'],
+    ['Npc.Runtime/GameClock.cs', '게임 시계 (TickSync 기준)', '5'],
+    ['Npc.Runtime/ZoneStateTable.cs', '존별 지역상태·기후 (추정을 대체)', '7'],
+    ['Npc.Runtime/RingBuffer8.cs', '구조화 기억 8칸 링', '5'],
+
+    ['Npc.Planning/PlanStore.cs', '표 셋 + 락 없는 조회 + Resolve 보장', '9'],
+    ['Npc.Planning/PlanStoreIo.cs', 'plans/ · pinned/ 로드·저장', '9'],
+    ['Npc.Planning/PlanStoreValidator.cs', '무효화 범위 판정 (None/Partial/Full)', '2·9'],
+    ['Npc.Planning/IndividualPlanPool.cs', '개별 플랜 512칸 링 + LRU', '9'],
+    ['Npc.Planning/ReplanQueue.cs', '점수순 최대 힙 + 중복 방지 + 축출', '6'],
+    ['Npc.Planning/ReplanScorer.cs', '네 항 가중합 + Weights 4세트', '6'],
+    ['Npc.Planning/ReplanSnapshots.cs', '낡음 판정 (MaxDrift 4)', '6'],
+    ['Npc.Planning/ReplanHandoff.cs', '틱↔워커 인계 링 두 개', '6'],
+    ['Npc.Planning/ReplanBudget.cs', '상한 4개 + 강등 + 경보', '9'],
+    ['Npc.Planning/TokenBucket.cs', '초당 요청 레이트리미터', '9'],
+    ['Npc.Planning/BucketNeighbors.cs', '인접 버킷 재사용 후보', '9'],
+    ['Npc.Planning/Manifest.cs', '프리베이크 회차 기록', '9'],
+    ['Npc.Planning/CacheMetrics.cs', '캐시 패널 집계', '12'],
+
+    ['Npc.Llm/PromptPrefix.cs', '프리픽스 5절 조립 + SHA + 토큰 계측', '8'],
+    ['Npc.Llm/PlanRequestSuffix.cs', '서픽스 + 덜어내기 5단계', '8'],
+    ['Npc.Llm/CatalogRenderer.cs', 'actions/items → 프롬프트 마크다운 생성', '8'],
+    ['Npc.Llm/SchemaProvider.cs', 'actions.json → JSON Schema 생성', '8'],
+    ['Npc.Llm/LlmPlanCompiler.cs', '시도1 → 검증 → 시도2 → Rescue', '8'],
+    ['Npc.Llm/TieredPlanCompiler.cs', '티어 선택 + 강등 + 페일오버 + 킬스위치', '9'],
+    ['Npc.Llm/ChatClientFactory.cs', '엔진 설정 → IChatClient + 비용 계산', '8·11'],
+    ['Npc.Llm/CircuitBreaker.cs', 'T2 서킷 브레이커', '9'],
+    ['Npc.Llm/CompileStats.cs', '토큰·비용·지연 집계', '12'],
+    ['Npc.Llm/RejectedStore.cs', '검증 실패 산출물 보존', '4'],
+
+    ['Npc.Wire/FrameCodec.cs', '8바이트 헤더 + 프레임 분리', '10'],
+    ['Npc.Wire/LinkMessages.cs', 'Hello/Ack/Heartbeat/Bye + WireHash', '10'],
+    ['Npc.Wire/WireCommand.cs · WireEvent.cs', '계약 타입의 전송 표현 (1:1 매핑)', '10'],
+
+    ['Npc.Gateway/LoopbackGameServerLink.cs', '인프로세스 링크 (기본)', '3'],
+    ['Npc.Gateway/TcpGameServerLink.cs', '소켓 링크 + 접속·재접속', '10'],
+    ['Npc.Gateway/RecordingGameServerLink.cs', '데코레이터 — jsonl 기록', '3'],
+    ['Npc.Gateway/ReplayGameServerLink.cs', 'jsonl 재생 (결정론 검증)', '3·12'],
+    ['Npc.Gateway/PriorityCommandRing.cs', '우선순위 역압 (두 링크가 공유)', '3'],
+
+    ['Npc.Sim/SimWorld.cs', '게임서버 대역 월드 + 명령 적용', '3'],
+    ['Npc.Sim/MovementSim.cs · InteractionSim.cs', '이동 · 상호작용 처리', '3'],
+    ['Npc.Sim/PlayerBots.cs', '가상 플레이어 → PlayerProximity', '3·6'],
+    ['Npc.Sim/ScenarioRunner.cs', 'jsonl 시나리오 재생', '11'],
+    ['Npc.Sim/FaultInjector.cs', '--fail-rate · --drop-rate 주입', '3·11'],
+    ['Npc.Sim/Validation/DryRunValidator.cs', '검증 4단 구현', '4'],
+
+    ['Npc.Host/Program.cs', '조립 루트 + SimDriver + 페이싱', '5·11'],
+    ['Npc.Host/HostOptions.cs', 'CLI 파싱 + 경로 해결', '11'],
+    ['Npc.Host/Metrics/NpcMeter.cs', '/metrics 패널 8종', '12'],
+    ['Npc.Host/Replan/TierWiring.cs', '티어 조립 (--tier가 정한다)', '9'],
+    ['Npc.Host/Replan/ReplanWorker.cs', '워커 풀 (BackgroundService)', '6·9'],
+    ['Npc.Host/Replan/IndividualReplanSource.cs', 'T1 일감 공급 (큐에서)', '9'],
+    ['Npc.Host/Replan/BucketReplanSource.cs', 'T2 일감 공급 (버킷 미스)', '9'],
+    ['Npc.Host/Api/NpcTraceEndpoint.cs', '/npc/{id} 스냅샷', '12'],
+    ['Npc.Host/KillSwitchSchedule.cs', '시나리오의 KillSwitch 줄 처리', '9·11'],
+
+    ['tools/Npc.Prebake/Program.cs', '프리베이크 CLI', '9'],
+    ['tools/Npc.Prebake/AdaptiveConcurrency.cs', 'AIMD 동시성', '9'],
+    ['tools/Npc.Prebake/BudgetGuard.cs', '--budget-usd 하드 캡', '9'],
+    ['tools/Npc.Prebake/TargetSelector.cs', '--only · --resume 대상 선정', '9'],
+    ['tools/gen_npcs.cs', 'npc_instances.json 생성', '2'],
+    ['tools/report_scale.cs', 'W10_scale.md 생성', '12'],
+
+    ['tests/Npc.Tests/Architecture/', '프로젝트 참조 규칙 검사', '12'],
+    ['tests/Npc.Tests/Contracts/', 'N1~N8 리플렉션 검사', '3·12'],
+    ['tests/Npc.Tests/Determinism/', '리플레이·멱등·시계/난수 감사', '12'],
+    ['tests/Npc.Tests/Gates/', 'Phase별 게이트 자동화', '12'],
+    ['tests/Npc.Tests/Load/', '부하 매트릭스 · 스케일 곡선 · 가중치 A/B', '12'],
+    ['tests/Npc.Tests/Golden/', '골든 50건 속성 단언', '4·12'],
+
+    ['testbed/Npc.TestGameServer/', '소켓 게임서버 대역 프로세스', '10'],
+    ['testbed/Npc.TestClient/', 'WinForms 뷰어 + 인스펙터', '10'],
+    ['testbed/Npc.TestBed.Protocol/', '게임서버↔클라이언트 프로토콜', '10']
+  ];
+
+  function render(q) {
+    q = (q || '').trim().toLowerCase();
+    var html = '', n = 0;
+    MAP.forEach(function (row) {
+      if (q && (row[0] + ' ' + row[1]).toLowerCase().indexOf(q) < 0) return;
+      n++;
+      html += '<tr><td><code>' + row[0] + '</code></td><td>' + row[1] +
+        '</td><td class="num">' + row[2] + '</td></tr>';
+    });
+    body.innerHTML = html || '<tr><td colspan="3" class="small">일치하는 파일이 없다.</td></tr>';
+    document.getElementById('mapCount').textContent = n + ' / ' + MAP.length + ' 파일';
+  }
+
+  document.getElementById('mapFilter').addEventListener('input', function () { render(this.value); });
+  render('');
+})();
+</script>
+</body>
+</html>

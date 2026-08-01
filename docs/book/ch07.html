@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7장 · 플랜 실행 · 인터럽트 · 전환 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">3부 · 결정론 런타임 L0</p>
+  <h1>7장 — 플랜 실행 · 인터럽트 · 전환</h1>
+  <p class="lede">
+    플랜은 JSON이지만 실행은 <b>여섯 개 상태를 가진 작은 상태 기계</b>다.
+    이 장은 그 상태 기계와, 그것을 바깥에서 흔드는 두 힘 — <b>인터럽트</b>(즉시)와
+    <b>버킷 전환</b>(예약) — 이 어떻게 충돌 없이 공존하는지를 본다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/03 §6 · docs/14 §5·§7</span>
+    <span class="chip">스텝 경계 스왑</span>
+    <span class="chip">결정론 지터</span>
+  </div>
+</div>
+
+<h2 id="fsm">1. 스텝 상태 기계</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 400" id="fsmSvg" role="img" aria-label="StepStatus 상태 전이">
+      <g id="fsmNodes"></g>
+      <g id="fsmEdges"></g>
+    </svg>
+  </div>
+  <div class="ctl">
+    <button class="btn" id="fsmEv1" type="button">명령 발행</button>
+    <button class="btn" id="fsmEv2" type="button">완료 이벤트</button>
+    <button class="btn" id="fsmEv3" type="button">실패 이벤트</button>
+    <button class="btn" id="fsmEv4" type="button">timeout_s 만료</button>
+    <button class="btn" id="fsmEv5" type="button">플랜 끝 (loop=false)</button>
+    <button class="btn" id="fsmReset" type="button">처음으로</button>
+  </div>
+  <div class="readout" id="fsmOut"></div>
+  <figcaption>
+    <code>Unspawned</code>는 특별하다 — <b>명령을 발행하지 않는다</b>.
+    게임서버가 <code>NpcSpawned</code>를 보내기 전에 명령을 내면 존재하지 않는 개체에 대고 말하는 셈이다.
+  </figcaption>
+</figure>
+
+<div class="filepath">src/Npc.Runtime/PlanExecutor.cs — Step</div>
+
+<pre><code><span class="k">for</span> (<span class="k">int</span> i = <span class="n">0</span>; i &lt; _store.Count; i++)      <span class="c">// SoA 순회. await 도 LINQ 도 없다</span>
+{
+    <span class="k">switch</span> ((<span class="t">StepStatus</span>)_store.StepStatus[i])
+    {
+        <span class="k">case</span> <span class="t">StepStatus</span>.Unspawned:
+        <span class="k">case</span> <span class="t">StepStatus</span>.Done:      <span class="k">continue</span>;                 <span class="c">// 아무것도 안 한다</span>
+
+        <span class="k">case</span> <span class="t">StepStatus</span>.Waiting:
+            <span class="k">if</span> (!SynthesizeTimeout(i, tick)) <span class="k">continue</span>;      <span class="c">// 아직 기다린다</span>
+            ApplyFailPolicy(i);                            <span class="c">// 타임아웃 → 실패 정책</span>
+            <span class="k">break</span>;
+
+        <span class="k">case</span> <span class="t">StepStatus</span>.Completed: AdvanceStep(i);    <span class="k">break</span>;
+        <span class="k">case</span> <span class="t">StepStatus</span>.Failed:    ApplyFailPolicy(i); <span class="k">break</span>;
+        <span class="k">case</span> <span class="t">StepStatus</span>.Ready:
+        <span class="k">default</span>: <span class="k">break</span>;
+    }
+
+    <span class="k">if</span> ((<span class="t">StepStatus</span>)_store.StepStatus[i] == <span class="t">StepStatus</span>.Ready)
+        Emit(i, tick, link);                               <span class="c">// 같은 틱에 바로 발행한다</span>
+}</code></pre>
+
+<div class="note">
+  <span class="tag">상태 전이와 발행이 같은 틱에 일어난다</span>
+  <code>Completed</code> → <code>AdvanceStep</code> → <code>Ready</code> → <b>같은 루프 반복 안에서 <code>Emit</code></b>.
+  이렇게 하지 않으면 스텝 하나 전진할 때마다 한 틱(100 ms)씩 손해를 본다.
+</div>
+
+<h2 id="advance">2. 스텝 전진과 실패 정책</h2>
+
+<h3>2.1 <code>AdvanceStep</code> — 스왑이 일어나는 유일한 자리</h3>
+
+<pre><code><span class="k">private void</span> AdvanceStep(<span class="k">int</span> npc)
+{
+    _store.StepRetries[npc] = <span class="n">0</span>;
+    StepsAdvanced++;
+
+    <span class="hl">    <span class="c">// ★ 스텝 경계다. 워커가 걸어둔 새 플랜이 있으면 여기서 갈아끼운다.</span>
+    <span class="k">if</span> (Swapper <span class="k">is not null</span> &amp;&amp; Swapper.TryTake(npc, <span class="k">out</span> <span class="t">PlanId</span> swapped))
+    {
+        AssignPlan(npc, swapped);
+        <span class="k">return</span>;
+    }</span>
+
+    <span class="t">CompiledPlan</span> plan = PlanOf(npc);
+    <span class="k">int</span> next = _store.StepIndex[npc] + <span class="n">1</span>;
+
+    <span class="k">if</span> (next &lt; plan.Steps.Length) { _store.StepIndex[npc] = (<span class="k">byte</span>)next; …Ready; <span class="k">return</span>; }
+    <span class="k">if</span> (plan.Loop)              { _store.StepIndex[npc] = <span class="n">0</span>;             …Ready; <span class="k">return</span>; }
+
+    _store.StepIndex[npc] = (<span class="k">byte</span>)(plan.Steps.Length - <span class="n">1</span>);
+    _store.StepStatus[npc] = (<span class="k">byte</span>)<span class="t">StepStatus</span>.Done;
+}</code></pre>
+
+<h3>2.2 실패 정책 네 가지가 실제로 하는 일</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th><code>on_step_fail</code></th><th>코드가 하는 일</th><th>결과</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>retry_once</code></td>
+  <td><code>StepRetries == 0</code>이면 1로 올리고 <code>Ready</code>로</td>
+  <td>같은 명령이 한 번 더 나간다. 두 번째 실패는 <code>fallback</code>으로 떨어진다</td>
+</tr>
+<tr>
+  <td><code>replan</code></td>
+  <td>큐에 <b>점수 50</b>으로 넣고 <code>AdvanceStep</code></td>
+  <td>다음 스텝은 진행하되 새 플랜을 요청한다. <b>멈추지 않는다</b></td>
+</tr>
+<tr>
+  <td><code>skip</code></td>
+  <td><code>AdvanceStep</code>만</td>
+  <td>실패한 스텝을 건너뛴다. 폴백 플랜의 정책</td>
+</tr>
+<tr>
+  <td><code>fallback</code> <span class="pill">기본</span></td>
+  <td><code>SwitchToFallback</code> — 아키타입 폴백으로 <code>AssignPlan</code></td>
+  <td>플랜을 통째로 바꾼다. <code>FallbacksTaken</code>++</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h3>2.3 <code>PlanOf</code> — 회수된 개별 플랜에서 빠져나오기</h3>
+
+<pre><code><span class="k">private</span> <span class="t">CompiledPlan</span> PlanOf(<span class="k">int</span> npc)
+{
+    <span class="k">if</span> (_plans.TryFor(npc, _store.PlanId[npc], _tick, <span class="k">out</span> <span class="t">CompiledPlan</span> plan))
+        <span class="k">return</span> plan;
+
+    SwitchToFallback(npc);          <span class="c">// ★ 되돌리는 것이 이 메서드의 요점</span>
+    <span class="k">return</span> _plans[_store.PlanId[npc]];
+}</code></pre>
+
+<div class="warn">
+  <span class="tag">이게 없으면 NPC가 최후 플랜에 갇힌다</span>
+  개별 플랜은 512칸 링이라 LRU로 회수된다(<a href="ch09.html">9장</a>).
+  예전 주인이 회수된 슬롯을 계속 읽으면 <code>TryFor</code>가 <b>최후 플랜(Wait·Emote·Rest)</b>을 돌려주는데,
+  그 상태로 두면 그 NPC는 영원히 대기만 한다.
+  그래서 <code>false</code>를 받은 순간 아키타입 폴백으로 되돌린다.
+  <br><br>
+  <b>플랜 스토어가 이 판단을 못 하는 이유</b>는 스토어가 NPC의 아키타입을 모르기 때문이다 —
+  그것은 <code>NpcStore</code>(런타임)에 있고, <code>Npc.Planning</code>은 <code>Npc.Runtime</code>을 참조하지 않는다.
+</div>
+
+<h2 id="emit">3. 명령 발행 — 액션 이름이 없는 코드</h2>
+
+<div class="filepath">src/Npc.Runtime/CommandEmitter.cs</div>
+
+<pre><code><span class="k">public int</span> Emit(<span class="k">in</span> <span class="t">CompiledStep</span> step, <span class="k">in</span> <span class="t">EmitContext</span> ctx,
+                <span class="t">ReadOnlySpan</span>&lt;<span class="k">int</span>&gt; inventory, <span class="t">Span</span>&lt;<span class="t">NpcCommand</span>&gt; destination)
+{
+    <span class="t">ActionDef</span> action = _data.Actions[step.Action];       <span class="c">// actions.json 이 정한다</span>
+    _binder.TryBind(step.Poi, bindContext, <span class="k">out</span> <span class="t">PoiId</span> boundPoi);
+
+    <span class="k">foreach</span> (<span class="t">EmitDef</span> emit <span class="k">in</span> action.Emits)              <span class="c">// 액션 이름이 여기 없다</span>
+    {
+        <span class="k">var</span> command = <span class="k">new</span> <span class="t">NpcCommand</span> { Kind = emit.Command, … };
+        <span class="k">foreach</span> (<span class="t">EmitMapping</span> m <span class="k">in</span> emit.Map)
+            command = Apply(command, m, step, ctx, boundPoi, inventory);
+        destination[written++] = command;
+    }
+    <span class="k">return</span> written;
+}</code></pre>
+
+<div class="grid2">
+  <div class="card">
+    <h4><code>IEnumerable</code>을 반환하지 않는다</h4>
+    <p class="small">
+      호출자가 준 <code>Span&lt;NpcCommand&gt;</code>에 쓴다.
+      실행기는 <code>_batch = new NpcCommand[MaxCommandsPerStep]</code>을 <b>기동 시 한 번</b> 잡아두고 재사용한다.
+      한 스텝이 낼 수 있는 명령은 <b>최대 4개</b>다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>새 액션을 추가해도 이 파일을 안 고친다</h4>
+    <p class="small">
+      <code>actions.json</code>에 <code>emits</code>를 적으면 끝이다.
+      "Mine이면 이런 명령을 낸다"는 지식이 코드에 없기 때문이다 — <a href="ch13.html">13장 확장 레시피</a> 참조.
+    </p>
+  </div>
+</div>
+
+<h3>3.1 POI 바인딩 — 같은 곳에 몰리지 않게</h3>
+
+<div class="bad">
+  <span class="tag">가장 가까운 하나를 그대로 고르면</span>
+  같은 버킷의 NPC <b>수백 마리가 전부 같은 POI로 몰린다</b>.
+  대장장이 60명이 전부 같은 시장 좌판 앞에 서 있는 그림이 된다.
+</div>
+
+<pre><code><span class="c">// PoiBinder — 가까운 후보 4개 중에서 npcId 해시로 고른다.</span>
+<span class="c">// 난수가 아니라 해시라서 리플레이가 일치한다.</span>
+<span class="k">public const int</span> CandidateCount = <span class="n">4</span>;</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>심볼</th><th>후보 집합</th></tr></thead>
+<tbody>
+<tr><td><code>$home</code> · <code>$workplace</code></td><td>인스턴스 값 그대로 (지터 없음)</td></tr>
+<tr><td><code>$market</code> <code>$tavern</code> <code>$temple</code> <code>$gate</code></td><td>같은 존의 해당 종류 중 가까운 4개 → 해시로 1개</td></tr>
+<tr><td><code>$nearest_field</code></td><td>그 아키타입이 <b>접근 가능한</b> field 중 가까운 4개</td></tr>
+<tr><td><code>$nearest_safe</code></td><td><code>Gate</code> · <code>Home</code> 타입 중에서</td></tr>
+<tr><td><code>$nearest_shelter</code></td><td><code>Home</code> · <code>Tavern</code> · <code>Temple</code> · <code>Workplace</code> · <code>Market</code> 중에서</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">
+  바인딩에 실패하면 <code>false</code>다 — 런타임은 그대로 명령을 내고 게임서버가
+  <code>ActionFailed(Unreachable)</code>로 답한다. 조용히 0번 POI로 가지 않는다.
+</p>
+
+<h2 id="interrupt">4. 인터럽트 — 즉시 반응, 계획은 나중</h2>
+
+<p>
+  인터럽트는 <b>LLM이 개입하지 않는 유일한 행동 경로</b>다.
+  반응 속도가 생명이라 결정론 규칙으로만 돈다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 250" role="img" aria-label="인터럽트 처리 순서">
+      <g font-size="12">
+        <rect x="20" y="40" width="150" height="60" rx="9" fill="var(--bad-soft)" stroke="var(--bad)"/>
+        <text x="95" y="66" text-anchor="middle" font-weight="650" fill="var(--bad)">DamageTaken</text>
+        <text x="95" y="86" text-anchor="middle" font-size="11" fill="var(--ink-3)">이벤트 도착</text>
+
+        <rect x="200" y="40" width="170" height="60" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="285" y="62" text-anchor="middle" font-weight="650">규칙 매칭</text>
+        <text x="285" y="82" text-anchor="middle" font-size="11" fill="var(--ink-3)">플래그 · 성향 · 이벤트 종류</text>
+
+        <rect x="400" y="12" width="200" height="52" rx="9" fill="var(--warn-soft)" stroke="var(--warn)"/>
+        <text x="500" y="34" text-anchor="middle" font-weight="650" fill="var(--warn)">① 즉시 액션 발행</text>
+        <text x="500" y="52" text-anchor="middle" font-size="11" fill="var(--ink-2)">ForceAction — 그 틱에 나간다</text>
+
+        <rect x="400" y="80" width="200" height="52" rx="9" fill="var(--l2)" opacity=".16" stroke="var(--l2)"/>
+        <text x="500" y="102" text-anchor="middle" font-weight="650" fill="var(--l2)">② 재계획 큐에 삽입</text>
+        <text x="500" y="120" text-anchor="middle" font-size="11" fill="var(--ink-2)">점수 = 1000 + urgency</text>
+
+        <rect x="630" y="12" width="230" height="52" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="745" y="34" text-anchor="middle" font-size="11.5">상관 ID 무효화 → 진행 중 명령 무시</text>
+        <text x="745" y="52" text-anchor="middle" font-size="11.5">StepStatus = Waiting</text>
+
+        <rect x="630" y="80" width="230" height="52" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="745" y="102" text-anchor="middle" font-size="11.5">NpcStore.PendingUrgency 에도 남긴다</text>
+        <text x="745" y="120" text-anchor="middle" font-size="11.5">큐에서 밀려도 다음 스캔이 우대한다</text>
+      </g>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3">
+        <path d="M170,70 L196,70"/><path d="M370,60 L396,38"/><path d="M370,80 L396,106"/>
+        <path d="M600,38 L626,38"/><path d="M600,106 L626,106"/>
+      </g>
+
+      <rect x="20" y="164" width="840" height="66" rx="10" fill="var(--panel-2)" stroke="var(--line)"/>
+      <text x="40" y="188" font-size="12.5" font-weight="650">엣지 트리거 — 같은 규칙이 이어서 걸리면 넘긴다</text>
+      <text x="40" y="210" font-size="12" fill="var(--ink-2)">
+        규칙 조건은 대부분 플래그라 한 번 참이 되면 한동안 참이다. 매번 쏘면
+        <tspan font-family="var(--mono)">강제 액션 → 완료 이벤트 → 다시 강제</tspan> 의 되먹임으로 명령이 폭주한다.
+      </text>
+    </svg>
+  </div>
+  <figcaption>
+    NPC별로 <b>마지막에 발동한 규칙</b>을 기억하고 같은 규칙이 이어지면 <code>Suppressed</code>++.
+    조건이 한 번 풀렸다가 다시 참이 되면 그때 다시 쏜다.
+  </figcaption>
+</figure>
+
+<h3>4.1 존 이벤트는 따로 훑는다</h3>
+
+<div class="filepath">src/Npc.Runtime/NpcServerLoop.cs — DrainEvents</div>
+
+<pre><code><span class="k">if</span> (ev.Kind <span class="k">is</span> <span class="t">GameEventKind</span>.ZoneStateChanged <span class="k">or</span> <span class="t">GameEventKind</span>.WeatherChanged)
+    _interrupts.HandleZone(<span class="k">in</span> ev, …);   <span class="c">// 그 존 전원을 평가</span>
+<span class="k">else</span>
+    _interrupts.Handle(<span class="k">in</span> ev, …);       <span class="c">// ev.Npc 한 마리만</span></code></pre>
+
+<div class="why">
+  <span class="tag">왜 갈랐나</span>
+  <code>ZoneStateChanged</code>는 <b>NPC를 지목하지 않는다</b>(<code>ev.Npc = 0</code>).
+  <code>Handle</code> 하나로는 <b>0번 NPC만</b> 평가된다 —
+  존 전체가 <code>RegionUnderAttack</code>을 받았는데 반응은 한 마리만 하는 셈이다.
+  O(N)이지만 존 상태 변화는 드물고(공성 한 번에 몇 발), <b>이 한 틱의 비용이 곧 "1틱 내 즉시 반응"의 값</b>이다.
+</div>
+
+<h2 id="swap">5. 플랜 스왑 — 스텝 경계에서만</h2>
+
+<div class="filepath">src/Npc.Runtime/PlanSwapper.cs</div>
+
+<pre><code><span class="c">// 워커(다른 스레드)</span>
+<span class="k">public void</span> Request(<span class="k">int</span> npc, <span class="t">PlanId</span> plan)
+{
+    <span class="t">Volatile</span>.Write(<span class="k">ref</span> _store.PendingPlanId[npc], plan.Value);   <span class="c">// 여기에만 쓴다</span>
+    Requested++;
+}
+
+<span class="c">// 틱 루프 — 스텝 경계에서</span>
+<span class="k">public bool</span> TryTake(<span class="k">int</span> npc, <span class="k">out</span> <span class="t">PlanId</span> plan)
+{
+    <span class="k">int</span> pending = <span class="t">Interlocked</span>.Exchange(<span class="k">ref</span> _store.PendingPlanId[npc], <span class="n">0</span>);
+    <span class="c">// 원자 교환이라 워커와 경쟁해도 플랜을 잃거나 두 번 적용하지 않는다</span>
+}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>스왑 종류</th><th>언제</th><th>계수</th></tr></thead>
+<tbody>
+<tr><td><b>일반</b></td><td><code>AdvanceStep</code>의 스텝 경계</td><td><code>Applied</code></td></tr>
+<tr><td><b>지연</b></td><td>스텝 진행 중이라 다음 경계로 미룸</td><td><code>Deferred</code></td></tr>
+<tr><td><b>즉시</b></td><td>인터럽트 — 진행 중 명령은 상관 ID로 무시</td><td><code>Immediate</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="transition">6. 버킷 전환 — 5,000마리가 동시에 갈아타지 않게</h2>
+
+<p>
+  시간대가 바뀌면 전원이 새 버킷의 플랜으로 갈아타야 한다.
+  LLM 호출이 아니라 순수 배열 쓰기지만, <b>5,000회를 한 틱에 하면 스파이크</b>다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 300" id="jitSvg" role="img" aria-label="전환 지터 분포">
+      <g id="jitBars"></g>
+      <text id="jitTitle" x="20" y="24" font-size="13" font-weight="700"></text>
+      <text id="jitNote" x="20" y="288" font-size="12" fill="var(--ink-3)"></text>
+    </svg>
+  </div>
+  <div class="ctl">
+    <button class="btn on" id="jitTod" type="button">시간대 전환 (±300틱)</button>
+    <button class="btn" id="jitZone" type="button">존 이벤트 (±14틱)</button>
+    <button class="btn" id="jitNone" type="button">지터 없음</button>
+  </div>
+  <figcaption>
+    막대 하나가 한 틱에 갈아타는 NPC 수다. <b>지터 없음</b>을 눌러 보면 왜 이 장치가 있는지 바로 보인다.
+  </figcaption>
+</figure>
+
+<h3>6.1 폭이 계기마다 다른 이유</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>계기</th><th>대상</th><th class="num">지터 폭</th><th class="num">실시간 창</th><th>왜</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>GameClock.TimeOfDayChanged</code></td><td><b>전원</b></td><td class="num">±300틱</td><td class="num">60초</td>
+  <td>5,000마리가 갈아타는 <b>정기</b> 전환. 넓게 흩어야 스파이크가 없다</td>
+</tr>
+<tr>
+  <td><code>ZoneStateChanged</code></td><td><b>그 존만</b></td><td class="num">±14틱</td><td class="num">2.9초</td>
+  <td rowspan="2"><code>docs/14 §7</code>이 공성에서 <b>"3초 내 마을 전체 스왑 완료"</b>를 요구한다. 같은 폭으로는 두 요구가 양립하지 않는다</td>
+</tr>
+<tr>
+  <td><code>WeatherChanged</code></td><td><b>그 존만</b></td><td class="num">±14틱</td><td class="num">2.9초</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">
+  존 인원 500마리 기준 틱당 약 17건이고, 그 정도는 스파이크가 아니다.
+  <b>존 이벤트에서 전원을 다시 세지 않는다</b> — 공성 한 번에 존 이벤트가 여러 발 오는데
+  매번 5,000마리를 훑으면 완화하려던 스파이크가 그대로 돌아온다.
+</p>
+
+<h3>6.2 예약 자료구조 — 할당 0</h3>
+
+<pre><code><span class="c">// NPC 당 예약 시각 하나 + due % 601 슬롯의 단일 연결 리스트</span>
+<span class="k">private readonly long</span>[] _due;      <span class="c">// npc → 예약 틱. -1 = 없음</span>
+<span class="k">private readonly int</span>[]  _slotOf;   <span class="c">// npc → 지금 들어 있는 슬롯</span>
+<span class="k">private readonly int</span>[]  _next;     <span class="c">// npc → 같은 슬롯의 다음 npc</span>
+<span class="k">private readonly int</span>[]  _head = <span class="k">new int</span>[<span class="n">601</span>];   <span class="c">// JitterWindow</span></code></pre>
+
+<div class="grid2">
+  <div class="card">
+    <h4>재예약이 싸다</h4>
+    <p class="small">
+      같은 노드를 옮기므로 NPC는 리스트에 <b>최대 한 번</b> 들어간다.
+      슬롯 하나의 평균 길이는 5,000 / 601 ≈ <b>8</b>이라 옮기는 비용도 그 정도다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>평시 비용이 거의 0이다</h4>
+    <p class="small">
+      전환이 없으면 <code>Apply</code>는 <b><code>_pending == 0</code> 검사 하나</b>로 끝난다.
+      틱 루프가 매 틱 부르지만 부담이 없는 이유다.
+    </p>
+  </div>
+</div>
+
+<div class="warn">
+  <span class="tag">이벤트 예약의 기준 틱은 "다음 틱"이다</span>
+  <code>Observe</code>는 <code>DrainEvents</code>에서 불리고, 그 뒤에 시계가 한 틱 나아가 <code>Apply</code>가 처음 돈다.
+  지금 틱으로 예약하면 지터가 최솟값(−spread)인 NPC의 예약 시각이 <b>이미 지나간 틱</b>이 되어
+  <b>다음 한 바퀴(601틱)까지 처리되지 않는다</b>.
+</div>
+
+<h3>6.3 전환 시 버킷 키를 어떻게 만드나</h3>
+
+<pre><code><span class="k">private</span> <span class="t">RegionState</span> RegionOf(<span class="k">int</span> npc) =&gt;
+    ZoneStates <span class="k">is</span> { } states
+        ? states.RegionOf(<span class="k">new</span> <span class="t">ZoneId</span>(_store.ZoneCode[npc]))   <span class="c">// 정확</span>
+        : _buckets.RegionStateOf(_store.Flags[npc]);            <span class="c">// 추정 — 위험</span></code></pre>
+
+<div class="bad">
+  <span class="tag">P1에 있던 실제 버그</span>
+  플래그에서 추정하는 경로는 <code>Alert</code>·<code>Disaster</code>를 <b>낼 수 없다</b> —
+  플래그가 <code>Peace</code>·<code>War</code>와 같기 때문이다.
+  P1은 이 추정만 갖고 있었고, ordinal 내림차순으로 골라
+  <b>평시 NPC 전원을 <code>Alert</code>로 판정</b>하고 있었다.
+  프리베이크는 <code>Peace</code>를 먼저 채우므로, <b>채워둔 버킷을 아무도 조회하지 않는</b> 상태였다.
+  <code>ZoneStateTable</code>을 붙여 고쳤다.
+</div>
+
+<h2 id="siege">7. 시나리오 B — 공성이 실제로 어떻게 도나</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>요구 (docs/14 §7)</th><th>테스트</th><th>기준</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td>War 전환이 1틱 안에 인터럽트로 잡힌다</td><td><code>Siege_WarTriggersInterruptWithinOneTick</code></td><td>같은 틱에 명령 발행</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td>마을 전체가 3초 안에 갈아탄다</td><td><code>Siege_TownSwapsWithinThreeSeconds</code></td><td>30틱 안에 예약 0</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td>미스 버킷만 LLM 일감이 된다</td><td><code>Siege_OnlyMissedBucketsBecomeLlmWork</code></td><td>채워진 버킷은 큐에 안 들어감</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td>전환 구간 틱 p99 ≤ 40 ms</td><td><code>Siege_TransitionTickP99UnderForty</code></td><td>40 ms</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td>아키타입별로 다르게 반응한다</td><td><code>Siege_ArchetypesDivergeUnderWar</code></td><td>감시 4종의 플랜이 서로 다름</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td>Peace 복귀 시 원래 플랜으로</td><td><code>Siege_RestoresPlansOnPeace</code></td><td>전환 전 plan id와 동일</td><td><span class="pill ok">통과</span></td></tr>
+<tr><td>시나리오 파일이 체크리스트를 덮는다</td><td><code>Siege_ScenarioFileCoversTheChecklist</code></td><td>War·Storm·Peace·킬스위치 포함</td><td><span class="pill ok">통과</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">전환 구간 예산이 틱 예산의 2배인 것은 사양대로다</span>
+  평시 20 ms, <b>전환 구간 40 ms</b>. 5,000마리가 한꺼번에 갈아타는 구간을 ±2.9초 지터로 흩어도
+  한 틱에 몰리는 몫이 평시보다 크다. 예외를 명시적으로 인정한 것이지 사후에 봐준 것이 아니다.
+</div>
+
+<div class="warn">
+  <span class="tag">이 테스트들은 스토어에 따라 결과가 달라진다</span>
+  도달 집합 A(195버킷)로만 채웠을 때 두 테스트가 <b>"War인데 아무 플랜도 갈아타지 않았다"</b>로 멈췄다 —
+  A는 평시(Peace·Alert)만 덮으므로 War 버킷이 스토어에 <b>없고</b>, 전환할 대상이 없으니 갈아타지 않는다.
+  <b>항목 2(평시 히트율)와 항목 6(공성)이 요구하는 스토어가 다르다</b>는 것이 여기서 드러났고,
+  둘을 동시에 만족시키는 집합이 <b>978(도달 + 공성)</b>이다. 자세한 것은 <a href="ch09.html">9장</a>.
+</div>
+
+<div class="ok">
+  <span class="tag">7장 요약</span>
+  <ul style="margin-bottom:0">
+    <li>스텝 상태는 여섯 개고, <b>전이와 발행이 같은 틱에</b> 일어난다.</li>
+    <li>플랜 스왑은 <b>스텝 경계에서만</b>. 인터럽트만 예외이고, 그때는 상관 ID 무효화가 진행 중 명령을 지운다.</li>
+    <li>명령 발행 코드에 <b>액션 이름이 없다</b> — <code>actions.json</code>의 <code>emits</code>가 전부 정한다.</li>
+    <li>POI 바인딩은 가까운 <b>4개 후보 중 해시로</b> 고른다. 난수가 아니라 해시라서 리플레이가 일치한다.</li>
+    <li>인터럽트는 <b>엣지 트리거</b>다. 아니면 강제 액션 → 완료 → 재강제의 되먹임이 생긴다.</li>
+    <li>전환 지터 폭이 두 가지인 이유는 <b>정기 전환(60초 창)과 공성(3초 요구)이 양립하지 않기 때문</b>이다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- 스텝 상태 기계 ---------- */
+(function () {
+  var nodes = document.getElementById('fsmNodes');
+  var edges = document.getElementById('fsmEdges');
+  if (!nodes) return;
+  var el = window.NpcBook.el;
+  var out = document.getElementById('fsmOut');
+
+  var S = {
+    Unspawned: { x: 130, y: 70,  d: '스폰 확인 전. 명령을 발행하지 않는다' },
+    Ready:     { x: 400, y: 70,  d: '발행 대기. 이번 틱에 명령이 나간다' },
+    Waiting:   { x: 680, y: 70,  d: '명령을 보내고 완료 이벤트를 기다리는 중' },
+    Completed: { x: 680, y: 220, d: '완료 이벤트를 받았다. 스텝 경계에서 전진한다' },
+    Failed:    { x: 400, y: 300, d: '실패했거나 타임아웃이 합성됐다. on_step_fail 을 적용한다' },
+    Done:      { x: 130, y: 220, d: '플랜이 끝났다 (loop=false). 아무것도 하지 않는다' }
+  };
+
+  var EDGES = [
+    ['Unspawned', 'Ready', 'NpcSpawned'],
+    ['Ready', 'Waiting', 'Emit — 명령 발행'],
+    ['Waiting', 'Completed', 'NpcActionCompleted'],
+    ['Waiting', 'Failed', 'NpcActionFailed'],
+    ['Waiting', 'Failed', 'timeout_s 만료 → 합성'],
+    ['Completed', 'Ready', 'AdvanceStep'],
+    ['Completed', 'Done', '마지막 스텝 & loop=false'],
+    ['Failed', 'Ready', 'retry_once / skip / replan'],
+    ['Failed', 'Ready', 'fallback → 새 플랜'],
+    ['Ready', 'Unspawned', 'NpcDespawned']
+  ];
+
+  var cur = 'Unspawned', log = [];
+
+  function render() {
+    nodes.innerHTML = ''; edges.innerHTML = '';
+    /* 간선 */
+    EDGES.forEach(function (e) {
+      var a = S[e[0]], b = S[e[1]];
+      el('line', {
+        x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+        stroke: 'var(--line-2)', 'stroke-width': 1, opacity: .55
+      }, edges);
+    });
+    /* 노드 */
+    Object.keys(S).forEach(function (k) {
+      var s = S[k];
+      var active = k === cur;
+      el('rect', {
+        x: s.x - 76, y: s.y - 24, width: 152, height: 48, rx: 10,
+        fill: active ? 'var(--accent)' : 'var(--panel-2)',
+        stroke: active ? 'var(--accent)' : 'var(--line-2)',
+        'stroke-width': active ? 2 : 1.2
+      }, nodes);
+      var t = el('text', {
+        x: s.x, y: s.y + 5, 'text-anchor': 'middle', 'font-size': 13,
+        'font-weight': 650, 'font-family': 'var(--mono)',
+        fill: active ? 'var(--panel)' : 'var(--ink-2)'
+      }, nodes);
+      t.textContent = k;
+    });
+    out.textContent = '현재: ' + cur + '  —  ' + S[cur].d + '\n\n' + log.slice(0, 5).join('\n');
+  }
+
+  function go(next, why) {
+    if (!S[next]) return;
+    log.unshift('  ' + cur.padEnd(10) + ' → ' + next.padEnd(10) + '   ' + why);
+    cur = next; render();
+  }
+
+  document.getElementById('fsmEv1').addEventListener('click', function () {
+    if (cur === 'Unspawned') { log.unshift('  Unspawned 에서는 명령을 발행하지 않는다 (docs/02 §3.3)'); render(); return; }
+    if (cur === 'Ready') go('Waiting', 'Emit — 상관 ID 발급 · StepIssuedTick 기록');
+    else { log.unshift('  Ready 상태에서만 발행한다'); render(); }
+  });
+  document.getElementById('fsmEv2').addEventListener('click', function () {
+    if (cur === 'Waiting') go('Completed', 'CorrelationTable.IsStale 통과 → Completed');
+    else { log.unshift('  기다리는 명령이 없다 — 낡은 응답으로 무시된다'); render(); }
+  });
+  document.getElementById('fsmEv3').addEventListener('click', function () {
+    if (cur === 'Waiting') go('Failed', 'ActionFailed(reason) → LastFailReason 기록');
+    else { log.unshift('  기다리는 명령이 없다'); render(); }
+  });
+  document.getElementById('fsmEv4').addEventListener('click', function () {
+    if (cur === 'Waiting') go('Failed', 'SynthesizeTimeout — 로컬에서 실패를 만든다');
+    else { log.unshift('  Waiting 이 아니면 타임아웃 판정을 하지 않는다'); render(); }
+  });
+  document.getElementById('fsmEv5').addEventListener('click', function () {
+    if (cur === 'Completed') go('Done', '마지막 스텝 & loop=false');
+    else if (cur === 'Ready' || cur === 'Waiting') { log.unshift('  스텝 경계에서만 판정한다'); render(); }
+  });
+  document.getElementById('fsmReset').addEventListener('click', function () {
+    cur = 'Unspawned'; log = []; render();
+  });
+
+  /* 자동으로 한 번 굴려 보여준다 */
+  render();
+  window.NpcBook.onVisible(document.getElementById('fsmSvg'), function () {
+    var seq = [
+      ['Ready', 'NpcSpawned — 게임서버가 스폰을 확인했다'],
+      ['Waiting', 'Emit — MoveTo $workplace 발행'],
+      ['Completed', 'NpcArrived — 도착 이벤트'],
+      ['Ready', 'AdvanceStep — 다음 스텝으로'],
+      ['Waiting', 'Emit — Craft iron_sword 발행']
+    ];
+    var i = 0;
+    var id = setInterval(function () {
+      if (i >= seq.length || !window.NpcBook.motion) { clearInterval(id); return; }
+      go(seq[i][0], seq[i][1]); i++;
+    }, 1200);
+  });
+})();
+
+/* ---------- 전환 지터 분포 ---------- */
+(function () {
+  var bars = document.getElementById('jitBars');
+  if (!bars) return;
+  var el = window.NpcBook.el;
+
+  /* PlanHash.Mix / Jitter 를 그대로 옮겼다 — 결정론이라 재현된다 */
+  function mix32(v) {
+    v = (v + 0x9E3779B9) >>> 0;
+    v = Math.imul(v ^ (v >>> 16), 0x21F0AAAD) >>> 0;
+    v = Math.imul(v ^ (v >>> 15), 0x735A2D97) >>> 0;
+    return (v ^ (v >>> 15)) >>> 0;
+  }
+  function mix2(a, b) { return mix32((Math.imul(a, 0x85EBCA6B) >>> 0) ^ mix32(b)); }
+  function jitter(npc, salt, span) {
+    if (span <= 0) return 0;
+    var period = span * 2 + 1;
+    return (mix2(npc, salt) % period) - span;
+  }
+
+  var SALT = 0x5457;
+  var N = 5000, BINS = 70;
+
+  function draw(spread, title, note) {
+    bars.innerHTML = '';
+    var hist = new Array(BINS).fill(0);
+    var window_ = spread > 0 ? spread * 2 + 1 : 1;
+
+    for (var npc = 0; npc < N; npc++) {
+      var due = spread > 0 ? spread + jitter(npc, SALT, spread) : 0;
+      var bin = spread > 0 ? Math.floor(due / window_ * BINS) : 0;
+      hist[Math.min(BINS - 1, Math.max(0, bin))]++;
+    }
+
+    var max = Math.max.apply(null, hist);
+    var bw = 820 / BINS;
+    hist.forEach(function (v, i) {
+      var h = Math.max(1, v / max * 210);
+      el('rect', {
+        x: 20 + i * bw, y: 250 - h, width: bw - 1.5, height: h, rx: 2,
+        fill: spread === 0 ? 'var(--bad)' : spread > 100 ? 'var(--accent)' : 'var(--warn)'
+      }, bars);
+    });
+
+    /* 틱 예산 대비 선 */
+    var perTick = spread > 0 ? Math.round(N / window_) : N;
+    el('line', { x1: 20, y1: 250, x2: 840, y2: 250, stroke: 'var(--line-2)', 'stroke-width': 1 }, bars);
+
+    document.getElementById('jitTitle').textContent = title;
+    document.getElementById('jitNote').textContent =
+      note + '   ·   최대 한 틱 부하 ≈ ' + Math.max.apply(null, hist).toLocaleString() + '건' +
+      '   ·   평균 ' + perTick.toLocaleString() + '건/틱';
+    document.getElementById('jitTitle').setAttribute('fill',
+      spread === 0 ? 'var(--bad)' : spread > 100 ? 'var(--accent)' : 'var(--warn)');
+  }
+
+  function pick(btn) {
+    ['jitTod', 'jitZone', 'jitNone'].forEach(function (id) {
+      document.getElementById(id).classList.toggle('on', id === btn);
+    });
+  }
+
+  document.getElementById('jitTod').addEventListener('click', function () {
+    pick('jitTod');
+    draw(300, '시간대 전환 — ±300틱 (실시간 60초 창)',
+      'NPC 5,000 을 601틱에 흩는다. Hash(npcId) 기반이라 매 회차 같은 분포가 나온다.');
+  });
+  document.getElementById('jitZone').addEventListener('click', function () {
+    pick('jitZone');
+    draw(14, '존 이벤트 — ±14틱 (실시간 2.9초 창)',
+      '공성은 "3초 내 완료" 를 요구한다. 대상이 그 존뿐이라 인원이 적어 좁게 흩어도 된다.');
+  });
+  document.getElementById('jitNone').addEventListener('click', function () {
+    pick('jitNone');
+    draw(0, '지터 없음 — 전원이 한 틱에',
+      '5,000건이 한 틱에 몰린다. LLM 호출이 아니라 배열 쓰기지만 이것만으로 틱 예산을 넘긴다.');
+  });
+
+  document.getElementById('jitTod').click();
+})();
+</script>
+</body>
+</html>

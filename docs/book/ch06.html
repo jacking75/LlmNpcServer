@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6장 · 인지 LOD와 재계획 큐 — LLM NPC 서버 안내서</title>
+<link rel="stylesheet" href="book.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" id="toc"></nav>
+<main>
+
+<div class="chapterhead">
+  <p class="kicker">3부 · 결정론 런타임 L0</p>
+  <h1>6장 — 인지 LOD와 재계획 큐</h1>
+  <p class="lede">
+    5,000마리를 매 틱 전부 판정할 수는 없고, 재계획 예산은 그보다 훨씬 적다.
+    그래서 두 개의 깔때기가 있다 — <b>누구를 볼 것인가</b>(인지 LOD)와
+    <b>본 것 중 누구를 먼저 고칠 것인가</b>(재계획 큐).
+    이 장은 그 두 깔때기의 상한과, 상한이 실제로 무엇을 자르는지를 본다.
+  </p>
+  <div class="chips">
+    <span class="chip a">원문 · docs/11 §4 · docs/14 §2</span>
+    <span class="chip">스캔 ≤ 150/틱</span>
+    <span class="chip">큐 용량 4,096</span>
+  </div>
+</div>
+
+<h2 id="funnel">1. 두 개의 깔때기</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 300" role="img" aria-label="5000마리에서 실제 LLM 요청까지의 감소">
+      <g font-size="12">
+        <rect x="20" y="30" width="840" height="40" rx="8" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="440" y="55" text-anchor="middle" font-weight="650">NPC 5,000 — 전원</text>
+
+        <rect x="120" y="88" width="640" height="40" rx="8" fill="var(--l0)" opacity=".16" stroke="var(--l0)"/>
+        <text x="440" y="113" text-anchor="middle" font-weight="650" fill="var(--l0)">인지 스캔 대상 — 틱당 150 (상한이 자른다)</text>
+
+        <rect x="250" y="146" width="380" height="40" rx="8" fill="var(--l2)" opacity=".16" stroke="var(--l2)"/>
+        <text x="440" y="171" text-anchor="middle" font-weight="650" fill="var(--l2)">이탈 판정 → 큐 유입 (실측 게임 3일 36,927건)</text>
+
+        <rect x="352" y="204" width="176" height="40" rx="8" fill="var(--l1)" opacity=".16" stroke="var(--l1)"/>
+        <text x="440" y="229" text-anchor="middle" font-weight="650" fill="var(--l1)">큐 용량 4,096칸</text>
+
+        <rect x="404" y="262" width="72" height="30" rx="8" fill="var(--l3)" opacity=".22" stroke="var(--l3)"/>
+        <text x="440" y="282" text-anchor="middle" font-size="11.5" font-weight="650" fill="var(--l3)">LLM 1,686건</text>
+      </g>
+
+      <text x="790" y="171" font-size="11.5" fill="var(--ink-3)">축출 829,261건</text>
+      <text x="790" y="229" font-size="11.5" fill="var(--ink-3)">예산이 잘라낸다</text>
+      <text x="20" y="284" font-size="11.5" fill="var(--ink-3)">
+        요청하고 싶은 것의 <tspan font-weight="650" fill="var(--warn)">약 0.2 %</tspan>만 실제로 처리된다.
+      </text>
+    </svg>
+  </div>
+  <figcaption>
+    실측 수치는 <code>W10_weights.md</code>(NPC 5,000 · 배속 60 · 게임 3일).
+    <b>이 그림이 말하는 것은 "예산이 병목이다"이고, 그래서 순서가 중요하다.</b>
+  </figcaption>
+</figure>
+
+<h2 id="lod">2. 인지 LOD — 등급은 이벤트로만 바뀐다</h2>
+
+<div class="bad">
+  <span class="tag">스캔 안에서 거리를 계산하지 않는다</span>
+  NPC 5,000 × 플레이어 20이면 <b>틱당 10만 회 거리 계산</b>이다. 그것만으로 20 ms 예산이 날아간다.
+  대신 게임서버가 이미 계산해서 보내주는 <code>PlayerProximity</code> 이벤트를 쓴다.
+  <b>인지 LOD 설계 전체가 이 이벤트 하나에 얹혀 있다.</b>
+</div>
+
+<div class="filepath">src/Npc.Runtime/LodUpdater.cs</div>
+
+<pre><code><span class="k">public static byte</span> GradeOf(<span class="k">int</span> distance) =&gt; distance <span class="k">switch</span>
+{
+    &lt; <span class="n">50</span>  =&gt; <span class="n">0</span>,   <span class="c">// LodZeroDistance — 시야 내</span>
+    &lt; <span class="n">200</span> =&gt; <span class="n">1</span>,   <span class="c">// LodOneDistance  — 같은 존</span>
+    _        =&gt; <span class="n">2</span>,   <span class="c">// 원거리</span>
+};</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>등급</th><th>이름</th><th class="num">주기</th><th>언제 이 등급이 되나</th><th>재계획 근접 항</th></tr></thead>
+<tbody>
+<tr><td><b>0</b></td><td>시야 내</td><td class="num">1틱</td><td>플레이어 50 m 이내</td><td class="num">1.0</td></tr>
+<tr><td><b>1</b></td><td>동일 존</td><td class="num">10틱</td><td>플레이어 200 m 이내 · <b>존이 War/Disaster</b></td><td class="num">0.5</td></tr>
+<tr><td><b>2</b></td><td>원거리</td><td class="num">100틱</td><td>플레이어가 떠났는데 <b>존이 활성</b>일 때</td><td class="num">0.1</td></tr>
+<tr><td><b>3</b></td><td>비활성</td><td class="num">이벤트 시만</td><td>플레이어가 떠나고 존도 평시. <b>초기값</b></td><td class="num"><b>0.0</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag">초기 등급이 0이 아니라 3인 이유</span>
+  기동 직후 전원을 LOD 0으로 두면 <b>5,000마리가 전부 매 틱 판정 대상</b>이 되어 틱 예산이 통째로 날아간다.
+  플레이어가 다가와야 승격된다. 같은 이유로 <b>플레이어가 떠나면 반드시 내려야 한다</b> —
+  안 내리면 한 번이라도 플레이어를 만난 NPC가 영원히 스캔 대상으로 남고,
+  NPC를 늘릴수록 틱당 스캔이 선형으로 자라 O(1) 설계가 깨진다.
+</div>
+
+<h3>2.1 밴드와 슬라이스</h3>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 880 340" id="bandSvg" role="img" aria-label="LOD 밴드 슬라이스 스캔">
+      <g id="bandRows"></g>
+      <rect x="20" y="266" width="840" height="60" rx="9" fill="var(--panel-2)" stroke="var(--line)"/>
+      <text id="bandTick" x="40" y="290" font-size="12.5" font-family="var(--mono)" fill="var(--ink-2)"></text>
+      <text id="bandNote" x="40" y="312" font-size="12" fill="var(--ink-3)"></text>
+    </svg>
+  </div>
+  <div class="ctl">
+    <button class="btn" id="bandRun" type="button">틱 진행</button>
+    <label><input type="checkbox" id="bandCap" checked> 상한 150 적용</label>
+    <label>LOD 0 인원 <input type="range" id="bandCrowd" min="20" max="600" step="20" value="80"> <span id="bandCrowdT" style="font-family:var(--mono)">80</span></label>
+  </div>
+  <figcaption>
+    <b>상한을 끄고 LOD 0 인원을 올려 보라.</b> 슬라이스만으로는 상한이 지켜지지 않는다 —
+    LOD 0은 주기가 1이라 밴드 <b>전원</b>을 매 틱 본다.
+  </figcaption>
+</figure>
+
+<div class="filepath">src/Npc.Runtime/LodBand.cs — LodBandSet.SliceOf</div>
+
+<pre><code><span class="k">public</span> (<span class="k">int</span> Start, <span class="k">int</span> End) SliceOf(<span class="k">int</span> lod, <span class="k">long</span> tick)
+{
+    <span class="k">int</span> period = Bands[band].Period, count = _counts[band];
+
+    <span class="k">if</span> (period &lt;= <span class="n">0</span> || count == <span class="n">0</span>) <span class="k">return</span> (<span class="n">0</span>, <span class="n">0</span>);   <span class="c">// 비활성 밴드</span>
+    <span class="k">if</span> (period == <span class="n">1</span>) <span class="k">return</span> (<span class="n">0</span>, count);                <span class="c">// LOD 0 — 전원</span>
+
+    <span class="k">long</span> slice = ((tick % period) + period) % period;
+    <span class="k">return</span> ((<span class="k">int</span>)(count * slice / period), (<span class="k">int</span>)(count * (slice + <span class="n">1</span>) / period));
+}</code></pre>
+
+<p class="small">
+  밴드 멤버를 <code>Period</code>개의 슬라이스로 나누고 그중 하나만 본다.
+  그래서 그 밴드의 NPC 한 마리는 <b><code>Period</code>틱마다 정확히 한 번</b> 판정된다.
+</p>
+
+<h3>2.2 상한 150이 실제로 하는 일</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>회차</th><th class="num">NPC</th><th class="num">틱당 스캔</th><th class="num">틱 p99</th></tr></thead>
+<tbody>
+<tr><td rowspan="4"><b>상한을 푼 회차</b><br><span class="small"><code>--scan-cap 0</code></span></td><td class="num">500</td><td class="num">58</td><td class="num">0.261 ms</td></tr>
+<tr><td class="num">1,000</td><td class="num">98</td><td class="num">0.577 ms</td></tr>
+<tr><td class="num">2,500</td><td class="num">279</td><td class="num">1.141 ms</td></tr>
+<tr><td class="num">5,000</td><td class="num"><b>637</b></td><td class="num">4.531 ms</td></tr>
+<tr><td colspan="2"><b>log-log 기울기</b></td><td class="num"><b>1.041</b></td><td><b>O(n)</b> — O(1)이 아니다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">문서의 근거가 틀렸던 이야기</span>
+  <code>docs/14 §6</code>의 기대표는 인지 스캔을 <b>O(1)</b>로 적고 근거를 "슬라이스가 고정 비율이므로"라고 썼다.
+  <b>그 논거는 성립하지 않는다</b> — 슬라이스는 밴드 인원을 <code>Period</code>로 나눈 것이고,
+  <b>밴드 인원이 NPC 수와 함께 자란다</b>. 월드(존·POI)가 고정이라 NPC를 늘리면 밀도가 올라가고,
+  한 플레이어 반경 안의 NPC가 그만큼 는다.
+  <br><br>
+  실제로 O(1)을 만드는 것은 <b><code>MaxScansPerTick</code>(150) 하나</b>다.
+  <b>설계는 맞았고 문서의 근거가 틀렸다</b> — <code>docs/14 §6</code>을 정정했다.
+</div>
+
+<div class="ok">
+  <span class="tag">추정과 실측이 맞은 곳</span>
+  <code>docs/11 §4</code>는 "상한이 없으면 612까지 간다"고 추정했고, 실측은 <b>637</b>이었다 — <b>4.1 % 차이</b>.
+</div>
+
+<h3>2.3 밴드 이동 — 틱당 64건, swap-remove</h3>
+
+<pre><code><span class="k">private void</span> Move(<span class="k">int</span> npc, <span class="k">int</span> from, <span class="k">int</span> to)
+{
+    <span class="c">// swap-remove. 마지막 원소를 빈 자리로 당긴다 — O(1) 이고 순서가 결정론적이다.</span>
+    <span class="k">int</span> slot = _slotOf[npc];
+    <span class="k">int</span> last = --_counts[from];
+    <span class="k">int</span> moved = _members[from][last];
+
+    _members[from][slot] = moved;
+    _slotOf[moved] = slot;
+
+    _slotOf[npc] = _counts[to];
+    _members[to][_counts[to]++] = npc;
+    _bandOf[npc] = to;
+}</code></pre>
+
+<p>
+  <code>PendingMigrations</code>가 <b>상시로 크면</b> 등급이 바뀌는 속도가 옮기는 속도(틱당 64)를 넘는 것이다.
+  공성처럼 존 전체가 한꺼번에 승격되면 잠시 커지고, <b>그게 정상</b>이다.
+</p>
+
+<h2 id="score">3. 재계획 점수 — 네 항의 가중합</h2>
+
+<div class="filepath">src/Npc.Planning/ReplanScorer.cs</div>
+
+<pre><code>score = W1 × Proximity(lod)                    <span class="c">// 1.0 / 0.5 / 0.1 / 0.0</span>
+      + W2 × Staleness(assignedTick, now)      <span class="c">// StaleTicks(36,000) 에서 1.0 포화</span>
+      + W3 × Deviation(required, forbidden, cur) <span class="c">// PopCount(어긋난 비트) / 8</span>
+      + W4 × Urgency(pendingUrgency)           <span class="c">// interrupts.json 의 0~100 을 정규화</span></code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>항</th><th>정규화</th><th>이 항이 잡는 것</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>근접</b> W1</td><td>LOD 0/1/2/3 → 1.0 / 0.5 / 0.1 / <b>0.0</b></td>
+  <td><b>관측되지 않는 연산 문제의 해결책이 이 한 계수다.</b> LOD 3은 0이라 인터럽트가 없는 한 사실상 재계획되지 않는다</td>
+</tr>
+<tr>
+  <td><b>노후</b> W2</td><td><code>age / StaleTicks</code>, 상한 1.0</td>
+  <td>같은 플랜을 너무 오래 들고 있는 NPC. 기본 36,000틱 = 배속 60에서 게임 6시간</td>
+</tr>
+<tr>
+  <td><b>이탈</b> W3</td><td><code>PopCount(missing｜violated) / 8</code></td>
+  <td>플랜 전제가 얼마나 깨졌나. <b>8비트로 나누는 이유</b> — 42비트 전부로 나누면 실제 이탈(1~3비트)이 0.05 밑으로 깔려 항이 죽는다</td>
+</tr>
+<tr>
+  <td><b>긴급</b> W4</td><td><code>urgency / 100</code></td>
+  <td>인터럽트가 <code>NpcStore.PendingUrgency</code>에 남긴 값. 새 플랜이 배정되면 0으로 소진된다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">
+  각 항이 [0, 1]이라 점수 상한은 <code>W1+W2+W3+W4</code>(기본 <b>9.5</b>)다.
+  인터럽트가 넣는 <code>UrgentBase</code>(1000)와 겹치지 않는 것이 설계다.
+</p>
+
+<h3>3.1 이탈 판정 자체는 비트 연산 두 번이다</h3>
+
+<pre><code><span class="c">// CompiledPlan — 틱당 최대 150회 도는 핫패스</span>
+<span class="k">public bool</span> NeedsReplan(<span class="t">WorldFlags</span> current) =&gt;
+    (RequiredFlags &amp; ~current) != <span class="n">0</span> || (ForbiddenFlags &amp; current) != <span class="n">0</span>;
+
+<span class="c">// ReplanScorer — 점수는 PopCount 한 번을 더한다</span>
+<span class="k">return</span> <span class="t">MathF</span>.Min(<span class="n">1f</span>, <span class="t">BitOperations</span>.PopCount(missing | violated) / <span class="n">8f</span>);</code></pre>
+
+<div class="note">
+  <span class="tag">스텝을 순회하지 않는다</span>
+  플랜 전체의 <code>RequiredFlags</code>·<code>ForbiddenFlags</code>는 <b>컴파일 시점에 한 번</b> 계산된다(<a href="ch04.html">4장 §4.1</a>).
+  런타임에는 그 두 마스크만 본다. 스텝 10개를 순회하면 이 핫패스가 10배가 된다.
+</div>
+
+<h3>3.2 가중치 A/B — "예산이 병목이다"라는 결론</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>세트</th><th class="num">W1</th><th class="num">W2</th><th class="num">W3</th><th class="num">W4</th><th class="num">큐 유입</th><th class="num">LLM 요청</th><th class="num">근처 집중도</th><th class="num">회차 폭</th></tr></thead>
+<tbody>
+<tr><td>A-proximity</td><td class="num">5</td><td class="num">0.2</td><td class="num">1.5</td><td class="num">4</td><td class="num">37,562</td><td class="num">1,686</td><td class="num">46.3 %</td><td class="num">±0.2 %</td></tr>
+<tr><td><b>B-baseline</b> <span class="pill ok">기본</span></td><td class="num">3</td><td class="num">0.5</td><td class="num">2</td><td class="num">4</td><td class="num">36,927</td><td class="num">1,686</td><td class="num">46.3 %</td><td class="num">±0.6 %</td></tr>
+<tr><td>C-deviation</td><td class="num">2</td><td class="num">0.3</td><td class="num">4</td><td class="num">4</td><td class="num">38,276</td><td class="num">1,686</td><td class="num">46.6 %</td><td class="num">±1.8 %</td></tr>
+<tr><td>D-uniform</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">17,768</td><td class="num">1,686</td><td class="num">47.2 %</td><td class="num">±2.6 %</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">A/B가 세트를 가르지 못했다 — 그래서 기본값을 안 바꿨다</span>
+  네 세트의 <b>LLM 요청 수가 전부 1,686건으로 같다</b>. T1 예산 상한(실측 0.195 req/s × 워커 2)이 정확히 묶은 값이고,
+  가중치는 거기에 관여하지 않는다. 남는 차이는 "그 1,686건을 <b>누구에게</b> 쓰는가"뿐인데,
+  <b>같은 세트의 회차 간 변동(±2.6 %)이 세트 간 차이(0.9 %p)보다 크다.</b>
+  <br><br>
+  이번 회차 1위는 <code>D-uniform</code>이었지만 <b>1위를 기본값으로 올리면 잡음을 기본값으로 승격하는 것</b>이라,
+  <code>Weights.Default</code>는 사양의 기본값 <code>B-baseline</code>을 유지한다.
+  <code>WeightAbHarness.Choose</code>는 <b>1위가 2위를 회차 폭보다 크게 이겼을 때만</b> 갈아탄다.
+</div>
+
+<p class="small">
+  ⚠ <code>docs/14 §2</code>의 설계 논거("W1을 크게 잡는 것이 핵심")는 <b>반증되지 않았다</b>.
+  지금 예산에서는 확인도 반증도 못 한다는 것이 이 회차의 결론이다.
+  T1 처리량이 올라 큐가 포화를 벗어나면 다시 잰다 — 그때는 가중치가 "누구를 먼저"가 아니라 "몇 명을"까지 정하게 된다.
+</p>
+
+<h2 id="queue">4. 재계획 큐 — 라운드로빈이 아니라 점수순</h2>
+
+<figure>
+  <div class="svgbox" style="padding:16px 14px">
+    <svg viewBox="0 0 880 300" id="heapSvg" role="img" aria-label="최대 힙 동작">
+      <g id="heapTree"></g>
+      <g id="heapLog"></g>
+    </svg>
+  </div>
+  <div class="ctl">
+    <button class="btn" id="heapAdd" type="button">일반 요청 추가 (점수 0~9.5)</button>
+    <button class="btn" id="heapUrgent" type="button">인터럽트 추가 (1000+)</button>
+    <button class="btn" id="heapPop" type="button">워커가 하나 꺼낸다</button>
+    <button class="btn" id="heapReset" type="button">비우기</button>
+  </div>
+  <div class="readout" id="heapOut"></div>
+  <figcaption>
+    <b>같은 NPC를 두 번 넣지 않는다.</b> 중복을 허용하면 큐가 즉시 포화한다 —
+    이미 있으면 <code>_heapPos</code>로 검출해 점수만 올린다.
+  </figcaption>
+</figure>
+
+<h3>4.1 네 가지 방어</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>장치</th><th>값</th><th>없으면</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>중복 방지</b> — <code>_heapPos[npc]</code></td><td>-1 = 큐에 없음</td>
+  <td>같은 NPC가 수십 번 들어가 큐가 즉시 포화한다</td>
+</tr>
+<tr>
+  <td><b>용량 상한</b></td><td><code>min(NPC 수, 4,096)</code></td>
+  <td>큐가 무한히 자라 <b>이미 상황이 바뀐 NPC</b>를 재계획하게 된다</td>
+</tr>
+<tr>
+  <td><b>최하위 축출</b></td><td>포화 시 잎 노드 중 최솟값과 비교</td>
+  <td>새 요청이 무조건 거절되거나, 아무거나 버려 우선순위가 무의미해진다</td>
+</tr>
+<tr>
+  <td><b>인터럽트 슬롯 상한</b></td><td>용량의 <b>50 %</b> (2,048칸)</td>
+  <td>공성 한 번에 큐 4,096칸이 통째로 인터럽트로 차고, <b>그때부터 이탈 판정과 스텝 실패는 처리되지 않는다</b></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag">동점을 <code>npc</code> 첨자 오름차순으로 가르는 이유</span>
+  힙 구조에 순서를 맡기면 <b>같은 점수의 처리 순서가 삽입 이력에 따라 달라진다</b>.
+  리플레이 100 % 일치가 W11 게이트인데, 그것부터 깨진다.
+<pre style="margin-bottom:0"><code><span class="k">private bool</span> Precedes(<span class="k">int</span> npc, <span class="k">float</span> score, <span class="k">int</span> other) =&gt;
+    score != _score[other] ? score &gt; _score[other] : <span class="hl">npc &lt; other</span>;</code></pre>
+</div>
+
+<div class="card">
+  <h4>최하위를 찾을 때 잎만 훑는다</h4>
+  <p>
+    최대 힙에서 최솟값은 <b>반드시 잎</b>이다. 잎은 절반이라 용량 4,096이면 비교 2,048회다.
+    비싸 보이지만 <b>포화 상태에서만</b> 돈다 — 포화는 이미 예산이 모자란 퇴화 구간이고,
+    그때 "아무 잎이나" 버리면 사양의 <b>최하위 축출</b>이 성립하지 않아 급한 요청이 낮은 점수에 밀린다.
+  </p>
+</div>
+
+<h2 id="handoff">5. 틱 루프와 워커 사이 — 힙을 공유하지 않는다</h2>
+
+<div class="bad">
+  <span class="tag">실제로 났던 사고</span>
+  <code>ReplanQueue</code>는 고정 크기 힙이고 <b>동기화가 없다</b>.
+  워커가 그 힙을 직접 꺼내 쓰면 틱 루프의 <code>TryEnqueue</code>와 경합한다 —
+  용량 검사와 삽입 사이 창에서 <code>_count</code>가 용량을 넘어
+  <code>_heap[_count]</code>가 범위를 벗어난다.
+  <b>2026-07-28 실측: 8회 중 2회 <code>IndexOutOfRangeException</code>.</b>
+</div>
+
+<p>
+  고치는 방법은 <b>힙에 락을 거는 것이 아니다</b>. 틱 루프의 <code>lock</code>은 금지돼 있고,
+  워커 8개가 다투는 락을 틱 루프가 같이 잡으면 그 순간 p99가 무너진다.
+</p>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 860 220" role="img" aria-label="ReplanHandoff 통로 구조">
+      <rect x="30" y="46" width="220" height="120" rx="10" fill="var(--panel-2)" stroke="var(--l0)" stroke-width="1.6"/>
+      <text x="140" y="74" text-anchor="middle" font-size="13" font-weight="700" fill="var(--l0)">틱 루프 (단일 스레드)</text>
+      <text x="140" y="100" text-anchor="middle" font-size="12" fill="var(--ink-2)">ReplanQueue (힙)</text>
+      <text x="140" y="122" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">여기를 만지는 것은</text>
+      <text x="140" y="140" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">틱 루프 하나뿐이다</text>
+
+      <rect x="330" y="34" width="200" height="60" rx="9" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="430" y="58" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--accent)">Pending 링</text>
+      <text x="430" y="78" text-anchor="middle" font-size="11" fill="var(--ink-2)">Pump ▶ · ◀ TryClaim</text>
+
+      <rect x="330" y="118" width="200" height="60" rx="9" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="430" y="142" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--warn)">Returns 링</text>
+      <text x="430" y="162" text-anchor="middle" font-size="11" fill="var(--ink-2)">◀ DrainReturns · TryReturn ▶</text>
+
+      <rect x="610" y="46" width="220" height="120" rx="10" fill="var(--panel-2)" stroke="var(--l3)" stroke-width="1.6"/>
+      <text x="720" y="74" text-anchor="middle" font-size="13" font-weight="700" fill="var(--l3)">워커 N개 (별도 스레드)</text>
+      <text x="720" y="100" text-anchor="middle" font-size="12" fill="var(--ink-2)">LLM 호출 · 3~5초</text>
+      <text x="720" y="122" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">힙을 <tspan font-weight="650">보지 않는다</tspan></text>
+      <text x="720" y="140" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">통로만 본다</text>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3">
+        <path d="M252,64 L326,64"/><path d="M534,64 L606,64"/>
+        <path d="M606,148 L536,148"/><path d="M326,148 L254,148"/>
+      </g>
+      <text x="430" y="200" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">
+        두 링 다 <tspan font-family="var(--mono)">Interlocked</tspan> 연산만 쓰고 할당이 0이다. 한 틱에 옮기는 상한은 64건.
+      </text>
+    </svg>
+  </div>
+  <figcaption>낡은 요청도 워커가 직접 힙에 되넣지 않는다. <code>TryReturn</code>으로 돌려만 놓고, 다음 틱의 <code>DrainReturns</code>가 힙에 넣는다.</figcaption>
+</figure>
+
+<h3>5.1 낡음 판정 — 왕복만 하고 진전이 없는 것을 막는다</h3>
+
+<div class="card">
+  <h4>문제</h4>
+  <p>
+    T1 지연이 실측 3.7~5.1초이고 10Hz 틱이니 <b>한 요청이 대기+생성 사이에 37~51틱을 보낸다</b>.
+    그 사이 밤이 되고 전투가 끝나고 존이 War로 바뀌면, 돌아온 플랜은 <b>이미 존재하지 않는 상황의 것</b>이다.
+    그것을 그대로 스왑하면 다음 인지 스캔이 즉시 이탈로 판정해 또 재계획을 요청한다 —
+    LLM 예산이 <b>왕복만 하고 아무 진전이 없다</b>.
+  </p>
+  <h4>해법</h4>
+  <p>
+    큐에 넣을 때 플래그를 찍어 두고(<code>ReplanSnapshots.Capture</code>),
+    워커가 꺼낼 때 지금 플래그와 비교한다. 어긋난 비트가 <b><code>MaxDrift</code>(기본 4)를 넘으면</b>
+    폐기하고 <b>지금 상태로 재삽입</b>한다.
+  </p>
+  <p class="small" style="margin-bottom:0">
+    <b>폐기는 손실이 아니다</b> — 아직 LLM을 부르지 않았으므로 버리는 것은 낡은 컨텍스트뿐이다.
+  </p>
+</div>
+
+<div class="note">
+  <span class="tag">임계 4가 나온 근거</span>
+  "평범한 진행"과 "상황 전환"을 가르는 선이다.
+  NPC가 걸어서 POI를 옮기면 장소 플래그가 <b>2비트</b>(이전 해제 + 새로 설정), 시간대가 바뀌면 또 <b>2비트</b>.
+  그 둘이 겹친 정도까지는 같은 상황으로 본다.
+  <b>5비트 이상</b>은 전투·존 상태·인벤토리 중 무언가가 더 바뀐 것이다.
+</div>
+
+<h2 id="dash">6. 대시보드에서 이 층을 읽는 법</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>지표</th><th>정상</th><th>이상하면 의심할 것</th></tr></thead>
+<tbody>
+<tr><td><code>scanPerTick</code></td><td>150에 붙어 있음</td><td>0이면 <code>--player-bots 0</code>이라 전원이 LOD 3이다</td></tr>
+<tr><td><code>bandMigrations</code> / <code>PendingMigrations</code></td><td>공성 때만 큼</td><td>상시로 크면 <code>MaxBandMigrationsPerTick</code>을 다시 잡아야 한다</td></tr>
+<tr><td><code>queueDepth</code></td><td>워커가 있으면 낮음</td><td>용량(4,096)에 붙어 있으면 <b>워커가 없거나(<code>--tier none</code>) 예산이 모자란다</b></td></tr>
+<tr><td><code>queueDropped</code></td><td><code>--tier none</code>에서는 큼</td><td>워커가 있는데도 크면 T1 처리량 부족</td></tr>
+<tr><td><code>urgentCount</code></td><td>평시 0</td><td>2,048(상한)에 붙으면 인터럽트가 큐를 잠식 중</td></tr>
+<tr><td><code>staleDiscarded</code></td><td>일부 발생 정상</td><td>대부분이 폐기면 <b>큐 대기 시간이 너무 길다</b> — 워커를 늘리거나 큐를 줄인다</td></tr>
+<tr><td><code>scoreHistogram</code></td><td>앞쪽 한두 칸에 몰림</td><td>일반 점수 상한이 9.5라 정상. <b>그 쏠림 자체가 봐야 할 그림이다</b></td></tr>
+<tr><td><code>avgWaitTicks</code></td><td>워커 처리율에 비례</td><td>크면 스냅샷 낡음 판정이 대부분을 폐기하고 있을 것이다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">6장 요약</span>
+  <ul style="margin-bottom:0">
+    <li>LOD 등급은 <b>이벤트로만</b> 바뀐다. 스캔 안에서 거리를 계산하면 그것만으로 예산이 날아간다.</li>
+    <li>슬라이스만으로는 상한이 안 지켜진다. <b>O(1)을 만드는 것은 <code>MaxScansPerTick</code> 하나</b>다 — 문서의 원래 근거는 틀렸었다.</li>
+    <li>점수는 <b>근접 · 노후 · 이탈 · 긴급</b> 네 항이고, LOD 3의 근접 항이 0이라 아무도 안 보는 NPC는 사실상 재계획되지 않는다.</li>
+    <li>큐는 <b>중복 방지 · 용량 상한 · 최하위 축출 · 인터럽트 50 % 상한</b> 네 겹으로 방어한다.</li>
+    <li>힙은 <b>틱 루프만 만진다</b>. 워커와는 <code>ReplanHandoff</code> 링 두 개로만 주고받는다.</li>
+    <li>가중치 A/B는 세트를 가르지 못했다 — <b>지금은 예산이 병목</b>이고, 그것을 정직하게 적어 두었다.</li>
+  </ul>
+</div>
+
+</main>
+</div>
+<script src="book.js"></script>
+<script>
+/* ---------- LOD 밴드 스캔 ---------- */
+(function () {
+  var rows = document.getElementById('bandRows');
+  if (!rows) return;
+  var el = window.NpcBook.el;
+
+  var BANDS = [
+    { lod: 0, name: '시야 내', period: 1,   color: 'var(--bad)' },
+    { lod: 1, name: '동일 존', period: 10,  color: 'var(--warn)' },
+    { lod: 2, name: '원거리',  period: 100, color: 'var(--l0)' },
+    { lod: 3, name: '비활성',  period: 0,   color: 'var(--ink-3)' }
+  ];
+
+  var tick = 0, cursor = [0, 0, 0, 0];
+  var crowd = 80;
+
+  function counts() {
+    /* 총 5,000. LOD 0 인원을 슬라이더가 정하고 나머지를 배분한다 */
+    var l0 = crowd, l1 = Math.round(crowd * 3.5), l2 = Math.round(crowd * 6);
+    return [l0, l1, l2, 5000 - l0 - l1 - l2];
+  }
+
+  function render() {
+    rows.innerHTML = '';
+    var c = counts();
+    var capped = document.getElementById('bandCap').checked;
+    var budget = capped ? 150 : 1e9;
+    var scanned = 0;
+    var detail = [];
+
+    BANDS.forEach(function (b, i) {
+      var y = 30 + i * 56;
+      el('text', { x: 20, y: y + 20, 'font-size': 12, 'font-weight': 650, fill: b.color }, rows)
+        .textContent = 'LOD ' + b.lod;
+      el('text', { x: 78, y: y + 20, 'font-size': 11.5, fill: 'var(--ink-3)' }, rows)
+        .textContent = b.name + ' · 주기 ' + (b.period === 0 ? '이벤트' : b.period + '틱');
+      el('text', { x: 232, y: y + 20, 'font-size': 11.5, 'font-family': 'var(--mono)', fill: 'var(--ink-3)' }, rows)
+        .textContent = c[i].toLocaleString() + '명';
+
+      /* 밴드 막대 */
+      var bx = 310, bw = 500;
+      el('rect', { x: bx, y: y, width: bw, height: 28, rx: 6, fill: 'var(--panel-2)', stroke: 'var(--line)' }, rows);
+
+      if (b.period === 0 || c[i] === 0) {
+        el('text', { x: bx + bw / 2, y: y + 19, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--ink-3)' }, rows)
+          .textContent = '이벤트가 올 때만 본다';
+        detail.push('  LOD ' + b.lod + '  스캔 0');
+        return;
+      }
+
+      /* 이번 틱의 슬라이스 */
+      var period = b.period, cnt = c[i];
+      var slice = ((tick % period) + period) % period;
+      var s = Math.floor(cnt * slice / period), e = Math.floor(cnt * (slice + 1) / period);
+      var width = e - s;
+      var take = Math.min(width, Math.max(0, budget - scanned));
+
+      el('rect', {
+        x: bx + bw * s / cnt, y: y, width: Math.max(2, bw * width / cnt), height: 28, rx: 6,
+        fill: b.color, opacity: .22, stroke: b.color, 'stroke-width': 1.2
+      }, rows);
+      if (take > 0) {
+        el('rect', {
+          x: bx + bw * s / cnt, y: y, width: Math.max(2, bw * take / cnt), height: 28, rx: 6,
+          fill: b.color, opacity: .85
+        }, rows);
+      }
+      if (take < width) {
+        el('text', {
+          x: bx + bw * (s + take) / cnt + 6, y: y + 19, 'font-size': 10.5, fill: 'var(--bad)', 'font-weight': 650
+        }, rows).textContent = '← 여기서 잘림 (다음 틱에 이어 본다)';
+      }
+
+      el('text', { x: 822, y: y + 19, 'font-size': 11.5, 'font-family': 'var(--mono)', fill: b.color }, rows)
+        .textContent = take + '';
+
+      scanned += take;
+      detail.push('  LOD ' + b.lod + '  슬라이스 ' + width + '명 중 ' + take + '명 판정' +
+        (take < width ? '  (상한에 걸림)' : ''));
+    });
+
+    document.getElementById('bandTick').textContent =
+      'tick ' + tick + '   총 스캔 ' + scanned + (capped ? ' / 상한 150' : ' (상한 해제)');
+    document.getElementById('bandNote').textContent = detail.join('   ');
+  }
+
+  document.getElementById('bandRun').addEventListener('click', function () { tick++; render(); });
+  document.getElementById('bandCap').addEventListener('change', render);
+  document.getElementById('bandCrowd').addEventListener('input', function () {
+    crowd = +this.value;
+    document.getElementById('bandCrowdT').textContent = crowd;
+    render();
+  });
+  render();
+})();
+
+/* ---------- 최대 힙 ---------- */
+(function () {
+  var tree = document.getElementById('heapTree');
+  if (!tree) return;
+  var el = window.NpcBook.el;
+  var out = document.getElementById('heapOut');
+
+  var CAP = 15, URGENT_MAX = 7;   /* 화면용 축소 — 실제는 4096 / 2048 */
+  var heap = [], seq = 100, log = [];
+
+  function urgent(s) { return s >= 1000; }
+  function urgentCount() { return heap.filter(function (x) { return urgent(x.s); }).length; }
+
+  function siftUp(i) {
+    while (i > 0) {
+      var p = (i - 1) >> 1;
+      if (precedes(heap[i], heap[p])) { swap(i, p); i = p; } else break;
+    }
+  }
+  function siftDown(i) {
+    for (;;) {
+      var l = 2 * i + 1, r = l + 1, best = i;
+      if (l < heap.length && precedes(heap[l], heap[best])) best = l;
+      if (r < heap.length && precedes(heap[r], heap[best])) best = r;
+      if (best === i) break;
+      swap(i, best); i = best;
+    }
+  }
+  function precedes(a, b) { return a.s !== b.s ? a.s > b.s : a.npc < b.npc; }
+  function swap(i, j) { var t = heap[i]; heap[i] = heap[j]; heap[j] = t; }
+
+  function add(score) {
+    var npc = seq++;
+    if (urgent(score) && urgentCount() >= URGENT_MAX) {
+      log.unshift('거절  npc ' + npc + '  점수 ' + score.toFixed(1) + '  — 인터럽트 슬롯 상한(50 %)');
+      render(); return;
+    }
+    if (heap.length === CAP) {
+      /* 잎 중 최하위를 찾는다 */
+      var first = (heap.length - 1) >> 1, low = first;
+      for (var k = first + 1; k < heap.length; k++) if (precedes(heap[low], heap[k])) low = k;
+      if (!precedes({ npc: npc, s: score }, heap[low])) {
+        log.unshift('거절  npc ' + npc + '  점수 ' + score.toFixed(1) + '  — 최하위(' + heap[low].s.toFixed(1) + ')보다 급하지 않다');
+        render(); return;
+      }
+      log.unshift('축출  npc ' + heap[low].npc + '  점수 ' + heap[low].s.toFixed(1) + '  ← npc ' + npc + ' 이 밀어냈다');
+      heap[low] = heap[heap.length - 1]; heap.pop();
+      siftDown(low); siftUp(low);
+    }
+    heap.push({ npc: npc, s: score });
+    siftUp(heap.length - 1);
+    log.unshift('삽입  npc ' + npc + '  점수 ' + score.toFixed(1) + (urgent(score) ? '  [인터럽트]' : ''));
+    render();
+  }
+
+  function pop() {
+    if (!heap.length) { log.unshift('큐가 비었다 — 워커는 50 ms 쉬고 다시 본다'); render(); return; }
+    var top = heap[0];
+    heap[0] = heap[heap.length - 1]; heap.pop();
+    if (heap.length) siftDown(0);
+    log.unshift('꺼냄  npc ' + top.npc + '  점수 ' + top.s.toFixed(1) + '  → LLM 호출 (3~5초)');
+    render();
+  }
+
+  function render() {
+    tree.innerHTML = '';
+    var levels = [[0], [1, 2], [3, 4, 5, 6], [7, 8, 9, 10, 11, 12, 13, 14]];
+    levels.forEach(function (lv, d) {
+      var y = 30 + d * 56;
+      lv.forEach(function (idx, k) {
+        var w = 860 / (lv.length + 1);
+        var x = w * (k + 1);
+        var node = heap[idx];
+        el('circle', {
+          cx: x, cy: y, r: 19,
+          fill: node ? (urgent(node.s) ? 'var(--bad)' : 'var(--accent)') : 'var(--panel-2)',
+          stroke: node ? 'none' : 'var(--line)',
+          opacity: node ? (d === 0 ? 1 : .82) : 1
+        }, tree);
+        if (node) {
+          var t = el('text', {
+            x: x, y: y + 4, 'text-anchor': 'middle', 'font-size': 10.5,
+            'font-family': 'var(--mono)', fill: 'var(--panel)', 'font-weight': 650
+          }, tree);
+          t.textContent = urgent(node.s) ? '!' + (node.s - 1000).toFixed(0) : node.s.toFixed(1);
+        }
+        if (d > 0) {
+          var pw = 860 / (levels[d - 1].length + 1);
+          var pk = idx % 2 === 1 ? (idx - 1) / 2 : (idx - 2) / 2;
+          var px = pw * ((pk % levels[d - 1].length) + 1);
+          el('line', {
+            x1: px, y1: 30 + (d - 1) * 56 + 19, x2: x, y2: y - 19,
+            stroke: 'var(--line-2)', 'stroke-width': 1
+          }, tree);
+        }
+      });
+    });
+    el('text', { x: 20, y: 18, 'font-size': 11.5, fill: 'var(--ink-3)' }, tree)
+      .textContent = '최대 힙 · ' + heap.length + '/' + CAP + '칸 · 인터럽트 ' + urgentCount() + '/' + URGENT_MAX;
+
+    out.textContent = log.slice(0, 6).join('\n') || '버튼을 눌러 보라.';
+  }
+
+  document.getElementById('heapAdd').addEventListener('click', function () {
+    add(Math.round(((seq * 37) % 95) / 10 * 10) / 10);   /* 결정론 — Math.random 을 쓰지 않는다 */
+  });
+  document.getElementById('heapUrgent').addEventListener('click', function () {
+    add(1000 + ((seq * 17) % 100));
+  });
+  document.getElementById('heapPop').addEventListener('click', pop);
+  document.getElementById('heapReset').addEventListener('click', function () {
+    heap = []; log = []; render();
+  });
+
+  for (var i = 0; i < 6; i++) add(Math.round(((seq * 37) % 95) / 10 * 10) / 10);
+})();
+</script>
+</body>
+</html>
