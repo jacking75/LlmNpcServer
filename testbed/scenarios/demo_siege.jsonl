@@ -1,0 +1,14 @@
+{"_comment": "데모 2 — 공성. docs/20 §11.2. 볼 것: tick 1200 에 존 테두리가 빨개지는 순간 그 존의 NPC 전원이 동시에 다른 계획으로 갈아탄다. 실시간 4분."}
+{"_comment": "틱 좌표는 --time-scale 60 기준이다. 게임 1시간 = 600틱 = 실시간 60초. 시작 시각은 06:00(Dawn)."}
+{"_comment": "tick 900 = 07:30 Morning. 평시 플랜이 다 돌아간 구간에서 경보가 걸린다."}
+{"at_tick": 900,  "event": "ZoneStateChanged", "zone": "town_center", "code": "Alert"}
+{"_comment": "tick 1200 = 08:00. 여기가 절정이다 — 경비병은 성문으로, 전투 불가 아키타입은 안전한 POI 로 간다. /metrics 의 버킷 전환 카운터가 튄다."}
+{"at_tick": 1200, "event": "ZoneStateChanged", "zone": "town_center", "code": "War"}
+{"at_tick": 1200, "event": "ZoneStateChanged", "zone": "gate_east",   "code": "War"}
+{"at_tick": 1200, "event": "ZoneStateChanged", "zone": "town_east_market", "code": "Alert"}
+{"at_tick": 1260, "event": "WeatherChanged",   "zone": "town_center", "code": "Storm"}
+{"_comment": "tick 2400 = 10:00. 평화 복귀 — 원래 버킷 플랜으로 돌아와야 한다. 돌아오지 않으면 버킷 키가 한쪽으로만 흐른 것이다."}
+{"at_tick": 2400, "event": "ZoneStateChanged", "zone": "town_center", "code": "Peace"}
+{"at_tick": 2400, "event": "ZoneStateChanged", "zone": "gate_east",   "code": "Peace"}
+{"at_tick": 2400, "event": "ZoneStateChanged", "zone": "town_east_market", "code": "Peace"}
+{"at_tick": 2400, "event": "WeatherChanged",   "zone": "town_center", "code": "Fair"}

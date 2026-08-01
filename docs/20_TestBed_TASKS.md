@@ -443,7 +443,15 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 > 실제로는 슬라이더 값이 전부다.
 
 ### G. 시나리오와 마무리
-- [ ] T6-33 데모 시나리오 3종
+- [x] T6-33 데모 시나리오 3종 — 테스트 파일이 파일 목록에 없었다 (아래)
+
+> **T6-33 의 파일 목록에 테스트가 빠져 있었다 (2026-08-01).**
+> 완료 조건은 "`ScenarioRunner.Parse` 가 세 파일을 예외 없이 읽는다(테스트)" 인데
+> 파일 목록에는 jsonl 세 개뿐이었다. `tests/Npc.Tests/TestBed/DemoScenarioTests.cs` 를 만들었다.
+>
+> **`docs/20` §11.1 의 "12:00 Day" 를 "12:00 Noon" 으로 고쳤다.** `context_buckets.json` 의
+> `time_of_day.values` 는 `Dawn/Morning/Noon/Afternoon/Evening/Night` 이고 12:00 은 `Noon`
+> 구간(11–14)이다. T6-32 에서 상태바가 같은 이름을 틀리게 적고 있던 것과 같은 뿌리다.
 - [ ] T6-34 실행 스크립트
 - [ ] T6-35 종단 테스트
 - [ ] T6-36 문서와 원장
