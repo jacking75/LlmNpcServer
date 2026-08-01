@@ -426,7 +426,21 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] T6-29 입력
 - [x] T6-30 인스펙터 패널
 - [x] T6-31 로그 패널
-- [ ] T6-32 제어 패널과 상태바
+- [x] T6-32 제어 패널과 상태바 — **링크 탭도 여기서 채웠다**(아래)
+
+> **T6-32 에서 같이 한 것 둘 (2026-08-01).**
+> 1. **`링크` 탭이 비어 있었다.** `docs/20` §9.5 마지막 줄("링크 패널에는 `GET /metrics` 의 요약을
+>    같이 띄운다")이 인스펙터 절에 곁들여 있어서 T6-30 에서 빠졌다. T6-32 의 완료 조건이
+>    "킬스위치 버튼 후 `/metrics` 의 LLM 호출이 0 이 된다" 라 **여기서 필요해졌다** —
+>    새 파일을 만들지 않고 `Panels/ControlPanel.cs` 에 `LinkPanel` 을 같이 뒀다.
+> 2. **상태바의 시간대 이름이 틀려 있었다.** `MainForm` 이 `TimeOfDay` 를 `Dawn/Morning/Day/
+>    Evening/Night/LateNight` 로 다시 적어 두고 있었는데, `context_buckets.json` 의 실제 순서는
+>    `Dawn/Morning/Noon/Afternoon/Evening/Night` 다. 즉 **오후 3시가 화면에 `Evening` 으로 나왔다.**
+>    `StatusBar` 가 `Npc.Core.TimeOfDay` 를 그대로 쓰면서 없어졌다 — 클라이언트는 이미
+>    `Npc.MasterData` 를 통해 그 열거형을 보고 있었으므로 다시 적을 이유가 없었다.
+>
+> **`SetFaultRate` 슬라이더는 시작 옵션과 겹쳐 걸린다** (T6-25 판단 참조). 데모 기본이 0 이라
+> 실제로는 슬라이더 값이 전부다.
 
 ### G. 시나리오와 마무리
 - [ ] T6-33 데모 시나리오 3종

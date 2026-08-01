@@ -291,6 +291,44 @@ public sealed class NpcServerHttp : IDisposable
         }
     }
 
+    /// <summary>
+    /// <c>POST /control/killswitch?target=…</c>. docs/20 §11.4.
+    ///
+    /// <para>
+    /// <b>이 경로는 <c>--dev-control</c> 일 때만 열린다.</b> 없으면 라우트 자체가 없어서 404 다 —
+    /// 조건부 401/403 이 아니라 <b>조건부 등록</b>이기 때문이다. "핸들러가 있고 거절한다" 는
+    /// 실수 하나로 열리지만, 라우트가 없으면 열릴 수가 없다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>킬스위치는 링크로 못 보낸다.</b> NPC 서버 안쪽 상태이고 <c>GameEvent</c> 에 그런 종류가
+    /// 없다 — 만들면 N 규칙을 어긴다 (docs/20 §8.3). 그래서 디버그 HTTP 로 직접 간다.
+    /// </para>
+    /// </summary>
+    /// <param name="target"><c>T2</c>·<c>T1</c>·<c>PlanStore</c>.</param>
+    /// <returns>사람이 읽을 결과 한 줄.</returns>
+    public async Task<string> KillSwitchAsync(string target, CancellationToken ct)
+    {
+        try
+        {
+            using HttpResponseMessage response = await _http
+                .PostAsync(new Uri($"{_baseUrl}/control/killswitch?target={target}"), null, ct)
+                .ConfigureAwait(false);
+
+            return response.StatusCode switch
+            {
+                System.Net.HttpStatusCode.NotFound => "미연결 — NPC 서버에 --dev-control 이 없다",
+                System.Net.HttpStatusCode.BadRequest => $"거절 — 모르는 target: {target}",
+                _ when response.IsSuccessStatusCode => $"{target} 끊음",
+                _ => $"실패 — {(int)response.StatusCode}",
+            };
+        }
+        catch (Exception)
+        {
+            return "미연결 — NPC 서버에 닿지 않는다";
+        }
+    }
+
     /// <inheritdoc />
     public void Dispose() => _http.Dispose();
 

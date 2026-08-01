@@ -1,4 +1,3 @@
-using System.Globalization;
 using Npc.MasterData;
 using Npc.TestBed.Protocol;
 using Npc.TestClient.Format;
@@ -11,6 +10,10 @@ using Npc.Wire;
 // System.Windows.Forms.Control 과 Npc.TestBed.Protocol.Control 이 이름이 겹친다.
 // 창 코드에서 Control 은 위젯이다 — 프로토콜 쪽은 쓰는 자리에서 이름을 붙인다.
 using Control = System.Windows.Forms.Control;
+
+// System.Windows.Forms 에도 StatusBar 가 있다 — WinForms 1.x 시절의 낡은 위젯이고,
+// 지금 쓰는 것은 StatusStrip 이다. 이 창에서 StatusBar 는 언제나 우리 것이다.
+using StatusBar = Npc.TestClient.Panels.StatusBar;
 
 namespace Npc.TestClient;
 
@@ -69,12 +72,14 @@ public sealed class MainForm : Form
     private readonly EntityInterpolator _entities = new();
     private readonly InputController _input;
     private readonly NpcServerHttp _npcHttp;
+    private readonly IdNames _names;
     private readonly InspectorPanel _inspector;
     private readonly LogPanel _log;
+    private readonly ControlPanel _control;
+    private readonly LinkPanel _linkPanel;
+    private readonly StatusBar _status;
     private readonly ToolTip _tip = new() { InitialDelay = 250, ReshowDelay = 100 };
     private readonly TabControl _tabs = new();
-    private readonly ToolStripStatusLabel _clock = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
-    private readonly ToolStripStatusLabel _link = new() { Spring = true, TextAlign = ContentAlignment.MiddleRight };
 
     private Task? _connectionTask;
     private Task? _npcHttpTask;
@@ -98,8 +103,12 @@ public sealed class MainForm : Form
         _renderer = new MapRenderer(_data);
         _input = new InputController(_connection, _renderer);
         _npcHttp = new NpcServerHttp(options.NpcHttp);
+        _names = new IdNames(_data);
         _inspector = new InspectorPanel(options.NpcHttp) { Dock = DockStyle.Fill };
-        _log = new LogPanel(new IdNames(_data)) { Dock = DockStyle.Fill };
+        _log = new LogPanel(_names) { Dock = DockStyle.Fill };
+        _control = new ControlPanel(_data, _connection, _npcHttp, _stopping.Token) { Dock = DockStyle.Fill };
+        _linkPanel = new LinkPanel { Dock = DockStyle.Fill };
+        _status = new StatusBar(_data, _names) { Dock = DockStyle.Bottom };
 
         Text = $"Npc.TestClient — {options.Host}:{options.Port}";
         ClientSize = new Size(1_440, 900);
@@ -108,7 +117,7 @@ public sealed class MainForm : Form
         BackColor = Color.FromArgb(24, 24, 28);
 
         Controls.Add(BuildBody());
-        Controls.Add(BuildStatusBar());
+        Controls.Add(_status);
 
         _render.Tick += OnRender;
         _network.Tick += OnNetwork;
@@ -231,10 +240,18 @@ public sealed class MainForm : Form
 
         log.Controls.Add(_log);
 
+        TabPage control = NewTab("제어");
+
+        control.Controls.Add(_control);
+
+        TabPage link = NewTab("링크");
+
+        link.Controls.Add(_linkPanel);
+
         _tabs.TabPages.Add(inspector);
         _tabs.TabPages.Add(log);
-        _tabs.TabPages.Add(NewTab("제어"));
-        _tabs.TabPages.Add(NewTab("링크"));
+        _tabs.TabPages.Add(control);
+        _tabs.TabPages.Add(link);
 
         _split.Panel1.Controls.Add(_map);
         _split.Panel2.Controls.Add(_tabs);
@@ -242,28 +259,13 @@ public sealed class MainForm : Form
         return _split;
     }
 
-    /// <summary>탭 한 장. 내용은 T6-30~T6-32 가 채운다.</summary>
+    /// <summary>탭 한 장.</summary>
     private static TabPage NewTab(string title) => new(title)
     {
         BackColor = Color.FromArgb(32, 32, 38),
         ForeColor = Color.Gainsboro,
         Padding = new Padding(6),
     };
-
-    private Control BuildStatusBar()
-    {
-        var status = new StatusStrip
-        {
-            BackColor = Color.FromArgb(40, 40, 46),
-            ForeColor = Color.Gainsboro,
-            SizingGrip = false,
-        };
-
-        status.Items.Add(_clock);
-        status.Items.Add(_link);
-
-        return status;
-    }
 
     // ---------------------------------------------------------------- 타이머
 
@@ -283,27 +285,37 @@ public sealed class MainForm : Form
 
         // 추적 중이면 내 플레이어를 화면 중앙에 둔다. 못 찾으면 카메라를 건드리지 않는다 —
         // 원점으로 되돌리면 화면이 매 프레임 튄다.
-        if (_renderer.Camera.Follow && TryFindMyPlayer(out EntityState me))
+        ushort zone = 0;
+
+        if (TryFindMyPlayer(out EntityState me))
         {
-            _renderer.Camera.LookAt(me.X, me.Z);
+            zone = me.Zone;
+
+            if (_renderer.Camera.Follow)
+            {
+                _renderer.Camera.LookAt(me.X, me.Z);
+            }
         }
 
-        UpdateStatus();
-        UpdateInspector();
+        _status.Update(_connection, zone, _frameMillis, _drawMillis, _entities.Stalled);
+
+        UpdatePanels();
 
         _map.Invalidate();
     }
 
     /// <summary>
-    /// 인스펙터를 갱신한다. <b>폴링은 배경 태스크가 하고 여기서는 읽기만 한다</b> —
+    /// 우측 탭을 갱신한다. <b>폴링은 배경 태스크가 하고 여기서는 읽기만 한다</b> —
     /// UI 스레드에서 HTTP 를 기다리면 NPC 서버가 늦을 때마다 화면이 멎는다.
     /// </summary>
-    private void UpdateInspector()
+    private void UpdatePanels()
     {
         _npcHttp.Target = _input.Selected;
 
         _inspector.Update(_input.Selected, _npcHttp.Reachable, _npcHttp.Trace);
         _log.Update(_connection, _input.Selected);
+        _control.Update(_input.Selected, _npcHttp.Reachable, _npcHttp.Metrics);
+        _linkPanel.Update(_connection, _npcHttp.Reachable, _npcHttp.Metrics);
     }
 
     /// <summary>이 창의 플레이어를 보간 결과에서 찾는다.</summary>
@@ -338,35 +350,6 @@ public sealed class MainForm : Form
         {
             _connection.SendPing();
         }
-    }
-
-    private void UpdateStatus()
-    {
-        SnapshotFrame? frame = _connection.Latest;
-
-        _clock.Text = frame is { Snapshot: var shot }
-            ? string.Create(
-                CultureInfo.InvariantCulture,
-                $"day {shot.GameDay}  {shot.GameHour:00}:00 {(TimeOfDayLabel)shot.TimeOfDay}   tick {shot.Tick}   entities {shot.EntityCount}")
-            : _connection.State switch
-            {
-                ConnectionState.Connecting => $"게임서버를 찾는 중… ({_connection.Attempts}회)",
-                ConnectionState.Connected => "접속됨 — 첫 스냅샷을 기다리는 중",
-                _ => "게임서버 미연결",
-            };
-
-        LinkStatus link = _connection.Link;
-        long rtt = _connection.RoundTripMillis;
-        string dot = _connection.State == ConnectionState.Connected ? "●" : "○";
-        long lag = link.GsTick - link.NpcServerTick;
-
-        _link.Text = string.Create(
-            CultureInfo.InvariantCulture,
-            $"client {dot} {(rtt < 0 ? "--" : rtt.ToString(CultureInfo.InvariantCulture))}ms   " +
-            $"npc-link {(link.Connected == 1 ? "●" : "○")}   " +
-            $"gs {link.GsTick}  npc {link.NpcServerTick} ({-lag})   drop {link.Dropped}   gap {link.Gaps}   " +
-            $"frame {_frameMillis:F1}ms  draw {_drawMillis:F1}ms" +
-            $"{(_entities.Stalled ? "  [스냅샷 지연]" : string.Empty)}");
     }
 
     /// <summary>
@@ -538,22 +521,6 @@ public sealed class MainForm : Form
     public bool MasterDataMatchesServer() =>
         _connection.State == ConnectionState.Connected
         && _connection.Hello.MasterData == WireHash.FromHex(_data.ContentHash);
-
-    /// <summary>
-    /// <c>Npc.Contracts.TimeOfDay</c> 를 화면에 쓰려고 다시 적은 이름표.
-    ///
-    /// <b>클라이언트는 <c>Npc.Contracts</c> 를 참조하지 않는다</b> (docs/20 §4) — 프로토콜은
-    /// 이 값을 <c>byte</c> 로 싣고, 이름은 화면 문제라 여기 있는 것이 맞다.
-    /// </summary>
-    private enum TimeOfDayLabel : byte
-    {
-        Dawn = 0,
-        Morning,
-        Day,
-        Evening,
-        Night,
-        LateNight,
-    }
 
     /// <summary>
     /// 깜빡이지 않는 그리기 판. <c>DoubleBuffered</c> 를 켜는 것이 전부다 —
