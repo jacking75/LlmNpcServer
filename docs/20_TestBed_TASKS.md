@@ -466,7 +466,21 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 > **테스트:** `tests/Npc.Tests/TestBed/RunDemoScriptTests.cs`. BOM 3바이트와,
 > `ValidateSet` 의 시나리오 이름이 `testbed/scenarios/demo_*.jsonl` 과 1:1 인지 본다 —
 > 파일을 추가했는데 목록에 안 넣으면 **그 시나리오를 띄울 방법이 조용히 사라진다.**
-- [ ] T6-35 종단 테스트
+- [x] T6-35 종단 테스트 — 락스텝에 예열이 필요했다 (아래)
+
+> **T6-35 에서 드러난 것 둘 (2026-08-01).**
+> 1. **락스텝은 예열 없이 걸면 교착한다.** 테스트가 게임서버 틱을 직접 밀면서 NPC 서버가
+>    1틱 이상 뒤처지지 않게 기다리는데, NPC 서버의 시계는 `TickSync` 로만 움직이고
+>    그 `TickSync` 는 게임서버가 다음 틱을 돌아야 나간다. 세션이 붙기 전 틱들의 `TickSync` 는
+>    링크 없는 구간의 이벤트로 이미 배수돼 버렸으므로, 붙자마자 기다리면
+>    **"아직 안 돈 NPC 서버" 를 기다리며 "TickSync 를 낼 게임서버" 를 멈춰 세운다.**
+>    `Bed.StartAsync` 가 `TicksCommitted > 0` 이 될 때까지 락스텝 없이 먼저 민다.
+> 2. **종단 회차가 옆 테스트의 예산 측정을 흔들었다.** 처음에는 NPC 32 · 프리베이크 스토어
+>    로드까지 했더니 `Transition_DoesNotAllocate`(할당 델타)와
+>    `Host_LoadsEveryBucketWithinThreeSeconds`(벽시계 3초)가 번갈아 흔들렸다.
+>    NPC 를 16 으로 줄이고 **`--planstore` 를 없는 경로로 줘 254개 파일 로드를 뺐다** —
+>    이 회차가 보는 것은 소켓 경로이지 플랜 품질이 아니고, 폴백 40개로도 MoveTo → 도착이 돈다.
+>    `AllocationCollection`(병렬 끔)에도 같이 넣었다. 이후 전체 3회 연속 통과.
 - [ ] T6-36 문서와 원장
 
 ### 게이트
