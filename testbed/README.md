@@ -4,6 +4,10 @@ NPC 서버가 **실제 소켓 너머의 게임서버**에 붙어 도는 것을 �
 사양은 [`docs/20_TestBed_Spec.md`](../docs/20_TestBed_Spec.md), 작업 지시서는
 [`docs/20_TestBed_TASKS.md`](../docs/20_TestBed_TASKS.md)에 있다.
 
+> **그림으로 보고 싶으면 [`docs/testbed_guide.html`](../docs/testbed_guide.html)** 을 브라우저로 연다.
+> 아키텍처 그림 · 핸드셰이크와 10단계 틱 루프 애니메이션 · 무엇을 바꾸며 테스트하는지 ·
+> **코드를 어디서부터 읽는지**가 거기 있다. 이 README 는 실행에 필요한 것만 짧게 적는다.
+
 **이 폴더가 증명하는 것 하나.** 여기서 게임서버·클라이언트·와이어 프로토콜을 통째로 새로 만들었는데
 `Npc.Runtime`·`Npc.Planning`·`Npc.Core`·`Npc.Contracts`의 diff가 **0줄**이다.
 "게임서버에 붙일 때 NPC 서버 코드가 한 줄도 안 바뀐다"는 주장의 실물이다.

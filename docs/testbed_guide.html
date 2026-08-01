@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>테스트 베드 안내서 — 게임서버 연동 테스트</title>
+<style>
+/* ---------- 토큰 (docs/index.html 과 같은 값) ---------- */
+:root{
+  --bg:#fbfbfd; --panel:#ffffff; --panel-2:#f4f5f8; --ink:#16181d; --ink-2:#4a4f5a;
+  --ink-3:#767c88; --line:#e2e5ea; --line-2:#cfd4dc;
+  --accent:#2f6df6; --accent-soft:#eaf0ff;
+  --ok:#177245; --ok-soft:#e6f4ec; --warn:#9a5b00; --warn-soft:#fdf1de;
+  --bad:#b3261e; --bad-soft:#fdeceb;
+  --code-bg:#1d2027; --code-ink:#e6e8ee;
+  --npc:#2f6df6; --gs:#177245; --cli:#8b5cf6;
+  --radius:12px;
+  --mono:ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,"D2Coding",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Pretendard,
+         "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root[data-theme="auto"]{
+    --bg:#0e1014; --panel:#161920; --panel-2:#1c2029; --ink:#e8eaf0; --ink-2:#b3b9c6;
+    --ink-3:#858c9b; --line:#272c36; --line-2:#333a47;
+    --accent:#7aa2ff; --accent-soft:#1b2437;
+    --ok:#6ede9f; --ok-soft:#14291f; --warn:#f0bd6b; --warn-soft:#2b2213;
+    --bad:#ff9b93; --bad-soft:#2d1817;
+    --code-bg:#0a0c10; --code-ink:#dfe3ec;
+    --npc:#7aa2ff; --gs:#6ede9f; --cli:#c4a5fd;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1014; --panel:#161920; --panel-2:#1c2029; --ink:#e8eaf0; --ink-2:#b3b9c6;
+  --ink-3:#858c9b; --line:#272c36; --line-2:#333a47;
+  --accent:#7aa2ff; --accent-soft:#1b2437;
+  --ok:#6ede9f; --ok-soft:#14291f; --warn:#f0bd6b; --warn-soft:#2b2213;
+  --bad:#ff9b93; --bad-soft:#2d1817;
+  --code-bg:#0a0c10; --code-ink:#dfe3ec;
+  --npc:#7aa2ff; --gs:#6ede9f; --cli:#c4a5fd;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:20px}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:16px;line-height:1.75;-webkit-text-size-adjust:100%;
+  word-break:keep-all;overflow-wrap:anywhere;
+}
+.wrap{display:grid;grid-template-columns:280px minmax(0,1fr);max-width:1400px;margin:0 auto}
+nav.toc{position:sticky;top:0;height:100vh;overflow-y:auto;padding:26px 18px 60px;
+  border-right:1px solid var(--line);background:var(--panel)}
+main{padding:44px 42px 120px;min-width:0}
+@media (max-width:960px){
+  .wrap{grid-template-columns:1fr}
+  nav.toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:18px}
+  main{padding:26px 18px 80px}
+}
+nav.toc .brand{font-weight:700;font-size:15px;letter-spacing:-.01em;margin-bottom:2px}
+nav.toc .sub{font-size:12.5px;color:var(--ink-3);margin-bottom:18px}
+nav.toc a{display:block;padding:5px 9px;border-radius:7px;color:var(--ink-2);
+  text-decoration:none;font-size:13.5px;line-height:1.5}
+nav.toc a:hover{background:var(--panel-2);color:var(--ink)}
+nav.toc a.sec{margin-top:12px;font-weight:650;color:var(--ink);font-size:13px}
+nav.toc a.sub-a{padding-left:20px;font-size:13px;color:var(--ink-3)}
+
+h1{font-size:32px;line-height:1.3;letter-spacing:-.02em;margin:0 0 8px}
+h2{font-size:23px;letter-spacing:-.015em;margin:56px 0 14px;padding-top:14px;border-top:1px solid var(--line)}
+h3{font-size:17.5px;margin:30px 0 10px}
+h4{font-size:15px;margin:22px 0 8px;color:var(--ink-2)}
+p{margin:12px 0}
+.lede{font-size:18px;color:var(--ink-2);margin-bottom:6px}
+code{font-family:var(--mono);font-size:.875em;background:var(--panel-2);
+  padding:.12em .38em;border-radius:5px;border:1px solid var(--line)}
+pre{background:var(--code-bg);color:var(--code-ink);padding:16px 18px;border-radius:var(--radius);
+  overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.65;margin:14px 0}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit}
+pre .c{color:#7f8899}
+pre .k{color:#7aa2ff}
+pre .s{color:#8fd694}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14.5px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:var(--panel-2);font-weight:650}
+td code,th code{font-size:.9em}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px 20px;margin:16px 0}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);
+  border-radius:0 var(--radius) var(--radius) 0;padding:14px 18px;margin:16px 0}
+.warn{border-left:3px solid var(--warn);background:var(--warn-soft);
+  border-radius:0 var(--radius) var(--radius) 0;padding:14px 18px;margin:16px 0}
+.bad{border-left:3px solid var(--bad);background:var(--bad-soft);
+  border-radius:0 var(--radius) var(--radius) 0;padding:14px 18px;margin:16px 0}
+.ok{border-left:3px solid var(--ok);background:var(--ok-soft);
+  border-radius:0 var(--radius) var(--radius) 0;padding:14px 18px;margin:16px 0}
+.note>:first-child,.warn>:first-child,.bad>:first-child,.ok>:first-child{margin-top:0}
+.note>:last-child,.warn>:last-child,.bad>:last-child,.ok>:last-child{margin-bottom:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.pill{display:inline-block;font-size:12px;font-family:var(--mono);padding:1px 8px;
+  border-radius:20px;border:1px solid var(--line-2);color:var(--ink-2);background:var(--panel-2)}
+.pill.npc{color:var(--npc);border-color:var(--npc)}
+.pill.gs{color:var(--gs);border-color:var(--gs)}
+.pill.cli{color:var(--cli);border-color:var(--cli)}
+figure{margin:22px 0}
+figcaption{font-size:13px;color:var(--ink-3);margin-top:8px;text-align:center}
+svg{max-width:100%;height:auto;display:block;margin:0 auto}
+.svgbox{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 10px}
+.ctl{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap}
+button.btn{font:inherit;font-size:13.5px;padding:5px 14px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink)}
+button.btn:hover{border-color:var(--accent);color:var(--accent)}
+button.btn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.legend{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);margin-top:10px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* ---------- SVG 공통 ---------- */
+.n-box{fill:var(--panel-2);stroke:var(--line-2)}
+.n-npc{stroke:var(--npc)} .n-gs{stroke:var(--gs)} .n-cli{stroke:var(--cli)}
+.t{fill:var(--ink);font-family:var(--sans);font-size:13px}
+.t-s{fill:var(--ink-2);font-family:var(--sans);font-size:11px}
+.t-m{fill:var(--ink-2);font-family:var(--mono);font-size:10.5px}
+.t-c{fill:var(--ink);font-family:var(--sans);font-size:13px;font-weight:650}
+.wire{stroke:var(--line-2);stroke-width:1.5;fill:none}
+
+/* ---------- 애니메이션 ---------- */
+@keyframes flowR{from{offset-distance:0%}to{offset-distance:100%}}
+.pkt{r:5;opacity:.95}
+.pkt.run{animation:flowR 2.6s linear infinite}
+.paused .pkt.run{animation-play-state:paused}
+
+@keyframes blip{0%,100%{opacity:.25;r:4}50%{opacity:1;r:6.5}}
+.hb{animation:blip 2s ease-in-out infinite}
+.paused .hb{animation-play-state:paused}
+
+/* 틱 단계 점등 */
+.stage rect{fill:var(--panel-2);stroke:var(--line-2);transition:fill .18s,stroke .18s}
+.stage.on rect{fill:var(--accent-soft);stroke:var(--accent)}
+.stage.on text{fill:var(--accent)}
+.stage text{transition:fill .18s}
+
+/* 핸드셰이크 단계 */
+.hs{opacity:.22;transition:opacity .25s}
+.hs.on{opacity:1}
+
+@media (prefers-reduced-motion: reduce){
+  .pkt.run,.hb{animation:none}
+  html{scroll-behavior:auto}
+}
+.kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line-2);border-bottom-width:2px;
+  border-radius:5px;padding:1px 6px;background:var(--panel-2)}
+.small{font-size:13.5px;color:var(--ink-2)}
+hr{border:0;border-top:1px solid var(--line);margin:34px 0}
+.toolbar{position:fixed;right:16px;bottom:16px;z-index:20}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc">
+  <div class="brand">테스트 베드 안내서</div>
+  <div class="sub">게임서버 연동 테스트 · P6</div>
+  <a class="sec" href="#what">0. 이 문서가 답하는 것</a>
+  <a class="sec" href="#arch">1. 아키텍처</a>
+  <a class="sub-a" href="#arch-why">왜 셋으로 나눴나</a>
+  <a class="sub-a" href="#arch-dep">프로젝트 의존</a>
+  <a class="sec" href="#run">2. 돌려보기</a>
+  <a class="sub-a" href="#run-one">한 줄로</a>
+  <a class="sub-a" href="#run-manual">손으로</a>
+  <a class="sec" href="#how">3. 어떻게 동작하나</a>
+  <a class="sub-a" href="#how-hs">핸드셰이크</a>
+  <a class="sub-a" href="#how-frame">프레임</a>
+  <a class="sub-a" href="#how-tick">10단계 틱 루프</a>
+  <a class="sub-a" href="#how-round">명령 한 바퀴</a>
+  <a class="sub-a" href="#how-rules">N1~N8</a>
+  <a class="sec" href="#change">4. 무엇을 바꾸며 테스트하나</a>
+  <a class="sub-a" href="#change-live">실행 중에</a>
+  <a class="sub-a" href="#change-cli">옵션으로</a>
+  <a class="sub-a" href="#change-code">코드로</a>
+  <a class="sec" href="#test">5. 자동 테스트</a>
+  <a class="sec" href="#read">6. 코드 분석 순서</a>
+  <a class="sub-a" href="#read-order">읽는 순서</a>
+  <a class="sub-a" href="#read-seam">이음매 지도</a>
+  <a class="sub-a" href="#read-map">파일 지도</a>
+  <a class="sec" href="#trouble">7. 막히면</a>
+  <a class="sec" href="#limit">8. 알려진 한계</a>
+</nav>
+
+<main>
+
+<h1>테스트 베드 안내서</h1>
+<p class="lede">NPC 서버가 <strong>실제 소켓 너머의 게임서버</strong>에 붙어 도는 것을 눈으로 보고, 손으로 흔들어 보고, 코드로 따라가는 법.</p>
+<p class="small">사양 <code>docs/20_TestBed_Spec.md</code> · 작업 지시서 <code>docs/20_TestBed_TASKS.md</code> · 실행 요약 <code>testbed/README.md</code></p>
+
+<div class="ok">
+<p><strong>이 폴더가 증명하는 것 하나.</strong> 여기서 게임서버·클라이언트·와이어 프로토콜을 통째로 새로 만들었는데
+<code>Npc.Runtime</code>·<code>Npc.Planning</code>·<code>Npc.Core</code>·<code>Npc.Contracts</code> 의 diff 가 <strong>0줄</strong>이다.
+"게임서버에 붙일 때 NPC 서버 코드가 한 줄도 안 바뀐다" 는 주장의 실물이다.</p>
+</div>
+
+<h2 id="what">0. 이 문서가 답하는 것</h2>
+<table>
+<tr><th>질문</th><th>어디로</th></tr>
+<tr><td>일단 돌려보고 싶다</td><td><a href="#run">2. 돌려보기</a> — 한 줄이면 뜬다</td></tr>
+<tr><td>세 프로세스가 어떻게 얽혀 있나</td><td><a href="#arch">1. 아키텍처</a></td></tr>
+<tr><td>한 틱에 무슨 일이 일어나나</td><td><a href="#how-tick">3. 10단계 틱 루프</a> (애니메이션)</td></tr>
+<tr><td>내가 무엇을 만지면 무엇이 바뀌나</td><td><a href="#change">4. 무엇을 바꾸며 테스트하나</a></td></tr>
+<tr><td>코드를 어디서부터 읽나</td><td><a href="#read">6. 코드 분석 순서</a></td></tr>
+<tr><td>안 되는데 어디부터 보나</td><td><a href="#trouble">7. 막히면</a></td></tr>
+</table>
+
+<!-- ==================== 1. 아키텍처 ==================== -->
+<h2 id="arch">1. 아키텍처</h2>
+
+<p>프로세스는 <strong>셋</strong>이다. 각자 다른 소켓으로 이어져 있고, 셋 다 상대가 없어도 죽지 않는다.</p>
+
+<figure>
+<div class="svgbox" id="fig-arch">
+<svg viewBox="0 0 860 330" role="img" aria-label="세 프로세스 구조도">
+  <defs>
+    <path id="p-link-r" d="M 246 96 L 470 96"/>
+    <path id="p-link-l" d="M 470 128 L 246 128"/>
+    <path id="p-cli-r"  d="M 630 178 L 630 246"/>
+    <path id="p-cli-l"  d="M 662 246 L 662 178"/>
+    <path id="p-http"   d="M 150 178 L 150 262 L 520 262"/>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line-2)"/>
+    </marker>
+  </defs>
+
+  <!-- NPC 서버 -->
+  <rect class="n-box n-npc" x="30" y="46" width="216" height="132" rx="12" stroke-width="2"/>
+  <text class="t-c" x="46" y="72">Npc.Host <tspan class="t-s">(NPC 서버)</tspan></text>
+  <text class="t-s" x="46" y="94">10Hz 틱 루프 · 플랜 실행</text>
+  <text class="t-s" x="46" y="112">인지 LOD · 재계획 큐</text>
+  <text class="t-m" x="46" y="136">TcpGameServerLink</text>
+  <text class="t-m" x="46" y="154">HTTP :5080</text>
+  <text class="t-s" x="46" y="172">— 우리가 만드는 것 —</text>
+
+  <!-- 게임서버 -->
+  <rect class="n-box n-gs" x="470" y="46" width="216" height="132" rx="12" stroke-width="2"/>
+  <text class="t-c" x="486" y="72">Npc.TestGameServer</text>
+  <text class="t-s" x="486" y="94">Npc.Sim 월드 · 10Hz</text>
+  <text class="t-s" x="486" y="112">PlayerRegistry · MirrorLog</text>
+  <text class="t-m" x="486" y="136">accept :7010 (링크)</text>
+  <text class="t-m" x="486" y="154">accept :7020 (클라)</text>
+  <text class="t-s" x="486" y="172">— 게임서버 대역 —</text>
+
+  <!-- 클라이언트 -->
+  <rect class="n-box n-cli" x="520" y="246" width="216" height="60" rx="12" stroke-width="2"/>
+  <text class="t-c" x="536" y="270">Npc.TestClient</text>
+  <text class="t-s" x="536" y="290">WinForms 뷰어 · 60fps</text>
+
+  <!-- 링크 -->
+  <path d="M 246 96 L 462 96" class="wire" marker-end="url(#ar)"/>
+  <path d="M 470 128 L 254 128" class="wire" marker-end="url(#ar)"/>
+  <text class="t-m" x="270" y="88">명령 CommandBatch →</text>
+  <text class="t-m" x="270" y="148">← 이벤트 EventBatch</text>
+  <text class="t-s" x="316" y="118" style="font-weight:650">TCP :7010</text>
+
+  <!-- 클라 소켓 -->
+  <path d="M 630 178 L 630 238" class="wire" marker-end="url(#ar)"/>
+  <path d="M 662 246 L 662 186" class="wire" marker-end="url(#ar)"/>
+  <text class="t-m" x="676" y="216">스냅샷 · 로그</text>
+  <text class="t-m" x="676" y="232">입력 · 제어</text>
+
+  <!-- HTTP -->
+  <path d="M 150 178 L 150 262 L 512 262" class="wire" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+  <text class="t-m" x="196" y="256">GET /npc/{id} · /metrics — 인스펙터가 직접 폴링</text>
+
+  <!-- 패킷 -->
+  <circle class="pkt run n-pkt" fill="var(--npc)" style="offset-path:path('M 246 96 L 470 96')"/>
+  <circle class="pkt run n-pkt" fill="var(--npc)" style="offset-path:path('M 246 96 L 470 96');animation-delay:-1.3s"/>
+  <circle class="pkt run g-pkt" fill="var(--gs)" style="offset-path:path('M 470 128 L 246 128');animation-delay:-.6s"/>
+  <circle class="pkt run g-pkt" fill="var(--gs)" style="offset-path:path('M 470 128 L 246 128');animation-delay:-1.9s"/>
+  <circle class="pkt run c-pkt" fill="var(--cli)" style="offset-path:path('M 630 178 L 630 246');animation-delay:-.9s"/>
+  <circle class="pkt run c-pkt" fill="var(--cli)" style="offset-path:path('M 662 246 L 662 178');animation-delay:-2.1s"/>
+</svg>
+<div class="ctl"><button class="btn" id="btn-arch" aria-pressed="true">애니메이션 정지</button></div>
+<div class="legend">
+  <span><i style="background:var(--npc)"></i>NPC 서버가 내는 명령</span>
+  <span><i style="background:var(--gs)"></i>게임서버가 내는 이벤트</span>
+  <span><i style="background:var(--cli)"></i>클라이언트 트래픽</span>
+</div>
+</div>
+<figcaption>포트: 7010 링크 · 7020 클라이언트 · 5080 NPC 서버 HTTP</figcaption>
+</figure>
+
+<h3 id="arch-why">왜 셋으로 나눴나</h3>
+
+<div class="grid2">
+<div class="card">
+<h4><span class="pill npc">NPC 서버</span> 우리가 만드는 것</h4>
+<p class="small">무엇을 할지 <em>정하는</em> 쪽. 플랜을 고르고 명령을 낸다. <strong>세계를 밀지 않는다</strong> — 시간이 흐르는 것조차 게임서버가 보내 주는 <code>TickSync</code> 로만 안다.</p>
+</div>
+<div class="card">
+<h4><span class="pill gs">게임서버 대역</span> 상대역</h4>
+<p class="small">세계를 <em>미는</em> 쪽. 이동·상호작용·욕구를 계산하고 결과를 이벤트로 돌려준다. 실제 게임서버가 할 일을 최소한으로 흉내낸다.</p>
+</div>
+<div class="card">
+<h4><span class="pill cli">클라이언트</span> 사람의 눈</h4>
+<p class="small">보는 쪽. 지도·로그·제어판. <strong>게임서버와 NPC 서버 <em>둘 다</em>에 붙는다</strong> — 이유는 아래.</p>
+</div>
+</div>
+
+<div class="note">
+<p><strong>왜 클라이언트가 NPC 서버를 직접 보는가.</strong> 플랜 id·스텝 번호·월드 플래그는 <strong>게임서버가 알 수 없는 정보</strong>다.
+링크에 그런 필드가 없고(N1·N3) 있어서도 안 된다. 게임서버를 경유해 중계하면
+<strong>실제로는 존재하지 않는 결합을 테스트 베드가 만들어 낸다.</strong></p>
+<p>그래서 인스펙터 패널만 <code>GET /npc/{id}</code> 로 NPC 서버를 1초마다 직접 긁는다. 지도·로그는 게임서버에서 온다.</p>
+</div>
+
+<h3 id="arch-dep">프로젝트 의존</h3>
+<p>화살표는 "참조한다" 다. <strong>testbed 는 단방향 잎</strong> — 아무도 참조하지 않는다.</p>
+
+<pre><code>Npc.Contracts   외부 NuGet 0. 참조하는 프로젝트 없음          <span class="c">← 링크 계약 (N1~N8)</span>
+Npc.Core        외부 NuGet 0. Contracts 만
+Npc.MasterData  Core
+Npc.Runtime     Core, MasterData, Contracts, Planning         <span class="c">← 틱 루프</span>
+Npc.Planning    Core, MasterData
+Npc.Wire        Contracts (+ MemoryPack)                      <span class="c">← 전송 표현</span>
+Npc.Gateway     Contracts, Wire                               <span class="c">← TcpGameServerLink</span>
+Npc.Sim         Contracts, MasterData
+Npc.Host        전부
+
+testbed/Npc.TestBed.Protocol   Wire
+testbed/Npc.TestGameServer     Sim, MasterData, Wire, Protocol
+testbed/Npc.TestClient         MasterData, Protocol           <span class="c">← net10.0-windows</span></code></pre>
+
+<div class="warn">
+<p><strong>여기 두 줄이 이 프로젝트의 핵심 제약이다.</strong></p>
+<ul>
+<li><code>Npc.Runtime</code> 은 <code>Npc.Wire</code> 를 <strong>참조하지 않는다</strong> — 런타임이 전송 표현을 알 이유가 없다.</li>
+<li><code>Npc.Runtime</code> 은 <code>Npc.Llm</code> 을 <strong>참조하지 않는다</strong> — 참조가 생기면 틱 루프에 LLM 이 들어올 길이 열린다.</li>
+</ul>
+<p><code>Npc.Wire</code> 가 따로 있는 이유도 같다. <code>[MemoryPackable]</code> 을 <code>NpcCommand</code> 에 붙이는 순간
+계약 프로젝트가 직렬화기 버전에 묶인다. 그래서 와이어 DTO 를 따로 두고 1:1 로 매핑한다.</p>
+</div>
+
+<!-- ==================== 2. 돌려보기 ==================== -->
+<h2 id="run">2. 돌려보기</h2>
+
+<table>
+<tr><th>항목</th><th>요구</th></tr>
+<tr><td>OS</td><td><strong>Windows 10/11</strong> — 클라이언트가 WinForms(<code>net10.0-windows</code>)다</td></tr>
+<tr><td>SDK</td><td>.NET 10</td></tr>
+<tr><td>LLM</td><td><strong>필요 없다.</strong> 기본이 <code>--tier none</code> 이라 LLM 을 한 번도 부르지 않는다</td></tr>
+<tr><td>프리베이크 플랜</td><td>있으면 좋고 없어도 된다. 없으면 아키타입 폴백 40개로 돈다</td></tr>
+</table>
+
+<h3 id="run-one">한 줄로</h3>
+<pre><code>./testbed/run_demo.ps1 -Scenario siege</code></pre>
+<p>게임서버 → NPC 서버 → 클라이언트를 순서대로 띄우고 <span class="kbd">Ctrl-C</span> 에 <strong>셋 다 내린다</strong>. 창을 하나 닫아도 나머지가 따라 내려간다.</p>
+
+<table>
+<tr><th>옵션</th><th>기본</th><th>의미</th></tr>
+<tr><td><code>-Scenario day|siege|blackout</code></td><td><code>day</code></td><td><code>testbed/scenarios/demo_&lt;이름&gt;.jsonl</code></td></tr>
+<tr><td><code>-Npcs N</code></td><td>300</td><td>게임서버와 NPC 서버에 <strong>같은 값</strong>이 간다</td></tr>
+<tr><td><code>-TimeScale N</code></td><td>60</td><td>데모 시나리오의 틱 좌표가 60 기준이다</td></tr>
+<tr><td><code>-Tier none|t1|t2|all</code></td><td><code>none</code></td><td>재계획 티어. <code>blackout</code> 을 <code>t2</code> 로 돌리면 T2→T1 차단이 실제로 보인다</td></tr>
+<tr><td><code>-NoBuild</code></td><td>—</td><td>빌드를 건너뛴다. 두 번째 실행부터 쓴다</td></tr>
+</table>
+
+<h3 id="run-manual">손으로 — 스크립트가 하는 일 셋</h3>
+<pre><code><span class="c"># 0) 빌드</span>
+dotnet build -c Release
+
+<span class="c"># 1) 게임서버 — 먼저 떠 있어야 한다</span>
+<span class="c">#    (나머지 둘은 재접속을 돌리므로 순서가 어긋나도 죽지는 않는다)</span>
+dotnet run -c Release --project testbed/Npc.TestGameServer -- `
+    --npcs 300 --time-scale 60 --link-port 7010 --client-port 7020 `
+    --scenario testbed/scenarios/demo_siege.jsonl
+
+<span class="c"># 2) NPC 서버</span>
+dotnet run -c Release --project src/Npc.Host -- `
+    --link tcp --gs-port 7010 --npcs 300 --time-scale 60 --days 0 `
+    --tier none --planstore ./planstore --port 5080 --dev-control
+
+<span class="c"># 3) 클라이언트</span>
+dotnet run -c Release --project testbed/Npc.TestClient -- `
+    --host 127.0.0.1 --port 7020 --npc-http http://localhost:5080</code></pre>
+
+<div class="bad">
+<p><strong><code>--npcs</code>·<code>--time-scale</code>·<code>--zone</code> 은 양쪽이 같아야 한다.</strong>
+하나라도 다르면 핸드셰이크에서 <strong>거절된다</strong> — 그것이 의도된 동작이다.</p>
+<p>첨자가 어긋난 채로 도는 것보다 연결 시점에 죽는 편이 싸다. 어긋나면
+<strong>대장장이에게 밭을 갈라고 명령하게 되고</strong>, 증상은 "가끔 이상하게 행동한다" 로만 나타난다.</p>
+</div>
+
+<!-- ==================== 3. 어떻게 동작하나 ==================== -->
+<h2 id="how">3. 어떻게 동작하나</h2>
+
+<h3 id="how-hs">핸드셰이크 — 넷을 맞춰 본다</h3>
+<p><strong>게임서버가 먼저 말을 건다.</strong> 접속한 쪽이 아니라 <em>받는</em> 쪽이 <code>Hello</code> 를 보낸다 — 세계의 규격을 아는 쪽이 게임서버이기 때문이다.</p>
+
+<figure>
+<div class="svgbox" id="fig-hs">
+<svg viewBox="0 0 820 300" role="img" aria-label="핸드셰이크 시퀀스">
+  <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker></defs>
+  <text class="t-c" x="60" y="26" fill="var(--npc)">NPC 서버</text>
+  <text class="t-c" x="640" y="26" fill="var(--gs)">게임서버</text>
+  <line x1="110" y1="38" x2="110" y2="284" class="wire" stroke-dasharray="4 4"/>
+  <line x1="690" y1="38" x2="690" y2="284" class="wire" stroke-dasharray="4 4"/>
+
+  <g class="hs" data-step="0">
+    <line x1="110" y1="64" x2="686" y2="64" class="wire" marker-end="url(#ar2)"/>
+    <text class="t-m" x="300" y="58">TCP connect :7010</text>
+  </g>
+  <g class="hs" data-step="1">
+    <line x1="690" y1="106" x2="114" y2="106" class="wire" marker-end="url(#ar2)"/>
+    <text class="t-m" x="250" y="100">Hello { 프로토콜 버전, 타임스케일, 마스터데이터 해시, 로스터 해시 }</text>
+  </g>
+  <g class="hs" data-step="2">
+    <rect x="20" y="124" width="180" height="52" rx="8" class="n-box n-npc" stroke-width="1.5"/>
+    <text class="t-s" x="32" y="144">넷을 내 것과 비교</text>
+    <text class="t-s" x="32" y="162">하나라도 다르면 거절</text>
+  </g>
+  <g class="hs" data-step="3">
+    <line x1="110" y1="204" x2="686" y2="204" class="wire" marker-end="url(#ar2)"/>
+    <text class="t-m" x="250" y="198">HelloAck { Accepted, RejectCode }</text>
+  </g>
+  <g class="hs" data-step="4">
+    <line x1="690" y1="246" x2="114" y2="246" class="wire" marker-end="url(#ar2)"/>
+    <text class="t-m" x="250" y="240">NpcSpawned × 로스터 수 (프레임당 ≤ 256)</text>
+    <text class="t-s" x="250" y="272" fill="var(--ok)">이후: 명령/이벤트가 흐르기 시작 · 1초 하트비트</text>
+  </g>
+</svg>
+<div class="ctl">
+  <button class="btn" id="hs-prev">← 이전</button>
+  <button class="btn" id="hs-play" aria-pressed="true">자동 재생</button>
+  <button class="btn" id="hs-next">다음 →</button>
+  <span class="small" id="hs-label">1 / 5</span>
+</div>
+</div>
+<figcaption>거절되면 <code>Faulted</code> 로 가고 <strong>재시도하지 않는다</strong> — 설정이 틀린 것을 재시도로 덮지 않는다</figcaption>
+</figure>
+
+<table>
+<tr><th>거절 코드</th><th>무엇이 다르다</th><th>고치는 법</th></tr>
+<tr><td><code>ProtocolVersion</code></td><td>와이어 버전</td><td>양쪽을 같은 커밋으로 빌드</td></tr>
+<tr><td><code>MasterDataMismatch</code></td><td><code>MasterDataSet.ContentHash</code></td><td>두 프로세스가 같은 <code>masterdata/</code> 를 보게 한다</td></tr>
+<tr><td><code>RosterMismatch</code></td><td><code>NpcRoster.Hash</code></td><td><code>--npcs</code>·<code>--zone</code> 을 맞춘다</td></tr>
+<tr><td><code>TimeScaleMismatch</code></td><td><code>--time-scale</code></td><td>맞춘다</td></tr>
+</table>
+
+<div class="note"><p><strong>우회 옵션은 없다.</strong> "일단 붙게 해 주는 플래그" 를 만들지 않는 것이 이 설계의 요점이다 —
+그 플래그가 있으면 첨자가 어긋난 회차가 조용히 돌게 된다.</p></div>
+
+<h3 id="how-frame">프레임 — 8바이트 헤더</h3>
+<p>TCP 는 경계를 지켜 주지 않는다. 한 번의 읽기에 프레임이 반만 오거나 세 개가 붙어 온다. 그래서 길이 접두를 붙인다.</p>
+
+<figure>
+<div class="svgbox">
+<svg viewBox="0 0 760 130" role="img" aria-label="프레임 헤더 바이트 레이아웃">
+  <g>
+    <rect x="20"  y="30" width="240" height="46" rx="6" class="n-box" stroke-width="1.5" fill="var(--accent-soft)"/>
+    <rect x="260" y="30" width="80"  height="46" rx="6" class="n-box" stroke-width="1.5"/>
+    <rect x="340" y="30" width="80"  height="46" rx="6" class="n-box" stroke-width="1.5"/>
+    <rect x="420" y="30" width="120" height="46" rx="6" class="n-box" stroke-width="1.5"/>
+    <rect x="540" y="30" width="200" height="46" rx="6" class="n-box" stroke-width="1.5" fill="var(--panel-2)" stroke-dasharray="5 4"/>
+  </g>
+  <text class="t-m" x="30"  y="52">payload length (uint32 LE)</text>
+  <text class="t-m" x="272" y="52">kind</text>
+  <text class="t-m" x="352" y="52">ver</text>
+  <text class="t-m" x="432" y="52">reserved</text>
+  <text class="t-m" x="590" y="52">payload …</text>
+  <text class="t-s" x="30"  y="96">0 · 1 · 2 · 3</text>
+  <text class="t-s" x="272" y="96">4</text>
+  <text class="t-s" x="352" y="96">5</text>
+  <text class="t-s" x="432" y="96">6 · 7</text>
+  <text class="t-s" x="546" y="96">최대 1 MiB — 넘으면 예외를 던지되 프로세스는 산다</text>
+  <text class="t-s" x="20" y="118">헤더 8바이트 고정. 링크(<tspan class="t-m">Npc.Wire</tspan>)와 클라이언트 프로토콜이 <tspan style="font-weight:650">같은 코덱</tspan>을 쓰고 kind 열거형만 다르다.</text>
+</svg>
+</div>
+</figure>
+
+<div class="grid2">
+<div class="card">
+<h4>링크 kind <span class="pill">Npc.Wire</span></h4>
+<p class="small"><code>Hello 1</code> · <code>HelloAck 2</code> · <code>CommandBatch 3</code> · <code>EventBatch 4</code> · <code>Heartbeat 5</code> · <code>Bye 6</code></p>
+<p class="small"><code>sizeof(WireCommand) == 56</code>, <code>sizeof(WireEvent) == 64</code> — 테스트가 못 박는다.</p>
+</div>
+<div class="card">
+<h4>클라 kind <span class="pill">Npc.TestBed.Protocol</span></h4>
+<p class="small"><strong>서버→클라 1~63</strong>: <code>SrvHello 1</code> · <code>Snapshot 2</code> · <code>ZoneStates 3</code> · <code>CommandLog 4</code> · <code>EventLog 5</code> · <code>LinkStatus 6</code> · <code>Pong 7</code></p>
+<p class="small"><strong>클라→서버 64~127</strong>: <code>CliHello 64</code> · <code>Input 65</code> · <code>Interact 66</code> · <code>Attack 67</code> · <code>Select 68</code> · <code>Control 69</code> · <code>Ping 70</code></p>
+<p class="small">번호를 갈라 둔 이유: <strong>로그에서 방향을 헷갈리지 않는다.</strong></p>
+</div>
+</div>
+
+<h3 id="how-tick">10단계 틱 루프</h3>
+<p>게임서버가 100ms 마다 이 열 단계를 돈다. 순서가 <strong>계약</strong>이다 — <code>Npc.Host</code> 의 루프백 드라이버와 같은 순서여야
+루프백과 소켓을 비교할 수 있다.</p>
+
+<figure>
+<div class="svgbox" id="fig-tick">
+<svg viewBox="0 0 860 250" role="img" aria-label="틱 10단계">
+  <g class="stage" data-i="0"><rect x="14"  y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="26" y="64">1 명령</text><text class="t-s" x="26" y="82">수신 배수</text></g>
+  <g class="stage" data-i="1"><rect x="98"  y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="110" y="64">2 시나리오</text><text class="t-s" x="110" y="82">jsonl 주입</text></g>
+  <g class="stage" data-i="2"><rect x="182" y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="194" y="64">3 플레이어</text><text class="t-s" x="194" y="82">입력·근접</text></g>
+  <g class="stage" data-i="3"><rect x="266" y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="278" y="64">4 이동</text><text class="t-s" x="278" y="82">MovementSim</text></g>
+  <g class="stage" data-i="4"><rect x="350" y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="362" y="64">5 상호작용</text><text class="t-s" x="362" y="82">Interaction</text></g>
+  <g class="stage" data-i="5"><rect x="434" y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="446" y="64">6 트랜스폼</text><text class="t-s" x="446" y="82">관측분만</text></g>
+  <g class="stage" data-i="6"><rect x="518" y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="530" y="64">7 욕구</text><text class="t-s" x="530" y="82">NeedsSim</text></g>
+  <g class="stage" data-i="7"><rect x="602" y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="614" y="64">8 월드</text><text class="t-s" x="614" y="82">TickSync 발행</text></g>
+  <g class="stage" data-i="8"><rect x="686" y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="698" y="64">9 링크</text><text class="t-s" x="698" y="82">EventBatch</text></g>
+  <g class="stage" data-i="9"><rect x="770" y="40" width="78" height="58" rx="8" stroke-width="1.5"/><text class="t-s" x="782" y="64">10 방송</text><text class="t-s" x="782" y="82">스냅샷·로그</text></g>
+
+  <line x1="14" y1="118" x2="848" y2="118" class="wire"/>
+  <text class="t-s" x="14" y="142">← 여기까지가 <tspan class="t-m">GameWorld.Tick</tspan> (1~8) — 소켓을 모른다</text>
+  <text class="t-s" x="560" y="142">9·10 은 <tspan class="t-m">GameServer</tspan> — 소켓을 안다</text>
+
+  <rect x="14" y="164" width="834" height="70" rx="10" class="n-box" stroke-width="1.5"/>
+  <text class="t-s" x="30" y="188" id="tick-desc">1 · 수신 링(CommandInbox)을 비워 SimWorld.ApplyCommand 로 넘긴다. NPC 서버가 지난 틱에 낸 명령이다.</text>
+  <text class="t-s" x="30" y="212" id="tick-desc2" fill="var(--ink-3)">틱 스레드는 하나다. accept 루프와 세션 리시버는 링에만 넣고, 월드와 소켓 쓰기는 전부 이 스레드다.</text>
+</svg>
+<div class="ctl">
+  <button class="btn" id="tk-prev">← 이전</button>
+  <button class="btn" id="tk-play" aria-pressed="true">자동 재생</button>
+  <button class="btn" id="tk-next">다음 →</button>
+  <span class="small" id="tk-label">1 / 10</span>
+</div>
+</div>
+<figcaption>10Hz — 한 바퀴가 100ms. <code>--time-scale 60</code> 이면 게임 1시간 = 600틱 = 실시간 60초</figcaption>
+</figure>
+
+<div class="warn">
+<p><strong>NPC 서버는 게임서버를 기다리지 않고, 게임서버도 NPC 서버를 기다리지 않는다.</strong>
+락스텝이 없는 것이 이 테스트 베드의 핵심이다 — 링크가 없는 동안에도 세계는 흐르고, 그때 쌓인 이벤트는 배수해 버린다.</p>
+<p>그 대가로 <strong>결정론이 성립하지 않는다</strong>. <a href="#limit">8. 알려진 한계</a>를 본다.</p>
+</div>
+
+<h3 id="how-round">명령 한 바퀴 — <code>MoveTo</code> 가 <code>NpcArrived</code> 로 돌아오기까지</h3>
+
+<figure>
+<div class="svgbox" id="fig-round">
+<svg viewBox="0 0 840 260" role="img" aria-label="명령 왕복">
+  <rect x="20" y="30" width="180" height="200" rx="10" class="n-box n-npc" stroke-width="2"/>
+  <rect x="640" y="30" width="180" height="200" rx="10" class="n-box n-gs" stroke-width="2"/>
+  <text class="t-c" x="34" y="52" fill="var(--npc)">NPC 서버</text>
+  <text class="t-c" x="654" y="52" fill="var(--gs)">게임서버</text>
+
+  <text class="t-s" x="34" y="78">① PlanExecutor 가</text>
+  <text class="t-s" x="34" y="94">스텝 0 을 본다</text>
+  <text class="t-m" x="34" y="118">MoveTo poi=137</text>
+  <text class="t-s" x="34" y="142">CorrelationId 부여</text>
+  <text class="t-s" x="34" y="166">→ Enqueue</text>
+  <text class="t-s" x="34" y="190">틱 끝에 FlushAsync</text>
+  <text class="t-s" x="34" y="214">= 프레임 한 장 (N8)</text>
+
+  <text class="t-s" x="654" y="78">② CommandInbox 링</text>
+  <text class="t-s" x="654" y="102">③ 다음 틱 1단계에</text>
+  <text class="t-s" x="654" y="118">ApplyCommand</text>
+  <text class="t-s" x="654" y="142">④ MovementSim 이</text>
+  <text class="t-s" x="654" y="158">도착 시각을 잡는다</text>
+  <text class="t-s" x="654" y="190">⑤ 그 틱에 도착하면</text>
+  <text class="t-m" x="654" y="212">NpcArrived + 같은 상관 ID</text>
+
+  <path id="r-out" d="M 204 120 C 380 120 460 96 636 96" class="wire" fill="none"/>
+  <path id="r-in"  d="M 636 176 C 460 176 380 200 204 200" class="wire" fill="none"/>
+  <text class="t-m" x="330" y="88" fill="var(--npc)">CommandBatch →</text>
+  <text class="t-m" x="330" y="222" fill="var(--gs)">← EventBatch (Sequence 증가)</text>
+  <circle class="pkt run" fill="var(--npc)" style="offset-path:path('M 204 120 C 380 120 460 96 636 96')"/>
+  <circle class="pkt run" fill="var(--gs)" style="offset-path:path('M 636 176 C 460 176 380 200 204 200');animation-delay:-1.3s"/>
+
+  <text class="t-s" x="250" y="140" fill="var(--ink-3)">⑥ 돌아온 상관 ID 로 스텝을 완료 처리 → 스텝 1 로 전진</text>
+  <text class="t-s" x="250" y="160" fill="var(--bad)">⑦ 안 돌아오면? timeout_s 뒤 로컬에서 ActionFailed 합성</text>
+</svg>
+<div class="ctl"><button class="btn" id="btn-round" aria-pressed="true">애니메이션 정지</button></div>
+</div>
+<figcaption>⑦ 이 이 설계의 안전장치다 — <strong>명령은 유실된다고 가정한다</strong></figcaption>
+</figure>
+
+<div class="bad">
+<p><strong>⑦ 이 깨지면 NPC 가 영원히 멈춘다.</strong> 그런데 평소에는 아무 일도 안 일어나므로 <strong>일부러 깨뜨려야 보인다</strong>.
+그래서 게임서버에 <code>--drop-rate</code> 가 있고, 종단 테스트가 <code>0.3</code> 으로 300틱을 돌려
+"합성 타임아웃 &gt; 0 · 멈춘 NPC 0" 을 못 박는다.</p>
+</div>
+
+<h3 id="how-rules">N1~N8 — 링크가 지켜야 하는 여덟</h3>
+<p>테스트로 강제된다. 어기면 빌드가 아니라 <strong>테스트가 깨진다</strong>(<code>Category=Contracts</code>).</p>
+<table>
+<tr><th>#</th><th>규칙</th><th>왜</th></tr>
+<tr><td>N1</td><td>명령은 fire-and-forget. <strong>반환값 있는 메서드를 <code>IGameServerLink</code> 에 추가하지 않는다</strong></td><td>RPC 왕복을 만드는 순간 네트워크 RTT 가 틱 루프를 막는다</td></tr>
+<tr><td>N2</td><td>모든 패킷은 <code>readonly record struct</code></td><td>참조 필드·가변 컬렉션이 들어오면 할당과 경합이 따라온다</td></tr>
+<tr><td>N3</td><td>패킷에 <code>string</code> 금지. 전부 강타입 ID</td><td>프롬프트 인젝션을 "넣지 마라" 가 아니라 <strong>"넣을 수 없다"</strong> 로 만든다</td></tr>
+<tr><td>N4</td><td>패킷에 <code>DateTime</code>/<code>TimeSpan</code> 금지. 시간은 <code>Tick</code>(long)만</td><td>결정론</td></tr>
+<tr><td>N5</td><td>모든 명령에 <code>CorrelationId</code></td><td>응답을 명령에 이어 붙일 유일한 끈</td></tr>
+<tr><td>N6</td><td>모든 이벤트에 <code>Sequence</code>. 갭 검출 → 경보</td><td>이벤트가 새는 것을 조용히 넘기지 않는다</td></tr>
+<tr><td>N7</td><td>이벤트 처리는 멱등. 2회 주입 → 상태 해시 동일</td><td>재접속·재전송이 상태를 흔들지 않는다</td></tr>
+<tr><td>N8</td><td>배치가 기본. <code>Enqueue</code> + <code>FlushAsync</code> 만 노출</td><td><strong>한 번의 Flush = 한 개의 프레임</strong></td></tr>
+</table>
+
+<!-- ==================== 4. 무엇을 바꾸며 테스트하나 ==================== -->
+<h2 id="change">4. 무엇을 바꾸며 테스트하나</h2>
+<p>"이걸 보고 싶다" → "이걸 만진다" 표다. <strong>위에서 아래로 갈수록 비용이 커진다.</strong></p>
+
+<h3 id="change-live">① 실행 중에 — 제어 패널 (재빌드 없음)</h3>
+<p>클라이언트의 <strong>제어</strong> 탭. 전부 <code>Control</code> 메시지 하나로 게임서버에 가고, <strong>NPC 서버는 이 패널의 존재를 모른다.</strong></p>
+<table>
+<tr><th>만지는 것</th><th>무엇이 일어나나</th><th>어디서 확인</th></tr>
+<tr><td>존 상태 → <code>War</code></td><td><code>ZoneStateChanged</code> 주입 → <strong>그 존의 버킷 키가 바뀌어 플랜이 갈린다</strong></td><td>지도의 존 테두리가 빨개진다 · 인스펙터의 plan id</td></tr>
+<tr><td>날씨 → <code>Storm</code></td><td><code>WeatherChanged</code> 주입</td><td>같음</td></tr>
+<tr><td>시간 건너뛰기</td><td>게임서버 틱을 점프</td><td>상태바의 게임 시각<br><span class="small">⚠ 진행 중인 이동·작업이 <strong>한꺼번에 끝난다</strong>. 시나리오 회차에서는 쓰지 않는다</span></td></tr>
+<tr><td>고장 주입 슬라이더</td><td>명령을 확률로 버리거나(<code>drop</code>) 실패시킨다(<code>fail</code>)</td><td>로그 패널의 <code>ActionFailed</code> · <code>/metrics</code> 의 합성 타임아웃</td></tr>
+<tr><td>선택 NPC despawn</td><td><code>NpcDespawned</code> → <code>TargetGone</code> 경로</td><td>그 NPC 를 상대하던 다른 NPC 의 스텝이 실패한다</td></tr>
+<tr><td>킬스위치 <code>T2/T1/PlanStore</code></td><td>NPC 서버의 티어를 끊는다</td><td>인스펙터의 <code>PlanKind</code> 가 <code>bucket</code> → <code>fallback</code></td></tr>
+</table>
+
+<div class="note">
+<p><strong>킬스위치만 다른 길로 간다.</strong> 그것은 NPC 서버 <em>안쪽</em> 상태라 링크로 보낼 수단이 없다
+(<code>GameEvent</code> 에 그런 종류가 없고, 만들면 N 규칙을 어긴다).
+제어 패널의 버튼은 <code>POST /control/killswitch</code> 를 직접 부른다.</p>
+<p><strong><code>--dev-control</code> 없이 기동한 NPC 서버에는 그 라우트가 아예 없어서 404</strong> 이고, 화면에는 "미연결" 로만 나온다.
+조건부 401/403 이 아니라 <strong>조건부 등록</strong>인 이유는 그쪽이 실수 하나로 열리기 때문이다.</p>
+</div>
+
+<h3 id="change-cli">② 시나리오와 옵션 — 재기동 (재빌드 없음)</h3>
+<table>
+<tr><th>보고 싶은 것</th><th>만지는 것</th></tr>
+<tr><td>이벤트 없이 하루가 흐르는 것</td><td><code>-Scenario day</code></td></tr>
+<tr><td>공성 — 존 전체가 동시에 계획을 갈아타는 순간</td><td><code>-Scenario siege</code> (tick 1200 에 War)</td></tr>
+<tr><td>LLM 이 끊겨도 도는 것</td><td><code>-Scenario blackout</code> · 보려면 <code>-Tier t2</code></td></tr>
+<tr><td>내 시나리오</td><td><code>testbed/scenarios/*.jsonl</code> 에 새 파일. <strong><code>run_demo.ps1</code> 의 <code>ValidateSet</code> 에도 이름을 넣는다</strong> — 테스트가 1:1 을 강제한다</td></tr>
+<tr><td>명령 유실 내성</td><td>게임서버에 <code>--drop-rate 0.3</code></td></tr>
+<tr><td>액션 실패 내성</td><td>게임서버에 <code>--fail-rate 0.1</code></td></tr>
+<tr><td>사람 없이 도는 데모</td><td>게임서버에 <code>--bots 4</code> (결정론 랜덤 워크 플레이어)</td></tr>
+<tr><td>인지 LOD 가 실제로 갈리는지</td><td>클라이언트로 NPC 에게 걸어간다. 50m 안 → LOD 0</td></tr>
+<tr><td>존 하나만 뽑아 작게</td><td>양쪽에 <code>--zone town_center</code> (<strong>반드시 양쪽</strong>)</td></tr>
+</table>
+
+<h4>시나리오 jsonl 문법</h4>
+<pre><code>{"_comment": "첫 줄에 무엇을 보는 회차인지와 실시간 소요를 적는다"}
+{"at_tick": 1200, "event": "ZoneStateChanged", "zone": "town_center", "code": "War"}
+{"at_tick": 1260, "event": "WeatherChanged",   "zone": "town_center", "code": "Storm"}
+{"at_tick": 600,  "event": "KillSwitch",       "target": "T2"}</code></pre>
+<p class="small"><code>at_tick</code> 이 없는 줄은 주석으로 넘어간다. <strong>모르는 존 id·이벤트 이름·킬스위치 대상은 로드 시점에 예외</strong>다 — 오타를 조용히 넘기면 데모 도중 아무 일도 안 일어나고, 그때는 원인을 한참 찾게 된다.</p>
+<p class="small"><code>KillSwitch</code> 줄은 <strong>게임서버가 무시하고 NPC 서버만 처리한다.</strong> 그래서 같은 파일을 양쪽에 준다.</p>
+
+<h3 id="change-code">③ 코드로 — 재빌드</h3>
+<p>어디를 고치면 어디가 바뀌는지의 지도다.</p>
+<table>
+<tr><th>바꾸고 싶은 것</th><th>여는 파일</th><th>주의</th></tr>
+<tr><td>NPC 가 무엇을 할지</td><td><code>masterdata/fallback_plans.json</code> · <code>planstore/plans/*.json</code></td><td><strong>플랜은 코드가 아니라 데이터다.</strong> 재빌드도 필요 없다</td></tr>
+<tr><td>세계가 명령에 어떻게 반응할지</td><td><code>src/Npc.Sim/MovementSim.cs</code> · <code>InteractionSim.cs</code></td><td>루프백과 소켓이 <strong>같은 Sim</strong> 을 쓴다 — 여기를 고치면 둘 다 바뀐다</td></tr>
+<tr><td>플레이어 조작·근접 판정</td><td><code>testbed/Npc.TestGameServer/World/PlayerRegistry.cs</code></td><td><code>ObservedByPlayer</code> 를 갱신하는 <strong>유일한</strong> 주체다</td></tr>
+<tr><td>클라이언트 화면</td><td><code>testbed/Npc.TestClient/Render/</code> · <code>Panels/</code></td><td>단방향 잎이라 <strong>마음껏 고쳐도 아무것도 안 깨진다</strong></td></tr>
+<tr><td>클라이언트에 새 정보 보내기</td><td><code>Npc.TestBed.Protocol</code> + <code>Client/ClientSession.cs</code> + 클라 수신부</td><td><strong>문자열·<code>DateTime</code> 금지</strong> — 테스트가 어셈블리 전체를 검사한다</td></tr>
+<tr><td>링크에 새 명령/이벤트</td><td><code>Npc.Contracts</code> → <code>Npc.Wire</code> → 양쪽 처리</td><td><span style="color:var(--bad);font-weight:650">여기부터는 신중히.</span> <code>Wire_MirrorsContractMembers</code> 가 1:1 을 강제하고, 크기가 바뀌면 <code>Wire_LayoutIsFrozen</code> 이 깨진다</td></tr>
+<tr><td>틱 루프 자체</td><td><code>src/Npc.Runtime/NpcServerLoop.cs</code></td><td><span style="color:var(--bad);font-weight:650">거의 항상 설계가 틀린 것이다.</span> <code>await</code>·LLM·힙 할당·<code>lock</code>·벽시계 전부 금지</td></tr>
+</table>
+
+<div class="warn">
+<p><strong>새 액션·플래그를 코드에 하드코딩하지 않는다.</strong> <code>masterdata/</code> 가 단일 원천이다.
+그리고 <code>code</code> 번호와 <code>bit</code> 번호는 <strong>절대 재배치하지 않는다</strong> — 프리베이크된 플랜이 통째로 깨진다. 추가는 뒤에만.</p>
+</div>
+
+<!-- ==================== 5. 자동 테스트 ==================== -->
+<h2 id="test">5. 자동 테스트</h2>
+
+<pre><code><span class="c"># CI 기본 (= ./build.ps1)</span>
+dotnet test "--filter" "Category!=Golden&amp;Category!=Gate&amp;Category!=Load"
+
+<span class="c"># 테스트 베드만</span>
+dotnet test --filter "Category=TestBed"
+dotnet test --filter "Category=Wire"
+dotnet test --filter "Category=Contracts"</code></pre>
+
+<table>
+<tr><th>카테고리</th><th>무엇을</th><th>건수</th></tr>
+<tr><td><code>Wire</code></td><td>소켓 위의 표현 — DTO 왕복·크기 고정·프레임 코덱</td><td>26</td></tr>
+<tr><td><code>Contracts</code></td><td>N1~N8 (리플렉션 검사)</td><td>8</td></tr>
+<tr><td><code>TestBed</code></td><td>게임서버 대역·클라이언트 세션·종단</td><td>52</td></tr>
+<tr><td>(없음)</td><td>단위 테스트</td><td>나머지</td></tr>
+</table>
+
+<h3>종단 테스트가 무엇을 보는가</h3>
+<p><code>tests/Npc.Tests/TestBed/EndToEndTests.cs</code> — 게임서버와 NPC 서버를 <strong>인프로세스로 포트 0 에</strong> 띄워 진짜 소켓으로 잇는다.
+가짜 상대를 하나라도 끼우면 "두 구현이 서로 맞는가" 라는 정작 볼 것을 못 본다.</p>
+<table>
+<tr><th>테스트</th><th>무엇을 못 박나</th></tr>
+<tr><td><code>TestBed_EndToEnd_NpcArrives</code></td><td><code>MoveTo</code> 가 소켓을 건너가 도착 이벤트로 돌아온다 · 시퀀스 갭 0 · 드롭 0</td></tr>
+<tr><td><code>TestBed_ProximityChangesLod</code></td><td>플레이어를 NPC 위에 놓으면 그 NPC 의 LOD 가 0 이 된다</td></tr>
+<tr><td><code>TestBed_InteractRaisesInterrupt</code></td><td><code>Interact</code> → 최근 사건에 <code>PlayerInteracted</code>, <code>PlayerNearby</code> 플래그</td></tr>
+<tr><td><code>TcpLink_CommandLossSynthesizesTimeout</code></td><td>드롭 0.3 에서 합성 타임아웃 &gt; 0 · 멈춘 NPC 0</td></tr>
+</table>
+<p class="small"><strong>포트는 0(자동 할당)이다</strong> — 고정 포트를 쓰면 데모를 띄워 둔 채 테스트를 돌릴 때 깨진다.</p>
+
+<h3>실측 (2026-08-01)</h3>
+<table>
+<tr><th>회차</th><th>결과</th></tr>
+<tr><td><code>--link tcp --npcs 500</code> 10분 (6,002틱)</td><td>틱 p99 <strong>0.197ms</strong> (예산 20ms) · 오버런 0 · <strong><code>bytesPerTick</code> 0</strong> · 명령 221,610건 전량 flush · 드롭 0 · 갭 0</td></tr>
+<tr><td>데모 3종 완주</td><td>day 10,463틱 · siege 2,626틱 · blackout 2,034틱 · <strong>크래시 0</strong></td></tr>
+<tr><td>재접속</td><td>게임서버를 그대로 둔 채 NPC 서버를 죽였다 살리면 <code>link up → down → up</code>, 명령 수 계속 증가</td></tr>
+</table>
+<div class="note"><p><strong>틱 루프 할당은 <code>gen0Collections</code> 로 재지 않는다.</strong> 그 값은 <code>GC.CollectionCount(0)</code> 라
+프로세스 전역이고 대시보드 HTTP·소켓 리시버·직렬화가 전부 든다. 틱 루프를 재는 계기는 <code>bytesPerTick</code> 하나다.</p></div>
+
+<!-- ==================== 6. 코드 분석 ==================== -->
+<h2 id="read">6. 코드 분석 순서</h2>
+
+<h3 id="read-order">읽는 순서</h3>
+<p>가장 빨리 감을 잡는 길은 <strong>패킷 하나를 끝까지 따라가는 것</strong>이다. 위에서 아래로 읽으면 <code>MoveTo</code> 한 개의 일생이 된다.</p>
+<table>
+<tr><th>#</th><th>파일</th><th>여기서 보는 것</th></tr>
+<tr><td>1</td><td><code>src/Npc.Contracts/IGameServerLink.cs</code></td><td><strong>경계 전부.</strong> <code>Enqueue</code>·<code>FlushAsync</code>·<code>Events</code>·<code>State</code>·<code>Stats</code> 다섯뿐이다. N1~N8 의 근거</td></tr>
+<tr><td>2</td><td><code>src/Npc.Contracts/NpcCommand.cs</code> · <code>GameEvent.cs</code></td><td>오가는 값의 전부. 문자열도 <code>DateTime</code> 도 없다</td></tr>
+<tr><td>3</td><td><code>src/Npc.Runtime/NpcServerLoop.cs</code></td><td>틱 한 번. <strong>50줄이 안 된다</strong> — 배수 → 시계 전진 → RunTick → Flush</td></tr>
+<tr><td>4</td><td><code>src/Npc.Runtime/PlanExecutor.cs</code></td><td>스텝 → 명령. 상관 ID 가 여기서 붙는다</td></tr>
+<tr><td>5</td><td><code>src/Npc.Gateway/TcpGameServerLink.cs</code></td><td>계약이 소켓이 되는 자리. 센더·리시버 태스크와 우선순위 링</td></tr>
+<tr><td>6</td><td><code>src/Npc.Wire/FrameCodec.cs</code> · <code>WireCommand.cs</code></td><td>바이트가 되는 자리</td></tr>
+<tr><td>7</td><td><code>testbed/Npc.TestGameServer/Link/LinkSession.cs</code></td><td>반대편에서 바이트를 도로 명령으로</td></tr>
+<tr><td>8</td><td><code>testbed/Npc.TestGameServer/GameWorld.cs</code></td><td>10단계 틱의 1~8</td></tr>
+<tr><td>9</td><td><code>testbed/Npc.TestGameServer/GameServer.cs</code></td><td>9·10 단계와 조립 전부</td></tr>
+<tr><td>10</td><td><code>src/Npc.Runtime/EventApplier.cs</code></td><td>돌아온 이벤트가 상태가 되는 자리. 한 바퀴 끝</td></tr>
+</table>
+
+<div class="note">
+<p><strong>주석을 건너뛰지 않는다.</strong> 이 저장소는 <em>왜 그렇게 했는지</em>가 코드보다 주석에 더 많이 적혀 있다.
+특히 <code>&lt;b&gt;…&lt;/b&gt;</code> 로 강조된 문장은 대부분 <strong>실제로 한 번 당한 적이 있는 것</strong>이다.</p>
+</div>
+
+<h3 id="read-seam">이음매 지도 — "여기를 잡으면 안쪽을 안 건드린다"</h3>
+<p>이 프로젝트에서 무언가를 끼워 넣고 싶을 때 찾아야 하는 자리들이다. P6 가 본체를 0줄로 유지한 것도 전부 이 이음매 덕분이다.</p>
+<table>
+<tr><th>이음매</th><th>무엇을 갈아끼울 수 있나</th><th>실제 사용례</th></tr>
+<tr><td><code>IGameServerLink</code></td><td>게임서버로 나가는 길 전체</td><td>Loopback / Null / Recording / Replay / <strong>Tcp</strong></td></tr>
+<tr><td><code>ITickObserver</code></td><td>틱 시작·끝에 끼어들기</td><td><code>KillSwitchSchedule</code> 이 <code>NpcMeter</code> 를 감쌌다 — <strong>이것 덕분에 <code>Npc.Runtime</code> 을 안 고쳤다</strong></td></tr>
+<tr><td><code>SimWorld.Handler</code></td><td>명령 처리 앞에 관문 세우기</td><td><code>FaultInjector</code>, 그 앞에 <code>ControlHandler</code></td></tr>
+<tr><td><code>GameWorld.CommandObserver</code> / <code>LinkSession.EventObserver</code></td><td>오가는 것 엿보기</td><td><code>MirrorLog</code> (클라이언트 로그 패널의 원천)</td></tr>
+<tr><td><code>GameWorld.StageObserver</code></td><td>틱 단계 순서 관측</td><td><code>GameServer_TickOrderMatchesSpec</code></td></tr>
+<tr><td><code>NpcRoster.Select</code></td><td>NPC 선택 규칙</td><td><strong>양쪽이 같은 함수를 부른다</strong> — 다르면 첨자가 어긋난다</td></tr>
+</table>
+
+<h3 id="read-map">파일 지도</h3>
+<pre><code>src/
+  Npc.Contracts/     경계 · 패킷            <span class="c">← 여기부터 읽는다</span>
+  Npc.Core/          플랜 DSL · WorldFlags · BucketKey
+  Npc.MasterData/    로더 · NpcRoster
+  Npc.Runtime/       NpcServerLoop · PlanExecutor · EventApplier · BucketTransition
+  Npc.Planning/      PlanStore · ReplanQueue
+  Npc.Wire/          FrameCodec · WireCommand · WireEvent · LinkMessages
+  Npc.Gateway/       TcpGameServerLink · PriorityCommandRing · Loopback…
+  Npc.Sim/           MovementSim · InteractionSim · NeedsSim · ScenarioRunner
+  Npc.Host/          조립 · HTTP(/metrics · /npc/{id} · /control)
+testbed/
+  Npc.TestBed.Protocol/  클라 프로토콜 (Wire 의 코덱 재사용)
+  Npc.TestGameServer/
+    GameServer.cs        조립 + 10Hz 루프 (9·10단계)
+    GameWorld.cs         Sim 조립 + 1~8단계
+    Link/                LinkListener · LinkSession · CommandInbox
+    Client/              ClientListener · ClientSession · SnapshotBuilder · ControlHandler
+    World/               PlayerRegistry · MirrorLog
+  Npc.TestClient/
+    Net/                 GameConnection(소켓) · NpcServerHttp(폴링)
+    Render/              MapRenderer · Camera · EntityInterpolator
+    Panels/              InspectorPanel · LogPanel · ControlPanel · StatusBar
+    Format/IdNames.cs    <span class="c">id 가 사람 말이 되는 유일한 자리</span>
+  scenarios/             데모 3종
+  run_demo.ps1           셋을 한 번에 (UTF-8 BOM)</code></pre>
+
+<div class="note">
+<p><strong><code>IdNames.cs</code> 가 이 구조를 요약한다.</strong> 링크에도 클라이언트 프로토콜에도 문자열이 0개인데
+화면에는 <code>MoveTo smithy_001_05</code> 로 보인다. 이름은 <strong>양쪽이 같은 마스터데이터를 읽어 각자 푼다</strong> —
+그래서 <code>SrvHello</code> 가 마스터데이터 해시를 실어 보낸다.</p>
+</div>
+
+<!-- ==================== 7. 막히면 ==================== -->
+<h2 id="trouble">7. 막히면</h2>
+<table>
+<tr><th>증상</th><th>원인과 조치</th></tr>
+<tr><td>게임서버가 <code>link down</code> 이고 NPC 가 안 움직인다</td><td>양쪽 <code>--npcs</code>·<code>--time-scale</code> 이 다르면 핸드셰이크에서 거절된다. <strong>두 콘솔의 <code>roster hash</code> 를 견준다</strong></td></tr>
+<tr><td>클라이언트가 "게임서버를 찾는 중…" 에서 안 넘어감</td><td>게임서버의 <code>--client-port</code> 와 클라이언트의 <code>--port</code> (기본 7020)</td></tr>
+<tr><td>인스펙터가 "NPC 서버 미연결"</td><td>NPC 서버가 안 떴거나 <code>--port</code> 가 다르다. <strong>클라이언트는 이 상태로도 계속 돈다</strong></td></tr>
+<tr><td>킬스위치 버튼이 "미연결" 만 뜬다</td><td>NPC 서버에 <code>--dev-control</code> 이 없다</td></tr>
+<tr><td>"마스터데이터 해시가 게임서버와 다르다" 경고</td><td>두 프로세스가 다른 <code>masterdata/</code> 를 본다. POI 이름과 위치가 어긋난 채 <strong>그럴듯한 화면</strong>이 나오는, 가장 찾기 어려운 사고다</td></tr>
+<tr><td>창은 뜨는데 NPC 가 안 보인다</td><td>AOI 가 플레이어 반경 1,200m 다. <span class="kbd">Home</span> 으로 월드 전체를 보고 무리 쪽으로 걸어간다</td></tr>
+<tr><td>빌드가 파일 잠김으로 실패</td><td>데모 프로세스가 <code>bin/Release</code> DLL 을 잡고 있다. 먼저 내린다</td></tr>
+<tr><td>테스트가 간헐적으로 실패</td><td>할당·벽시계 예산 테스트가 부하에 민감하다. 단독으로 다시 돌려 본다</td></tr>
+</table>
+
+<!-- ==================== 8. 한계 ==================== -->
+<h2 id="limit">8. 알려진 한계</h2>
+<p>전부 <strong>의도한 것이거나 근거가 있는 미완</strong>이다. 버그로 오해하지 않도록 남긴다.</p>
+
+<table>
+<tr><th>무엇</th><th>내용</th></tr>
+<tr><td><strong>결정론이 성립하지 않는다</strong></td><td>"리플레이 100% 일치" 는 <strong>루프백 경로의 게이트</strong>다. 소켓에서는 명령이 몇 틱 늦게 도착할 수 있고 그것이 스텝 경계를 바꾼다. <strong>결함이 아니라 사실이다</strong> — 실제 게임서버에 붙으면 원래 그렇다. 재현이 필요하면 <code>--link record</code> 로 이벤트 열을 기록해 <code>--link replay</code> 로 되민다</td></tr>
+<tr><td><code>InCombat</code> 테두리가 안 켜진다</td><td>전투 상태를 들고 있는 자리가 게임서버 어디에도 없어서 비웠다. HP 같은 것으로 흉내내면 <strong>화면이 거짓말을 한다</strong></td></tr>
+<tr><td>상태바의 <code>npc</code> 틱이 늙는다</td><td>게임서버는 NPC 서버의 틱을 <strong>명령의 <code>IssuedAt</code> 에서 딴다.</strong> 하트비트에 그 값이 없다. NPC 서버가 조용하면 멈춘 것처럼 보이는데 <strong>그것도 정보다</strong></td></tr>
+<tr><td>고장 슬라이더가 시작 옵션과 겹친다</td><td>슬라이더는 <code>--fail-rate</code> 를 <strong>대체하지 않고 앞에 선다</strong>. 떼면 그 옵션으로 시작한 회차가 클라이언트가 붙는 순간 조용히 무고장이 된다</td></tr>
+<tr><td><code>SkipTime</code> 은 리플레이 대상이 아니다</td><td>틱을 점프시키면 진행 중인 이동·작업의 만료가 전부 지나가 다음 틱에 한꺼번에 끝난다. <strong>데모 편의 기능이다</strong></td></tr>
+<tr><td>클라이언트는 Windows 전용</td><td><code>net10.0-windows</code> + WinForms. <code>Npc.Tests</code> 는 이 프로젝트를 참조하지 않는다 — 참조하면 CI 전체가 Windows 전용이 된다</td></tr>
+</table>
+
+<div class="bad">
+<p><strong>미해결 — 시간대가 바뀌어도 버킷 플랜을 안 갈아탄다 (2026-08-01 확인).</strong></p>
+<p>게임 하루를 돌려도 플랜 id 가 아키타입 폴백과 <code>@Morning</code> 버킷 둘뿐이고
+<code>Noon</code>·<code>Afternoon</code>·<code>Evening</code>·<code>Night</code> 버킷으로 한 번도 가지 않는다.
+<strong><code>--loopback</code> 에서 그대로 재현되므로 소켓 경로와 무관하다</strong> — 테스트 베드의 문제가 아니다.</p>
+<p>그래서 지금 <code>demo_day</code> 는 보여 주려던 것(저녁 시간대 전환 → 대량 플랜 스왑)을 못 보여 준다.
+<code>demo_siege</code>(존 전환)와 <code>demo_blackout</code>(폴백 강등)은 영향이 없다.
+경위와 다음 걸음은 <code>TASKS.md</code> §3 결정 대기에 있다.</p>
+</div>
+
+<hr>
+<p class="small">이 문서는 <code>docs/testbed_guide.html</code> 다. 브라우저로 파일을 그대로 열면 된다 — 외부 리소스를 하나도 쓰지 않는다.<br>
+더 짧은 실행 요약은 <code>testbed/README.md</code>, 사양 원문은 <code>docs/20_TestBed_Spec.md</code> 에 있다.</p>
+
+</main>
+</div>
+
+<div class="toolbar"><button class="btn" id="theme">테마</button></div>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- 테마 ---------- */
+  var order = ["auto","light","dark"];
+  document.getElementById("theme").addEventListener("click", function(){
+    var cur = document.documentElement.getAttribute("data-theme") || "auto";
+    var next = order[(order.indexOf(cur)+1) % order.length];
+    document.documentElement.setAttribute("data-theme", next);
+    this.textContent = "테마: " + next;
+  });
+
+  /* ---------- 패킷 애니메이션 토글 ---------- */
+  function wireToggle(btnId, boxId){
+    var btn = document.getElementById(btnId), box = document.getElementById(boxId);
+    if(!btn || !box) return;
+    if(reduce){ box.classList.add("paused"); btn.setAttribute("aria-pressed","false"); btn.textContent = "애니메이션 재생"; }
+    btn.addEventListener("click", function(){
+      var paused = box.classList.toggle("paused");
+      btn.setAttribute("aria-pressed", paused ? "false" : "true");
+      btn.textContent = paused ? "애니메이션 재생" : "애니메이션 정지";
+    });
+  }
+  wireToggle("btn-arch","fig-arch");
+  wireToggle("btn-round","fig-round");
+
+  /* ---------- 단계 재생기 (핸드셰이크 · 틱) ---------- */
+  function stepper(opts){
+    var nodes = opts.nodes, i = 0, timer = null;
+    function paint(){
+      for(var k=0;k<nodes.length;k++){ nodes[k].classList.toggle(opts.onClass, k <= i && opts.cumulative || k === i && !opts.cumulative); }
+      if(opts.label) opts.label.textContent = (i+1) + " / " + nodes.length;
+      if(opts.onChange) opts.onChange(i);
+    }
+    function next(){ i = (i+1) % nodes.length; paint(); }
+    function prev(){ i = (i-1+nodes.length) % nodes.length; paint(); }
+    function stop(){ if(timer){ clearInterval(timer); timer = null; } opts.play.setAttribute("aria-pressed","false"); opts.play.textContent = "자동 재생"; }
+    function start(){ if(timer) return; timer = setInterval(next, opts.interval); opts.play.setAttribute("aria-pressed","true"); opts.play.textContent = "일시정지"; }
+    opts.next.addEventListener("click", function(){ stop(); next(); });
+    opts.prev.addEventListener("click", function(){ stop(); prev(); });
+    opts.play.addEventListener("click", function(){ if(timer) stop(); else start(); });
+    paint();
+    if(!reduce) start(); else stop();
+  }
+
+  var hsNodes = [].slice.call(document.querySelectorAll("#fig-hs .hs"));
+  if(hsNodes.length){
+    stepper({
+      nodes: hsNodes, onClass: "on", cumulative: true, interval: 1500,
+      prev: document.getElementById("hs-prev"),
+      next: document.getElementById("hs-next"),
+      play: document.getElementById("hs-play"),
+      label: document.getElementById("hs-label")
+    });
+  }
+
+  var tickText = [
+    "1 · 수신 링(CommandInbox)을 비워 SimWorld.ApplyCommand 로 넘긴다. NPC 서버가 지난 틱에 낸 명령이다.",
+    "2 · ScenarioRunner 가 이 틱에 예약된 jsonl 이벤트를 주입한다. KillSwitch 줄은 무시한다.",
+    "3 · PlayerRegistry — 입력 적용 · 이동 · 5틱마다 근접 판정(200m 들어감 / 220m 나감).",
+    "4 · MovementSim — 도착 시각이 된 NPC 에게 NpcArrived 를 낸다.",
+    "5 · InteractionSim — 작업 완료·전투 판정.",
+    "6 · TransformEmitter — 관측 중인 NPC 의 위치만 내보낸다. 전부 내면 대역이 터진다.",
+    "7 · NeedsSim — 배고픔·피로 같은 욕구를 민다.",
+    "8 · SimWorld.Tick — 이 틱의 마지막에 TickSync 를 낸다. NPC 서버의 시계는 이것으로만 움직인다.",
+    "9 · 이벤트 채널을 비워 EventBatch 한 프레임으로 보낸다. 링크가 없으면 그냥 버린다(안 그러면 채널이 무한히 자란다).",
+    "10 · 클라이언트 방송 — 스냅샷(2틱) · 로그(2틱) · 존 상태(변화 시+5초) · 링크 상태(1초)."
+  ];
+  var tkNodes = [].slice.call(document.querySelectorAll("#fig-tick .stage"));
+  var tkDesc = document.getElementById("tick-desc");
+  if(tkNodes.length){
+    stepper({
+      nodes: tkNodes, onClass: "on", cumulative: false, interval: 1700,
+      prev: document.getElementById("tk-prev"),
+      next: document.getElementById("tk-next"),
+      play: document.getElementById("tk-play"),
+      label: document.getElementById("tk-label"),
+      onChange: function(i){ if(tkDesc) tkDesc.textContent = tickText[i]; }
+    });
+  }
+})();
+</script>
+</body>
+</html>

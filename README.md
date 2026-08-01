@@ -226,6 +226,7 @@ docs/               설계 사양 (아래)
 | [`docs/14_Phase4_W9-10_Scheduler_Tiering.md`](docs/14_Phase4_W9-10_Scheduler_Tiering.md) · [`_TASKS`](docs/14_Phase4_W9-10_TASKS.md) | **W9–10** 우선순위 큐 · 3-티어 라우팅 · 부하 테스트 (24) |
 | [`docs/15_Phase5_W11-12_Verification.md`](docs/15_Phase5_W11-12_Verification.md) · [`_TASKS`](docs/15_Phase5_W11-12_TASKS.md) | **W11–12** 골든 · 결정론 · 장애주입 · 블라인드 평가 · 보고 (20) |
 | [`docs/20_TestBed_Spec.md`](docs/20_TestBed_Spec.md) · [`_TASKS`](docs/20_TestBed_TASKS.md) | **P6** 테스트 베드 — 소켓 링크 · 게임서버 대역 · 테스트 클라이언트 (38). W1–12 본편 밖의 트랙이다 |
+| [`docs/testbed_guide.html`](docs/testbed_guide.html) | **게임서버 연동 테스트 안내서 (HTML).** 아키텍처 그림 · 핸드셰이크·틱 루프 애니메이션 · 무엇을 바꾸며 테스트하나 · **코드 분석 순서**. 브라우저로 파일을 그대로 열면 된다 |
 | [`testbed/README.md`](testbed/README.md) | **데모 띄우는 법** — 한 줄 실행 · 포트 · 화면 보는 법 · 알려진 한계 |
 
 AI 코딩 에이전트로 작업한다면 [`CLAUDE.md`](CLAUDE.md)를 먼저 읽는다.
