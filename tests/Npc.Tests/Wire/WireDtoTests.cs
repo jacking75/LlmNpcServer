@@ -14,6 +14,7 @@ namespace Npc.Tests.Wire;
 /// 가른 대가로 <b>드리프트</b>가 생길 수 있다 — <c>NpcCommand</c> 에 필드를 추가하고 와이어를 잊는 것.
 /// 그것을 빌드가 아니라 여기서 잡는다.
 /// </summary>
+[Trait("Category", "Wire")]
 public sealed class WireDtoTests
 {
     /// <summary>docs/20 §5.3 이 못 박은 크기. 누가 필드를 끼워 넣으면 여기가 먼저 깨진다.</summary>
@@ -243,7 +244,14 @@ public sealed class WireDtoTests
     /// N3 — 와이어에 <c>string</c> 이 없다. N4 — <c>DateTime</c>/<c>TimeSpan</c> 도 없다.
     /// <c>Npc.Wire</c> 어셈블리 전체를 본다. T6-03 이 제어 메시지를 추가해도 그대로 걸린다.
     /// </summary>
+    /// <remarks>
+    /// <b>이 하나만 <c>Contracts</c> 로 겹쳐 단다</b> (docs/20 §13). N3·N4 는 와이어의 성질이
+    /// 아니라 <b>계약의 성질</b>이고, <c>Category=Contracts</c> 로 N1~N8 을 한 번에 돌릴 때
+    /// 여기가 빠지면 그 회차가 "패킷에 문자열이 없다" 를 안 보게 된다.
+    /// xUnit 은 클래스와 메서드의 트레이트를 합치므로 <c>Wire</c> 회차에도 그대로 든다.
+    /// </remarks>
     [Fact]
+    [Trait("Category", "Contracts")]
     public void Wire_NoStringOrDateTimeFields()
     {
         Type[] offenders = [typeof(string), typeof(DateTime), typeof(DateTimeOffset), typeof(TimeSpan)];

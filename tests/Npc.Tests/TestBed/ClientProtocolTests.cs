@@ -17,7 +17,12 @@ namespace Npc.Tests.TestBed;
 /// 프로토콜에 문자열이 없으면 플레이어가 쓴 글자가 들어올 길이 없다.
 /// </para>
 /// </summary>
-[Trait("Category", "TestBed")]
+/// <remarks>
+/// <b>카테고리가 <c>TestBed</c> 가 아니라 <c>Wire</c> 다</b> (docs/20 §13). 이 파일이 보는 것은
+/// 소켓 위의 표현이지 게임서버의 동작이 아니다 — 같은 파일 이름을 쓰는
+/// <c>ClientProtocol_AoiCapsAt256</c> 은 <c>SnapshotBuilderTests</c> 에 있고 그쪽이 <c>TestBed</c> 다.
+/// </remarks>
+[Trait("Category", "Wire")]
 public sealed class ClientProtocolTests
 {
     /// <summary>docs/20 §8.1 이 못 박은 크기. 30바이트 + 정렬 패딩 2.</summary>
@@ -311,7 +316,13 @@ public sealed class ClientProtocolTests
     ///
     /// <para><see cref="WireDtoTests.Wire_NoStringOrDateTimeFields"/> 와 같은 검사다.</para>
     /// </summary>
+    /// <remarks>
+    /// 짝인 <see cref="WireDtoTests.Wire_NoStringOrDateTimeFields"/> 와 같은 이유로
+    /// <c>Contracts</c> 를 겹쳐 단다 (docs/20 §13). G6-4 가 "두 새 어셈블리에서 통과" 라고
+    /// 적은 그 둘이 이 메서드 하나씩이다.
+    /// </remarks>
     [Fact]
+    [Trait("Category", "Contracts")]
     public void Wire_NoStringOrDateTimeFields()
     {
         Type[] offenders = [typeof(string), typeof(DateTime), typeof(DateTimeOffset), typeof(TimeSpan)];

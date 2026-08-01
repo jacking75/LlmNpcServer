@@ -10,6 +10,7 @@ namespace Npc.Tests.Wire;
 /// <b>TCP 는 경계를 지켜 주지 않는다.</b> 한 번의 읽기에 프레임이 반만 오거나 세 개가 붙어 올 수 있고,
 /// 그 둘을 다 다루지 못하면 스트림이 조용히 깨진다. 이 파일이 그 두 경우를 못 박는다.
 /// </summary>
+[Trait("Category", "Wire")]
 public sealed class FrameCodecTests
 {
     /// <summary>한 프레임을 만든다. 페이로드는 첫 바이트로 구별한다.</summary>

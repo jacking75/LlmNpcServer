@@ -235,6 +235,8 @@ testbed/Npc.TestClient        ←  MasterData, Protocol              [T6-26, 미
 |---|---|---|
 | (없음) | 단위 테스트. 빠르고 LLM 미호출 | 항상 |
 | `Contracts` | N1~N8 강제 (리플렉션 검사) | 항상 |
+| `Wire` | 소켓 위의 표현 — 와이어 DTO 왕복·크기 고정·프레임 코덱 (`docs/20` §13). **계약 타입과의 드리프트를 여기서 잡는다** — `Npc.Contracts` 에 `[MemoryPackable]` 을 못 붙여 DTO 를 갈랐기 때문이다 | 항상 |
+| `TestBed` | 게임서버 대역·클라이언트 세션·종단 (`docs/20` §13) | 항상 |
 | `Determinism` | 리플레이 일치, 멱등성 | 항상 |
 | `Load` | NPC 5,000 부하. 수 분 소요. **`docs/measurements/W10_load.csv`·`W10_weights.md` 를 덮어쓴다** — 돌린 뒤 `git diff` 로 의도한 갱신인지 확인한다 | 야간 |
 | `Golden` | 골든 50건 × 3회. **LLM 호출·비용 발생** | 수동 / 릴리스 전 |

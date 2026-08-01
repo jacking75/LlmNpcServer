@@ -491,10 +491,26 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 - [x] G6-1 NPC 서버 본체 무변경 — `git diff main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Contracts` 가 **비어 있다.** T6-13 의 훅 한 줄도 결국 필요 없었다
 - [x] G6-2 마스터데이터 무변경 — `git diff main -- masterdata/` 가 비어 있다
 - [x] G6-3 소켓 종단 동작 — `TestBed_EndToEnd_NpcArrives` 통과 (T6-35)
-- [~] G6-4 링크 계약 유지 — **테스트는 전부 통과하는데 판정 문구를 못 맞춘다.** `Category=Contracts` 6건 통과 · `Wire_NoStringOrDateTimeFields` 가 `Npc.Wire`·`Npc.TestBed.Protocol` 두 어셈블리에서 통과. 다만 **`Category=Wire` 를 단 테스트가 0개다** — §13 이 정한 카테고리를 T6-02~T6-04 가 안 붙였고 `CLAUDE.md` §5 표에도 없다. 트레이트를 붙일지 게이트 문구를 고칠지 결정이 필요하다 (`TASKS.md` §3 결정 대기)
+- [x] G6-4 링크 계약 유지 — `Category=Wire` **26건** · `Category=Contracts` **8건** 전량 통과. `Wire_NoStringOrDateTimeFields` 가 `Npc.Wire`·`Npc.TestBed.Protocol` 두 어셈블리에서 통과한다 (2026-08-01). **§13 이 정한 `Wire` 카테고리가 코드에 없던 것을 이때 붙였다** — 아래 참조
 - [ ] G6-5 틱 예산 유지 — `--link tcp --npcs 500` 10분 회차를 **안 돌렸다.** 짧은 회차(NPC 50 · 13초)에서는 p99 4.0ms · Gen0 0
 - [x] G6-6 할당 0 — `TcpLink_FlushDoesNotAllocate` 통과
 - [x] G6-7 명령 유실 내성 — `TcpLink_CommandLossSynthesizesTimeout` 통과 (드롭 0.3 · 300틱 · 멈춘 NPC 0)
 - [ ] G6-8 재접속 — `TcpLink_ReconnectKeepsSequenceMonotonic` 은 통과한다. **NPC 서버 프로세스를 죽였다 살리는 수동 회차는 안 했다**
 - [ ] G6-9 데모 3종 — `run_demo.ps1` 로 세 시나리오를 끝까지 돌린 회차가 없다 (day 17분 · siege 4분 · blackout 3분)
 - [ ] G6-10 눈으로 보인다 — **이것이 이 Phase 의 목적이다.** 사람이 클라이언트에서 NPC 하나를 골라 왜 그 행동을 하는지 인스펙터로 설명할 수 있어야 한다. 화면은 다 붙었고 사람이 앉는 일만 남았다
+
+> **G6-4 판정 중에 드러난 것 — `Wire` 카테고리가 코드에 없었다 (2026-08-01).**
+> §13 은 와이어 테스트를 `Wire` 로 분류해 두었는데 `[Trait("Category", "Wire")]` 를 단 것이
+> **0개**였다. T6-02~T6-04 가 파일을 `tests/Npc.Tests/Wire/` 에 두는 것으로 갈음했고,
+> `CLAUDE.md` §5 의 카테고리 표에도 `Wire` 가 없었다 — **사양 한 곳만 그 카테고리를 알고 있었다.**
+>
+> `WireDtoTests`·`FrameCodecTests`·`ClientProtocolTests` 에 붙이고 `CLAUDE.md` §5 에 `Wire`·`TestBed`
+> 두 행을 더했다. `ClientProtocolTests` 는 `TestBed` 에서 `Wire` 로 옮겼다 — 그 파일이 보는 것은
+> 소켓 위의 표현이지 게임서버의 동작이 아니다(§13 도 `ClientProtocol_SnapshotRoundTrips` 를
+> `Wire` 로 적었다). 같은 이름으로 시작하는 `ClientProtocol_AoiCapsAt256` 은
+> `SnapshotBuilderTests` 에 있고 그쪽은 `TestBed` 그대로다.
+>
+> **`Wire_NoStringOrDateTimeFields` 둘만 `Contracts` 를 겹쳐 단다.** N3·N4 는 와이어의 성질이
+> 아니라 계약의 성질이고, `Category=Contracts` 로 N1~N8 을 한 번에 돌릴 때 여기가 빠지면
+> 그 회차가 "패킷에 문자열이 없다" 를 안 보게 된다. xUnit 은 클래스·메서드 트레이트를 합치므로
+> 두 회차 모두에 든다. 결과: `Wire` 26 · `Contracts` 6 → **8** · `TestBed` 58 → **52**.
