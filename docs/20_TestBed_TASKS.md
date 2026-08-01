@@ -452,7 +452,20 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 > **`docs/20` §11.1 의 "12:00 Day" 를 "12:00 Noon" 으로 고쳤다.** `context_buckets.json` 의
 > `time_of_day.values` 는 `Dawn/Morning/Noon/Afternoon/Evening/Night` 이고 12:00 은 `Noon`
 > 구간(11–14)이다. T6-32 에서 상태바가 같은 이름을 틀리게 적고 있던 것과 같은 뿌리다.
-- [ ] T6-34 실행 스크립트
+- [x] T6-34 실행 스크립트 — 테스트 파일이 파일 목록에 없었다 (T6-33 과 같다)
+
+> **T6-34 의 판단 — `dotnet run` 이 아니라 빌드된 exe 를 띄운다 (2026-08-01).**
+> `docs/20` §12 는 `dotnet run --project ...` 로 적혀 있는데, 스크립트는 한 번 빌드한 뒤
+> `bin/Release` 의 exe 를 직접 띄운다. `dotnet run` 은 자기 자식 프로세스를 하나 더 끼워서
+> **PID 를 붙잡아도 진짜 서버가 안 죽는다** — Ctrl-C 로 셋 다 내리는 것이 완료 조건이라
+> 그 한 겹이 그대로 결함이 된다. `-NoBuild` 로 빌드를 건너뛸 수 있다.
+>
+> **`--tier` 를 파라미터로 넣었다.** §12 의 예시는 `--tier none` 고정인데, §11.4 가
+> "`demo_blackout` 을 `--tier t2` 단독으로 돌려도 된다" 고 적어 두었다. 기본은 `none` 이다.
+>
+> **테스트:** `tests/Npc.Tests/TestBed/RunDemoScriptTests.cs`. BOM 3바이트와,
+> `ValidateSet` 의 시나리오 이름이 `testbed/scenarios/demo_*.jsonl` 과 1:1 인지 본다 —
+> 파일을 추가했는데 목록에 안 넣으면 **그 시나리오를 띄울 방법이 조용히 사라진다.**
 - [ ] T6-35 종단 테스트
 - [ ] T6-36 문서와 원장
 
