@@ -27,10 +27,15 @@
 매 커밋 전에 이것을 확인한다.
 
 ```powershell
-git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Contracts
+git diff --stat HEAD -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Contracts
 ```
 
 **비어 있어야 한다.** 이 네 프로젝트에 diff가 생기면 그 순간 멈추고 보고한다. `docs/20` §1의 합격 기준 1이다. (`Npc.Gateway`·`Npc.Host`·`Npc.MasterData`는 바뀌어도 된다 — 바뀌라고 만든 자리다.)
+
+> **`git diff main` 이라고 적혀 있었다 (2026-08-01 정정).** P6 작업이 `main` 위에서 진행되므로
+> 그것은 `git diff HEAD` 와 같은 뜻이었다 — **커밋 직전 확인으로는 맞지만 누적 게이트로는 공회전이다.**
+> 커밋하는 순간 `main` 이 따라 움직여서 diff 가 언제나 비기 때문이다.
+> **G6-1 을 판정하는 명령은 따로 있다** — 아래 §2 를 본다.
 
 `masterdata/` 아래 파일은 **한 바이트도 바뀌면 안 된다**(`docs/20` §3.2).
 
@@ -306,8 +311,8 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 
 | # | 항목 | 판정 |
 |---|---|---|
-| G6-1 | **NPC 서버 본체 무변경** | `git diff main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Contracts`가 **비어 있다.** T6-13의 훅 한 줄도 결국 필요 없었다 |
-| G6-2 | **마스터데이터 무변경** | `git diff main -- masterdata/`가 비어 있다 · `MasterDataSet.ContentHash`가 그대로다 |
+| G6-1 | **NPC 서버 본체 무변경** | 아래 명령이 **아무것도 내지 않는다.** T6-13의 훅 한 줄도 결국 필요 없었다 |
+| G6-2 | **마스터데이터 무변경** | `git diff --stat c36e183..HEAD -- masterdata/`가 비어 있다 · `MasterDataSet.ContentHash`가 그대로다 |
 | G6-3 | 소켓 종단 동작 | `TestBed_EndToEnd_NpcArrives` 통과 |
 | G6-4 | 링크 계약 유지 | `Contracts`·`Wire` 카테고리 전량 통과 · `Wire_NoStringOrDateTimeFields`가 두 새 어셈블리에서 통과 |
 | G6-5 | 틱 예산 유지 | `--link tcp --npcs 500`으로 10분 → p99 ≤ 20ms · Gen0 증가 0 |
@@ -318,6 +323,25 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 | G6-10 | 눈으로 보인다 | 사람이 클라이언트에서 NPC 하나를 골라 **왜 그 행동을 하는지** 인스펙터로 설명할 수 있다 |
 
 **G6-10이 이 Phase의 목적이다.** 나머지 아홉은 그것이 거짓이 아님을 보증하는 장치다.
+
+### G6-1을 판정하는 명령
+
+```powershell
+# c36e183 = T6-01 직전 커밋 (P6 시작점)
+git log --oneline c36e183..HEAD --grep "^T6-" -- `
+    src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Contracts
+```
+
+**아무것도 나오지 않아야 한다.** 대조로 경로를 `testbed` 로 바꾸면 T6-* 커밋들이 나온다 —
+그래야 이 명령이 실제로 무언가를 보고 있다는 것이 확인된다.
+
+**`git diff` 가 아니라 `git log` 인 이유.** 이 기간에 본체를 바꾼 커밋이 실제로 둘 있다 —
+`3fca4b3`(결정 16 · `ReplanQueue` 데이터 레이스)와 `fb45ac3`(결정 13·15-A · `Manifest`)다.
+**둘 다 P6 작업이 아니다.** G6-1이 주장하는 것은 "이 기간에 본체가 안 바뀌었다"가 아니라
+**"P6 태스크가 본체를 안 바꿨다"** 이고, 그것을 재려면 커밋 단위로 봐야 한다.
+`git diff c36e183..HEAD` 로 재면 남의 작업을 P6 탓으로 돌리게 된다.
+
+**2026-08-01 실측: T6-* 커밋 40개 중 이 네 프로젝트를 건드린 것이 0개다.**
 
 ---
 
@@ -488,14 +512,14 @@ git diff --stat main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Co
 **6 통과 · 4 미판정 (2026-08-01).** 미판정 넷은 전부 **사람이 눈으로 보는 항목**이다 —
 코드 결함으로 미달한 것이 없다. 테스트로 판정되는 여섯은 CI 기본 회차에서 상시 확인된다.
 
-- [x] G6-1 NPC 서버 본체 무변경 — `git diff main -- src/Npc.Runtime src/Npc.Planning src/Npc.Core src/Npc.Contracts` 가 **비어 있다.** T6-13 의 훅 한 줄도 결국 필요 없었다
-- [x] G6-2 마스터데이터 무변경 — `git diff main -- masterdata/` 가 비어 있다
+- [x] G6-1 NPC 서버 본체 무변경 — **T6-* 커밋 40개 중 네 프로젝트를 건드린 것이 0개다** (2026-08-01, §2 의 명령). T6-13 의 훅 한 줄도 결국 필요 없었다. **판정 명령이 틀려 있던 것을 이때 고쳤다** — `git diff main` 은 main 위에서 자기 자신과의 비교라 언제나 비었다
+- [x] G6-2 마스터데이터 무변경 — `git diff --stat c36e183..HEAD -- masterdata/` 가 비어 있다 (2026-08-01)
 - [x] G6-3 소켓 종단 동작 — `TestBed_EndToEnd_NpcArrives` 통과 (T6-35)
 - [x] G6-4 링크 계약 유지 — `Category=Wire` **26건** · `Category=Contracts` **8건** 전량 통과. `Wire_NoStringOrDateTimeFields` 가 `Npc.Wire`·`Npc.TestBed.Protocol` 두 어셈블리에서 통과한다 (2026-08-01). **§13 이 정한 `Wire` 카테고리가 코드에 없던 것을 이때 붙였다** — 아래 참조
 - [ ] G6-5 틱 예산 유지 — `--link tcp --npcs 500` 10분 회차를 **안 돌렸다.** 짧은 회차(NPC 50 · 13초)에서는 p99 4.0ms · Gen0 0
 - [x] G6-6 할당 0 — `TcpLink_FlushDoesNotAllocate` 통과
 - [x] G6-7 명령 유실 내성 — `TcpLink_CommandLossSynthesizesTimeout` 통과 (드롭 0.3 · 300틱 · 멈춘 NPC 0)
-- [ ] G6-8 재접속 — `TcpLink_ReconnectKeepsSequenceMonotonic` 은 통과한다. **NPC 서버 프로세스를 죽였다 살리는 수동 회차는 안 했다**
+- [x] G6-8 재접속 — **실측 통과 (2026-08-01).** NPC 200 회차에서 게임서버(pid 고정)를 그대로 둔 채 NPC 서버 프로세스를 죽이고 다시 띄웠다. 게임서버 로그가 `link up`(tick 50~250) → `link down`(tick 300) → **`link up`(tick 350~)** 을 그대로 찍고, 누적 명령 수가 3,202 → 4,333 → 7,423 으로 계속 늘었다 — **NPC 가 다시 움직인다는 뜻이다.** `TcpLink_ReconnectKeepsSequenceMonotonic` 도 통과한다
 - [ ] G6-9 데모 3종 — `run_demo.ps1` 로 세 시나리오를 끝까지 돌린 회차가 없다 (day 17분 · siege 4분 · blackout 3분)
 - [ ] G6-10 눈으로 보인다 — **이것이 이 Phase 의 목적이다.** 사람이 클라이언트에서 NPC 하나를 골라 왜 그 행동을 하는지 인스펙터로 설명할 수 있어야 한다. 화면은 다 붙었고 사람이 앉는 일만 남았다
 
