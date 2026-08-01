@@ -524,26 +524,30 @@ git log --oneline c36e183..HEAD --grep "^T6-" -- `
 - [x] G6-9 데모 3종 — **셋 다 끝까지 돌았고 크래시 0 (2026-08-01).** `run_demo.ps1 -Scenario <이름> -NoBuild`, NPC 300. **day** 목표 10,200 → 실제 **10,463틱**(게임 06:00 → 23:00) · **siege** 2,400 → **2,626틱** · **blackout** 1,800 → **2,034틱**. 회차 내내 세 프로세스가 전부 살아 있었고, 30초마다 잰 값이 **p99 ≤ 0.31ms · 오버런 0 · `bytesPerTick` 0 · 갭 0 · 드롭 0 · llm 호출 0**. 회차 끝에 클라이언트 창을 닫으면 `run_demo.ps1` 이 자기 `finally` 로 나머지 둘을 내렸다(3/3). **다만 화면이 보여 줘야 할 것 하나가 관측되지 않았다** — 아래 참조
 - [ ] G6-10 눈으로 보인다 — **이것이 이 Phase 의 목적이다.** 사람이 클라이언트에서 NPC 하나를 골라 왜 그 행동을 하는지 인스펙터로 설명할 수 있어야 한다. 화면은 다 붙었고 사람이 앉는 일만 남았다
 
-> **G6-9 회차에서 관측된 것 — 인스펙터의 `planBucket` 이 게임 시각을 안 따라간다 (2026-08-01).**
-> `demo_day` 회차에서 `gameHour` 가 6 → 23 으로 갔는데, 표본으로 잡은 npc 0~4 의 `planBucket` 은
-> 대부분 `blacksmith@Morning.Peace.Fair` 에 머물렀다(한 표본에서만 `Evening` 이 보였다).
-> `planKind` 는 6~7시와 16~18시 언저리에서 `bucket` ↔ `fallback` 을 오갔다.
-> **§11.1 이 `demo_day` 로 보여 주려던 것이 바로 그 시간대 전환**("18:00 → 버킷 키 변경 → 대량 플랜 스왑,
-> 인스펙터의 plan id 가 바뀐다")이라, 이대로면 **G6-10 에서 사람이 볼 것이 안 보인다.**
+> **G6-9 회차에서 관측된 것 — 시간대가 바뀌어도 버킷 플랜을 안 갈아탄다. P6 밖이다 (2026-08-01).**
+> `demo_day` 회차에서 `gameHour` 가 6 → 23 으로 갔는데 표본 NPC 의 `planBucket` 이
+> `blacksmith@Morning.Peace.Fair` 에 머물렀다. **§11.1 이 `demo_day` 로 보여 주려던 것이 바로 그
+> 시간대 전환**("18:00 → 버킷 키 변경 → 대량 플랜 스왑, 인스펙터의 plan id 가 바뀐다")이라,
+> 이대로면 **G6-10 에서 사람이 볼 것이 안 보인다.**
 >
-> **여기서 단정하지 않는다.** 확인한 것과 안 한 것을 갈라 둔다.
-> - 확인함: `PlanStore.Resolve` 는 미스에 **인접 버킷을 재사용하지 않는다** — 아키타입 폴백을 준다.
->   그러니 "23시에 `kind=bucket` 인데 `Morning` 버킷" 은 인접 재사용으로 설명되지 않는다.
-> - 확인함: `planBucket` 은 **지금 배정된 플랜의 버킷**이지 조회한 버킷이 아니다
->   (`NpcTraceEndpoint` 가 `plan.Bucket` 을 그대로 찍는다).
-> - **안 함:** 표본이 npc 0~4 다섯뿐이다. `BucketTransition` 이 실제로 예약·적용됐는지,
->   프리베이크 스토어가 254/2,880 이라 저녁·밤 버킷이 통째로 미생성인지는 안 봤다.
-> - **`demo_siege` 에서 `War` 가 안 보인 것은 정상이다** — npc 0~4 는 대장장이·목수라
->   `town_west_crafts` 쪽이고, 공성은 `town_center`·`gate_east`·`town_east_market` 만 건드린다.
->   **이 표본으로는 공성 전환을 볼 수 없다.**
+> **`--loopback --max-speed` 로 14,400틱을 돌려 그대로 재현했다** — 소켓도 게임서버 대역도 없는
+> 경로다. **P6 의 문제가 아니다.** 하루 내내 플랜 id 가 **1(아키타입 폴백)과 116(`Morning` 버킷)
+> 둘뿐**이고 Noon·Afternoon·Evening·Night 버킷으로 한 번도 안 간다.
 >
-> 원인이 런타임(P4 `BucketTransition`)인지 데이터(미생성 버킷)인지 표시(P6 인스펙터)인지가 안 갈렸다.
-> **P6 밖일 가능성이 크다** — 셋 중 앞의 둘이면 소켓 경로와 무관하다. `TASKS.md` §3 결정 대기에 올렸다.
+> 좁혀 둔 것:
+> - 스토어에 **대상 플랜이 있다.** `plans/` 254개가 Dawn 32 · Morning 46 · Noon 35 · Afternoon 40 ·
+>   **Evening 51** · **Night 50** 이고 `blacksmith@Evening.Peace.Fair` 가 실재한다. 미생성이 아니다.
+> - **재배정 자체는 계속 일어난다** — `PlanAgeTicks` 가 ~100틱마다 리셋된다.
+> - `BucketTransition.Tick` 의 배선과 `GameClock` 의 시간대 판정은 코드상 맞다.
+> - `PlanStore.Resolve` 는 미스에 인접 버킷을 재사용하지 않는다(폴백을 준다) — "23시인데 Morning" 이
+>   인접 재사용으로 설명되지 않는다.
+> - **`demo_siege` 에서 `War` 가 안 보인 것은 정상이다** — 표본 npc 0~4 는 대장장이·목수라
+>   `town_west_crafts` 쪽이고 공성은 다른 세 존만 건드린다. 그 표본으로는 볼 수 없다.
+>
+> **다음 한 걸음은 계기다.** `BucketTransition` 의 `TimeOfDayTransitions`·`Scheduled`·`Swapped` 가
+> `/metrics` 에도 종료 요약에도 없어서 "전환이 도는지" 를 프로세스 밖에서 볼 수 없다.
+> **P4 태스크로 열어야 한다** — `Npc.Runtime`·`Npc.Host` 를 건드리므로 P6 의 파일 목록 밖이다.
+> `TASKS.md` §3 결정 대기에 올렸다.
 
 > **G6-5 의 "Gen0 증가 0" 을 `bytesPerTick == 0` 으로 바꿨다 — 결정 1-A (2026-08-01).**
 > 10분 회차에서 **`bytesPerTick` 이 0** 이다. 틱 루프가 6,002틱 동안 **한 바이트도 할당하지 않았다**는 뜻이고,
