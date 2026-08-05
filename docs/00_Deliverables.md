@@ -186,9 +186,10 @@ t=+20m  로컬 dotLLM 프로세스 강제 종료 (T1 kill)
 | [`02_GameServer_Link.md`](02_GameServer_Link.md) | 게임서버 연동 인터페이스 · 패킷 정의 · 네트워크 안전 설계 규칙 |
 | [`03_PlanDSL_Spec.md`](03_PlanDSL_Spec.md) | 플랜 DSL · JSON Schema · 4단 검증기 |
 | [`../TASKS.md`](../TASKS.md) | 태스크 규약 · 진행 원장 (164개) |
-| [`10_Phase0_W1_Spike.md`](10_Phase0_W1_Spike.md) · [`_TASKS`](10_Phase0_W1_TASKS.md) | W1 스파이크 |
-| [`11_Phase1_W2-4_Core_Runtime.md`](11_Phase1_W2-4_Core_Runtime.md) · [`_TASKS`](11_Phase1_W2-4_TASKS.md) | W2–4 코어 + 런타임 + Sim |
-| [`12_Phase2_W5-6_Plan_Compiler.md`](12_Phase2_W5-6_Plan_Compiler.md) · [`_TASKS`](12_Phase2_W5-6_TASKS.md) | W5–6 플랜 컴파일러 + 검증기 |
-| [`13_Phase3_W7-8_Plan_Cache.md`](13_Phase3_W7-8_Plan_Cache.md) · [`_TASKS`](13_Phase3_W7-8_TASKS.md) | W7–8 플랜 캐시 + 프리베이크 |
-| [`14_Phase4_W9-10_Scheduler_Tiering.md`](14_Phase4_W9-10_Scheduler_Tiering.md) · [`_TASKS`](14_Phase4_W9-10_TASKS.md) | W9–10 스케줄러 + 3-티어 라우팅 + 부하 테스트 |
-| [`15_Phase5_W11-12_Verification.md`](15_Phase5_W11-12_Verification.md) · [`_TASKS`](15_Phase5_W11-12_TASKS.md) | W11–12 검증 + 블라인드 평가 + 보고 |
+| [`10_Phase0_W1_Spike.md`](10_Phase0_W1_Spike.md) | W1 스파이크 |
+| [`11_Phase1_W2-4_Core_Runtime.md`](11_Phase1_W2-4_Core_Runtime.md) | W2–4 코어 + 런타임 + Sim |
+| [`12_Phase2_W5-6_Plan_Compiler.md`](12_Phase2_W5-6_Plan_Compiler.md) | W5–6 플랜 컴파일러 + 검증기 |
+| [`13_Phase3_W7-8_Plan_Cache.md`](13_Phase3_W7-8_Plan_Cache.md) | W7–8 플랜 캐시 + 프리베이크 |
+| [`14_Phase4_W9-10_Scheduler_Tiering.md`](14_Phase4_W9-10_Scheduler_Tiering.md) | W9–10 스케줄러 + 3-티어 라우팅 + 부하 테스트 |
+| [`15_Phase5_W11-12_Verification.md`](15_Phase5_W11-12_Verification.md) | W11–12 검증 + 블라인드 평가 + 보고 |
+| [`20_TestBed_Spec.md`](20_TestBed_Spec.md) | P6 테스트 베드 (소켓 링크 + 게임서버 대역 + 클라이언트) |

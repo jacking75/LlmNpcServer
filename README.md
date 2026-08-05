@@ -220,13 +220,15 @@ docs/               설계 사양 (아래)
 1. LLM_NPC_Server_Plan.md   왜 이 구조인가 (타당성 판단 · 아키텍처 · 리스크)
 2. docs/00                  무엇을 만드는가 (결과물 · 데모 · 수용 기준)
 3. docs/01 → 02 → 03        공통 계약 3종. 여기서 정한 타입 이름을 전 코드가 쓴다
-4. docs/10                  W1 설계 사양
-5. TASKS.md                 태스크 규약 · 진행 원장
-6. docs/10_..._TASKS.md     W1 작업 지시서 — 여기서부터 구현 착수
+4. docs/1x_Phase*.md        해당 Phase 설계 사양
+5. TASKS.md                 태스크 규약 · 진행 원장 — 여기서부터 구현 착수
 ```
 
-> 설계 사양(`docs/1x_Phase*.md`)은 **무엇을 왜**, 작업 지시서(`docs/1x_*_TASKS.md`)는 **무엇을 어떤 순서로**다.
+> 설계 사양(`docs/1x_Phase*.md`)은 **무엇을 왜**를 정한다.
 > 코딩 에이전트에게는 항상 태스크 ID 하나(`T1-028` 등)를 준다. 총 203개 태스크 (196 완료).
+>
+> **주차별 작업 지시서(`docs/1x_*_TASKS.md`)는 구현이 끝나 삭제했다 (2026-08-06).**
+> 개별 태스크의 파일·사양·완료 조건이 필요하면 `git log --diff-filter=D -- docs/` 에서 꺼낸다.
 
 | 문서 | 내용 |
 |---|---|
@@ -238,13 +240,13 @@ docs/               설계 사양 (아래)
 | [`docs/02_GameServer_Link.md`](docs/02_GameServer_Link.md) | **NPC 서버 ↔ 게임서버 경계** · 패킷 29종 · 네트워크 안전 규칙 N1~N8 · Sim 사양 |
 | [`docs/03_PlanDSL_Spec.md`](docs/03_PlanDSL_Spec.md) | 플랜 DSL · JSON Schema · 4단 검증기 · 실행기 · 스토어 포맷 |
 | [`TASKS.md`](TASKS.md) | **태스크 규약 · 진행 원장 · 게이트 요약** (203개 태스크 · 196 완료) |
-| [`docs/10_Phase0_W1_Spike.md`](docs/10_Phase0_W1_Spike.md) · [`_TASKS`](docs/10_Phase0_W1_TASKS.md) | **W1** 스파이크 — 숫자 6개를 뽑는다 (13) |
-| [`docs/11_Phase1_W2-4_Core_Runtime.md`](docs/11_Phase1_W2-4_Core_Runtime.md) · [`_TASKS`](docs/11_Phase1_W2-4_TASKS.md) | **W2–4** 코어 · 런타임 · Sim — LLM 없이 돌린다 (62) |
-| [`docs/12_Phase2_W5-6_Plan_Compiler.md`](docs/12_Phase2_W5-6_Plan_Compiler.md) · [`_TASKS`](docs/12_Phase2_W5-6_TASKS.md) | **W5–6** 플랜 컴파일러 · 검증기 · 통과율 개선 (24) |
-| [`docs/13_Phase3_W7-8_Plan_Cache.md`](docs/13_Phase3_W7-8_Plan_Cache.md) · [`_TASKS`](docs/13_Phase3_W7-8_TASKS.md) | **W7–8** 플랜 캐시 · 프리베이크 · 사람 검수 (21) |
-| [`docs/14_Phase4_W9-10_Scheduler_Tiering.md`](docs/14_Phase4_W9-10_Scheduler_Tiering.md) · [`_TASKS`](docs/14_Phase4_W9-10_TASKS.md) | **W9–10** 우선순위 큐 · 3-티어 라우팅 · 부하 테스트 (24) |
-| [`docs/15_Phase5_W11-12_Verification.md`](docs/15_Phase5_W11-12_Verification.md) · [`_TASKS`](docs/15_Phase5_W11-12_TASKS.md) | **W11–12** 골든 · 결정론 · 장애주입 · 블라인드 평가 · 보고 (20) |
-| [`docs/20_TestBed_Spec.md`](docs/20_TestBed_Spec.md) · [`_TASKS`](docs/20_TestBed_TASKS.md) | **P6** 테스트 베드 — 소켓 링크 · 게임서버 대역 · 테스트 클라이언트 (38). W1–12 본편 밖의 트랙이다 |
+| [`docs/10_Phase0_W1_Spike.md`](docs/10_Phase0_W1_Spike.md) | **W1** 스파이크 — 숫자 6개를 뽑는다 (13) |
+| [`docs/11_Phase1_W2-4_Core_Runtime.md`](docs/11_Phase1_W2-4_Core_Runtime.md) | **W2–4** 코어 · 런타임 · Sim — LLM 없이 돌린다 (62) |
+| [`docs/12_Phase2_W5-6_Plan_Compiler.md`](docs/12_Phase2_W5-6_Plan_Compiler.md) | **W5–6** 플랜 컴파일러 · 검증기 · 통과율 개선 (24) |
+| [`docs/13_Phase3_W7-8_Plan_Cache.md`](docs/13_Phase3_W7-8_Plan_Cache.md) | **W7–8** 플랜 캐시 · 프리베이크 · 사람 검수 (21) |
+| [`docs/14_Phase4_W9-10_Scheduler_Tiering.md`](docs/14_Phase4_W9-10_Scheduler_Tiering.md) | **W9–10** 우선순위 큐 · 3-티어 라우팅 · 부하 테스트 (24) |
+| [`docs/15_Phase5_W11-12_Verification.md`](docs/15_Phase5_W11-12_Verification.md) | **W11–12** 골든 · 결정론 · 장애주입 · 블라인드 평가 · 보고 (20) |
+| [`docs/20_TestBed_Spec.md`](docs/20_TestBed_Spec.md) | **P6** 테스트 베드 — 소켓 링크 · 게임서버 대역 · 테스트 클라이언트 (38). W1–12 본편 밖의 트랙이다 |
 | [`docs/testbed_guide.html`](docs/testbed_guide.html) | **게임서버 연동 테스트 안내서 (HTML).** 아키텍처 그림 · 핸드셰이크·틱 루프 애니메이션 · 무엇을 바꾸며 테스트하나 · **코드 분석 순서**. 브라우저로 파일을 그대로 열면 된다 |
 | [`testbed/README.md`](testbed/README.md) | **데모 띄우는 법** — 한 줄 실행 · 포트 · 화면 보는 법 · 알려진 한계 |
 
