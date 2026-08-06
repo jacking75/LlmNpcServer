@@ -18,6 +18,7 @@
 
 | 문서 | 무엇 |
 |---|---|
+| **`CODEMAP.md`** | **무엇을 하려면 어디를 여는가 — 작업별 파일 지도** ★ |
 | `LLM_NPC_Server_Plan.md` | 왜 이 구조인가 (판단 근거) |
 | `README.md` | 저장소 개요 · 빌드 · 실행 |
 | **`docs/reference_link.html`** | **게임서버 연동 계약 — N1~N8, 패킷, 와이어, 발행 규약** ★ |
@@ -217,10 +218,13 @@ testbed/Npc.TestClient        ←  MasterData, Protocol   (net10.0-windows · �
 
 새 기능·수정을 시작하기 전:
 
-1. 건드리는 타입이 `docs/reference_link.html`·`docs/reference_masterdata.html`에 정의되어 있는가
+1. **`CODEMAP.md` 에서 해당 작업 줄을 찾는다** → 거기 적힌 파일만 연다.
+   `src` 96파일 21,000줄을 매번 훑지 않는다. 이름으로 못 찾으면 `CODEMAP.md` §2 의 추적 경로를 탄다
+2. 고칠 파일의 `tests/Npc.Tests/<같은이름>Tests.cs` 를 먼저 읽는다 — 무엇을 보장하는지가 거기 있다
+3. 건드리는 타입이 `docs/reference_link.html`·`docs/reference_masterdata.html`에 정의되어 있는가
    → 있으면 그 이름·시그니처를 그대로 쓴다
-2. §2의 절대 규칙에 걸리는가
-3. 수용 기준에 해당 항목이 있는가 (`docs/reference_metrics.html` §13) → 테스트를 같이 쓴다
+4. §2의 절대 규칙에 걸리는가
+5. 수용 기준에 해당 항목이 있는가 (`docs/reference_metrics.html` §13) → 테스트를 같이 쓴다
 
 작업 후:
 

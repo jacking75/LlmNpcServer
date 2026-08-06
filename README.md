@@ -243,7 +243,7 @@ docs/               설계 사양 (아래)
 | [`LLM_NPC_Server_Plan.md`](LLM_NPC_Server_Plan.md) | 상위 계획 · 타당성 판단 · 아키텍처 · 비용 분석 · 리스크 대장 |
 | [`docs/measurements/`](docs/measurements/) | 실측 **원자료** (jsonl · csv). 보고서는 `reference_metrics.html` 로 옮겼다 |
 
-AI 코딩 에이전트로 작업한다면 [`CLAUDE.md`](CLAUDE.md)를 먼저 읽는다.
+코드를 고친다면 [`CLAUDE.md`](CLAUDE.md)(규칙)와 [`CODEMAP.md`](CODEMAP.md)(무엇을 하려면 어디를 여는가)를 먼저 읽는다.
 
 ---
 
