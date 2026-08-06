@@ -14,15 +14,11 @@ using Npc.Tests.Runtime;
 namespace Npc.Tests.Gates;
 
 /// <summary>
-/// P5 게이트. docs/15 §10 체크리스트 9항목을 자동화한다.
-///
-/// <b>여기가 이 프로젝트의 마지막 판정이다.</b> 항목마다 테스트가 하나씩 붙어 있어
-/// 무엇이 미달인지 이름만 보고 안다.
+/// 최종 품질 게이트. 항목마다 테스트가 하나씩 붙어 있어 무엇이 미달인지 이름만 보고 안다.
 ///
 /// <para>
-/// <b>실측 산출물이 있어야 판정되는 항목이 셋 있다</b> — 골든 합격률(`W11_golden.md`) ·
-/// 블라인드 평가 n ≥ 480(`blind_eval_result.md`) · 오써링 정산(`authoring_result.md`).
-/// 그 셋은 <c>Category=Gate</c> 이고 산출물이 없으면 <b>실패한다</b> —
+/// <b>실측 산출물이 있어야 판정되는 항목</b>(골든 합격률 · <c>W11_golden.md</c>)은
+/// <c>Category=Gate</c> 이고 산출물이 없으면 <b>실패한다</b> —
 /// 없는 것을 통과로 세면 게이트가 거짓이 된다 (CLAUDE.md §5).
 /// </para>
 ///
@@ -30,15 +26,18 @@ namespace Npc.Tests.Gates;
 /// 나머지는 기제(mechanism)만 보므로 상시 돈다 — 다른 테스트가 이미 강제하고 있고,
 /// 여기서는 "게이트 항목으로 세어졌다"는 것을 한자리에 모은다.
 /// </para>
+///
+/// <para>
+/// <b>R&amp;D 연구 장치는 2026-08-06 에 걷어냈다</b> — 블라인드 평가 판정 수 · 오써링 공수 정산 ·
+/// 비용 오차율 · 수용 기준 체크 · 보고서 절 구성. 그 다섯은 삭제된 연구 문서를 읽는
+/// 검사였고, 판정 결과는 <c>docs/reference_metrics.html</c> 에 보존돼 있다.
+/// </para>
 /// </summary>
 [Collection(AllocationCollection.Name)]
 public sealed class Phase5GateTests
 {
-    /// <summary>docs/15 §10 — 골든 합격률 하한.</summary>
+    /// <summary>골든 합격률 하한.</summary>
     private const double MinGoldenPassRate = 0.90;
-
-    /// <summary>docs/15 §6 — 블라인드 평가 최소 판정 수.</summary>
-    private const int MinJudgements = 480;
 
     private static string Measurement(string name) => TestPaths.At("docs", "measurements", name);
 
@@ -150,121 +149,6 @@ public sealed class Phase5GateTests
             5,
             typeof(NullGameServerLink).Assembly.GetTypes()
                 .Count(t => t is { IsClass: true, IsAbstract: false } && typeof(IGameServerLink).IsAssignableFrom(t)));
-    }
-
-    // ── 5. 블라인드 평가 n ≥ 480 ──────────────────────────────────
-
-    [Fact]
-    [Trait("Category", "Gate")]
-    public void Gate_BlindEvaluationHasEnoughJudgements()
-    {
-        string path = Measurement("blind_eval_result.md");
-
-        Assert.True(File.Exists(path), "블라인드 결과가 없다.");
-
-        string text = File.ReadAllText(path);
-
-        // 신뢰구간 병기는 자료 수와 무관하게 지켜져야 한다.
-        Assert.Contains("95% 신뢰구간", text, StringComparison.Ordinal);
-
-        Match judgements = Regex.Match(
-            text, @"Q1·Q2 판정 \| (?<n>\d+)", RegexOptions.CultureInvariant);
-
-        Assert.True(judgements.Success, text);
-
-        int n = int.Parse(judgements.Groups["n"].Value, CultureInfo.InvariantCulture);
-
-        Assert.True(n >= MinJudgements, $"판정 {n}건 — {MinJudgements} 미달. 평가를 실제로 돌려야 한다.");
-    }
-
-    // ── 6. 오써링 공수 축 A·축 B 양쪽 산출 ────────────────────────
-
-    [Fact]
-    [Trait("Category", "Gate")]
-    public void Gate_AuthoringHasBothAxes()
-    {
-        string path = Measurement("authoring_result.md");
-
-        Assert.True(File.Exists(path), "오써링 정산이 없다.");
-
-        string text = File.ReadAllText(path);
-
-        Assert.Contains("축 A", text, StringComparison.Ordinal);
-        Assert.Contains("축 B", text, StringComparison.Ordinal);
-        Assert.Contains("커버리지 배수", text, StringComparison.Ordinal);
-
-        // 축 A 는 수작성 실측이 있어야 확정된다.
-        Assert.DoesNotContain("**미측정.** `authoring_time.jsonl`", text, StringComparison.Ordinal);
-    }
-
-    // ── 7. 비용 실측과 추정의 오차율 제시 ─────────────────────────
-
-    [Fact]
-    public void Gate_CostReportShowsTheErrorAgainstTheEstimate()
-    {
-        string path = Measurement("cost_actual.md");
-
-        Assert.True(File.Exists(path), "비용 정산이 없다.");
-
-        string text = File.ReadAllText(path);
-
-        Assert.Contains("오차", text, StringComparison.Ordinal);
-        Assert.Matches(new Regex(@"\+\d+ %", RegexOptions.CultureInvariant), text);
-
-        // 측정 기기·VRAM 제약을 밝혀야 T1 수치를 옮겨 쓰지 않는다.
-        Assert.Contains("RTX 4060", text, StringComparison.Ordinal);
-        Assert.Contains("VRAM", text, StringComparison.Ordinal);
-    }
-
-    // ── 8. docs/00 §4 수용 기준 전 항목 체크 ──────────────────────
-
-    /// <summary>
-    /// 수용 기준의 모든 줄이 판정돼 있어야 한다 — <c>[ ]</c> 가 남아 있으면 안 본 것이다.
-    /// 통과(<c>[x]</c>)든 미달(<c>[-]</c>)이든 판정은 있어야 한다.
-    /// </summary>
-    [Fact]
-    public void Gate_EveryAcceptanceCriterionIsJudged()
-    {
-        string text = File.ReadAllText(TestPaths.At("docs", "00_Deliverables.md"));
-
-        int start = text.IndexOf("## 4. 최종 수용 기준", StringComparison.Ordinal);
-        int end = text.IndexOf("## 5.", StringComparison.Ordinal);
-
-        Assert.True(start >= 0 && end > start, "수용 기준 절을 찾지 못했다.");
-
-        string section = text[start..end];
-
-        Assert.DoesNotContain("- [ ]", section, StringComparison.Ordinal);
-        Assert.Contains("- [x]", section, StringComparison.Ordinal);
-    }
-
-    // ── 9. 보고서 작성 완료 ───────────────────────────────────────
-
-    [Fact]
-    public void Gate_ReportHasAllEightSections()
-    {
-        string text = File.ReadAllText(TestPaths.At("docs", "RnD_Report.md"));
-
-        foreach (string heading in new[]
-        {
-            "## 1. 요약",
-            "## 2. 무엇을 만들었나",
-            "## 3. 기술 검증 결과",
-            "## 4. 품질 검증 결과",
-            "## 5. 오써링 공수",
-            "## 6. 발견과 예상 밖의 것",
-            "## 7. 상용 전환 시 남는 과제",
-            "## 8. 권고",
-        })
-        {
-            Assert.Contains(heading, text, StringComparison.Ordinal);
-        }
-
-        // 7번의 4항목.
-        foreach (string task in new[] { "### 7.1", "### 7.2", "### 7.3", "### 7.4" })
-        {
-            Assert.Contains(task, text, StringComparison.Ordinal);
-        }
     }
 
     // ── 부록: 플랜 스토어가 절대 null 을 주지 않는다 ──────────────

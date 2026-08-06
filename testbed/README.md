@@ -1,8 +1,7 @@
 # 테스트 베드 — 게임서버 대역 + 테스트 클라이언트
 
 NPC 서버가 **실제 소켓 너머의 게임서버**에 붙어 도는 것을 눈으로 보는 자리다.
-사양은 [`docs/20_TestBed_Spec.md`](../docs/20_TestBed_Spec.md), 진행 상태는
-[`TASKS.md`](../TASKS.md) §3 에 있다.
+연동 계약 전문은 [`docs/reference_link.html`](../docs/reference_link.html) 에 있다.
 
 > **그림으로 보고 싶으면 [`docs/testbed_guide.html`](../docs/testbed_guide.html)** 을 브라우저로 연다.
 > 아키텍처 그림 · 핸드셰이크와 10단계 틱 루프 애니메이션 · 무엇을 바꾸며 테스트하는지 ·

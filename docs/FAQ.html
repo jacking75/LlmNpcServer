@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="LlmNpcServer의 도입 이점, 적용 범위, 행동 플랜 준비 방법, 전투 반응과 NPC 대화 확장에 관한 FAQ">
+<title>LlmNpcServer FAQ — 도입·행동 플랜·대화</title>
+<style>
+:root{
+  --bg:#f7f8fb;--panel:#fff;--panel-2:#f1f3f7;--ink:#171a21;--ink-2:#4e5562;
+  --ink-3:#767e8d;--line:#e0e4eb;--line-2:#cdd3de;--accent:#315fdd;
+  --accent-soft:#eaf0ff;--ok:#176b45;--ok-soft:#e6f4ec;--warn:#915900;
+  --warn-soft:#fff2dc;--bad:#aa2922;--bad-soft:#fdeceb;--code-bg:#171b24;
+  --code-ink:#e8ebf2;--radius:14px;--shadow:0 10px 30px rgba(28,36,55,.06);
+  --mono:ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,"D2Coding",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Pretendard,
+         "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root[data-theme="auto"]{
+    --bg:#0d1015;--panel:#151922;--panel-2:#1c212c;--ink:#e9ebf1;--ink-2:#b8bfcc;
+    --ink-3:#858e9e;--line:#282e3a;--line-2:#394150;--accent:#86a8ff;
+    --accent-soft:#1c2842;--ok:#6cdb9c;--ok-soft:#14291f;--warn:#f0bd6b;
+    --warn-soft:#2d2415;--bad:#ff9c95;--bad-soft:#301918;--code-bg:#090c11;
+    --code-ink:#e2e6ef;--shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1015;--panel:#151922;--panel-2:#1c212c;--ink:#e9ebf1;--ink-2:#b8bfcc;
+  --ink-3:#858e9e;--line:#282e3a;--line-2:#394150;--accent:#86a8ff;
+  --accent-soft:#1c2842;--ok:#6cdb9c;--ok-soft:#14291f;--warn:#f0bd6b;
+  --warn-soft:#2d2415;--bad:#ff9c95;--bad-soft:#301918;--code-bg:#090c11;
+  --code-ink:#e2e6ef;--shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.75 var(--sans);word-break:keep-all;overflow-wrap:anywhere}
+a{color:var(--accent)}
+code{font:0.88em var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);max-width:1480px;margin:auto;min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;overflow:auto;padding:26px 18px 42px;background:var(--panel);border-right:1px solid var(--line)}
+.brand{display:flex;gap:11px;align-items:flex-start;padding:0 8px 16px;border-bottom:1px solid var(--line)}
+.brand-mark{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:9px;background:var(--accent);color:#fff;font-weight:800;font-size:13px}
+.brand strong{display:block;font-size:15px;line-height:1.4}.brand small{display:block;color:var(--ink-3);font-size:12px;line-height:1.45;margin-top:2px}
+.search{position:relative;margin:16px 0}
+.search input{width:100%;padding:10px 12px 10px 34px;border:1px solid var(--line-2);border-radius:10px;background:var(--panel-2);color:var(--ink);font:inherit;font-size:13px;outline:none}
+.search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search span{position:absolute;left:12px;top:9px;color:var(--ink-3);font-size:15px}
+.toc-title{margin:19px 9px 7px;color:var(--ink-3);font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.toc{list-style:none;margin:0;padding:0}.toc li{margin:2px 0}
+.toc a{display:block;padding:7px 9px;border-radius:8px;border-left:2px solid transparent;text-decoration:none;color:var(--ink-2);font-size:13px;line-height:1.45}
+.toc a:hover{background:var(--panel-2);color:var(--ink)}.toc a.active{background:var(--accent-soft);color:var(--accent);font-weight:700;border-left-color:var(--accent)}
+.toc .q{font:11px var(--mono);color:var(--ink-3);margin-right:6px}.toc a.active .q{color:var(--accent)}
+.side-tools{display:flex;gap:7px;flex-wrap:wrap;margin-top:20px;padding:16px 8px 0;border-top:1px solid var(--line)}
+.side-tools button,.side-tools a{border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink-2);border-radius:999px;padding:5px 10px;font:12px var(--sans);text-decoration:none;cursor:pointer}
+.side-tools button:hover,.side-tools a:hover{border-color:var(--accent);color:var(--accent)}
+main{min-width:0;padding:46px 46px 120px}
+.hero{position:relative;overflow:hidden;padding:34px 36px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,var(--panel),var(--panel-2));box-shadow:var(--shadow)}
+.hero:after{content:"FAQ";position:absolute;right:-10px;bottom:-48px;color:var(--accent);opacity:.06;font-weight:900;font-size:150px;line-height:1}
+.eyebrow{color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:36px;line-height:1.25;letter-spacing:-.8px;margin:7px 0 10px}.lead{max-width:74ch;color:var(--ink-2);font-size:17px;margin:0}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:17px}.chip{padding:3px 10px;border:1px solid var(--line-2);border-radius:999px;background:var(--panel);color:var(--ink-2);font-size:12px}.chip.primary{border-color:transparent;background:var(--accent-soft);color:var(--accent);font-weight:700}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0 34px}
+.summary div{padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.summary strong{display:block;font-size:13px}.summary span{display:block;color:var(--ink-3);font-size:12.5px;margin-top:2px}
+.faq-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:27px 30px;margin:18px 0;box-shadow:var(--shadow)}
+.faq-card[hidden]{display:none}.qhead{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+.qnum{display:grid;place-items:center;min-width:42px;height:28px;margin-top:3px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 12px var(--mono)}
+h2{font-size:23px;line-height:1.45;letter-spacing:-.35px;margin:0}h3{font-size:17px;letter-spacing:-.2px;margin:28px 0 7px}h4{font-size:14.5px;margin:20px 0 5px}
+p{margin:9px 0}.answer>p:first-child{font-size:16.5px}.muted{color:var(--ink-2)}
+.grid{display:grid;gap:12px;margin:14px 0}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mini{padding:15px 16px;border:1px solid var(--line);border-radius:11px;background:var(--panel-2)}.mini strong{display:block;font-size:14px}.mini p{margin:4px 0 0;color:var(--ink-2);font-size:13.5px}
+.table-wrap{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:13.5px;background:var(--panel)}
+th,td{text-align:left;vertical-align:top;padding:10px 13px;border-bottom:1px solid var(--line)}th{background:var(--panel-2);color:var(--ink-2);font-size:12.5px;white-space:nowrap}tr:last-child td{border-bottom:0}
+ul,ol{padding-left:22px;margin:8px 0}li{margin:4px 0}.check{list-style:none;padding-left:0}.check li{position:relative;padding-left:25px}.check li:before{content:"✓";position:absolute;left:2px;color:var(--ok);font-weight:800}
+.callout{margin:15px 0;padding:13px 16px;border-radius:10px;border-left:4px solid var(--accent);background:var(--accent-soft)}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}.callout.bad{border-left-color:var(--bad);background:var(--bad-soft)}.callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+.callout strong{display:block;margin-bottom:2px}.callout p{margin:3px 0;font-size:14px}
+.flow{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:22px;margin:17px 0}.flow .step{position:relative;padding:13px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);font-size:13px}.flow .step:not(:last-child):after{content:"→";position:absolute;right:-17px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-weight:800}.step b{display:block;color:var(--accent);font-size:11px;margin-bottom:3px}
+pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);border-radius:11px;background:var(--code-bg);color:var(--code-ink);font:13px/1.65 var(--mono)}pre code{padding:0;border:0;background:none;color:inherit;font-size:inherit}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:750}.badge.ok{background:var(--ok-soft);color:var(--ok)}.badge.warn{background:var(--warn-soft);color:var(--warn)}.badge.bad{background:var(--bad-soft);color:var(--bad)}
+.refs{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12.5px}.refs a{margin-right:10px}
+.empty{display:none;padding:40px;text-align:center;color:var(--ink-3);border:1px dashed var(--line-2);border-radius:14px;background:var(--panel)}
+.append-guide{margin-top:34px;padding:20px 22px;border:1px dashed var(--line-2);border-radius:14px;color:var(--ink-2);background:var(--panel-2)}.append-guide h2{font-size:18px;margin:0 0 5px}.append-guide p{font-size:13.5px}
+.footer{margin-top:32px;text-align:center;color:var(--ink-3);font-size:12px}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}.toc{columns:2}.side-tools{padding-left:0}.search{max-width:480px}main{padding:30px 20px 80px}}
+@media(max-width:700px){h1{font-size:29px}.hero{padding:26px 22px}.faq-card{padding:22px 18px}.summary,.g2,.g3{grid-template-columns:1fr}.flow{grid-template-columns:1fr;gap:9px}.flow .step:not(:last-child):after{content:"↓";right:auto;left:50%;top:auto;bottom:-15px}.toc{columns:1}.qhead{gap:9px}.qnum{min-width:36px}main{padding-left:13px;padding-right:13px}}
+@media print{.layout{display:block}.sidebar,.side-tools,.search,.append-guide{display:none}main{padding:0}.hero,.faq-card{box-shadow:none;break-inside:avoid}.faq-card{margin:13px 0}body{background:#fff;color:#111}.summary{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" aria-label="FAQ 목차">
+    <div class="brand">
+      <div class="brand-mark">LN</div>
+      <div><strong>LlmNpcServer FAQ</strong><small>도입·행동 플랜·대화 설계</small></div>
+    </div>
+    <label class="search">
+      <span aria-hidden="true">⌕</span>
+      <input id="faq-search" type="search" placeholder="질문과 답변 검색" autocomplete="off" aria-label="FAQ 검색">
+    </label>
+    <div class="toc-title">질문 목록</div>
+    <ol class="toc" id="toc">
+      <li><a href="#q1"><span class="q">Q1</span>기존 NPC 서버보다 나은 점</a></li>
+      <li><a href="#q2"><span class="q">Q2</span>사용하기 좋은 경우</a></li>
+      <li><a href="#q3"><span class="q">Q3</span>적합하지 않은 경우와 한계</a></li>
+      <li><a href="#q4"><span class="q">Q4</span>플랜 생성을 위해 준비할 것</a></li>
+      <li><a href="#q5"><span class="q">Q5</span>순찰 후 플레이어 공격 설계</a></li>
+      <li><a href="#q6"><span class="q">Q6</span>현재 구현에서 되는 범위</a></li>
+      <li><a href="#q7"><span class="q">Q7</span>NPC 대화 가능 여부</a></li>
+      <li><a href="#q8"><span class="q">Q8</span>실시간 자유대화 확장 방법</a></li>
+    </ol>
+    <div class="side-tools">
+      <button type="button" id="theme">테마: 자동</button>
+      <button type="button" onclick="window.print()">인쇄</button>
+      <a href="index.html">프로젝트 안내서</a>
+    </div>
+  </aside>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">Frequently Asked Questions</div>
+      <h1>LlmNpcServer FAQ</h1>
+      <p class="lead">기존 MMORPG NPC 서버와의 차이, 적합한 적용 범위, LLM 행동 플랜을 만들기 위한 사전 준비, 전투 반응과 NPC 대화 확장 방법을 정리한 누적형 문서다.</p>
+      <div class="chips">
+        <span class="chip primary">누적 업데이트 문서</span>
+        <span class="chip">행동 플랜</span><span class="chip">결정론적 런타임</span>
+        <span class="chip">게임서버 연동</span><span class="chip">대화 확장</span>
+      </div>
+    </header>
+
+    <section class="summary" aria-label="핵심 요약">
+      <div><strong>LLM의 역할</strong><span>실시간 실행기가 아니라 행동 플랜 컴파일러다.</span></div>
+      <div><strong>가장 적합한 영역</strong><span>대규모 생활형·환경 반응형 NPC다.</span></div>
+      <div><strong>현재 대화 범위</strong><span>대사 ID 기반이며 자유대화는 별도 확장이 필요하다.</span></div>
+    </section>
+
+    <div id="empty" class="empty">검색어와 일치하는 FAQ가 없다.</div>
+
+    <article class="faq-card" id="q1" data-search="기존 npc 서버 장점 이점 차이 llm 컴파일러 캐시 결정론 성능 리플레이">
+      <div class="qhead"><span class="qnum">Q1</span><h2>기존 MMORPG NPC 서버보다 어떤 이점이 있는가?</h2></div>
+      <div class="answer">
+        <p><strong>가장 큰 이점은 NPC의 실시간 판단 능력이 아니라 대규모 NPC 행동 콘텐츠를 자동 제작하면서도 런타임의 성능과 결정론을 유지한다는 점이다.</strong></p>
+        <p>전통적인 FSM·행동 트리·스크립트 서버를 전부 대체하기보다는, 기존 게임서버 옆에서 비전투·생활형 NPC의 행동 플랜을 공급하고 실행하는 보조 NPC 서버로 사용할 때 가치가 크다.</p>
+
+        <div class="table-wrap"><table>
+          <thead><tr><th>관점</th><th>기존 FSM·BT·스크립트</th><th>LlmNpcServer</th></tr></thead>
+          <tbody>
+            <tr><td>행동 제작</td><td>NPC와 상황별로 사람이 작성한다.</td><td>LLM이 허용된 액션으로 상황별 플랜을 조합한다.</td></tr>
+            <tr><td>런타임</td><td>규칙과 스크립트를 직접 실행한다.</td><td>검증·저장된 플랜을 결정론적으로 실행한다.</td></tr>
+            <tr><td>상황 변화</td><td>새 분기와 이벤트 스크립트가 필요하다.</td><td>시간대·지역 상태·기후 버킷별 플랜을 교체한다.</td></tr>
+            <tr><td>LLM 장애</td><td>일반적으로 LLM을 사용하지 않는다.</td><td>틱 루프와 분리되어 기존 플랜으로 계속 동작한다.</td></tr>
+            <tr><td>재현성</td><td>높다.</td><td>저장 플랜과 기록·재생으로 LLM 없이 재현한다.</td></tr>
+            <tr><td>비용 구조</td><td>실행은 저렴하지만 제작 공수가 크다.</td><td>생성 비용이 있지만 다수 NPC가 플랜을 공유한다.</td></tr>
+          </tbody>
+        </table></div>
+
+        <div class="callout"><strong>핵심 설계</strong><p>LLM을 실행기가 아니라 컴파일러로 사용한다. NPC가 행동할 때마다 LLM에 묻지 않고, 미리 생성한 JSON 플랜을 10Hz 결정론적 런타임에서 실행한다.</p></div>
+        <div class="grid g3">
+          <div class="mini"><strong>플랜 공유</strong><p>아키타입 × 시간대 × 지역 상태 × 기후의 최대 2,880개 플랜을 5,000 NPC가 공유한다.</p></div>
+          <div class="mini"><strong>장애 격리</strong><p>외부 API 지연이나 실패가 게임 틱을 직접 지연시키지 않는다.</p></div>
+          <div class="mini"><strong>검수 가능</strong><p>플랜은 사람이 읽고 수정·고정·버전 관리할 수 있는 JSON이다.</p></div>
+          <div class="mini"><strong>단계적 폴백</strong><p>외부 API, 로컬 LLM, 캐시, 수동 폴백 사이에서 강등된다.</p></div>
+          <div class="mini"><strong>게임 지속</strong><p>재계획 큐가 포화돼도 NPC는 기존 플랜을 계속 실행한다.</p></div>
+          <div class="mini"><strong>교체 가능한 링크</strong><p>TCP·루프백·기록·리플레이 링크로 통합과 시험을 분리한다.</p></div>
+        </div>
+        <p>현재 실측에서는 5,000 NPC가 게임 시간 7일과 10,080틱을 완주했고, 캐시 히트율은 <strong>98.67%</strong>, 틱 p99는 <strong>0.801ms</strong>였다. 결정론 리플레이도 바이트 단위 동일 판정을 통과했다.</p>
+      </div>
+      <div class="refs"><a href="../README.md">README</a><a href="reference_metrics.html">실측 데이터</a><a href="index.html">프로젝트 안내서</a></div>
+    </article>
+
+    <article class="faq-card" id="q2" data-search="언제 사용 적합 생활형 npc 도시 주민 상인 경비 농부 날씨 전쟁 라이브 이벤트 r&d">
+      <div class="qhead"><span class="qnum">Q2</span><h2>어떤 경우에 사용하면 좋은가?</h2></div>
+      <div class="answer">
+        <p>이 서버는 <strong>NPC 한 명의 정교한 전투보다 세계 전체가 살아 움직이는 느낌</strong>이 중요한 게임에 특히 잘 맞는다.</p>
+        <ul class="check">
+          <li>도시 주민, 상인, 경비병, 농부처럼 수천 명의 생활형 NPC가 필요한 경우다.</li>
+          <li>낮·밤, 날씨, 전쟁, 재난, 지역 치안에 따라 NPC 행동이 달라져야 하는 경우다.</li>
+          <li>라이브 이벤트가 잦아 행동 스크립트 작성 공수가 커진 경우다.</li>
+          <li>LLM을 사용하되 네트워크 지연과 비결정성을 런타임에 넣을 수 없는 경우다.</li>
+          <li>생성된 행동을 사람이 검수하고 고정한 뒤 운영에 반영하려는 경우다.</li>
+          <li>기존 게임서버를 유지하면서 NPC 판단을 별도 서비스로 분리하려는 경우다.</li>
+          <li>NPC 규모·캐시·재계획 전략을 검증하는 R&amp;D 또는 프로토타입인 경우다.</li>
+        </ul>
+        <div class="callout ok"><strong>현실적인 첫 적용점</strong><p>기존 전투·퀘스트 AI는 유지하고, 대규모 생활형 NPC와 월드 이벤트 반응만 LlmNpcServer에 맡기는 방식이 가장 안전하다.</p></div>
+      </div>
+    </article>
+
+    <article class="faq-card" id="q3" data-search="적합하지 않음 한계 보스 pvp 전투 대화 소규모 상용 미완성 다양성 gpu">
+      <div class="qhead"><span class="qnum">Q3</span><h2>어떤 경우에는 적합하지 않으며, 현재 한계는 무엇인가?</h2></div>
+      <div class="answer">
+        <div class="grid g2">
+          <div class="mini"><strong>정밀 전투 AI</strong><p>보스 패턴, PvP 봇, 프레임 단위 판정에는 기존 결정론적 전투 AI가 더 적합하다.</p></div>
+          <div class="mini"><strong>소수의 고유 NPC</strong><p>각 NPC가 독자적인 연출과 퀘스트 스크립트를 가져야 한다면 수작업 통제력이 유리하다.</p></div>
+          <div class="mini"><strong>무제한 즉흥 행동</strong><p>실제 행동은 마스터데이터와 제한된 DSL 안에서만 가능하다.</p></div>
+          <div class="mini"><strong>작은 프로젝트</strong><p>별도 NPC 서버와 TCP 연동 비용이 제작 공수 절감보다 클 수 있다.</p></div>
+        </div>
+        <div class="callout warn"><strong>현재는 상용 완성품이 아니라 R&amp;D 구현체다.</strong><p>203개 태스크 중 196개가 완료됐지만 플랜 다양성은 목표 60%보다 낮은 37.1%이며, GPU 부하와 사람 대상 품질 평가도 완결되지 않았다.</p></div>
+        <p>따라서 현재 평가는 “검증된 범용 상용 NPC 서버”보다 <strong>구조와 성능 가능성이 구체적으로 증명된 기술 검증 구현체</strong>가 적절하다.</p>
+      </div>
+      <div class="refs"><a href="reference_metrics.html#gate">수용 기준 판정</a><a href="reference_metrics.html">실측 데이터</a></div>
+    </article>
+
+    <article class="faq-card" id="q4" data-search="초안 플랜 생성 준비 마스터데이터 플래그 액션 poi 존 아키타입 인스턴스 버킷 인터럽트 폴백 프롬프트">
+      <div class="qhead"><span class="qnum">Q4</span><h2>LLM이 상황별 플랜을 만들려면 무엇을 사전에 준비해야 하는가?</h2></div>
+      <div class="answer">
+        <p>자연어 설명 몇 줄이 아니라 <strong>게임 세계의 어휘와 규칙을 구조화한 마스터데이터</strong>가 필요하다. LLM은 이 데이터에 없는 행동을 새로 발명하는 것이 아니라 허용된 원자 액션을 조합한다.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>순서</th><th>준비 항목</th><th>정의하는 내용</th><th>예시</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td><code>world_flags.json</code></td><td>NPC가 인지할 수 있는 상태를 정의한다.</td><td><code>PlayerNearby</code>, <code>ThreatNearby</code>, <code>OnDuty</code></td></tr>
+            <tr><td>2</td><td><code>items.json</code></td><td>장비·재료·소지품과 상태 효과를 정의한다.</td><td>검, 도구, 식량, 화폐</td></tr>
+            <tr><td>3</td><td><code>actions.json</code></td><td>행동 파라미터, 전제, 효과, 게임서버 명령을 정의한다.</td><td><code>Patrol</code>, <code>Attack</code>, <code>Talk</code></td></tr>
+            <tr><td>4</td><td>존·POI·거리</td><td>이동 목적지와 위치 관계를 정의한다.</td><td>성문, 감시탑, 시장, 안전지대</td></tr>
+            <tr><td>5</td><td><code>archetypes.json</code></td><td>역할, 허용 액션, 성향, 목표, 근무 시간, 장비를 정의한다.</td><td>성문 경비병, 상인, 농부</td></tr>
+            <tr><td>6</td><td>상황 버킷</td><td>플랜을 공유할 상황 축을 정의한다.</td><td>시간대 × 평시/전쟁 × 날씨</td></tr>
+            <tr><td>7</td><td><code>interrupts.json</code></td><td>위협·피해·상호작용에 즉시 반응하는 규칙을 정의한다.</td><td>공격, 도주, 도움 요청</td></tr>
+            <tr><td>8</td><td>수동 폴백 플랜</td><td>LLM과 캐시가 모두 실패해도 지속할 기본 일과를 정의한다.</td><td>근무 → 귀가 → 수면</td></tr>
+            <tr><td>9</td><td>NPC 인스턴스</td><td>스폰 위치, 집, 근무지, 초기 장비를 개체에 바인딩한다.</td><td>501번 경비병의 북문 근무지</td></tr>
+          </tbody>
+        </table></div>
+
+        <h3>게임서버가 책임져야 하는 것</h3>
+        <p>NPC 서버는 행동 의도를 명령으로 보낸다. 실제 경로 탐색, 충돌 회피, 시야·은신 판정, 적대 관계, 명중·피해·사망 판정은 게임서버가 권위 있게 처리해야 한다.</p>
+
+        <h3>개체별 차이를 크게 만들려면</h3>
+        <p>현재 인스턴스 데이터는 집·근무지·스폰 위치 중심이고, 기본 플랜은 아키타입과 상황 버킷 단위로 공유된다. NPC마다 서로 다른 순찰로·경계 반경·세력·대화 성격을 지정하려면 다음과 같은 개체별 행동 파라미터와 심볼 바인딩을 추가하는 편이 좋다.</p>
+<pre><code>{
+  "id": 501,
+  "archetype": "hostile_gate_guard",
+  "zone": "north_gate",
+  "workplace_poi": "gate_north",
+  "patrol_route": ["gate_north", "watchtower_north", "wall_corner_ne"],
+  "aggro_radius": 20,
+  "faction": "red_kingdom",
+  "dialogue_profile": "red_guard_01"
+}</code></pre>
+        <p class="muted">위 예시는 권장 확장 형태이며 현재 <code>npc_instances.json</code> 스키마에 모두 구현된 필드는 아니다.</p>
+      </div>
+      <div class="refs"><a href="reference_masterdata.html">마스터데이터 레퍼런스</a><a href="../masterdata/actions.json">액션 카탈로그</a><a href="../masterdata/archetypes.json">아키타입</a></div>
+    </article>
+
+    <article class="faq-card" id="q5" data-search="특정 위치 순찰 돌아다니다 플레이어 보면 공격 patrol hostile aggro 인터럽트 흐름">
+      <div class="qhead"><span class="qnum">Q5</span><h2>“지정된 위치를 순찰하다가 플레이어가 보이면 공격”은 어떻게 설계하는가?</h2></div>
+      <div class="answer">
+        <p><strong>평상시 순찰은 플랜으로, 플레이어 감지와 공격은 결정론적 인터럽트로 나눈다.</strong> 적을 발견한 뒤 LLM 응답을 기다리면 안 되기 때문이다.</p>
+
+        <h3>평상시 플랜</h3>
+<pre><code>{
+  "goal": "guard_north_gate",
+  "steps": [
+    {
+      "action": "Patrol",
+      "args": {
+        "route": ["gate_north", "watchtower_north", "wall_corner_ne"],
+        "laps": 3
+      }
+    },
+    {
+      "action": "Guard",
+      "args": { "poi": "gate_north", "duration_s": 600 }
+    }
+  ],
+  "loop": true
+}</code></pre>
+
+        <h3>위협 발생 흐름</h3>
+        <div class="flow" aria-label="적대 플레이어 감지와 공격 흐름">
+          <div class="step"><b>STEP 1</b>게임서버가 시야·은신·세력을 판정한다.</div>
+          <div class="step"><b>STEP 2</b>적대 플레이어 감지 이벤트를 보낸다.</div>
+          <div class="step"><b>STEP 3</b>인터럽트가 순찰을 중단하고 어그로를 건다.</div>
+          <div class="step"><b>STEP 4</b>게임서버가 이동·공격·피해를 판정한다.</div>
+          <div class="step"><b>STEP 5</b>전투 종료 후 원래 순찰 플랜으로 복귀한다.</div>
+        </div>
+        <div class="callout"><strong>왜 인터럽트인가</strong><p>인터럽트는 사람이 작성한 결정론 규칙이며 LLM이 생성하지 않는다. 공격, 도주, 긴급 대피처럼 반응 속도와 재현성이 중요한 행동은 이 경로에 둔다.</p></div>
+
+        <h3>필요한 사전 데이터</h3>
+        <ul>
+          <li>성문·감시탑 등 2~8개의 순찰 POI와 실제 이동 가능한 경로가 필요하다.</li>
+          <li><code>Patrol</code>·<code>Guard</code>·<code>Attack</code>을 허용한 전투 가능 아키타입이 필요하다.</li>
+          <li><code>OnDuty</code>가 켜지는 근무 시간과 무기 인벤토리가 필요하다.</li>
+          <li>플레이어의 세력·적대 여부·은신·시야를 판단하는 게임서버 로직이 필요하다.</li>
+          <li>대상 이탈·사망·전투 종료 후 순찰로 복귀시키는 이벤트와 규칙이 필요하다.</li>
+        </ul>
+      </div>
+      <div class="refs"><a href="reference_masterdata.html#intr">인터럽트 규칙</a><a href="reference_link.html">게임서버 연동 계약</a></div>
+    </article>
+
+    <article class="faq-card" id="q6" data-search="현재 코드 구현 player proximity nearby threat attack targetplayer 부족 선제공격">
+      <div class="qhead"><span class="qnum">Q6</span><h2>그 공격 시나리오는 현재 구현에서 어디까지 가능한가?</h2></div>
+      <div class="answer">
+        <div class="table-wrap"><table>
+          <thead><tr><th>기능</th><th>상태</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>플레이어 접근 수신</td><td><span class="badge ok">가능</span></td><td><code>PlayerProximity</code>로 접근·이탈·거리를 받는다.</td></tr>
+            <tr><td>근접 상태 반영</td><td><span class="badge ok">가능</span></td><td><code>PlayerNearby</code> 플래그를 설정한다.</td></tr>
+            <tr><td>전투·피해 시 위협 반응</td><td><span class="badge ok">가능</span></td><td><code>CombatStarted</code>·<code>DamageTaken</code>이 <code>ThreatNearby</code>를 설정한다.</td></tr>
+            <tr><td>위협 시 공격·도주</td><td><span class="badge ok">가능</span></td><td>용기와 전투 가능 여부에 따라 <code>Attack</code>·<code>Flee</code>·<code>Retreat</code>을 실행한다.</td></tr>
+            <tr><td>적대 플레이어 선제공격</td><td><span class="badge warn">확장 필요</span></td><td>플레이어가 보인다는 사실과 적대 대상이라는 판단이 현재 분리되어 있다.</td></tr>
+            <tr><td>플레이어 대상 바인딩</td><td><span class="badge warn">연결 필요</span></td><td>계약에는 <code>TargetPlayer</code>가 있으나 현재 <code>Attack</code>은 <code>npc_ref</code>·<code>TargetNpc</code> 중심이다.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="callout warn"><strong>현재 그대로는 “보이는 모든 플레이어를 선제공격”하지 않는다.</strong><p><code>PlayerProximity</code>는 <code>PlayerNearby</code>만 설정하고, 기존 공격 인터럽트는 <code>ThreatNearby</code>를 조건으로 사용한다.</p></div>
+        <p>선제공격 NPC를 만들려면 게임서버의 적대 판정, <code>HostilePlayerNearby</code>에 해당하는 상태나 이벤트, <code>$nearest_hostile_player</code> 같은 대상 바인딩, 플레이어를 대상으로 하는 공격 액션 연결이 필요하다.</p>
+      </div>
+      <div class="refs"><a href="../src/Npc.Runtime/EventApplier.cs">이벤트 적용기</a><a href="../src/Npc.Contracts/NpcCommand.cs">명령 계약</a><a href="../masterdata/interrupts.json">인터럽트 규칙</a></div>
+    </article>
+
+    <article class="faq-card" id="q7" data-search="npc 대화 가능 talk gossip speak dialogue id 고정 대사 자연어">
+      <div class="qhead"><span class="qnum">Q7</span><h2>NPC가 플레이어 또는 다른 NPC와 대화하는 것이 가능한가?</h2></div>
+      <div class="answer">
+        <p><strong>미리 작성된 대사를 ID로 재생하는 대화는 가능하지만, 플레이어와의 실시간 자유대화는 현재 범위에 없다.</strong></p>
+        <div class="grid g2">
+          <div class="mini"><strong><span class="badge ok">현재 가능</span> 주제형 대화</strong><p><code>Talk</code>과 <code>Gossip</code>이 greeting·trade·rumor·warning 같은 주제를 고르고 <code>Speak</code> 명령으로 대사 ID를 보낸다.</p></div>
+          <div class="mini"><strong><span class="badge warn">확장 필요</span> 자유대화</strong><p>현재 명령 계약은 문자열이 아니라 <code>DialogueId</code>만 전달하며 자연어 생성은 범위 밖이라고 명시한다.</p></div>
+        </div>
+        <div class="flow" style="grid-template-columns:repeat(4,minmax(120px,1fr))" aria-label="고정 대사 처리 흐름">
+          <div class="step"><b>STEP 1</b>플레이어가 NPC와 상호작용한다.</div>
+          <div class="step"><b>STEP 2</b><code>PlayerInteracted</code> 이벤트가 들어온다.</div>
+          <div class="step"><b>STEP 3</b>NPC가 warning 같은 주제를 선택한다.</div>
+          <div class="step"><b>STEP 4</b>게임서버가 대사 ID에 해당하는 문장을 재생한다.</div>
+        </div>
+        <p>이 방식은 응답이 빠르고 안전하며 번역·음성·검수·등급 심의를 관리하기 쉽다.</p>
+      </div>
+      <div class="refs"><a href="../masterdata/actions.json">Talk·Gossip 액션</a><a href="../src/Npc.Contracts/NpcCommand.cs">Speak 계약</a></div>
+    </article>
+
+    <article class="faq-card" id="q8" data-search="실시간 자유대화 대화 서버 llm persona lore memory quest safety fallback 구조화 출력">
+      <div class="qhead"><span class="qnum">Q8</span><h2>실시간 LLM 자유대화를 추가하려면 어떻게 확장해야 하는가?</h2></div>
+      <div class="answer">
+        <p>행동 플랜 컴파일러에 대화를 억지로 넣기보다 <strong>행동 서버와 대화 서버를 분리</strong>하는 구조가 적합하다.</p>
+        <div class="grid g3">
+          <div class="mini"><strong>행동 서버</strong><p>이동·순찰·일과·전투 반응을 결정하고 검증된 명령을 보낸다.</p></div>
+          <div class="mini"><strong>대화 서버</strong><p>플레이어 발화, NPC 성격, 퀘스트 상태, 세계관 지식으로 답변을 생성한다.</p></div>
+          <div class="mini"><strong>게임서버</strong><p>아이템 지급, 거래, 퀘스트 변경, 전투 등 실제 상태 변경을 최종 승인한다.</p></div>
+        </div>
+
+        <h3>대화 서버에 필요한 데이터</h3>
+        <ul class="check">
+          <li>NPC의 이름, 말투, 성격, 가치관과 금지 행동이 필요하다.</li>
+          <li>NPC가 알 수 있는 세계관·지역·직업 지식의 범위를 정해야 한다.</li>
+          <li>현재 퀘스트 상태, 플레이어와의 관계와 평판을 제공해야 한다.</li>
+          <li>최근 대화 요약과 장기 기억의 저장·삭제 정책이 필요하다.</li>
+          <li>프롬프트 인젝션, 욕설, 개인정보, 스포일러에 대한 안전 규칙이 필요하다.</li>
+          <li>LLM 지연·장애·비용 한도 초과 시 사용할 고정 대사가 필요하다.</li>
+          <li>거래·퀘스트·보상은 제한된 도구 계약으로 게임서버 승인을 받아야 한다.</li>
+        </ul>
+
+        <h3>권장 응답 형식</h3>
+<pre><code>{
+  "text": "이 앞은 통행할 수 없다. 북문으로 돌아가라.",
+  "emotion": "stern",
+  "intent": "warn",
+  "suggested_action": "deny_entry"
+}</code></pre>
+        <div class="callout bad"><strong>LLM이 게임 상태를 직접 변경하게 해서는 안 된다.</strong><p>대화 모델은 행동을 제안할 수 있지만 아이템 지급, 퀘스트 변경, 공격 시작, 문 개방 같은 실제 효과는 게임서버가 권한과 조건을 검증한 뒤 실행해야 한다.</p></div>
+
+        <h3>권장 도입 순서</h3>
+        <ol>
+          <li>전체 NPC에 현재의 <code>DialogueId</code> 기반 고정 대화를 적용한다.</li>
+          <li>퀘스트 제공자나 주요 인물처럼 소수의 핵심 NPC에만 자유대화를 붙인다.</li>
+          <li>LLM 응답이 늦거나 실패하면 즉시 고정 대사로 폴백한다.</li>
+          <li>품질·비용·안전성이 검증된 뒤 기억과 퀘스트 도구를 단계적으로 추가한다.</li>
+        </ol>
+        <p>정리하면 LlmNpcServer는 행동과 정해진 대사 재생까지 수용하며, 실시간 자연어 대화는 별도 대화 서비스와 게임서버 계약 확장이 필요한 상태다.</p>
+      </div>
+    </article>
+
+    <section class="append-guide" id="append-guide">
+      <h2>후속 FAQ 추가 규칙</h2>
+      <p>새 질문은 기존 <code>&lt;article class="faq-card"&gt;</code> 블록을 복제해 다음 Q 번호와 고유 <code>id</code>를 부여하고, 사이드바의 <code>#toc</code>에 링크를 한 줄 추가한다. 검색 품질을 위해 <code>data-search</code>에 질문의 핵심 키워드를 넣는다. 이 블록은 편집 안내용이며 인쇄할 때는 제외된다.</p>
+    </section>
+
+    <footer class="footer">LlmNpcServer FAQ · 최초 작성 2026-08-06 · 프로젝트 근거 문서와 구현을 기준으로 작성했다.</footer>
+  </main>
+</div>
+
+<script>
+(() => {
+  const root = document.documentElement;
+  const themeButton = document.getElementById('theme');
+  const themes = ['auto', 'light', 'dark'];
+  const labels = {auto:'테마: 자동', light:'테마: 밝게', dark:'테마: 어둡게'};
+  let theme = localStorage.getItem('llmnpc-faq-theme') || 'auto';
+  if (!themes.includes(theme)) theme = 'auto';
+  const applyTheme = value => {
+    theme = value;
+    root.dataset.theme = value;
+    themeButton.textContent = labels[value];
+    localStorage.setItem('llmnpc-faq-theme', value);
+  };
+  applyTheme(theme);
+  themeButton.addEventListener('click', () => applyTheme(themes[(themes.indexOf(theme) + 1) % themes.length]));
+
+  const input = document.getElementById('faq-search');
+  const cards = [...document.querySelectorAll('.faq-card')];
+  const links = [...document.querySelectorAll('.toc a')];
+  const empty = document.getElementById('empty');
+  input.addEventListener('input', () => {
+    const query = input.value.trim().toLocaleLowerCase('ko');
+    let visible = 0;
+    cards.forEach(card => {
+      const haystack = `${card.dataset.search || ''} ${card.textContent}`.toLocaleLowerCase('ko');
+      const show = !query || haystack.includes(query);
+      card.hidden = !show;
+      const link = document.querySelector(`.toc a[href="#${card.id}"]`);
+      if (link) link.parentElement.hidden = !show;
+      if (show) visible++;
+    });
+    empty.style.display = visible ? 'none' : 'block';
+  });
+
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(entries => {
+      entries.filter(entry => entry.isIntersecting).forEach(entry => {
+        links.forEach(link => link.classList.toggle('active', link.hash === `#${entry.target.id}`));
+      });
+    }, {rootMargin:'-18% 0px -70% 0px'});
+    cards.forEach(card => observer.observe(card));
+  }
+})();
+</script>
+</body>
+</html>

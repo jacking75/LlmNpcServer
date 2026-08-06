@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="LlmNpcServer 게임서버 연동 계약 — N1~N8 규칙, NpcCommand·GameEvent 패킷, 와이어 프로토콜, 게임서버가 지켜야 할 발행 규약">
+<title>게임서버 연동 계약 — LlmNpcServer</title>
+<style>
+:root{
+  --bg:#f7f8fb;--panel:#fff;--panel-2:#f1f3f7;--ink:#171a21;--ink-2:#4e5562;
+  --ink-3:#767e8d;--line:#e0e4eb;--line-2:#cdd3de;--accent:#315fdd;
+  --accent-soft:#eaf0ff;--ok:#176b45;--ok-soft:#e6f4ec;--warn:#915900;
+  --warn-soft:#fff2dc;--bad:#aa2922;--bad-soft:#fdeceb;--code-bg:#171b24;
+  --code-ink:#e8ebf2;--radius:14px;--shadow:0 10px 30px rgba(28,36,55,.06);
+  --mono:ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,"D2Coding",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Pretendard,
+         "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root[data-theme="auto"]{
+    --bg:#0d1015;--panel:#151922;--panel-2:#1c212c;--ink:#e9ebf1;--ink-2:#b8bfcc;
+    --ink-3:#858e9e;--line:#282e3a;--line-2:#394150;--accent:#86a8ff;
+    --accent-soft:#1c2842;--ok:#6cdb9c;--ok-soft:#14291f;--warn:#f0bd6b;
+    --warn-soft:#2d2415;--bad:#ff9c95;--bad-soft:#301918;--code-bg:#090c11;
+    --code-ink:#e2e6ef;--shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1015;--panel:#151922;--panel-2:#1c212c;--ink:#e9ebf1;--ink-2:#b8bfcc;
+  --ink-3:#858e9e;--line:#282e3a;--line-2:#394150;--accent:#86a8ff;
+  --accent-soft:#1c2842;--ok:#6cdb9c;--ok-soft:#14291f;--warn:#f0bd6b;
+  --warn-soft:#2d2415;--bad:#ff9c95;--bad-soft:#301918;--code-bg:#090c11;
+  --code-ink:#e2e6ef;--shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.75 var(--sans);word-break:keep-all;overflow-wrap:anywhere}
+a{color:var(--accent)}
+code{font:0.88em var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);max-width:1480px;margin:auto;min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;overflow:auto;padding:26px 18px 42px;background:var(--panel);border-right:1px solid var(--line)}
+.brand{display:flex;gap:11px;align-items:flex-start;padding:0 8px 16px;border-bottom:1px solid var(--line)}
+.brand-mark{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:9px;background:var(--accent);color:#fff;font-weight:800;font-size:13px}
+.brand strong{display:block;font-size:15px;line-height:1.4}.brand small{display:block;color:var(--ink-3);font-size:12px;line-height:1.45;margin-top:2px}
+.toc-title{margin:19px 9px 7px;color:var(--ink-3);font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.toc{list-style:none;margin:0;padding:0}.toc li{margin:2px 0}
+.toc a{display:block;padding:7px 9px;border-radius:8px;border-left:2px solid transparent;text-decoration:none;color:var(--ink-2);font-size:13px;line-height:1.45}
+.toc a:hover{background:var(--panel-2);color:var(--ink)}.toc a.active{background:var(--accent-soft);color:var(--accent);font-weight:700;border-left-color:var(--accent)}
+.toc .n{font:11px var(--mono);color:var(--ink-3);margin-right:7px}.toc a.active .n{color:var(--accent)}
+.side-tools{display:flex;gap:7px;flex-wrap:wrap;margin-top:20px;padding:16px 8px 0;border-top:1px solid var(--line)}
+.side-tools button,.side-tools a{border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink-2);border-radius:999px;padding:5px 10px;font:12px var(--sans);text-decoration:none;cursor:pointer}
+.side-tools button:hover,.side-tools a:hover{border-color:var(--accent);color:var(--accent)}
+main{min-width:0;padding:46px 46px 120px}
+.hero{position:relative;overflow:hidden;padding:34px 36px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,var(--panel),var(--panel-2));box-shadow:var(--shadow)}
+.hero:after{content:"LINK";position:absolute;right:-10px;bottom:-46px;color:var(--accent);opacity:.06;font-weight:900;font-size:140px;line-height:1}
+.eyebrow{color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:36px;line-height:1.25;letter-spacing:-.8px;margin:7px 0 10px}.lead{max-width:74ch;color:var(--ink-2);font-size:17px;margin:0}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:17px}.chip{padding:3px 10px;border:1px solid var(--line-2);border-radius:999px;background:var(--panel);color:var(--ink-2);font-size:12px}.chip.primary{border-color:transparent;background:var(--accent-soft);color:var(--accent);font-weight:700}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0 34px}
+.summary div{padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.summary strong{display:block;font-size:13px}.summary span{display:block;color:var(--ink-3);font-size:12.5px;margin-top:2px}
+section.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:27px 30px;margin:18px 0;box-shadow:var(--shadow)}
+.shead{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+.snum{display:grid;place-items:center;min-width:34px;height:28px;margin-top:3px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 12px var(--mono)}
+h2{font-size:23px;line-height:1.45;letter-spacing:-.35px;margin:0}h3{font-size:17px;letter-spacing:-.2px;margin:28px 0 7px}h4{font-size:14.5px;margin:20px 0 5px}
+p{margin:9px 0}.muted{color:var(--ink-2)}
+.grid{display:grid;gap:12px;margin:14px 0}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mini{padding:15px 16px;border:1px solid var(--line);border-radius:11px;background:var(--panel-2)}.mini strong{display:block;font-size:14px}.mini p{margin:4px 0 0;color:var(--ink-2);font-size:13.5px}
+.table-wrap{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:13.5px;background:var(--panel)}
+th,td{text-align:left;vertical-align:top;padding:10px 13px;border-bottom:1px solid var(--line)}th{background:var(--panel-2);color:var(--ink-2);font-size:12.5px;white-space:nowrap}tr:last-child td{border-bottom:0}
+td.rule{white-space:nowrap;font:700 13px var(--mono);color:var(--accent)}
+ul,ol{padding-left:22px;margin:8px 0}li{margin:4px 0}.check{list-style:none;padding-left:0}.check li{position:relative;padding-left:25px}.check li:before{content:"✓";position:absolute;left:2px;color:var(--ok);font-weight:800}
+.callout{margin:15px 0;padding:13px 16px;border-radius:10px;border-left:4px solid var(--accent);background:var(--accent-soft)}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}.callout.bad{border-left-color:var(--bad);background:var(--bad-soft)}.callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+.callout strong{display:block;margin-bottom:2px}.callout p{margin:3px 0;font-size:14px}
+pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);border-radius:11px;background:var(--code-bg);color:var(--code-ink);font:13px/1.65 var(--mono)}pre code{padding:0;border:0;background:none;color:inherit;font-size:inherit}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:750}.badge.ok{background:var(--ok-soft);color:var(--ok)}.badge.warn{background:var(--warn-soft);color:var(--warn)}.badge.bad{background:var(--bad-soft);color:var(--bad)}
+.refs{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12.5px}.refs a{margin-right:10px}
+.footer{margin-top:32px;text-align:center;color:var(--ink-3);font-size:12px}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}.toc{columns:2}.side-tools{padding-left:0}main{padding:30px 20px 80px}}
+@media(max-width:700px){h1{font-size:29px}.hero{padding:26px 22px}section.card{padding:22px 18px}.summary,.g2,.g3{grid-template-columns:1fr}.toc{columns:1}.shead{gap:9px}main{padding-left:13px;padding-right:13px}}
+@media print{.layout{display:block}.sidebar,.side-tools{display:none}main{padding:0}.hero,section.card{box-shadow:none;break-inside:avoid}body{background:#fff;color:#111}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" aria-label="목차">
+    <div class="brand">
+      <div class="brand-mark">LN</div>
+      <div><strong>게임서버 연동 계약</strong><small>NpcCommand · GameEvent · 와이어</small></div>
+    </div>
+    <div class="toc-title">목차</div>
+    <ol class="toc" id="toc">
+      <li><a href="#view"><span class="n">01</span>관점 — 누가 무엇을 만드는가</a></li>
+      <li><a href="#rules"><span class="n">02</span>N1~N8 절대 규칙</a></li>
+      <li><a href="#iface"><span class="n">03</span>인터페이스와 구현체</a></li>
+      <li><a href="#ids"><span class="n">04</span>공통 ID 타입</a></li>
+      <li><a href="#cmd"><span class="n">05</span>NpcCommand — 나가는 명령</a></li>
+      <li><a href="#evt"><span class="n">06</span>GameEvent — 들어오는 통보</a></li>
+      <li><a href="#corr"><span class="n">07</span>상관 규약과 타임아웃</a></li>
+      <li><a href="#wire"><span class="n">08</span>와이어 프로토콜</a></li>
+      <li><a href="#hand"><span class="n">09</span>핸드셰이크와 재접속</a></li>
+      <li><a href="#state"><span class="n">10</span>링크 상태와 통계</a></li>
+      <li><a href="#publish"><span class="n">11</span>게임서버 발행 규약</a></li>
+      <li><a href="#tests"><span class="n">12</span>계약 테스트</a></li>
+      <li><a href="#open"><span class="n">13</span>실제 연동 시 남는 것</a></li>
+    </ol>
+    <div class="side-tools">
+      <button type="button" id="theme">테마: 자동</button>
+      <button type="button" onclick="window.print()">인쇄</button>
+      <a href="index.html">안내서</a>
+      <a href="reference_masterdata.html">마스터데이터</a>
+    </div>
+  </aside>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">Integration Reference</div>
+      <h1>게임서버 연동 계약</h1>
+      <p class="lead">NPC 서버가 게임서버와 주고받는 경계의 전체 정의다. 패킷 구조, 여덟 개의 절대 규칙, 소켓 위의 표현, 그리고 게임서버 쪽이 지켜야 할 발행 규약을 담는다. <strong>게임서버 팀에 그대로 건넬 수 있는 문서로 쓴다.</strong></p>
+      <div class="chips">
+        <span class="chip primary">연동 레퍼런스</span>
+        <span class="chip">N1~N8</span><span class="chip">MemoryPack</span>
+        <span class="chip">TCP</span><span class="chip">fire-and-forget</span>
+      </div>
+    </header>
+
+    <section class="summary" aria-label="핵심 요약">
+      <div><strong>방향</strong><span>명령은 NPC 서버가 낸다. 게임서버는 사실만 통보한다.</span></div>
+      <div><strong>결합</strong><span>패킷에 문자열·시각·참조가 없다. 전부 강타입 ID와 Tick이다.</span></div>
+      <div><strong>고정</strong><span>WireCommand 56B · WireEvent 64B. 크기를 테스트가 못 박는다.</span></div>
+    </section>
+
+    <section class="card" id="view">
+      <div class="shead"><span class="snum">01</span><h2>관점 — 누가 무엇을 만드는가</h2></div>
+      <p>이 프로젝트가 만드는 것은 <strong>NPC 서버</strong>다. 게임서버는 만들지 않는다. 다만 NPC 서버를 혼자 돌려볼 수 없으므로 게임서버 역할을 하는 대역(<code>Npc.Sim</code>, <code>Npc.TestGameServer</code>)을 함께 둔다.</p>
+<pre><code>        ┌───────────────────────────────┐
+        │   NPC 서버   ★ 이 저장소       │
+        │  Npc.Runtime · Npc.Planning   │
+        │  Npc.Llm     · Npc.Core       │
+        └───────────┬───────────────────┘
+                    │
+        ┌───────────┴───────────────────┐
+        │   IGameServerLink   ★ 이 문서  │   ← NPC 서버의 아웃바운드 포트
+        │   NpcCommand ▲ / GameEvent ▼   │      "게임서버로 나가는 문"
+        └───────────┬───────────────────┘
+                    │
+   ┌────────────────┴────────────────┐
+   │                                 │
+┌──┴───────────────────┐   ┌─────────┴─────────────────────┐
+│ Npc.Sim / TestGameServer │ │ 실제 MMORPG 게임서버          │
+│ ★ 이 저장소 (대역)        │ │ ✗ 이 저장소 밖. 상대편이 만든다 │
+└──────────────────────┘   └───────────────────────────────┘</code></pre>
+      <div class="callout"><strong>이름에 속지 않는다</strong><p><code>IGameServerLink</code>는 "게임서버의 인터페이스"가 아니라 <strong>"게임서버로 향하는 NPC 서버의 링크"</strong>다. 이름의 "GameServer"는 상대방을 가리킨다. 헥사고날 아키텍처의 아웃바운드 포트에 해당한다.</p></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>용어</th><th>뜻</th><th>방향</th></tr></thead>
+        <tbody>
+          <tr><td><code>NpcCommand</code></td><td>NPC 서버가 <strong>발행</strong>하는 명령. "이 NPC를 저기로 보내라"</td><td>NPC 서버 → 게임서버</td></tr>
+          <tr><td><code>GameEvent</code></td><td>NPC 서버가 <strong>수신</strong>하는 통보. "그 NPC가 도착했다"</td><td>게임서버 → NPC 서버</td></tr>
+          <tr><td><code>IGameServerLink</code></td><td>위 둘이 오가는 NPC 서버 쪽 포트</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+      <p><strong>판단은 NPC 서버가 한다.</strong> <code>GameEventKind</code> 17개가 전부 과거형 사실이고 명령형이 하나도 없는 것은 우연이 아니다. 게임서버는 "적대 플레이어가 12m 앞에 있다"를 올려보내고, 공격할지 도망칠지 무시할지는 NPC 서버가 아키타입 특성과 인터럽트 규칙으로 정한다.</p>
+    </section>
+
+    <section class="card" id="rules">
+      <div class="shead"><span class="snum">02</span><h2>N1~N8 — 여덟 개의 절대 규칙</h2></div>
+      <p>인터페이스만 만들고 나중에 네트워크를 붙이는 계획의 실패 원인은 거의 항상 같다. <strong>인프로세스라서 공짜였던 가정이 네트워크에서 깨진다.</strong> 아래 여덟은 그 가정을 미리 제거한다. 전부 컴파일 타임 또는 테스트로 강제되며, <strong>어기면 빌드가 아니라 테스트가 깨진다.</strong></p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>규칙</th><th>이유</th><th>강제 방법</th></tr></thead>
+        <tbody>
+          <tr><td class="rule">N1</td><td><strong>명령은 fire-and-forget.</strong> 결과는 반드시 이벤트로 돌아온다. RPC 왕복(<code>await SendAndWait</code>)을 만들지 않는다</td><td>네트워크 RTT가 틱 루프를 블록하면 그 순간 끝이다</td><td><code>IGameServerLink</code>에 반환값 있는 메서드를 두지 않는다</td></tr>
+          <tr><td class="rule">N2</td><td><strong>모든 패킷은 순수 값 타입.</strong> 참조 공유·가변 컬렉션·<code>object</code> 금지</td><td>참조를 공유하면 네트워크 전환 시 전부 재작성</td><td><code>readonly record struct</code>. <code>Contracts_AllValueTypes</code></td></tr>
+          <tr><td class="rule">N3</td><td><strong>문자열 금지. 전부 ID.</strong></td><td>직렬화 비용 + 프롬프트 인젝션 방어</td><td><code>Contracts_NoStringFields</code></td></tr>
+          <tr><td class="rule">N4</td><td><strong>시간은 <code>Tick</code>(long)만.</strong> <code>DateTime</code>·<code>TimeSpan</code>·<code>Stopwatch</code> 금지</td><td>서버 간 시계는 다르다. 결정론 리플레이도 깨진다</td><td><code>Contracts_NoDateTimeFields</code></td></tr>
+          <tr><td class="rule">N5</td><td><strong>모든 명령에 <code>CorrelationId</code>.</strong> 이벤트는 이걸로 명령과 매칭된다</td><td>네트워크는 재정렬·지연된다. 순서 가정 금지</td><td><code>NpcCommand</code> 헤더에 필수</td></tr>
+          <tr><td class="rule">N6</td><td><strong>이벤트에 <code>Sequence</code>.</strong> 수신 측이 유실·중복을 검출한다</td><td>유실을 조용히 넘기면 NPC가 영원히 멈춘다</td><td>갭 검출 시 <code>EventGapsDetected</code> 증가 + 경보</td></tr>
+          <tr><td class="rule">N7</td><td><strong>이벤트 처리는 멱등.</strong> 같은 이벤트를 두 번 받아도 상태가 같아야 한다</td><td>재전송은 반드시 생긴다</td><td><code>Link_Idempotent</code> — 2회 주입 후 상태 해시 동일</td></tr>
+          <tr><td class="rule">N8</td><td><strong>배치가 기본.</strong> 단건 전송은 배치 크기 1의 특수 케이스</td><td>5,000 NPC × 초당 명령을 단건으로 보내면 죽는다</td><td>API에 <code>Enqueue</code> + <code>FlushAsync</code>만 노출</td></tr>
+        </tbody>
+      </table></div>
+      <h3>덧붙는 두 가지</h3>
+      <ul>
+        <li><strong>명령 유실 허용 설계</strong> — 명령이 유실돼도 NPC가 영구히 멈추면 안 된다. 모든 플랜 스텝에 <code>timeout_s</code>가 있고, 타임아웃 시 <code>ActionFailed(Timeout)</code>을 로컬에서 합성해 진행을 재개한다. 이 경로는 <code>--drop-rate</code>로 상시 테스트한다.</li>
+        <li><strong>역압 명시</strong> — 명령 링이 차면 <strong>자기보다 낮은 우선순위</strong>(<code>Cosmetic</code> → <code>Normal</code>)부터 밀어낸다. <code>Critical</code>은 무손실이다. 드롭은 예외를 던지지 않고 <code>LinkStats.CommandsDropped</code>에만 나타난다.</li>
+      </ul>
+    </section>
+
+    <section class="card" id="iface">
+      <div class="shead"><span class="snum">03</span><h2>인터페이스와 구현체</h2></div>
+<pre><code>// Npc.Contracts/IGameServerLink.cs
+public interface IGameServerLink : IAsyncDisposable
+{
+    // NPC 서버 → 게임서버. 배치 전송만 허용한다 (N8).
+    // 반환값 없음 — 결과는 Events로만 돌아온다 (N1).
+    void      Enqueue(in NpcCommand command);
+    ValueTask FlushAsync(CancellationToken ct);
+
+    // 게임서버 → NPC 서버.
+    ChannelReader&lt;GameEvent&gt; Events { get; }
+
+    LinkState State { get; }
+    LinkStats Stats { get; }
+    event Action&lt;LinkState&gt;? StateChanged;
+}
+
+public enum LinkState { Disconnected, Connecting, Connected, Degraded, Faulted }
+
+public readonly record struct LinkStats(
+    long CommandsEnqueued,
+    long CommandsFlushed,
+    long CommandsDropped,      // 역압 드롭 + 재접속 시 폐기
+    long EventsReceived,
+    long EventGapsDetected,    // N6 시퀀스 갭
+    int  PendingCommands);</code></pre>
+      <div class="table-wrap"><table>
+        <thead><tr><th>구현체</th><th>용도</th></tr></thead>
+        <tbody>
+          <tr><td><code>LoopbackGameServerLink</code></td><td><code>Npc.Sim</code> 헤드리스 월드에 직결. 부하 측정과 결정론 리플레이의 주력</td></tr>
+          <tr><td><code>NullGameServerLink</code></td><td>명령 폐기, 이벤트 없음. 단위 테스트·성능 기준선</td></tr>
+          <tr><td><code>RecordingGameServerLink</code></td><td>데코레이터. 명령·이벤트를 jsonl로 기록</td></tr>
+          <tr><td><code>ReplayGameServerLink</code></td><td>기록된 jsonl을 이벤트 소스로 재생</td></tr>
+          <tr><td><code>TcpGameServerLink</code></td><td>실제 네트워크. 연결·핸드셰이크·송수신·재접속</td></tr>
+        </tbody>
+      </table></div>
+      <h3>스레드 모델 — 틱 루프는 소켓을 만지지 않는다</h3>
+<pre><code> [틱 루프]                          [센더 태스크]              [리시버 태스크]
+  Enqueue ──► PriorityCommandRing        │                          │
+  Flush   ──► BatchQueue 게시 ──────────►│ → WireCommand[]          │
+              (할당 0)                   │ → MemoryPack → 소켓       │
+                                                                    │ PipeReader → 프레임
+  link.Events.TryRead ◄─────────────────────────────────────────────┘ → GameEvent → 채널</code></pre>
+      <p>커널 송신 버퍼가 차기를 틱 루프에서 기다리면 그 순간 틱이 밀린다. <code>FlushAsync</code>가 하는 일은 링을 배치 슬롯으로 옮기고 꼬리를 올리는 것뿐이고, 그 경로에 할당이 없다 — <code>TcpLink_FlushDoesNotAllocate</code>가 워밍업 후 10,000회 할당 델타 0을 단언한다.</p>
+      <div class="callout warn"><strong>링을 스레드 너머로 넘기지 않는다</strong><p><code>PriorityCommandRing</code>은 삽입과 꺼냄이 같은 카운터를 만져 SPSC로 안전하지 않다. 스레드 경계는 생산자/소비자 첨자가 갈린 <code>BatchQueue</code>다.</p></div>
+      <h3>런타임 배선 — 틱 루프 안의 유일한 await</h3>
+<pre><code>while (await _link.Events.WaitToReadAsync(ct))
+{
+    // 1) 수신 이벤트 전부 배수 → 월드 뷰 갱신 (멱등, N7)
+    while (_link.Events.TryRead(out var ev))
+        _applier.Apply(in ev);          // WorldFlags·위치·LOD 등급 갱신
+                                        // 인터럽트 이벤트는 여기서 즉시 큐 삽입
+    // 2) 틱 진행 (TickSync 수신 시에만)
+    if (_applier.TickAdvanced(out Tick tick))
+    {
+        _cognition.Scan(tick);          // 인지 LOD 슬라이스 스캔 → 재계획 큐
+        _executor.Step(tick, _link);    // 플랜 스텝 실행 → _link.Enqueue()
+        await _link.FlushAsync(ct);     // 배치 송출 (N8)
+    }
+}</code></pre>
+      <p><strong>이 루프 안에 <code>await</code> 대상이 <code>FlushAsync</code> 하나뿐이다.</strong> LLM 호출은 이 루프에 존재하지 않는다 — 별도 <code>BackgroundService</code>가 재계획 큐를 소비하고 완성된 플랜을 원자적으로 스왑한다.</p>
+    </section>
+
+    <section class="card" id="ids">
+      <div class="shead"><span class="snum">04</span><h2>공통 ID 타입</h2></div>
+      <p>강타입 ID다. 오용을 막고, 직렬화하면 원시값 그대로 나간다.</p>
+<pre><code>// Npc.Contracts/Ids.cs
+public readonly record struct NpcId(int Value);
+public readonly record struct PlayerId(int Value);
+public readonly record struct ArchetypeId(ushort Value);
+public readonly record struct ZoneId(ushort Value);
+public readonly record struct PoiId(ushort Value);
+public readonly record struct ActionId(ushort Value);
+public readonly record struct ItemId(ushort Value);
+public readonly record struct DialogueId(ushort Value);
+public readonly record struct AnimationId(ushort Value);
+public readonly record struct PlanId(int Value);
+public readonly record struct CorrelationId(uint Value);
+public readonly record struct Tick(long Value);
+
+// 게임서버 좌표계 그대로. 고정소수점 아님 —
+// 게임서버 규약에 맞춰 교체 가능하도록 별도 타입으로 둔다.
+public readonly record struct WorldPos(float X, float Y, float Z);</code></pre>
+      <div class="callout"><strong>ID 번호는 마스터데이터가 소유한다</strong><p><code>PoiId</code>·<code>ItemId</code>·<code>ArchetypeId</code>의 실제 번호는 <code>masterdata/</code>가 단일 원천이다. 양쪽 프로세스가 같은 마스터데이터를 보고 있는지는 핸드셰이크에서 해시로 검증한다 (§09).</p></div>
+    </section>
+
+    <section class="card" id="cmd">
+      <div class="shead"><span class="snum">05</span><h2><code>NpcCommand</code> — 나가는 명령</h2></div>
+<pre><code>public enum NpcCommandKind : byte
+{
+    Spawn = 1, Despawn, MoveTo, Stop, FaceTo,
+    PlayAnimation, SetVisualState, Interact, Speak,
+    InventoryChange, CombatAction, SetAggro,
+}
+
+public readonly record struct NpcCommand
+{
+    // --- 헤더 (모든 명령 공통) ---
+    public required NpcCommandKind  Kind        { get; init; }
+    public required NpcId           Npc         { get; init; }
+    public required Tick            IssuedAt    { get; init; }   // N4
+    public required CorrelationId   Correlation { get; init; }   // N5
+    public required CommandPriority Priority    { get; init; }   // 역압 시 드롭 순서
+
+    // --- 페이로드 (Kind에 따라 사용 필드가 달라진다) ---
+    public PoiId       TargetPoi    { get; init; }
+    public WorldPos    TargetPos    { get; init; }
+    public NpcId       TargetNpc    { get; init; }
+    public PlayerId    TargetPlayer { get; init; }
+    public ItemId      Item         { get; init; }
+    public int         Amount       { get; init; }
+    public AnimationId Animation    { get; init; }
+    public DialogueId  Dialogue     { get; init; }
+    public VisualState Visual       { get; init; }
+    public ArchetypeId Archetype    { get; init; }
+    public ZoneId      Zone         { get; init; }
+    public byte        Flags        { get; init; }   // 이동속도 등급, Aggro on/off 등
+}
+
+public enum CommandPriority : byte { Critical = 0, Normal = 1, Cosmetic = 2 }
+public enum VisualState : byte
+{ Idle, Walking, Running, Working, Fighting, Sleeping, Sitting, Dead }</code></pre>
+      <p><strong>판별 공용체를 struct로 표현한다.</strong> 필드 유니온 대신 명시 필드를 쓴다 — 직렬화기가 단순해지고 디버깅이 쉽다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Kind</th><th>필수 필드</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td><code>Spawn</code></td><td><code>Archetype, Zone, TargetPos</code></td><td>NPC 생성</td></tr>
+          <tr><td><code>Despawn</code></td><td>—</td><td>NPC 제거</td></tr>
+          <tr><td><code>MoveTo</code></td><td><code>TargetPoi</code> 또는 <code>TargetPos</code>, <code>Flags</code>(속도)</td><td>이동 지시. <strong>경로 계산은 게임서버 소관.</strong> <code>TargetNpc</code>가 설정되면 추종, <code>Zone</code>+<code>Amount</code>면 그 존 반경 안 배회</td></tr>
+          <tr><td><code>Stop</code></td><td>—</td><td>즉시 정지</td></tr>
+          <tr><td><code>FaceTo</code></td><td><code>TargetNpc</code> 또는 <code>TargetPos</code></td><td>방향 전환</td></tr>
+          <tr><td><code>PlayAnimation</code></td><td><code>Animation, Amount</code>(반복)</td><td>연출</td></tr>
+          <tr><td><code>SetVisualState</code></td><td><code>Visual</code></td><td>상태 표현</td></tr>
+          <tr><td><code>Interact</code></td><td><code>TargetPoi</code>/<code>TargetNpc</code>, <code>Item</code></td><td>POI·NPC 상호작용 (채집, 제작대 사용 등)</td></tr>
+          <tr><td><code>Speak</code></td><td><code>Dialogue</code>, <code>TargetNpc</code>?</td><td><strong>대사 ID만.</strong> 자연어 생성은 범위 밖</td></tr>
+          <tr><td><code>InventoryChange</code></td><td><code>Item, Amount</code>(부호 있음)</td><td>인벤 증감 요청</td></tr>
+          <tr><td><code>CombatAction</code></td><td><code>TargetNpc</code>/<code>TargetPlayer</code>, <code>Flags</code>(행동 종류)</td><td>전투 행동. <strong>명중·피해·사망 판정은 게임서버</strong></td></tr>
+          <tr><td><code>SetAggro</code></td><td><code>Flags</code></td><td>적대 상태 토글</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><strong>대상은 ID로 지정한다. 좌표를 계산해 보내지 않는다</strong><p>NPC 서버는 플레이어 좌표를 저장하지 않는다. <code>nearest:&lt;archetype&gt;</code> 같은 참조도 대상을 여기서 고르지 않고 아키타입만 실어 보낸다 — 근접 판정은 게임서버 소관이다. 5,000 NPC × 플레이어 20이면 틱당 10만 회 거리 계산이고, 그것만으로 20ms 틱 예산이 날아간다.</p></div>
+    </section>
+
+    <section class="card" id="evt">
+      <div class="shead"><span class="snum">06</span><h2><code>GameEvent</code> — 들어오는 통보</h2></div>
+<pre><code>public enum GameEventKind : byte
+{
+    TickSync = 1, GameTimeChanged,
+    NpcSpawned, NpcDespawned, NpcTransform,
+    NpcArrived, NpcActionCompleted, NpcActionFailed,
+    NpcVitalsChanged, NpcInventoryChanged,
+    PlayerProximity, PlayerInteracted,
+    CombatStarted, CombatEnded, DamageTaken,
+    ZoneStateChanged, WeatherChanged,
+}
+
+public readonly record struct GameEvent
+{
+    public required GameEventKind Kind       { get; init; }
+    public required long          Sequence   { get; init; }   // N6
+    public required Tick          OccurredAt { get; init; }   // N4
+    public NpcId         Npc         { get; init; }
+    public CorrelationId Correlation { get; init; }           // N5 — 명령 응답일 때
+    public WorldPos      Pos         { get; init; }
+    public float         Heading     { get; init; }
+    public PoiId         Poi         { get; init; }
+    public ZoneId        Zone        { get; init; }
+    public PlayerId      Player      { get; init; }
+    public NpcId         OtherNpc    { get; init; }
+    public ItemId        Item        { get; init; }
+    public int           Amount      { get; init; }
+    public short         Hp          { get; init; }
+    public short         Stamina     { get; init; }
+    public byte          Code        { get; init; }   // FailReason / RegionState
+}                                                     // / Climate / TimeOfDay / Enter·Leave
+
+public enum ActionFailReason : byte
+{
+    None = 0, Unreachable, Timeout, Interrupted, PreconditionFailed,
+    TargetGone, InventoryFull, InsufficientResource, Dead, Rejected,
+}
+
+public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
+      <div class="callout warn"><strong>번호를 재배치하지 않는다</strong><p><code>GameEventKind</code>와 <code>ActionFailReason</code>의 번호를 옮기면 기록된 리플레이 로그가 통째로 깨진다. 추가는 항상 뒤에만 한다.</p></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Kind</th><th>주요 필드</th><th>NPC 서버의 처리</th></tr></thead>
+        <tbody>
+          <tr><td><code>TickSync</code></td><td><code>OccurredAt</code></td><td>게임서버 틱과 동기화. <strong>NPC 서버의 시간 기준은 이것뿐이다</strong></td></tr>
+          <tr><td><code>GameTimeChanged</code></td><td><code>Code</code>(TimeOfDay)</td><td>시간대 전환 → 컨텍스트 버킷 키 변경 → 대량 플랜 스왑</td></tr>
+          <tr><td><code>NpcSpawned</code> / <code>NpcDespawned</code></td><td><code>Npc, Pos</code></td><td>스폰 확인. <strong>확인 전까지 명령 발행 금지</strong></td></tr>
+          <tr><td><code>NpcTransform</code></td><td><code>Npc, Pos, Heading</code></td><td>위치 갱신. <strong>배치로 대량 수신되는 최다 이벤트</strong></td></tr>
+          <tr><td><code>NpcArrived</code></td><td><code>Npc, Correlation, Poi</code></td><td><code>MoveTo</code> 완료 → 플랜 스텝 전진</td></tr>
+          <tr><td><code>NpcActionCompleted</code></td><td><code>Npc, Correlation, Code</code></td><td>플랜 스텝 전진</td></tr>
+          <tr><td><code>NpcActionFailed</code></td><td><code>Npc, Correlation, Code</code>(FailReason)</td><td>폴백 또는 재계획 트리거</td></tr>
+          <tr><td><code>NpcVitalsChanged</code></td><td><code>Npc, Hp, Stamina</code></td><td>월드 플래그 갱신 (<code>IsInjured</code>, <code>IsExhausted</code>)</td></tr>
+          <tr><td><code>NpcInventoryChanged</code></td><td><code>Npc, Item, Amount</code></td><td>월드 플래그 갱신 (<code>HasFood</code>, <code>InventoryFull</code>)</td></tr>
+          <tr><td><code>PlayerProximity</code></td><td><code>Npc, Player, Amount</code>(거리 m), <code>Code</code>(Enter/Leave)</td><td><strong>인지 LOD 등급 결정의 입력</strong> + <code>PlayerNearby</code> 플래그</td></tr>
+          <tr><td><code>PlayerInteracted</code></td><td><code>Npc, Player, Code</code></td><td>인터럽트 경로 → 즉시 재계획 큐 최고 점수</td></tr>
+          <tr><td><code>CombatStarted</code> / <code>DamageTaken</code></td><td><code>Npc, OtherNpc, Amount</code></td><td>인터럽트 경로 (최우선). <code>ThreatNearby</code>·<code>InCombat</code> 설정</td></tr>
+          <tr><td><code>CombatEnded</code></td><td><code>Npc</code></td><td><code>ThreatNearby</code>·<code>InCombat</code> 해제</td></tr>
+          <tr><td><code>ZoneStateChanged</code></td><td><code>Zone, Code</code>(RegionState)</td><td><strong>버킷 키 변경 → 존 전체 플랜 스왑.</strong> War·Disaster면 그 존 전체를 LOD 1로 승격</td></tr>
+          <tr><td><code>WeatherChanged</code></td><td><code>Zone, Code</code>(Climate)</td><td>동일</td></tr>
+        </tbody>
+      </table></div>
+      <h3>인지 LOD — 거리가 등급이 되는 지점</h3>
+      <p><code>PlayerProximity</code>의 거리는 세 구간으로 압축되어 <code>NpcStore.Lod[]</code>에만 남는다. 이 등급이 매 틱 인지 스캔 슬라이스의 크기를 정한다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>조건</th><th>LOD</th><th>뜻</th></tr></thead>
+        <tbody>
+          <tr><td>거리 &lt; 50m</td><td>0</td><td>가장 자주 스캔한다</td></tr>
+          <tr><td>거리 &lt; 200m</td><td>1</td><td>중간</td></tr>
+          <tr><td>그 밖 / Leave 후 활성 존</td><td>2</td><td>원거리</td></tr>
+          <tr><td>Leave 후 평시 존</td><td>3</td><td>비활성</td></tr>
+          <tr><td><code>ZoneStateChanged(War|Disaster)</code></td><td>1로 <strong>승격만</strong></td><td>이미 더 가까운 NPC를 끌어내리지 않는다</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="card" id="corr">
+      <div class="shead"><span class="snum">07</span><h2>상관 규약과 타임아웃</h2></div>
+<pre><code>NPC서버                                     게임서버
+   │                                            │
+   │ MoveTo(npc=7, poi=mine, corr=1042) ───────►│
+   │                                            │ (경로 계산, 이동 시뮬)
+   │◄────── NpcTransform(npc=7, pos=...) ×N ────│
+   │◄────── NpcArrived(npc=7, corr=1042) ───────│
+   │  → 플랜 스텝 0 완료, 스텝 1로 전진          │
+   │                                            │
+   │ Interact(npc=7, poi=mine, corr=1043) ─────►│
+   │◄─ NpcActionFailed(corr=1043, Unreachable) ─│
+   │  → 폴백 플랜 전환 + 재계획 큐 삽입          │</code></pre>
+      <ul>
+        <li>상관 없는 이벤트(<code>NpcTransform</code>, <code>DamageTaken</code> 등)는 <code>Correlation = default</code>다.</li>
+        <li>명령 발행 후 <code>timeout_s</code> 안에 대응 이벤트가 안 오면 <strong>NPC 서버가 로컬에서 <code>ActionFailed(Timeout)</code>을 합성</strong>한다. 이것이 명령 유실 방어책이다.</li>
+        <li>따라서 <code>ActionFailReason.Timeout</code>은 <strong>게임서버가 보내는 값이 아니다.</strong></li>
+      </ul>
+      <div class="callout bad"><strong>명령은 유실된다고 가정한다</strong><p>게임서버가 명령을 못 받았거나 응답을 못 보낸 경우에도 NPC는 계속 살아야 한다. 이 경로는 <code>Npc.Sim --drop-rate</code>로 상시 테스트한다.</p></div>
+    </section>
+
+    <section class="card" id="wire">
+      <div class="shead"><span class="snum">08</span><h2>와이어 프로토콜</h2></div>
+      <p><code>Npc.Wire</code>가 링크의 <strong>전송 표현</strong>이다. <code>Npc.Contracts</code>에 NuGet 의존을 만들지 않으려고 와이어 DTO를 따로 두고 1:1 매핑한다 — <code>[MemoryPackable]</code>을 <code>NpcCommand</code>에 붙이는 순간 계약 프로젝트가 직렬화기 버전에 묶인다.</p>
+
+      <h3>프레임 — 헤더 8바이트 고정</h3>
+<pre><code> 0      1      2      3      4      5      6      7      8 ...
++------+------+------+------+------+------+------+------+---------------+
+|      PayloadLength (u32)   | Kind | Ver  |   Reserved  |    Payload    |
++------+------+------+------+------+------+------+------+---------------+
+        little-endian          u8     u8      u16 = 0     MemoryPack</code></pre>
+      <ul>
+        <li><code>PayloadLength</code>는 헤더를 뺀 바이트 수다.</li>
+        <li><code>Ver = 1</code>. 다르면 즉시 <code>Bye(ProtocolViolation)</code> 후 연결을 끊는다.</li>
+        <li><code>PayloadLength &gt; 1,048,576</code>(1MiB)이면 연결을 끊는다. <strong>길이 접두 프로토콜에서 이 검사를 빼면 잘못된 4바이트 하나로 프로세스가 죽는다.</strong></li>
+        <li>헤더는 손으로 쓴다. MemoryPack 안에 길이를 또 넣지 않는다 — 진실의 출처를 둘로 만들지 않는다.</li>
+      </ul>
+
+      <h3>메시지 6종</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Kind</th><th>이름</th><th>방향</th><th>페이로드</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>Hello</code></td><td>GS → NPC</td><td><code>WireHello</code></td></tr>
+          <tr><td>2</td><td><code>HelloAck</code></td><td>NPC → GS</td><td><code>WireHelloAck</code></td></tr>
+          <tr><td>3</td><td><code>CommandBatch</code></td><td>NPC → GS</td><td><code>WireCommand[]</code></td></tr>
+          <tr><td>4</td><td><code>EventBatch</code></td><td>GS → NPC</td><td><code>WireEvent[]</code></td></tr>
+          <tr><td>5</td><td><code>Heartbeat</code></td><td>양방향</td><td><code>WireHeartbeat</code></td></tr>
+          <tr><td>6</td><td><code>Bye</code></td><td>양방향</td><td><code>WireBye</code></td></tr>
+        </tbody>
+      </table></div>
+      <p>배치 페이로드는 <strong>unmanaged 배열</strong>이다. MemoryPack은 unmanaged 원소 배열을 원시 메모리로 복사하므로 원소마다 태그가 붙지 않는다 — 크기도 작고 할당도 없다.</p>
+
+      <h3>DTO — 크기가 고정이다</h3>
+      <p>필드 순서는 큰 타입부터다. 패딩을 없애 크기를 고정한다.</p>
+<pre><code>[MemoryPackable] public partial struct WireCommand   // 56 bytes, unmanaged
+{
+    public long   IssuedAt;                // Tick
+    public int    Npc, TargetNpc, TargetPlayer, Amount;
+    public uint   Correlation;
+    public float  PosX, PosY, PosZ;        // WorldPos
+    public ushort TargetPoi, Item, Animation, Dialogue, Archetype, Zone;
+    public byte   Kind, Priority, Visual, Flags;
+}
+
+[MemoryPackable] public partial struct WireEvent     // 64 bytes, unmanaged
+{
+    public long   Sequence, OccurredAt;
+    public int    Npc, OtherNpc, Player, Amount;
+    public uint   Correlation;
+    public float  PosX, PosY, PosZ, Heading;
+    public ushort Poi, Zone, Item;
+    public short  Hp, Stamina;
+    public byte   Kind, Code;
+}</code></pre>
+      <div class="callout"><strong>크기를 테스트로 못 박는다</strong><p><code>Wire_LayoutIsFrozen</code>이 <code>sizeof(WireCommand) == 56</code>, <code>sizeof(WireEvent) == 64</code>를 단언한다. 누가 필드를 끼워 넣으면 이 테스트가 먼저 깨진다. <code>Wire_MirrorsContractMembers</code>는 리플렉션으로 계약 타입과 DTO의 멤버 집합이 1:1인지 본다 — <strong>계약에 필드를 추가하고 와이어를 잊으면 여기서 걸린다.</strong></p></div>
+      <p><strong>대역폭 어림.</strong> NPC 500, 관측 대상 256 상한 기준 이벤트는 최악 <code>256 × 64B × 10Hz ≈ 164KB/s</code>. 명령은 NPC당 스텝 경계에서만 나가므로 훨씬 적다.</p>
+
+      <h3>제어 메시지</h3>
+<pre><code>public readonly record struct WireHash(ulong A, ulong B, ulong C, ulong D)
+{
+    public static WireHash FromHex(string sha256Hex);   // 32바이트 → ulong 4개
+    public readonly string ToHex();                     // 로그용. 와이어에는 안 나간다
+}
+
+[MemoryPackable] public partial struct WireHello        // GS → NPC
+{
+    public int      ProtocolVersion;    // = 1
+    public int      TickRate;           // = 10
+    public int      TimeScale;
+    public int      NpcCount;
+    public long     StartTick;          // 지금 게임서버의 틱
+    public WireHash MasterData;         // MasterDataSet.ContentHash
+    public WireHash Roster;
+}
+
+[MemoryPackable] public partial struct WireHelloAck     // NPC → GS
+{
+    public int      ProtocolVersion, TimeScale, NpcCount;
+    public WireHash MasterData, Roster;
+    public byte     Accepted;           // 0/1
+    public byte     RejectCode;         // LinkRejectCode
+}
+
+[MemoryPackable] public partial struct WireHeartbeat { public long Tick, Sequence; }
+[MemoryPackable] public partial struct WireBye       { public byte Code; }
+
+public enum LinkRejectCode : byte
+{ None = 0, ProtocolVersion, MasterDataMismatch, RosterMismatch, TimeScaleMismatch }
+
+public enum LinkByeCode : byte
+{ Shutdown = 0, ProtocolViolation, HandshakeRejected, Timeout }</code></pre>
+      <p><strong>해시를 문자열로 싣지 않는 이유는 N3다.</strong> <code>ulong</code> 4개면 정확히 SHA-256 32바이트라 손실도 없다. 로그에 찍을 때만 hex로 되돌린다.</p>
+    </section>
+
+    <section class="card" id="hand">
+      <div class="shead"><span class="snum">09</span><h2>핸드셰이크와 재접속</h2></div>
+<pre><code>NPC 서버                                            게임서버
+   │                                                   │ (listen :7010)
+   │ ─────────── TCP connect ─────────────────────────►│
+   │                                                   │ accept
+   │◄────────── Hello{ver,tickRate,timeScale,          │
+   │                   npcCount,startTick,             │
+   │                   masterDataHash,rosterHash} ─────│
+   │ 검증:                                              │
+   │   ver == 1                                        │
+   │   timeScale == 내 GameClock.TimeScale             │
+   │   masterDataHash == 내 MasterDataSet.ContentHash  │
+   │   rosterHash == 내 NpcRoster.Hash                 │
+   │ ─────────── HelloAck{accepted, rejectCode} ──────►│
+   │                                  거절이면 Bye 후 종료 │
+   │◄────────── EventBatch(NpcSpawned × N) ────────────│ 로스터 순서, 프레임당 ≤256
+   │◄────────── EventBatch(ZoneStateChanged × Z) ──────│ 존 상태 초기화
+   │◄────────── EventBatch(WeatherChanged × Z) ────────│ 존 기후 초기화
+   │◄────────── EventBatch(TickSync) ──────────────────│ 이후 매 틱
+   │ ─────────── CommandBatch ─────────────────────────►│ 틱 루프의 FlushAsync</code></pre>
+      <div class="callout bad"><strong>거절은 조용히 넘기지 않는다</strong><p>마스터데이터가 다른 두 프로세스를 붙이면 POI 코드가 어긋나 NPC가 엉뚱한 곳으로 간다. 원인을 찾는 데 하루가 든다. <strong>연결 시점에 죽이는 편이 싸다.</strong> <code>--force</code> 같은 우회 옵션을 만들지 않는다.</p></div>
+      <div class="callout warn"><strong>존 기후를 같이 보내야 한다</strong><p>존 정의에는 지역 상태와 기후가 <strong>둘 다</strong> 있다. 지역 상태만 초기화하면 기본값이 아닌 기후를 가진 존이 조용히 어긋난 채로 돈다. 기후는 버킷 키의 한 축이라 어긋나면 그 존의 NPC가 다른 버킷의 플랜을 쓴다 — 증상이 "가끔 이상하게 행동한다"로만 나타난다.</p></div>
+
+      <h3>재접속과 시퀀스</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>규약</th></tr></thead>
+        <tbody>
+          <tr><td>시퀀스 리셋</td><td><strong>금지.</strong> 게임서버 프로세스가 사는 동안 시퀀스는 계속 증가한다. 재접속해도 이어 붙인다</td></tr>
+          <tr><td>왜</td><td>수신 측은 <code>Sequence &lt;= LastEventSequence[npc]</code>인 이벤트를 <strong>중복으로 버린다</strong>(N7). 리셋하면 재접속 후 모든 이벤트가 버려지고 NPC가 영원히 멈춘다</td></tr>
+          <tr><td>재동기화</td><td>게임서버가 <code>NpcSpawned</code>(전원) + 존 상태를 다시 보낸다. 새 시퀀스를 달고 나가므로 멱등하게 반영된다</td></tr>
+          <tr><td>끊긴 동안 쌓인 명령</td><td><strong>버린다.</strong> 상관 ID는 이미 타임아웃으로 정리됐고, 뒤늦게 도착한 명령은 NPC를 과거로 되돌린다. <code>CommandsDropped</code>에 계상한다</td></tr>
+          <tr><td>백오프</td><td>250ms → 500 → 1s → 2s → 4s 상한. 지터 없음(벽시계 영역이라 결정론이 필요 없다)</td></tr>
+          <tr><td>하트비트</td><td>양방향 1초(10틱)마다. <strong>3초</strong> 무수신이면 <code>Degraded</code> → 소켓을 닫고 재접속</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="card" id="state">
+      <div class="shead"><span class="snum">10</span><h2>링크 상태와 통계</h2></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>From</th><th>계기</th><th>To</th></tr></thead>
+        <tbody>
+          <tr><td><code>Disconnected</code></td><td><code>ConnectAsync</code> 호출</td><td><code>Connecting</code></td></tr>
+          <tr><td><code>Connecting</code></td><td><code>HelloAck(accepted=1)</code> 송신 완료</td><td><code>Connected</code></td></tr>
+          <tr><td><code>Connecting</code></td><td>접속 실패 / 핸드셰이크 거절</td><td><code>Faulted</code>(거절) 또는 <code>Connecting</code> 재시도(접속 실패)</td></tr>
+          <tr><td><code>Connected</code></td><td>송신 실패 · 3초 하트비트 무수신 · EOF</td><td><code>Degraded</code></td></tr>
+          <tr><td><code>Degraded</code></td><td>소켓 정리 후 재시도</td><td><code>Connecting</code></td></tr>
+          <tr><td>임의</td><td><code>DisposeAsync</code></td><td><code>Disconnected</code></td></tr>
+        </tbody>
+      </table></div>
+      <p><code>Faulted</code>는 <strong>사람이 고쳐야 하는 상태</strong>다(프로토콜 버전·마스터데이터 불일치). 재시도하지 않는다 — 무한 재시도로 로그만 채우면 원인이 묻힌다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th><code>LinkStats</code> 필드</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td><code>CommandsEnqueued</code></td><td><code>Enqueue</code> 호출 수</td></tr>
+          <tr><td><code>CommandsFlushed</code></td><td>소켓에 실제로 나간 명령 수</td></tr>
+          <tr><td><code>CommandsDropped</code></td><td>역압 드롭 + 재접속 시 폐기</td></tr>
+          <tr><td><code>EventsReceived</code></td><td>채널에 쓴 이벤트 수</td></tr>
+          <tr><td><code>EventGapsDetected</code></td><td>수신 <code>Sequence</code>의 불연속 합 (N6)</td></tr>
+          <tr><td><code>PendingCommands</code></td><td>링에 남아 있는 수</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="card" id="publish">
+      <div class="shead"><span class="snum">11</span><h2>게임서버 발행 규약</h2></div>
+      <p>패킷 정의만으로는 부족하다. <strong>언제 무엇을 얼마나 자주 보내는가</strong>가 NPC 서버의 동작을 좌우한다. 아래는 레퍼런스 게임서버(<code>Npc.TestGameServer</code>)가 실제로 지키는 규약이며, 실제 게임서버를 붙일 때도 같은 것을 기대한다.</p>
+
+      <h3>틱 순서</h3>
+      <p>벽시계 기준 100ms 주기. 게임서버는 <strong>NPC 서버를 기다리지 않는다</strong> — 락스텝이 없는 것이 이 설계의 전제다.</p>
+<pre><code>1. CommandInbox 배수 → 월드에 적용
+2. 시나리오 주입 (jsonl)
+3. PlayerRegistry — 입력 적용 → 이동 → 근접 변화
+4. 이동 시뮬
+5. 상호작용 시뮬
+6. TransformEmitter
+7. 니즈 시뮬
+8. 월드 틱 (TickSync 발행)
+9. 이벤트 채널 → EventBatch 프레임 1개로 Flush</code></pre>
+
+      <h3>플레이어 근접 — 가장 중요한 규약</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>규약</th><th>왜</th></tr></thead>
+        <tbody>
+          <tr><td>판정 주기</td><td><strong>5틱(0.5초)마다.</strong> 매 틱이 아니다</td><td>매 틱 재면 NPC 수 × 플레이어 수를 10Hz로 돈다</td></tr>
+          <tr><td>후보 축소</td><td>플레이어가 있는 존 + 인접 존의 NPC만 검사</td><td>먼 존은 볼 이유가 없다</td></tr>
+          <tr><td>발행 단위</td><td><strong>NPC당 최대 1건.</strong> 그 NPC에게 가장 가까운 플레이어 하나만 싣는다</td><td>쌍 단위로 보내면 O(NPC×플레이어)가 된다. NPC 서버가 필요한 것은 "누군가 있다"이지 "몇 명"이 아니다</td></tr>
+          <tr><td>히스테리시스</td><td>거리 ≤ <strong>200m</strong>면 <code>Enter</code>, ≥ <strong>220m</strong>면 <code>Leave</code></td><td>경계에 선 NPC가 판정마다 Enter/Leave를 번갈아 내면 <strong>재계획 큐가 폭주한다</strong></td></tr>
+          <tr><td>에지 트리거</td><td><strong>상태가 바뀐 NPC만</strong> 이벤트를 낸다</td><td>플레이어가 마을에 서 있으면 이벤트 0건이 정상이다</td></tr>
+          <tr><td>상태 소유</td><td>게임서버가 NPC별 관측 여부를 소유한다</td><td>NPC 서버는 참조 카운트를 세지 않는다. 두 명 중 하나가 떠나도 남은 사람이 범위 안이면 <code>Leave</code>를 보내지 않는다</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout bad"><strong>히스테리시스를 지우지 않는다</strong><p>이 20m가 없으면 경계 NPC 하나가 초당 두 번씩 재계획 큐에 들어간다. 근접 계수는 재계획 점수에서 가장 큰 항이라 큐가 그것만으로 포화한다.</p></div>
+
+      <h3>상호작용·전투</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>규약</th></tr></thead>
+        <tbody>
+          <tr><td><code>PlayerInteracted</code></td><td>거리 ≤ 30m일 때만 발행</td></tr>
+          <tr><td><code>CombatStarted</code> + <code>DamageTaken</code></td><td>거리 ≤ 30m일 때만 발행. HP 차감도 게임서버가 한다</td></tr>
+          <tr><td>왜 거리 제한</td><td>화면 밖 NPC를 찍어 인터럽트를 걸 수 있으면 "플레이어 근접이 인지 LOD를 바꾼다"는 전제가 무의미해진다</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>NpcTransform</h3>
+      <p>최다 이벤트다. 관측 대상 상한(레퍼런스 구현은 틱당 256)을 두고 잘라 보낸다. NPC 서버는 이 값을 위치 표시에만 쓰고 판단에 쓰지 않으므로, 누락돼도 동작이 깨지지 않는다.</p>
+
+      <div class="callout warn"><strong>계약에 아직 없는 것 — 적대 플레이어 감지</strong><p>현재 <code>PlayerProximity</code>는 중립적 인지만 전달한다. <code>ThreatNearby</code>는 <code>CombatStarted</code>·<code>DamageTaken</code>으로만 서므로 <strong>반격은 되고 선제공격은 안 된다.</strong> "보면 공격하는" NPC를 만들려면 ① 적대 판정을 실은 이벤트(<code>PlayerProximity</code>의 <code>Code</code> 확장 또는 새 Kind를 뒤에 추가), ② <code>HostilePlayerNearby</code> 월드 플래그, ③ 그 플래그를 조건으로 <code>CombatAction.TargetPlayer</code>를 바인딩하는 인터럽트 규칙 — 셋이 필요하다. <strong>좌표는 여전히 필요 없다.</strong> 늘어나는 것은 1비트와 <code>PlayerId</code> 하나다.</p></div>
+    </section>
+
+    <section class="card" id="tests">
+      <div class="shead"><span class="snum">12</span><h2>계약 테스트</h2></div>
+      <p>이 계약은 문서가 아니라 테스트로 지켜진다. <code>Category=Contracts</code>와 <code>Category=Wire</code>가 CI에서 항상 돈다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>테스트</th><th>내용</th></tr></thead>
+        <tbody>
+          <tr><td><code>Contracts_NoStringFields</code></td><td>리플렉션으로 모든 패킷 타입 순회 → <code>string</code> 필드 0개 (N3)</td></tr>
+          <tr><td><code>Contracts_NoDateTimeFields</code></td><td>동일 → <code>DateTime</code>·<code>TimeSpan</code> 필드 0개 (N4)</td></tr>
+          <tr><td><code>Contracts_AllValueTypes</code></td><td>모든 패킷 타입이 <code>readonly record struct</code> (N2)</td></tr>
+          <tr><td><code>Link_Idempotent</code></td><td>동일 이벤트 2회 주입 → 월드 상태 해시 동일 (N7)</td></tr>
+          <tr><td><code>Link_SequenceGap</code></td><td>시퀀스 건너뛴 이벤트 → <code>EventGapsDetected</code> 증가</td></tr>
+          <tr><td><code>Link_Backpressure</code></td><td>채널 포화 → <code>Cosmetic</code>부터 드롭, <code>Critical</code>은 무손실</td></tr>
+          <tr><td><code>Link_CommandLoss</code></td><td>명령을 의도적으로 드롭 → 타임아웃 후 합성 <code>ActionFailed</code> → 플랜 진행 재개</td></tr>
+          <tr><td><code>Link_Swappable</code></td><td>같은 시나리오를 Loopback·Recording·Replay로 실행 → NPC 서버 코드 무변경</td></tr>
+          <tr><td><code>Wire_MirrorsContractMembers</code></td><td>계약 타입 ↔ 와이어 DTO 멤버 집합 1:1</td></tr>
+          <tr><td><code>Wire_LayoutIsFrozen</code></td><td><code>sizeof</code>가 56·64. 패딩이 생기면 값이 달라진다</td></tr>
+          <tr><td><code>Frame_SplitAcrossReads</code></td><td>1바이트씩 넣어도 복원. 다 오기 전에는 버퍼를 건드리지 않는다</td></tr>
+          <tr><td><code>Frame_ReadsAcrossSegments</code></td><td>헤더 한가운데서 잘린 다중 세그먼트</td></tr>
+          <tr><td><code>Frame_RejectsOversizePayload</code></td><td>1MiB 초과 거절. <strong>프로세스는 산다</strong></td></tr>
+          <tr><td><code>TcpLink_HandshakeRejectsMismatch</code></td><td>버전·타임스케일·마스터데이터·로스터 4가지 불일치 각각 해당 <code>RejectCode</code></td></tr>
+          <tr><td><code>TcpLink_OneFlushIsOneFrame</code></td><td>수신 측이 센 프레임 수 = Flush 횟수 (N8)</td></tr>
+          <tr><td><code>TcpLink_FlushDoesNotAllocate</code></td><td>워밍업 후 10,000회 할당 델타 0</td></tr>
+          <tr><td><code>TcpLink_CountsSequenceGaps</code></td><td>건너뛴 개수만큼 <code>EventGapsDetected</code> (N6)</td></tr>
+          <tr><td><code>TcpLink_ReconnectKeepsSequenceMonotonic</code></td><td>끊고 다시 붙여도 시퀀스가 되감기지 않는다 (N6)</td></tr>
+          <tr><td><code>TcpLink_StateTransitions</code></td><td>§10 전이표가 <code>StateChanged</code>로 관측된다</td></tr>
+          <tr><td><code>TcpLink_FaultedDoesNotRetry</code></td><td>거절되면 세션 1회로 끝난다</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="card" id="open">
+      <div class="shead"><span class="snum">13</span><h2>실제 연동 시 남는 것</h2></div>
+      <p>TCP 링크 구현은 <strong>NPC 서버 코드를 한 줄도 바꾸지 않고</strong> 끝났다 — 이것이 이 인터페이스 설계의 검증 기준이었다. 실제 게임서버에 붙일 때 추가로 필요한 것은 아래 셋뿐이며, <strong>전부 <code>Npc.Wire</code>와 그 바깥에서 해결된다.</strong></p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>상태</th><th>내용</th></tr></thead>
+        <tbody>
+          <tr><td>이기종 엔디언·패딩</td><td><span class="badge warn">구현 필요</span></td><td>unmanaged 배열을 원시 메모리로 복사하므로 <strong>양쪽이 같은 x64 .NET 런타임</strong>임을 전제한다. 다른 런타임의 게임서버에 붙일 때는 필드별 쓰기를 하는 커스텀 포매터로 바꾼다 — <strong>바꿀 자리가 <code>Npc.Wire</code> 한 곳뿐인 것이 이 설계의 요점이다</strong></td></tr>
+          <tr><td>인증·암호화</td><td><span class="badge warn">구현 필요</span></td><td>핸드셰이크가 검증하는 것은 "같은 데이터를 보고 있는가"지 "네가 누구인가"가 아니다. 신뢰 경계 밖에 놓으려면 TLS와 토큰이 필요하다</td></tr>
+          <tr><td>샤딩</td><td><span class="badge warn">구현 필요</span></td><td>링크 하나가 게임서버 하나에 붙는다. 월드를 여러 프로세스로 쪼개면 존별 라우팅이 필요하다</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><strong>소켓 경로에서는 결정론이 성립하지 않는다</strong><p>리플레이 100% 일치는 <strong>루프백 경로의 성질이다.</strong> 소켓에서는 명령이 몇 틱 늦게 도착할 수 있고 그것이 스텝 경계를 바꾼다. <strong>결함이 아니라 사실이다</strong> — 실제 게임서버에 붙으면 원래 그렇다. 재현이 필요하면 기록 링크로 이벤트 열을 남겨 재생 링크로 되민다. 그 경로는 결정론이다.</p></div>
+      <div class="refs">
+        <a href="index.html">프로젝트 안내서</a>
+        <a href="reference_masterdata.html">마스터데이터 레퍼런스</a>
+        <a href="reference_metrics.html">실측 데이터</a>
+        <a href="testbed_guide.html">테스트 베드 안내</a>
+        <a href="FAQ.html">FAQ</a>
+      </div>
+    </section>
+
+    <p class="footer">LlmNpcServer — 게임서버 연동 계약 레퍼런스</p>
+  </main>
+</div>
+<script>
+(function(){
+  var root=document.documentElement,btn=document.getElementById('theme');
+  var modes=['auto','light','dark'],names={auto:'자동',light:'밝게',dark:'어둡게'};
+  var saved=localStorage.getItem('lnref-theme');
+  if(saved&&modes.indexOf(saved)>=0){root.setAttribute('data-theme',saved);}
+  function label(){btn.textContent='테마: '+names[root.getAttribute('data-theme')||'auto'];}
+  label();
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme')||'auto';
+    var next=modes[(modes.indexOf(cur)+1)%modes.length];
+    root.setAttribute('data-theme',next);localStorage.setItem('lnref-theme',next);label();
+  });
+  var links=[].slice.call(document.querySelectorAll('.toc a'));
+  var secs=links.map(function(a){return document.querySelector(a.getAttribute('href'));});
+  function sync(){
+    var y=window.scrollY+120,best=0;
+    secs.forEach(function(s,i){if(s&&s.offsetTop<=y){best=i;}});
+    links.forEach(function(a,i){a.classList.toggle('active',i===best);});
+  }
+  window.addEventListener('scroll',sync,{passive:true});sync();
+})();
+</script>
+</body>
+</html>

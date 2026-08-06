@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="LlmNpcServer 실측 데이터 — 런타임 성능, LLM 지연과 캐시, 비용, 프리베이크, 플랜 품질, 게이트 판정">
+<title>실측 데이터 — LlmNpcServer</title>
+<style>
+:root{
+  --bg:#f7f8fb;--panel:#fff;--panel-2:#f1f3f7;--ink:#171a21;--ink-2:#4e5562;
+  --ink-3:#767e8d;--line:#e0e4eb;--line-2:#cdd3de;--accent:#315fdd;
+  --accent-soft:#eaf0ff;--ok:#176b45;--ok-soft:#e6f4ec;--warn:#915900;
+  --warn-soft:#fff2dc;--bad:#aa2922;--bad-soft:#fdeceb;--code-bg:#171b24;
+  --code-ink:#e8ebf2;--radius:14px;--shadow:0 10px 30px rgba(28,36,55,.06);
+  --mono:ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,"D2Coding",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Pretendard,
+         "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root[data-theme="auto"]{
+    --bg:#0d1015;--panel:#151922;--panel-2:#1c212c;--ink:#e9ebf1;--ink-2:#b8bfcc;
+    --ink-3:#858e9e;--line:#282e3a;--line-2:#394150;--accent:#86a8ff;
+    --accent-soft:#1c2842;--ok:#6cdb9c;--ok-soft:#14291f;--warn:#f0bd6b;
+    --warn-soft:#2d2415;--bad:#ff9c95;--bad-soft:#301918;--code-bg:#090c11;
+    --code-ink:#e2e6ef;--shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1015;--panel:#151922;--panel-2:#1c212c;--ink:#e9ebf1;--ink-2:#b8bfcc;
+  --ink-3:#858e9e;--line:#282e3a;--line-2:#394150;--accent:#86a8ff;
+  --accent-soft:#1c2842;--ok:#6cdb9c;--ok-soft:#14291f;--warn:#f0bd6b;
+  --warn-soft:#2d2415;--bad:#ff9c95;--bad-soft:#301918;--code-bg:#090c11;
+  --code-ink:#e2e6ef;--shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.75 var(--sans);word-break:keep-all;overflow-wrap:anywhere}
+a{color:var(--accent)}
+code{font:0.88em var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);max-width:1480px;margin:auto;min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;overflow:auto;padding:26px 18px 42px;background:var(--panel);border-right:1px solid var(--line)}
+.brand{display:flex;gap:11px;align-items:flex-start;padding:0 8px 16px;border-bottom:1px solid var(--line)}
+.brand-mark{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:9px;background:var(--accent);color:#fff;font-weight:800;font-size:13px}
+.brand strong{display:block;font-size:15px;line-height:1.4}.brand small{display:block;color:var(--ink-3);font-size:12px;line-height:1.45;margin-top:2px}
+.toc-title{margin:19px 9px 7px;color:var(--ink-3);font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.toc{list-style:none;margin:0;padding:0}.toc li{margin:2px 0}
+.toc a{display:block;padding:7px 9px;border-radius:8px;border-left:2px solid transparent;text-decoration:none;color:var(--ink-2);font-size:13px;line-height:1.45}
+.toc a:hover{background:var(--panel-2);color:var(--ink)}.toc a.active{background:var(--accent-soft);color:var(--accent);font-weight:700;border-left-color:var(--accent)}
+.toc .n{font:11px var(--mono);color:var(--ink-3);margin-right:7px}.toc a.active .n{color:var(--accent)}
+.side-tools{display:flex;gap:7px;flex-wrap:wrap;margin-top:20px;padding:16px 8px 0;border-top:1px solid var(--line)}
+.side-tools button,.side-tools a{border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink-2);border-radius:999px;padding:5px 10px;font:12px var(--sans);text-decoration:none;cursor:pointer}
+.side-tools button:hover,.side-tools a:hover{border-color:var(--accent);color:var(--accent)}
+main{min-width:0;padding:46px 46px 120px}
+.hero{position:relative;overflow:hidden;padding:34px 36px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,var(--panel),var(--panel-2));box-shadow:var(--shadow)}
+.hero:after{content:"DATA";position:absolute;right:-10px;bottom:-46px;color:var(--accent);opacity:.06;font-weight:900;font-size:140px;line-height:1}
+.eyebrow{color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:36px;line-height:1.25;letter-spacing:-.8px;margin:7px 0 10px}.lead{max-width:74ch;color:var(--ink-2);font-size:17px;margin:0}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:17px}.chip{padding:3px 10px;border:1px solid var(--line-2);border-radius:999px;background:var(--panel);color:var(--ink-2);font-size:12px}.chip.primary{border-color:transparent;background:var(--accent-soft);color:var(--accent);font-weight:700}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 34px}
+.summary div{padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.summary b{display:block;font-size:21px;letter-spacing:-.4px;color:var(--accent)}
+.summary strong{display:block;font-size:13px;margin-top:2px}.summary span{display:block;color:var(--ink-3);font-size:12px;margin-top:1px}
+section.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:27px 30px;margin:18px 0;box-shadow:var(--shadow)}
+.shead{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+.snum{display:grid;place-items:center;min-width:34px;height:28px;margin-top:3px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 12px var(--mono)}
+h2{font-size:23px;line-height:1.45;letter-spacing:-.35px;margin:0}h3{font-size:17px;letter-spacing:-.2px;margin:28px 0 7px}h4{font-size:14.5px;margin:20px 0 5px}
+p{margin:9px 0}.muted{color:var(--ink-2)}
+.grid{display:grid;gap:12px;margin:14px 0}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mini{padding:15px 16px;border:1px solid var(--line);border-radius:11px;background:var(--panel-2)}.mini strong{display:block;font-size:14px}.mini p{margin:4px 0 0;color:var(--ink-2);font-size:13.5px}
+.table-wrap{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:13.5px;background:var(--panel)}
+th,td{text-align:left;vertical-align:top;padding:9px 13px;border-bottom:1px solid var(--line)}th{background:var(--panel-2);color:var(--ink-2);font-size:12.5px;white-space:nowrap}tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody tr.grp td{background:var(--panel-2);font-weight:750;color:var(--ink-2)}
+ul,ol{padding-left:22px;margin:8px 0}li{margin:4px 0}
+.callout{margin:15px 0;padding:13px 16px;border-radius:10px;border-left:4px solid var(--accent);background:var(--accent-soft)}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}.callout.bad{border-left-color:var(--bad);background:var(--bad-soft)}.callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+.callout strong{display:block;margin-bottom:2px}.callout p{margin:3px 0;font-size:14px}
+pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);border-radius:11px;background:var(--code-bg);color:var(--code-ink);font:13px/1.65 var(--mono)}pre code{padding:0;border:0;background:none;color:inherit;font-size:inherit}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:750;white-space:nowrap}.badge.ok{background:var(--ok-soft);color:var(--ok)}.badge.warn{background:var(--warn-soft);color:var(--warn)}.badge.bad{background:var(--bad-soft);color:var(--bad)}.badge.na{background:var(--panel-2);color:var(--ink-3)}
+.refs{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12.5px}.refs a{margin-right:10px}
+.footer{margin-top:32px;text-align:center;color:var(--ink-3);font-size:12px}
+@media(max-width:1100px){.summary{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}.toc{columns:2}.side-tools{padding-left:0}main{padding:30px 20px 80px}}
+@media(max-width:700px){h1{font-size:29px}.hero{padding:26px 22px}section.card{padding:22px 18px}.summary,.g2,.g3{grid-template-columns:1fr}.toc{columns:1}.shead{gap:9px}main{padding-left:13px;padding-right:13px}}
+@media print{.layout{display:block}.sidebar,.side-tools{display:none}main{padding:0}.hero,section.card{box-shadow:none;break-inside:avoid}body{background:#fff;color:#111}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" aria-label="목차">
+    <div class="brand">
+      <div class="brand-mark">LN</div>
+      <div><strong>실측 데이터</strong><small>성능 · 비용 · 품질 · 게이트</small></div>
+    </div>
+    <div class="toc-title">목차</div>
+    <ol class="toc" id="toc">
+      <li><a href="#howto"><span class="n">01</span>이 문서를 읽는 법</a></li>
+      <li><a href="#runtime"><span class="n">02</span>런타임 성능</a></li>
+      <li><a href="#scale"><span class="n">03</span>스케일 곡선</a></li>
+      <li><a href="#llm"><span class="n">04</span>LLM 지연과 처리량</a></li>
+      <li><a href="#cache"><span class="n">05</span>프롬프트 캐시</a></li>
+      <li><a href="#cost"><span class="n">06</span>비용</a></li>
+      <li><a href="#prebake"><span class="n">07</span>프리베이크</a></li>
+      <li><a href="#quality"><span class="n">08</span>플랜 품질</a></li>
+      <li><a href="#golden"><span class="n">09</span>골든 회귀</a></li>
+      <li><a href="#bucket"><span class="n">10</span>버킷 도달률</a></li>
+      <li><a href="#weights"><span class="n">11</span>재계획 가중치 A/B</a></li>
+      <li><a href="#authoring"><span class="n">12</span>오써링 공수</a></li>
+      <li><a href="#gate"><span class="n">13</span>수용 기준 판정</a></li>
+      <li><a href="#open"><span class="n">14</span>미측정으로 남은 것</a></li>
+    </ol>
+    <div class="side-tools">
+      <button type="button" id="theme">테마: 자동</button>
+      <button type="button" onclick="window.print()">인쇄</button>
+      <a href="index.html">안내서</a>
+      <a href="reference_link.html">연동 계약</a>
+    </div>
+  </aside>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">Measurements</div>
+      <h1>실측 데이터</h1>
+      <p class="lead">이 프로젝트가 실제로 잰 값들이다. <strong>추정치를 쓰지 않는다 — 재지 못한 것은 빈칸이 아니라 "미측정"으로 적는다.</strong> 없는 것을 채우면 이 표를 근거로 쓴 뒤 문서가 전부 거짓이 된다.</p>
+      <div class="chips">
+        <span class="chip primary">전부 실측</span>
+        <span class="chip">2026-07-25 ~ 07-28</span>
+        <span class="chip">RTX 4060 · VRAM 8GB</span>
+      </div>
+    </header>
+
+    <section class="summary" aria-label="핵심 수치">
+      <div><b>0.801 ms</b><strong>틱 p99</strong><span>NPC 5,000 · 예산 20ms</span></div>
+      <div><b>0 B</b><strong>틱당 할당</strong><span>Gen0 GC 0회</span></div>
+      <div><b>98.67 %</b><strong>플랜 캐시 히트율</strong><span>시나리오 A</span></div>
+      <div><b>$0.001015</b><strong>LLM 요청 단가</strong><span>gemini-2.5-flash-lite</span></div>
+    </section>
+
+    <section class="card" id="howto">
+      <div class="shead"><span class="snum">01</span><h2>이 문서를 읽는 법</h2></div>
+      <h3>측정 기기 — 모든 로컬 수치의 전제</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>값</th></tr></thead>
+        <tbody>
+          <tr><td>CPU</td><td>Intel Core i5-14400F (10C / 16T)</td></tr>
+          <tr><td>RAM</td><td>31.7 GB</td></tr>
+          <tr><td>GPU</td><td>NVIDIA GeForce RTX 4060 · <strong>VRAM 8,188 MiB</strong></td></tr>
+          <tr><td>OS · SDK</td><td>Windows 11 Pro 10.0.26200 · .NET SDK 10.0.301</td></tr>
+          <tr><td>측정 시각</td><td>2026-07-25 ~ 07-28 KST</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout bad"><strong>로컬 LLM 수치는 전부 VRAM 8GB에 묶여 있다</strong><p>8B Q4_K_M 가중치만 4,789 MiB라 KV 캐시가 넘치면 PCIe 페이징이 걸린다. KV 캐시를 <code>q8_0</code>로 눌러야 겨우 올라간다. <strong>24GB급 환경으로 이 표를 그대로 외삽하지 않는다.</strong> 외부 API(T2) 수치는 이 제약과 무관하다.</p></div>
+      <div class="callout"><strong>판정 표기</strong><p><span class="badge ok">통과</span> 기준을 만족했다 · <span class="badge warn">부분</span> 일부만 · <span class="badge bad">미달</span> 기준에 못 미쳤다 · <span class="badge na">미측정</span> 재지 않았다. <strong>미측정을 통과로 세지 않는다</strong> — 그러면 게이트가 거짓이 된다.</p></div>
+    </section>
+
+    <section class="card" id="runtime">
+      <div class="shead"><span class="snum">02</span><h2>런타임 성능 — 틱 루프</h2></div>
+      <p>NPC 5,000, 게임 시간 7일(10,080틱) 완주 회차다. <strong>이것이 이 프로젝트의 핵심 결과다</strong> — LLM 없이도 NPC가 하루를 산다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>지표</th><th class="num">P1 회차</th><th class="num">P4 회차</th><th class="num">예산</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>틱 p50</td><td class="num">0.183 ms</td><td class="num"><strong>0.231 ms</strong></td><td class="num">≤ 8 ms</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>틱 p99</td><td class="num">2.375 ms</td><td class="num"><strong>0.801 ms</strong></td><td class="num">≤ 20 ms</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>틱 max</td><td class="num">10.482 ms</td><td class="num"><strong>1.045 ms</strong></td><td class="num">—</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>예산 초과(오버런)</td><td class="num">0</td><td class="num"><strong>0</strong></td><td class="num">0</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>인지 스캔 / 틱</td><td class="num">150</td><td class="num"><strong>150</strong></td><td class="num">≤ 150</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td><strong>틱당 할당</strong></td><td class="num">0 B</td><td class="num"><strong>0 B</strong></td><td class="num">0</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>Gen0 컬렉션</td><td class="num">0</td><td class="num"><strong>0</strong></td><td class="num">0</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>시퀀스 갭 (N6)</td><td class="num">0</td><td class="num"><strong>0</strong></td><td class="num">0</td><td><span class="badge ok">통과</span></td></tr>
+        </tbody>
+      </table></div>
+      <h3>7게임일 완주 회차</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th class="num">값</th></tr></thead>
+        <tbody>
+          <tr><td>완주 시간 (<code>--max-speed</code>)</td><td class="num">23 초</td></tr>
+          <tr><td>전진한 플랜 스텝</td><td class="num">16,099,329</td></tr>
+          <tr><td>발행 명령</td><td class="num">16,370,700</td></tr>
+          <tr><td>명령 송출 처리량</td><td class="num">20,860 cmd/s · 0 B/틱</td></tr>
+          <tr><td>시퀀스 갭</td><td class="num">0</td></tr>
+          <tr><td>플랜 캐시 히트율 (시나리오 A)</td><td class="num"><strong>98.67 %</strong></td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout ok"><strong>틱 루프를 재는 계기는 <code>bytesPerTick</code> 하나다</strong><p><code>gen0Collections</code>로 재지 않는다 — 그 값은 <code>GC.CollectionCount(0)</code>이라 <strong>프로세스 전역</strong>이고 대시보드 HTTP·소켓 리시버·직렬화가 전부 든다. 마지막 할당이 관측된 틱은 396/1,440이고 누계 264 B로, 전부 콜드 스타트분이다.</p></div>
+      <h3>가용성 — 장애 주입</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>주입</th><th>관측</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>일일 토큰 캡 30,000 초과</td><td>T2 → T1 자동 강등 1회. T2 누계는 25,000에서 멈춤. 경보 2건</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>T2 강제 실패 8건</td><td>브레이커 임계 5회에서 차단. <strong>T1이 8건 전부 처리 · 손실 0</strong></td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>재계획 큐 거절 28,943건</td><td><strong>플랜 없는 NPC 0/5,000.</strong> 기존 플랜으로 계속 동작</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>결정론 리플레이</td><td>기록 2회 바이트 동일 · 재생 명령 열 동일</td><td><span class="badge ok">통과</span></td></tr>
+        </tbody>
+      </table></div>
+      <h3>공성 시나리오 — 6항목 전부</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>기준</th></tr></thead>
+        <tbody>
+          <tr><td>War 전환이 1틱 안에 인터럽트로 잡힌다</td><td>같은 틱에 명령 발행</td></tr>
+          <tr><td>마을 전체가 3초 안에 갈아탄다</td><td>30틱 안에 예약 0</td></tr>
+          <tr><td>미스 버킷만 LLM 일감이 된다</td><td>채워진 버킷은 큐에 안 들어감</td></tr>
+          <tr><td>전환 구간 틱 p99</td><td>≤ 40 ms</td></tr>
+          <tr><td>아키타입별로 다르게 반응한다</td><td>감시 4종의 플랜이 서로 다름</td></tr>
+          <tr><td>Peace 복귀 시 원래 플랜으로</td><td>전환 전 plan id와 동일</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="card" id="scale">
+      <div class="shead"><span class="snum">03</span><h2>스케일 곡선</h2></div>
+      <p>판정은 log-log 기울기다. <code>≈0</code> = O(1) · <code>≈1</code> = O(n) · <code>&gt;1.2</code> = 초선형(O(n²) 의심).</p>
+      <h3>인지 스캔 — 상한을 푼 회차</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th class="num">NPC</th><th class="num">틱당 스캔</th><th class="num">p99 (ms)</th><th class="num">최대 (ms)</th></tr></thead>
+        <tbody>
+          <tr><td class="num">500</td><td class="num">58</td><td class="num">0.261</td><td class="num">0.708</td></tr>
+          <tr><td class="num">1,000</td><td class="num">98</td><td class="num">0.577</td><td class="num">1.216</td></tr>
+          <tr><td class="num">2,500</td><td class="num">279</td><td class="num">1.141</td><td class="num">2.917</td></tr>
+          <tr><td class="num">5,000</td><td class="num">637</td><td class="num">4.531</td><td class="num">7.141</td></tr>
+        </tbody>
+      </table></div>
+      <p>NPC 10배에서 스캔 10.983배 — log-log 기울기 <strong>1.041 → O(n)</strong>이다.</p>
+      <div class="callout warn"><strong>인지 스캔은 O(1)이 아니다. O(1)을 만드는 것은 상한이다</strong><p>"슬라이스가 고정 비율이므로 O(1)"이라는 논거는 성립하지 않는다 — 슬라이스는 밴드 인원을 주기로 나눈 것이고 <strong>밴드 인원이 NPC 수와 함께 자란다.</strong> 월드(존·POI)가 고정이라 NPC를 늘리면 밀도가 올라가고, 한 플레이어 반경 안의 NPC가 그만큼 늘어난다. 실제로 O(1)을 만드는 것은 <code>MaxScansPerTick</code>(150)이고, 밴드별 커서가 잘린 뒤쪽을 다음 틱에 이어 보므로 <strong>굶는 NPC는 없다.</strong> 설계는 맞고 근거가 틀렸던 경우다.</p></div>
+      <h3>지표별 차수 (상한이 걸린 회차 · NPC 500 → 5,000)</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>지표</th><th class="num">작은 쪽</th><th class="num">큰 쪽</th><th class="num">기울기</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>틱 p99 (ms)</td><td class="num">0.060</td><td class="num">0.901</td><td class="num">1.177</td><td>O(n)</td></tr>
+          <tr><td>틱 p50 (ms)</td><td class="num">0.024</td><td class="num">0.172</td><td class="num">0.855</td><td>O(n)</td></tr>
+          <tr><td>인지 스캔 / 틱</td><td class="num">56</td><td class="num">150</td><td class="num">0.428</td><td>준선형</td></tr>
+          <tr><td>명령 송출 / 초</td><td class="num">1,042,208</td><td class="num">1,567,443</td><td class="num">0.177</td><td>O(1)</td></tr>
+          <tr><td>관리 힙 (MB)</td><td class="num">93.7</td><td class="num">136</td><td class="num">0.161</td><td>O(1)</td></tr>
+          <tr><td>큐 깊이 p99</td><td class="num">500</td><td class="num">4,096</td><td class="num">0.913</td><td>O(n)</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted">NPC 10,000 축은 측정되지 않았다 — <code>npc_instances.json</code>이 5,000 고정이라 그 이상을 요청해도 5,000으로 잘린다.</p>
+    </section>
+
+    <section class="card" id="llm">
+      <div class="shead"><span class="snum">04</span><h2>LLM 지연과 처리량</h2></div>
+      <p>로컬 엔진 2종(<code>llamacpp-gemma3-4b</code>·<code>llamacpp-qwen3-8b</code>)의 실측이다. 180행을 (엔진 × 캐시)로 갈라 <strong>중앙값</strong>을 냈다 — 평균이 아니다. 콜드 스타트가 섞여 평균은 꼬리에 끌린다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>엔진</th><th>캐시</th><th class="num">prefill</th><th class="num">decode</th><th class="num">총 지연</th><th class="num">출력 tok</th></tr></thead>
+        <tbody>
+          <tr><td>gemma3-4b</td><td><strong>on</strong></td><td class="num"><strong>236.6 ms</strong></td><td class="num">3,470.1 ms</td><td class="num"><strong>3,701 ms</strong></td><td class="num">229</td></tr>
+          <tr><td>gemma3-4b</td><td>off</td><td class="num">1,530.8 ms</td><td class="num">3,520.1 ms</td><td class="num">5,056 ms</td><td class="num">231</td></tr>
+          <tr><td>qwen3-8b</td><td><strong>on</strong></td><td class="num"><strong>315.9 ms</strong></td><td class="num">4,828.9 ms</td><td class="num"><strong>5,139 ms</strong></td><td class="num">212</td></tr>
+          <tr><td>qwen3-8b</td><td>off</td><td class="num">2,608.4 ms</td><td class="num">4,837.0 ms</td><td class="num">7,455 ms</td><td class="num">213</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout bad"><strong>지연 가정이 2.9배 빗나갔고, 원인은 prefill이 아니라 decode다</strong><p>계획은 요청당 1.75초, decode 100 tok/s를 가정했다. 실측은 <strong>4B 66 tok/s · 8B 44 tok/s</strong>다. prefill은 캐시가 걸리면 목표(0.25초)에 붙는다 — <strong>설계가 겨눈 곳은 맞았고, 겨누지 않은 쪽이 발목을 잡았다.</strong></p></div>
+      <h3>동시성별 처리량 (req/s)</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>엔진</th><th class="num">동시 1</th><th class="num">동시 2</th><th class="num">동시 4</th><th class="num">동시 8</th><th>429</th></tr></thead>
+        <tbody>
+          <tr><td>gemma3-4b</td><td class="num">2.46</td><td class="num"><strong>12.07</strong></td><td class="num">11.67</td><td class="num">11.76</td><td>없음</td></tr>
+          <tr><td>qwen3-8b</td><td class="num">0.08</td><td class="num">2.15</td><td class="num">2.11</td><td class="num"><strong>0.36</strong></td><td>없음</td></tr>
+        </tbody>
+      </table></div>
+      <p><strong>8B가 동시 8에서 붕괴하는 것은 배칭 부재가 아니라 VRAM 부족이다.</strong> 가중치 4,789 MiB에 KV 캐시가 얹히면 8,188 MiB를 넘겨 PCIe 페이징이 걸린다. 같은 코드가 24GB급에서는 다른 곡선을 그린다.</p>
+      <div class="callout"><strong>로컬 모델을 4B로 정한 근거</strong><p>"4B가 8B보다 낫다"가 아니라 <strong>"이 기계에서 8B를 쓸 수 없다"</strong>이다. 8B의 품질은 채점하지 않았으므로 품질 비교는 <strong>판정 불가</strong>로 남긴다 — 미측정을 통과로 세지 않는다. <strong>24GB급으로 옮기면 재판정 대상이다.</strong></p></div>
+      <h3>외부 API 동시성</h3>
+      <p>동시 <strong>24까지 429가 한 번도 나지 않았다</strong>(Poe 경유는 32까지). 32·64는 미측정이다. 그래서 <code>--concurrency</code> 기본값을 32 → <strong>8</strong>로 내렸다 — 실측 근거가 없는 값을 기본으로 두지 않는다.</p>
+    </section>
+
+    <section class="card" id="cache">
+      <div class="shead"><span class="snum">05</span><h2>프롬프트 캐시 — 이 설계의 유일한 검증된 승리</h2></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>엔진</th><th class="num">미적중 prefill</th><th class="num">적중 prefill</th><th class="num">감소율</th></tr></thead>
+        <tbody>
+          <tr><td>gemma3-4b</td><td class="num">1,530.8 ms</td><td class="num">236.6 ms</td><td class="num"><strong>84.5 %</strong></td></tr>
+          <tr><td>qwen3-8b</td><td class="num">2,608.4 ms</td><td class="num">315.9 ms</td><td class="num"><strong>87.9 %</strong></td></tr>
+        </tbody>
+      </table></div>
+      <p>목표는 70% 이상이었고 <strong>85~88%를 냈다.</strong> 이 설계에서 명확히 통과한 유일한 초기 가정이다.</p>
+      <div class="callout warn"><strong>측정 함정 — 캐시 무효화 주석을 뒤에 붙이면 캐시가 안 깨진다</strong><p>프리픽스 캐시는 <strong>접두 일치</strong>다. 난수 주석을 프리픽스 <em>뒤</em>에 붙인 조건(<code>off_tail</code>)은 242.2 ms로, 캐시 <em>켠</em> 조건(236.6 ms)과 사실상 같았다. 이 열로 감소율을 냈다면 <strong>2%가 나와 설계를 오판했을 것이다.</strong> 무효화는 반드시 프리픽스 <em>앞</em>에 넣는다.</p></div>
+      <h3>외부 API의 캐시 — 목표에 도달할 수 없다</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>회차</th><th class="num">입력 tok</th><th class="num">캐시 적중률</th></tr></thead>
+        <tbody>
+          <tr><td>P3 프리베이크 파일럿 (288버킷)</td><td class="num">6,655,438</td><td class="num">42.6 %</td></tr>
+          <tr><td>W11 골든 (50건 × 3회)</td><td class="num">3,012,661</td><td class="num">40.6 %</td></tr>
+          <tr><td>W12 블라인드 A군 (120버킷)</td><td class="num">2,510,644</td><td class="num">30.7 %</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout bad"><strong>목표 95%는 이 엔진 계열에서 도달 불가다</strong><p>프리픽스 SHA는 1종이므로 <strong>우리 쪽 조건(불변 프리픽스)은 지켜졌다.</strong> 남는 원인은 제공사 쪽이다 — Gemini의 <strong>암시적</strong> 캐싱은 요청 단위로 전부 적중하거나 전부 미적중이고, 어느 요청이 적중할지 <strong>비결정적</strong>이다(<code>cached_tokens</code>가 프리픽스 크기의 정수배로만 나온다). 95%는 <strong>명시적 캐싱</strong>(Anthropic <code>cache_control</code>)을 전제한 목표치다.</p></div>
+      <p>그래도 값어치는 실측된다 — 적중률 40.6%로 <strong>비용의 33.4%를 줄였다.</strong> 적중분이 1/10 단가라 적중률과 절감률이 거의 같은 비율로 움직인다.</p>
+    </section>
+
+    <section class="card" id="cost">
+      <div class="shead"><span class="snum">06</span><h2>비용 — 무엇이 빗나갔나</h2></div>
+      <h3>요청 하나의 실제 크기</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th class="num">계획 가정</th><th class="num">실측</th><th class="num">배수</th></tr></thead>
+        <tbody>
+          <tr><td>입력 토큰 / 요청</td><td class="num">1,750</td><td class="num"><strong>13,948</strong></td><td class="num"><strong>8.0×</strong></td></tr>
+          <tr><td>출력 토큰 / 요청</td><td class="num">150</td><td class="num">326</td><td class="num">2.2×</td></tr>
+          <tr><td>프롬프트 캐시 적중률</td><td class="num">~100 % 전제</td><td class="num">30.7 ~ 42.6 %</td><td class="num">—</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout bad"><strong>오차의 90%가 원인 하나다 — 프리픽스 크기를 축소판으로 추정했다</strong><p>계획의 프리픽스 1,500 토큰은 스파이크 축소판(액션 12·플래그 16, 4,409 tok) 기준이었고, 정식 카탈로그는 <strong>11,967 tok</strong>이다. <strong>비용 모델 자체(토큰 × 단가, 캐시 1/10 할인)는 실측과 일치한다.</strong></p></div>
+      <h3>시나리오별 추정 대 실측</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>시나리오</th><th class="num">계획 추정</th><th class="num">실측 환산</th><th class="num">오차</th></tr></thead>
+        <tbody>
+          <tr><td>A — 프리베이크 2,880건 (1회성)</td><td class="num">$0.94</td><td class="num"><strong>$5.12</strong></td><td class="num">+445 %</td></tr>
+          <tr><td>B — 재계획 20,000건/일 (월)</td><td class="num">$195</td><td class="num"><strong>$609</strong></td><td class="num">+212 %</td></tr>
+          <tr><td>C — 전면 재계획 120,000건/일 (월)</td><td class="num">$1,170</td><td class="num"><strong>$3,654</strong></td><td class="num">+212 %</td></tr>
+        </tbody>
+      </table></div>
+      <p>실측 요청 단가는 <strong>$0.001015 / 요청</strong>이다. A의 오차가 더 큰 것은 프리베이크에 <strong>재시도와 폐기분</strong>이 섞이기 때문이다 — 통과율 67.7% 회차라 버킷 하나당 평균 1.5회 가까이 부른다.</p>
+      <div class="callout warn"><strong>B·C는 실측이 아니다</strong><p>"실측 단가 × <em>계획의</em> 요청 수"다. 이 회차의 런타임은 LLM을 한 번도 부르지 않았다(호출 0회). <strong>지금 아는 것은 요청 하나의 단가뿐이고, 그 단가는 실측이다.</strong></p></div>
+      <h3>정리</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>요청당 토큰</td><td><span class="badge bad">빗나갔다</span> 1,750 가정 → 13,948 실측 (8배)</td></tr>
+          <tr><td>프리베이크 총비용</td><td><span class="badge bad">빗나갔다</span> $0.94 → $5.12 (5.4배)</td></tr>
+          <tr><td>월 운영비</td><td><span class="badge bad">빗나갔다</span> $195 → $609. 단, 요청 수는 미검증</td></tr>
+          <tr><td>캐시가 비용을 줄인다</td><td><span class="badge ok">맞았다</span> 적중률 40.6%로 33.4% 절감</td></tr>
+          <tr><td>캐시 적중률 95%</td><td><span class="badge bad">빗나갔다</span> 암시적 캐싱에서는 도달 불가</td></tr>
+          <tr><td>절대 금액대</td><td><span class="badge ok">맞았다</span> 5배 틀려도 월 $609는 단일 월드 운영비로 여전히 작다</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="card" id="prebake">
+      <div class="shead"><span class="snum">07</span><h2>프리베이크</h2></div>
+      <h3>파일럿 288버킷</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>지표</th><th class="num">실측</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td>대상</td><td class="num">288 버킷</td><td>제작 계열 4 아키타입 연속</td></tr>
+          <tr><td>소요</td><td class="num"><strong>115.0 s</strong></td><td>동시성 8 시작 → 24 도달</td></tr>
+          <tr><td>비용</td><td class="num"><strong>$0.5119</strong></td><td></td></tr>
+          <tr><td>통과율</td><td class="num"><strong>67.7 %</strong> (195/288)</td><td>1회 통과 99 · 재시도로 96건 추가</td></tr>
+          <tr><td>인접 재사용</td><td class="num">61</td><td></td></tr>
+          <tr><td>폴백</td><td class="num">32 (11.1 %)</td><td></td></tr>
+          <tr><td>프롬프트 캐시 적중률</td><td class="num">42.6 %</td><td>게이트 하한 95% 미달</td></tr>
+          <tr><td>평균 지연</td><td class="num">3,965 ms</td><td>재시도 포함</td></tr>
+          <tr><td>429</td><td class="num"><strong>0회</strong></td><td>최대 동시성 24</td></tr>
+          <tr><td>프리픽스 SHA</td><td class="num"><strong>1 종</strong></td><td>캐시가 깨지지 않았다</td></tr>
+        </tbody>
+      </table></div>
+      <p>전량 2,880 선형 외삽은 <strong>19.2분 · $5.12</strong>다. 기준(5분 · $5)을 그대로는 통과하지 못한다.</p>
+      <div class="callout"><strong>동시성을 올려 5분을 맞추지 않는다</strong><p>429가 아직 안 나왔다고 해서 기준을 맞추려고 동시성을 4배로 올리는 것은 순서가 거꾸로다. <strong>먼저 429 최초 발생 동시성을 재고 그 절반을 쓴다.</strong></p></div>
+
+      <h3>워밍업 실험 — 전제가 반증됐다</h3>
+      <p>"워밍업을 빼면 N개가 전부 cache miss로 시작해 write 할증을 N번 낸다"는 전제로 워밍업을 넣었다. <strong>이 엔진 계열에는 그 전제가 없다.</strong></p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>전제</th><th>실측</th></tr></thead>
+        <tbody>
+          <tr><td>동시 N개가 전부 miss로 시작한다</td><td><strong>아니다.</strong> 파동 안에서 먼저 도착한 요청이 캐시를 만들고 나머지가 물려받는다 — 동시 32에서 워밍업 없이 68.6% 적중</td></tr>
+          <tr><td>write에 할증이 붙는다</td><td><strong>없다.</strong> 암시적 캐싱은 write 할증이 없고 적중분이 오히려 0.25배로 싸다</td></tr>
+          <tr><td>워밍업 1회가 N번의 할증을 막는다</td><td><strong>막을 것이 없다.</strong> 요청 1개가 늘어나는 만큼 순손실이다</td></tr>
+        </tbody>
+      </table></div>
+      <p>그래도 워밍업을 기본으로 켜 둔다. <strong>셋 다 비용 논거가 아니다</strong> — ① 명시적 캐싱 엔진에서는 전제가 성립한다, ② 2,880건을 던지기 전에 키·엔드포인트·프리픽스·스키마가 통하는지 요청 하나로 확인한다, ③ 2,880건 회차에서 요청 1개는 0.03%다.</p>
+
+      <h3>전수 드라이런 — 추정의 2,500분의 1</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th class="num">병렬도</th><th class="num">소요</th><th class="num">건당</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td class="num">16</td><td class="num"><strong>0.02 s</strong></td><td class="num">0.01 ms</td><td>게이트 60초 대비 3,000배 여유</td></tr>
+          <tr><td class="num">1 (직렬)</td><td class="num">0.04 s</td><td class="num">0.02 ms</td><td>직렬로도 통과</td></tr>
+        </tbody>
+      </table></div>
+      <p>추정치는 건당 50ms였다. 실측 0.02ms — <strong>2,500배 차이다.</strong> 드라이런이 10Hz 틱을 굴리지 않고 액션 소요시간만큼 게임시간을 건너뛰기 때문이다. 표본을 줄일 이유가 없어져 <strong>전수(100%)로 확정</strong>했다.</p>
+    </section>
+
+    <section class="card" id="quality">
+      <div class="shead"><span class="snum">08</span><h2>플랜 품질 — 검증 통과율과 다양성</h2></div>
+      <h3>프롬프트 개선 차수별 통과율</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th class="num">차수</th><th class="num">버킷</th><th class="num">통과</th><th class="num">통과율</th><th class="num">1회 통과</th><th class="num">폴백</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1 (기준선)</td><td class="num">20</td><td class="num">10</td><td class="num">50.0 %</td><td class="num">7</td><td class="num">10</td></tr>
+          <tr><td class="num">3</td><td class="num">20</td><td class="num">14</td><td class="num">70.0 %</td><td class="num">10</td><td class="num">6</td></tr>
+          <tr><td class="num">6</td><td class="num">40</td><td class="num">31</td><td class="num">77.5 %</td><td class="num">23</td><td class="num">9</td></tr>
+          <tr><td class="num">7</td><td class="num">40</td><td class="num">32</td><td class="num"><strong>80.0 %</strong></td><td class="num">21</td><td class="num">8</td></tr>
+          <tr><td class="num">8~10</td><td class="num">60</td><td class="num">47</td><td class="num">78.3 %</td><td class="num">27~35</td><td class="num">13</td></tr>
+          <tr><td class="num">11 (288 슬라이스)</td><td class="num">288</td><td class="num">186</td><td class="num">64.6 %</td><td class="num">107</td><td class="num">45</td></tr>
+        </tbody>
+      </table></div>
+      <p>20건 표본에서 50% → 80%까지 올렸으나, 288건으로 넓히면 64.6%로 내려간다. <strong>작은 표본의 통과율을 그대로 믿지 않는다.</strong> 수용 기준(검증 실패율 ≤ 3%)에는 크게 미달한다.</p>
+
+      <h3>상위 실패 원인</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>단계</th><th>코드</th><th class="num">비중</th><th>처방</th></tr></thead>
+        <tbody>
+          <tr><td>Coherence</td><td><code>V3.PRECONDITION_UNMET</code></td><td class="num">20.1 %</td><td>requires/grants 관계 미이해. 카탈로그에 플래그 표, few-shot에 수정 예시</td></tr>
+          <tr><td>Coherence</td><td><code>V3.RESOURCE_IMBALANCE</code></td><td class="num">6.6 %</td><td>수량 계산 실패. 레시피 입출력을 싣거나 count를 심볼화</td></tr>
+          <tr><td>Vocabulary</td><td><code>V2.RANGE</code></td><td class="num">2.8 %</td><td>정수 범위 위반. 카탈로그의 range 표기 강조</td></tr>
+          <tr><td>Schema</td><td><code>V1.STEP_COUNT</code></td><td class="num">2.1 %</td><td>스텝 수가 3~10 밖</td></tr>
+          <tr><td>DryRun</td><td><code>V4.RESOURCE_STARVE</code></td><td class="num">1.7 %</td><td>자기가 모은 자원이 바닥난다</td></tr>
+        </tbody>
+      </table></div>
+      <p><strong>실패는 Coherence 단계에 몰린다</strong>(77건 대 Vocabulary 12 · DryRun 7 · Schema 6). 스키마는 잘 맞추는데 <em>전제조건의 인과</em>를 자주 놓친다는 뜻이다.</p>
+
+      <div class="callout bad"><strong>강제 디코딩을 신뢰하지 않는 이유 — 이 한 줄이 스파이크에서 가장 값어치 있다</strong>
+        <p><code>response_format=json_schema</code>(강제)는 <strong>유효 JSON 99/100 · 어휘 검증 0/100</strong>이었고, 지시만 한 쪽은 <strong>유효 JSON 98/100 · 어휘 검증 93/100</strong>이었다. <strong>스키마를 만족시키면서 인자를 지어낸다</strong> — 실패 99건이 전부 존재하지 않는 인자 이름이었다(<code>MoveTo.recipe</code>, <code>Eat.poi</code>).</p>
+        <p><strong>측정 지표를 잘못 고르면 100% 실패를 통과로 읽는다.</strong> "유효율 90% 미만" 같은 위험 신호로도 이 실패는 잡히지 않는다 — 유효율은 99%였다.</p>
+      </div>
+
+      <h3>다양성</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>지표</th><th class="num">값</th><th class="num">목표</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>유니크 액션 시퀀스 / 생성 성공</td><td class="num">37.1 % (69/186)</td><td class="num">60 %</td><td><span class="badge bad">미달</span></td></tr>
+          <tr><td>아키타입 안 유니크 비율</td><td class="num">51.6 %</td><td class="num">60 %</td><td><span class="badge bad">미달</span></td></tr>
+          <tr><td>유니크 goal / 생성 성공</td><td class="num">39.2 % (73/186)</td><td class="num">—</td><td><span class="badge na">참고</span></td></tr>
+        </tbody>
+      </table></div>
+      <p>가장 흔한 시퀀스는 <code>MoveTo&gt;Eat&gt;Drink&gt;Rest&gt;Sleep</code>(27건)이다. <strong>처방은 아키타입 축소가 아니다</strong> — 같은 아키타입 안에서도 51.6%라 40 → 25로 줄여도 그 값은 그대로다.</p>
+    </section>
+
+    <section class="card" id="golden">
+      <div class="shead"><span class="snum">09</span><h2>골든 회귀 50건</h2></div>
+      <p>50건 픽스처 × 3회. <strong>3회 중 2회 이상 통과를 합격으로 본다</strong> — LLM 출력은 매번 다르고 그게 정상이라, 정확한 문자열 비교가 아니라 <strong>속성 단언</strong>만 쓴다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th class="num">값</th><th class="num">기준</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>단언 합격률</td><td class="num"><strong>93.6 %</strong> (206/220)</td><td class="num">≥ 90 %</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>1회차 전단언 통과 픽스처</td><td class="num">37/50 (74.0 %)</td><td class="num">—</td><td><span class="badge na">참고</span></td></tr>
+          <tr><td>호출 실패</td><td class="num">0</td><td class="num">—</td><td><span class="badge ok">통과</span></td></tr>
+          <tr><td>평균 지연</td><td class="num">1,774 ms</td><td class="num">—</td><td><span class="badge na">참고</span></td></tr>
+          <tr><td>회차 비용</td><td class="num">$0.2193</td><td class="num">—</td><td><span class="badge na">참고</span></td></tr>
+        </tbody>
+      </table></div>
+      <h3>단언 종류별 합격률</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>단언</th><th class="num">합격 / 전체</th><th class="num">비율</th></tr></thead>
+        <tbody>
+          <tr><td><code>acquires_before_use</code></td><td class="num">3 / 3</td><td class="num">100.0 %</td></tr>
+          <tr><td><code>avoids_flag_while</code></td><td class="num">2 / 2</td><td class="num">100.0 %</td></tr>
+          <tr><td><code>differs_from</code></td><td class="num">16 / 16</td><td class="num">100.0 %</td></tr>
+          <tr><td><code>not_contains</code></td><td class="num">17 / 17</td><td class="num">100.0 %</td></tr>
+          <tr><td><code>ends_with_any</code></td><td class="num">49 / 50</td><td class="num">98.0 %</td></tr>
+          <tr><td><code>step_count_between</code></td><td class="num">49 / 50</td><td class="num">98.0 %</td></tr>
+          <tr><td><code>contains_action</code></td><td class="num">20 / 22</td><td class="num">90.9 %</td></tr>
+          <tr><td><code>produces_item_of</code></td><td class="num">9 / 10</td><td class="num">90.0 %</td></tr>
+          <tr><td><strong><code>validates</code></strong></td><td class="num">41 / 50</td><td class="num"><strong>82.0 %</strong></td></tr>
+        </tbody>
+      </table></div>
+      <p>떨어지는 단언은 <code>validates</code> 하나다 — 4단 검증기를 통과하지 못한 플랜들이고, 실패 사유는 §08의 <code>V3.PRECONDITION_UNMET</code>과 같은 계열이다.</p>
+    </section>
+
+    <section class="card" id="bucket">
+      <div class="shead"><span class="snum">10</span><h2>버킷 도달률 — 2,880 중 264</h2></div>
+      <div class="callout ok"><strong>이건 설계 실패가 아니라 발견이다</strong><p>2,880개를 만들었는데 실제로 쓰이는 게 264개라면, "버킷 차원을 잘못 설계했다"가 아니라 <strong>"다음 버전은 1/11 비용으로 만들 수 있다"</strong>는 뜻이다.</p></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>시나리오</th><th class="num">도달 버킷</th><th class="num">비율</th><th class="num">프리베이크 비용</th></tr></thead>
+        <tbody>
+          <tr><td><strong>A — 평시 하루</strong></td><td class="num"><strong>264</strong></td><td class="num"><strong>9.2 %</strong></td><td class="num">$0.47</td></tr>
+          <tr><td>B — 공성</td><td class="num">978</td><td class="num">34.0 %</td><td class="num">$1.74</td></tr>
+          <tr><td>상한 — 모든 존이 4×3을 다 겪을 때</td><td class="num">2,880</td><td class="num">100 %</td><td class="num">$5.12</td></tr>
+        </tbody>
+      </table></div>
+      <h3>왜 9.2%인가 — 두 축이 거의 죽어 있다</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>축</th><th class="num">전체</th><th class="num">시나리오 A 도달</th><th>이유</th></tr></thead>
+        <tbody>
+          <tr><td>아키타입</td><td class="num">40</td><td class="num">40</td><td>5,000마리가 40종을 다 채운다</td></tr>
+          <tr><td>시간대</td><td class="num">6</td><td class="num">6</td><td>하루를 살면 다 거친다</td></tr>
+          <tr><td>지역상태</td><td class="num">4</td><td class="num"><strong>2</strong></td><td>존 기본값에 War·Disaster가 없다</td></tr>
+          <tr><td>기후</td><td class="num">3</td><td class="num"><strong>2</strong></td><td>존 기본값에 Storm이 없다</td></tr>
+        </tbody>
+      </table></div>
+      <p>곱하면 960이 될 것 같지만 실제는 <strong>264</strong>다. <strong>아키타입과 존이 묶여 있기 때문이다</strong> — 광부는 광산 언덕(Alert.Cold)에만 살고 대장장이는 마을(Peace.Fair)에만 산다. 한 아키타입이 겪는 (지역상태, 기후) 조합은 보통 <strong>하나</strong>이고, 둘 이상을 겪는 아키타입은 넷뿐이다.</p>
+      <p class="muted">이 값은 마스터데이터에서 계산한 <strong>도달 가능 집합</strong>이다(표본이 아니라 전수). 실사용은 이보다 작을 수는 있어도 클 수는 없다 — 상한으로 읽으면 안전하다.</p>
+
+      <h3>실행해서 확인했다 — 264 버킷 회차</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th class="num">값</th></tr></thead>
+        <tbody>
+          <tr><td>대상</td><td class="num">264 버킷 (도달 집합)</td></tr>
+          <tr><td>생성 성공</td><td class="num"><strong>195</strong> (73.9 %)</td></tr>
+          <tr><td>비용</td><td class="num"><strong>$0.3727</strong> — 예상 $0.47보다 21% 싸다</td></tr>
+          <tr><td>소요</td><td class="num">96.9 s</td></tr>
+          <tr><td>시나리오 A 캐시 히트율</td><td class="num"><strong>98.67 %</strong> (히트 345,685 · 미스 4,659)</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout ok"><strong>개수가 아니라 <em>어느 버킷이냐</em>가 히트율을 정한다</strong><p><strong>195버킷(전체의 6.8%)으로 히트율 98.67%가 나왔다.</strong> 직전 회차는 <strong>254버킷으로 76.08%</strong>였다 — <strong>버킷을 줄였는데 히트율이 올랐다.</strong> 이것이 도달 집합 전략의 핵심 근거다. 도달 집합은 보고서 값을 옮겨 쓰지 않고 마스터데이터에서 독립적으로 재유도했으며, 결과가 완전히 일치했다.</p></div>
+    </section>
+
+    <section class="card" id="weights">
+      <div class="shead"><span class="snum">11</span><h2>재계획 가중치 A/B — 예산이 병목이다</h2></div>
+      <p>재계획 우선순위 큐의 가중치 4개를 바꿔 가며 시나리오 A(NPC 5,000 · 배속 60 · 게임 3일 · 플레이어 봇 20)를 세트당 3회 돌린 결과다.</p>
+      <div class="callout"><strong>실 LLM을 쓰지 않는 이유</strong><p>실 LLM을 끼우면 지연·성공률이 회차마다 달라 <strong>가중치가 아니라 엔진을 재게 된다.</strong> 그래서 컴파일러 자리에 결정론 드레이너를 둔다 — 예산 상한만큼만 꺼내고 실측 지연(51틱 = 5.1초) 뒤에 반영한다. <strong>바뀌는 것이 가중치 하나뿐이라 결과 차이가 곧 가중치의 효과다.</strong></p></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>세트</th><th class="num">W1</th><th class="num">W2</th><th class="num">W3</th><th class="num">W4</th><th class="num">큐 유입</th><th class="num">LLM 요청</th><th class="num">큐 거절</th><th class="num">근처 집중도</th><th class="num">회차 폭</th></tr></thead>
+        <tbody>
+          <tr><td>A-proximity</td><td class="num">5</td><td class="num">0.2</td><td class="num">1.5</td><td class="num">4</td><td class="num">37,562</td><td class="num">1,686</td><td class="num">825,184</td><td class="num">46.3 %</td><td class="num">±0.2 %</td></tr>
+          <tr><td><strong>B-baseline</strong></td><td class="num">3</td><td class="num">0.5</td><td class="num">2</td><td class="num">4</td><td class="num">36,927</td><td class="num">1,686</td><td class="num">829,261</td><td class="num">46.3 %</td><td class="num">±0.6 %</td></tr>
+          <tr><td>C-deviation</td><td class="num">2</td><td class="num">0.3</td><td class="num">4</td><td class="num">4</td><td class="num">38,276</td><td class="num">1,686</td><td class="num">823,069</td><td class="num">46.6 %</td><td class="num">±1.8 %</td></tr>
+          <tr><td>D-uniform</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">17,768</td><td class="num">1,686</td><td class="num">872,468</td><td class="num">47.2 %</td><td class="num">±2.6 %</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout warn"><strong>네 세트의 LLM 요청 수가 전부 1,686건으로 같다</strong><p>T1 예산 상한이 정확히 묶은 값이고 가중치는 여기에 관여하지 않는다. 반면 큐 유입은 38,276건, 포화로 버린 것이 872,468건이다 — <strong>요청하고 싶은 것의 0.2%만 처리된다.</strong> 그래서 가중치가 정하는 것은 "얼마나 부를까"가 아니라 <strong>"그 0.2%를 누구에게 쓸까"</strong>다.</p></div>
+      <p>근처 집중도 차이는 46.3% ~ 47.2%로 <strong>0.9%p</strong>다. 큐가 포화 상태라 <strong>축출도 같은 점수로 일어나기</strong> 때문이다 — 4,096칸에 남는 것은 이미 상위 점수뿐이고, 그 안에서 순서를 바꿔 봐야 여지가 좁다.</p>
+      <div class="callout bad"><strong>A/B가 세트를 가르지 못했다 — 그래서 1위를 승격하지 않았다</strong><p>이 회차 1위는 <code>D-uniform</code>이지만 1·2위 차이가 <strong>회차 간 변동 폭(±2.6%)보다 작다.</strong> 그 상태에서 1위를 기본값으로 올리면 <strong>잡음을 기본값으로 승격하는 것</strong>이다. 그래서 기본값은 <code>B-baseline</code>을 유지한다.</p><p><strong>이 표는 "가중치가 별로 안 중요하다"가 아니라 "지금은 예산이 병목이다"를 말한다.</strong> T1 처리량이 올라가 큐가 포화를 벗어나면 다시 재야 한다 — 그때는 가중치가 "누구를 먼저"가 아니라 "몇 명을"까지 정하게 되어 차이가 커진다.</p></div>
+    </section>
+
+    <section class="card" id="authoring">
+      <div class="shead"><span class="snum">12</span><h2>오써링 공수 — 두 축</h2></div>
+      <h3>축 B — 커버리지 배수 (같은 비용)</h3>
+      <div class="callout"><strong>축 B가 더 정직하고 더 설득력 있다</strong><p><strong>사람은 애초에 2,880개를 만들지 않는다.</strong> 현실의 대안은 "2,880개 수작성"이 아니라 <strong>"40개만 만들고 나머지는 포기"</strong>다. 실제로 이 저장소의 폴백이 정확히 그 40개다. 축 A는 아무도 하지 않을 작업과 비교하는 것이고, 축 B는 <strong>실제로 있었던 선택지</strong>와 비교하는 것이다.</p></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>사람 경로</th><th>LLM 경로</th></tr></thead>
+        <tbody>
+          <tr><td>결과물</td><td>40개 (아키타입당 1개)</td><td><strong>2,880개</strong> (아키타입 × 시간대 × 지역상태 × 기후)</td></tr>
+          <tr><td>상황 해상도</td><td>아키타입만</td><td>아키타입 × 72 상황</td></tr>
+          <tr><td><strong>커버리지 배수</strong></td><td>1×</td><td><strong>72×</strong></td></tr>
+          <tr><td>기계 시간</td><td>—</td><td>0.32 h</td></tr>
+          <tr><td>비용</td><td>—</td><td>$5.12</td></tr>
+        </tbody>
+      </table></div>
+      <h3>축 A — 절감률 (같은 결과물 2,880개)</h3>
+      <p>프리베이크에는 사람 시간이 들지 않는다(기계가 돈다). 사람 시간은 프롬프트 설계와 검수뿐이다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>수작성 분/플랜 →</th><th class="num">15분</th><th class="num">30분</th><th class="num">60분</th></tr></thead>
+        <tbody>
+          <tr><td>수작성 2,880개 (시간)</td><td class="num">720</td><td class="num">1,440</td><td class="num">2,880</td></tr>
+          <tr><td>LLM 경로 (설계 20h 가정)</td><td class="num">116h · 84 %</td><td class="num">116h · 92 %</td><td class="num">116h · 96 %</td></tr>
+          <tr><td>LLM 경로 (설계 40h 가정)</td><td class="num">136h · 81 %</td><td class="num">136h · 91 %</td><td class="num">136h · 95 %</td></tr>
+          <tr><td>LLM 경로 (설계 80h 가정)</td><td class="num">176h · 76 %</td><td class="num">176h · 88 %</td><td class="num">176h · 94 %</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout warn"><strong>축 A의 입력은 실측이 아니라 가정이다</strong><p>수작성 분/플랜, 검수 분/플랜, 프롬프트 설계 공수 <strong>셋 다 미측정</strong>이다. 그래서 단일 값이 아니라 민감도 표로 낸다. 프롬프트 설계는 <strong>1회성</strong>이라 버킷이 늘수록 절감률이 좋아진다.</p></div>
+    </section>
+
+    <section class="card" id="gate">
+      <div class="shead"><span class="snum">13</span><h2>수용 기준 판정 16항목</h2></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>분류</th><th>항목</th><th>판정</th><th>근거</th></tr></thead>
+        <tbody>
+          <tr><td>기능</td><td>마스터데이터만으로 확장</td><td><span class="badge ok">통과</span></td><td>V1~V11 · 액션/플래그/아키타입 전부 데이터 주도</td></tr>
+          <tr><td>기능</td><td>시나리오 A/B/C 완주</td><td><span class="badge ok">통과</span></td><td>셋 다 완주 · 오버런 0 · 갭 0</td></tr>
+          <tr><td>기능</td><td>링크 교체 시 코드 무변경</td><td><span class="badge ok">통과</span></td><td>런타임 3프로젝트가 게이트웨이 미참조</td></tr>
+          <tr><td>기능</td><td>프리베이크 2,880 ≤ 5분</td><td><span class="badge bad">미달</span></td><td>전량 외삽 19분. 전량 회차 미실행</td></tr>
+          <tr><td>기능</td><td>pin 유지</td><td><span class="badge ok">통과</span></td><td><code>planstore/pinned/</code></td></tr>
+          <tr><td>성능</td><td>틱 p99 ≤ 20 ms</td><td><span class="badge ok">통과</span></td><td><strong>0.801 ms</strong></td></tr>
+          <tr><td>성능</td><td>인지 스캔 ≤ 150/틱</td><td><span class="badge ok">통과</span></td><td>150</td></tr>
+          <tr><td>성능</td><td>플랜 캐시 히트율 ≥ 98 %</td><td><span class="badge ok">통과</span></td><td><strong>98.67 %</strong> (재측정)</td></tr>
+          <tr><td>성능</td><td>명령 송출 ≥ 2,000 cmd/s 무할당</td><td><span class="badge ok">통과</span></td><td>20,860 cmd/s · 0 B/틱</td></tr>
+          <tr><td>품질</td><td>검증 실패율 ≤ 3 %</td><td><span class="badge bad">미달</span></td><td>22~32 %</td></tr>
+          <tr><td>품질</td><td>골든 50건</td><td><span class="badge ok">통과</span></td><td>93.6 %</td></tr>
+          <tr><td>품질</td><td>리플레이 결정론</td><td><span class="badge ok">통과</span></td><td>바이트 동일</td></tr>
+          <tr><td>비용</td><td>프롬프트 캐시 ≥ 95 %</td><td><span class="badge bad">미달</span></td><td>42.6 %. 암시적 캐싱에서는 도달 불가</td></tr>
+          <tr><td>비용</td><td>일일 캡 초과 시 자동 강등</td><td><span class="badge warn">부분</span></td><td>프리베이크 캡 동작 · 런타임 강등은 별도 회차</td></tr>
+          <tr><td>비용</td><td>T1/T2 차단에서 시나리오 A</td><td><span class="badge ok">통과</span></td><td>시나리오 C 3단계</td></tr>
+          <tr><td>보고</td><td>블라인드 정량 결과</td><td><span class="badge bad">미달</span></td><td>참가자 0명</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout ok"><strong>판정 요약</strong><p><strong>기제(mechanism)는 전부 서 있고, 미달은 전부 "아직 안 돌렸다"다.</strong> 결정론 · 가용성 · 링크 교체 · 골든 품질 — 네 축은 통과했다. 미달·부분 항목 중 <strong>코드 결함으로 미달한 것은 하나도 없다</strong> — 남은 것은 사람 시간(블라인드 평가·수작성 실측)과 전량 회차 한 번이며, 어느 것도 설계 변경을 요구하지 않는다.</p></div>
+      <h3>블라인드 A/B 평가 — 결론 보류</h3>
+      <p>자료·양식·정답 키·통계 처리기는 전부 준비돼 있고 검정 구현도 <code>--self-test</code>로 검증했다. <strong>참가자가 0명이라 판정하지 않는다</strong> — 참가자 6명 미만이면 결론을 내지 않는 것이 사전에 정한 규칙이다. LLM 심사원 6명 × 40건의 예비 실시는 마쳤고 Q1 정답률 50.8%로, "돌릴 값이 있다"는 것까지는 확인했다.</p>
+    </section>
+
+    <section class="card" id="open">
+      <div class="shead"><span class="snum">14</span><h2>미측정으로 남은 것</h2></div>
+      <p><strong>이 목록을 지우지 않는다.</strong> 없는 것을 채우면 이 문서를 근거로 쓴 모든 판단이 거짓이 된다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th>무엇이 필요한가</th><th>무엇을 막고 있나</th></tr></thead>
+        <tbody>
+          <tr><td>8B 품질 채점</td><td>4B와 <strong>같은 조건</strong>으로 채점</td><td>로컬 모델 선정의 품질 근거</td></tr>
+          <tr><td>외부 API 동시성 32·64</td><td>429 최초 발생 동시성 실측</td><td>프리베이크 동시성 기본값의 근거</td></tr>
+          <tr><td>로컬 수치 일반화</td><td>free VRAM ≥ 6,000 MiB 환경에서 재측정</td><td>상용 환경 외삽</td></tr>
+          <tr><td>프리베이크 전량 2,880</td><td>외삽이 아닌 실측 회차 1회</td><td>기능·성능·비용 게이트 3항목</td></tr>
+          <tr><td>런타임 재계획 요청 수</td><td>티어를 켜고 부하 회차</td><td>월 운영비 추정의 검증</td></tr>
+          <tr><td>블라인드 평가</td><td>참가자 12명 × 40~60분</td><td>품질의 정량 근거</td></tr>
+          <tr><td>수작성 시간 기준선</td><td>사람이 폴백 40개를 짜고 시간 기록</td><td>오써링 절감률 축 A</td></tr>
+          <tr><td>GPU 사용률·소비전력</td><td>부하 회차에 로깅 추가</td><td>T1 전력 비용 모델의 검증</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted">원자료(<code>docs/measurements/</code>의 jsonl·csv)는 저장소에 남아 있다. 위 표의 항목은 전부 "안 돌린 것"이지 코드 결함이 아니다.</p>
+      <div class="refs">
+        <a href="index.html">프로젝트 안내서</a>
+        <a href="reference_link.html">게임서버 연동 계약</a>
+        <a href="reference_masterdata.html">마스터데이터 레퍼런스</a>
+        <a href="FAQ.html">FAQ</a>
+      </div>
+    </section>
+
+    <p class="footer">LlmNpcServer — 실측 데이터 레퍼런스 · 측정 2026-07-25 ~ 07-28 KST</p>
+  </main>
+</div>
+<script>
+(function(){
+  var root=document.documentElement,btn=document.getElementById('theme');
+  var modes=['auto','light','dark'],names={auto:'자동',light:'밝게',dark:'어둡게'};
+  var saved=localStorage.getItem('lnref-theme');
+  if(saved&&modes.indexOf(saved)>=0){root.setAttribute('data-theme',saved);}
+  function label(){btn.textContent='테마: '+names[root.getAttribute('data-theme')||'auto'];}
+  label();
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme')||'auto';
+    var next=modes[(modes.indexOf(cur)+1)%modes.length];
+    root.setAttribute('data-theme',next);localStorage.setItem('lnref-theme',next);label();
+  });
+  var links=[].slice.call(document.querySelectorAll('.toc a'));
+  var secs=links.map(function(a){return document.querySelector(a.getAttribute('href'));});
+  function sync(){
+    var y=window.scrollY+120,best=0;
+    secs.forEach(function(s,i){if(s&&s.offsetTop<=y){best=i;}});
+    links.forEach(function(a,i){a.classList.toggle('active',i===best);});
+  }
+  window.addEventListener('scroll',sync,{passive:true});sync();
+})();
+</script>
+</body>
+</html>

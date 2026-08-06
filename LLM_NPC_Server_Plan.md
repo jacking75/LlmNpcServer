@@ -247,15 +247,18 @@ Npc.Tests       골든 시나리오 회귀 테스트, 결정론 리플레이, �
 
 ## 6. 로드맵 (약 12주)
 
-| 주차 | 산출물 | 게이트 | 상세 |
-|---|---|---|---|
-| **W1** | **스파이크.** dotLLM `serve` 기동, JSON Schema 강제 출력 확인, prefill/decode 실측, 모델 4종 비교 | 1.75s/요청 가정이 실측과 ±50% 이내인가. 아니면 즉시 재설계 | [docs/10](docs/10_Phase0_W1_Spike.md) |
-| **W2–4** | `Npc.Core` + `Npc.Runtime` + `Npc.Sim` + 마스터데이터. **LLM 없이** 폴백 플랜 40종으로 구동 | LLM 0회 호출로 NPC 500마리가 게임 7일을 완주한다 | [docs/11](docs/11_Phase1_W2-4_Core_Runtime.md) |
-| **W5–6** | `Npc.Llm` 플랜 컴파일러 + 4단 검증기 + 폴백. 캐시 없이 단건 생성 | 검증 통과율 ≥ 90% | [docs/12](docs/12_Phase2_W5-6_Plan_Compiler.md) |
-| **W7–8** | 플랜 캐시 + 버킷 인덱싱 + 프리베이크 CLI + 사람 검수 | 2,880키 콜드 필 완주, 히트율 ≥ 98% | [docs/13](docs/13_Phase3_W7-8_Plan_Cache.md) |
-| **W9–10** | 우선순위 재계획 큐 + 3-티어 라우팅 + 인지 LOD. **NPC 5,000 부하 테스트** | 히트율 ≥ 98%, GPU ≤ 60%, 틱 p99 ≤ 20ms | [docs/14](docs/14_Phase4_W9-10_Scheduler_Tiering.md) |
-| **W11** | 골든 회귀 + 결정론 리플레이 + 장애 주입 + 링크 교체 검증 | 시나리오 A/B/C 통과, 리플레이 100% 일치 | [docs/15](docs/15_Phase5_W11-12_Verification.md) |
-| **W12** | **블라인드 평가** + 오써링 공수 정산 + 결과 보고 | 아래 §7 | [docs/15](docs/15_Phase5_W11-12_Verification.md) |
+> **완료된 로드맵이다.** 실제로 어떤 값이 나왔고 무엇이 미달인지는
+> [`docs/reference_metrics.html`](docs/reference_metrics.html) 에 있다.
+
+| 주차 | 산출물 | 게이트 |
+|---|---|---|
+| **W1** | **스파이크.** dotLLM `serve` 기동, JSON Schema 강제 출력 확인, prefill/decode 실측, 모델 4종 비교 | 1.75s/요청 가정이 실측과 ±50% 이내인가. 아니면 즉시 재설계 |
+| **W2–4** | `Npc.Core` + `Npc.Runtime` + `Npc.Sim` + 마스터데이터. **LLM 없이** 폴백 플랜 40종으로 구동 | LLM 0회 호출로 NPC 500마리가 게임 7일을 완주한다 |
+| **W5–6** | `Npc.Llm` 플랜 컴파일러 + 4단 검증기 + 폴백. 캐시 없이 단건 생성 | 검증 통과율 ≥ 90% |
+| **W7–8** | 플랜 캐시 + 버킷 인덱싱 + 프리베이크 CLI + 사람 검수 | 2,880키 콜드 필 완주, 히트율 ≥ 98% |
+| **W9–10** | 우선순위 재계획 큐 + 3-티어 라우팅 + 인지 LOD. **NPC 5,000 부하 테스트** | 히트율 ≥ 98%, GPU ≤ 60%, 틱 p99 ≤ 20ms |
+| **W11** | 골든 회귀 + 결정론 리플레이 + 장애 주입 + 링크 교체 검증 | 시나리오 A/B/C 통과, 리플레이 100% 일치 |
+| **W12** | **블라인드 평가** + 오써링 공수 정산 + 결과 보고 | 아래 §7 |
 
 W2–4에서 LLM을 일부러 배제하는 것이 중요하다. LLM이 없어도 동작하는 런타임이 먼저 있어야 LLM의 기여분을 측정할 수 있고, 폴백 경로가 자동으로 확보된다.
 
@@ -617,7 +620,7 @@ void Tick(long tick)
 
 ## 13. 12주 후 손에 남는 것
 
-전체 명세는 [`docs/00_Deliverables.md`](docs/00_Deliverables.md). 여기서는 한 문장과 표만 남긴다.
+실제로 나온 결과와 판정은 [`docs/reference_metrics.html`](docs/reference_metrics.html). 여기서는 한 문장과 표만 남긴다.
 
 > **5,000마리 NPC가 마스터데이터로 정의된 가상 마을에서, LLM이 생성한 행동 플랜에 따라 살아 움직이고, 그 결과를 게임서버용 명령 패킷으로 쏟아내는 헤드리스 서버. 그리고 그 패킷을 받아 월드를 갱신하고 되돌려주는 게임서버 대역.**
 
@@ -642,7 +645,7 @@ void Tick(long tick)
 
 ## 14. 게임서버 연동 — 인터페이스까지만
 
-전체 사양은 [`docs/02_GameServer_Link.md`](docs/02_GameServer_Link.md).
+전체 계약은 [`docs/reference_link.html`](docs/reference_link.html).
 
 **이번 범위: `IGameServerLink` 인터페이스와 패킷 정의까지.** 소켓·직렬화·재접속은 만들지 않는다.
 **목표: 나중에 실제 게임서버에 붙일 때 NPC 서버 코드가 한 줄도 안 바뀌는 것.**
@@ -697,7 +700,7 @@ public interface IGameServerLink : IAsyncDisposable
 
 ## 15. 마스터데이터
 
-전체 스키마는 [`docs/01_MasterData_Spec.md`](docs/01_MasterData_Spec.md).
+전체 스키마는 [`docs/reference_masterdata.html`](docs/reference_masterdata.html).
 
 > **원칙: 마스터데이터가 LLM 프롬프트의 단일 원천이다.** 액션 카탈로그에서 프롬프트 프리픽스를 *생성*한다. 둘이 어긋나면 검증 실패율이 즉시 치솟는다.
 
@@ -763,25 +766,26 @@ world_flags → items → actions → zones → pois → archetypes
 | 문서 | 내용 |
 |---|---|
 | **`LLM_NPC_Server_Plan.md`** | (이 문서) 상위 계획 · 타당성 판단 · 아키텍처 · 리스크 |
-| [`docs/00_Deliverables.md`](docs/00_Deliverables.md) | 결과물 명세 · 데모 시나리오 · 최종 수용 기준 |
-| [`docs/01_MasterData_Spec.md`](docs/01_MasterData_Spec.md) | 마스터데이터 11종 전체 스키마 · 검증 규칙 · 작업 순서 |
-| [`docs/02_GameServer_Link.md`](docs/02_GameServer_Link.md) | 게임서버 IF · 패킷 29종 · 네트워크 안전 규칙 N1~N8 · Sim 사양 |
-| [`docs/03_PlanDSL_Spec.md`](docs/03_PlanDSL_Spec.md) | 플랜 DSL · JSON Schema · 4단 검증기 · 실행기 · 스토어 포맷 |
-| [`docs/10_Phase0_W1_Spike.md`](docs/10_Phase0_W1_Spike.md) | **W1** 스파이크 — 숫자 6개를 뽑는다 |
-| [`docs/11_Phase1_W2-4_Core_Runtime.md`](docs/11_Phase1_W2-4_Core_Runtime.md) | **W2–4** 코어 · 런타임 · Sim — LLM 없이 돌린다 |
-| [`docs/12_Phase2_W5-6_Plan_Compiler.md`](docs/12_Phase2_W5-6_Plan_Compiler.md) | **W5–6** 플랜 컴파일러 · 검증기 · 통과율 개선 |
-| [`docs/13_Phase3_W7-8_Plan_Cache.md`](docs/13_Phase3_W7-8_Plan_Cache.md) | **W7–8** 플랜 캐시 · 프리베이크 · 검수 |
-| [`docs/14_Phase4_W9-10_Scheduler_Tiering.md`](docs/14_Phase4_W9-10_Scheduler_Tiering.md) | **W9–10** 우선순위 큐 · 3-티어 라우팅 · 부하 테스트 |
-| [`docs/15_Phase5_W11-12_Verification.md`](docs/15_Phase5_W11-12_Verification.md) | **W11–12** 골든 · 결정론 · 장애주입 · 블라인드 평가 · 보고 |
+| [`docs/index.html`](docs/index.html) | 프로젝트 안내서 — 아키텍처 · 동작 · 빌드 · 실행 |
+| [`docs/book/index.html`](docs/book/index.html) | 코드 이해와 활용 안내서 (13장) |
+| [`docs/reference_link.html`](docs/reference_link.html) | **게임서버 연동 계약** — N1~N8 · 패킷 · 와이어 · 발행 규약 |
+| [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | **마스터데이터 레퍼런스** — 플래그 · 액션 · 아키타입 · 버킷 · V1~V11 |
+| [`docs/reference_metrics.html`](docs/reference_metrics.html) | **실측 데이터** — 성능 · 비용 · 품질 · 수용 기준 판정 |
+| [`docs/testbed_guide.html`](docs/testbed_guide.html) | 테스트 베드 — 소켓 너머의 게임서버에 붙여 보는 자리 |
+| [`docs/FAQ.html`](docs/FAQ.html) | 도입 검토 · 행동 플랜 준비 · 전투 반응 · 대화 확장 |
 
-### 읽는 순서 (구현 착수 시)
+> 단계별 설계 사양(`docs/00`·`01`·`02`·`03`·`10`~`15`)과 주차별 작업 지시서는 구현 완료로
+> 삭제했다 (2026-08-06). 이 문서에 남은 `docs/NN` 언급은 그 시점의 근거를 가리키는 이력이고,
+> 지금은 위 레퍼런스 HTML 이 대응한다. 원문은 `git log --diff-filter=D -- docs/` 에서 꺼낸다.
+
+### 읽는 순서
 
 ```
-1. 이 문서 §1~§12          왜 이 구조인가
-2. docs/00                 무엇을 만드는가
-3. docs/01 → 02 → 03       공통 계약 3종. 여기서 정한 타입 이름을 전 코드가 쓴다
-4. docs/10                 W1 착수
-5. 이후 주차별로 docs/11~15
+1. 이 문서 §1~§12                       왜 이 구조인가
+2. docs/index.html                      무엇이 어떻게 돌아가는가
+3. docs/reference_link.html             게임서버에 붙일 때
+   docs/reference_masterdata.html       콘텐츠를 늘릴 때
+4. docs/reference_metrics.html          실제로 어떤 값이 나왔나
 ```
 
 ---

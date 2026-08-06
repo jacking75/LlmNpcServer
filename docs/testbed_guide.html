@@ -188,7 +188,7 @@ hr{border:0;border-top:1px solid var(--line);margin:34px 0}
 
 <h1>테스트 베드 안내서</h1>
 <p class="lede">NPC 서버가 <strong>실제 소켓 너머의 게임서버</strong>에 붙어 도는 것을 눈으로 보고, 손으로 흔들어 보고, 코드로 따라가는 법.</p>
-<p class="small">사양 <code>docs/20_TestBed_Spec.md</code> · 진행 원장 <code>TASKS.md</code> §3 · 실행 요약 <code>testbed/README.md</code></p>
+<p class="small">연동 계약 <code>docs/reference_link.html</code> · 실행 요약 <code>testbed/README.md</code></p>
 
 <div class="ok">
 <p><strong>이 폴더가 증명하는 것 하나.</strong> 여기서 게임서버·클라이언트·와이어 프로토콜을 통째로 새로 만들었는데
@@ -798,13 +798,12 @@ testbed/
 <code>Noon</code>·<code>Afternoon</code>·<code>Evening</code>·<code>Night</code> 버킷으로 한 번도 가지 않는다.
 <strong><code>--loopback</code> 에서 그대로 재현되므로 소켓 경로와 무관하다</strong> — 테스트 베드의 문제가 아니다.</p>
 <p>그래서 지금 <code>demo_day</code> 는 보여 주려던 것(저녁 시간대 전환 → 대량 플랜 스왑)을 못 보여 준다.
-<code>demo_siege</code>(존 전환)와 <code>demo_blackout</code>(폴백 강등)은 영향이 없다.
-경위와 다음 걸음은 <code>TASKS.md</code> §3 결정 대기에 있다.</p>
+<code>demo_siege</code>(존 전환)와 <code>demo_blackout</code>(폴백 강등)은 영향이 없다.</p>
 </div>
 
 <hr>
 <p class="small">이 문서는 <code>docs/testbed_guide.html</code> 다. 브라우저로 파일을 그대로 열면 된다 — 외부 리소스를 하나도 쓰지 않는다.<br>
-더 짧은 실행 요약은 <code>testbed/README.md</code>, 사양 원문은 <code>docs/20_TestBed_Spec.md</code> 에 있다.</p>
+더 짧은 실행 요약은 <code>testbed/README.md</code>, 연동 계약 전문은 <a href="reference_link.html"><code>docs/reference_link.html</code></a> 에 있다.</p>
 
 </main>
 </div>

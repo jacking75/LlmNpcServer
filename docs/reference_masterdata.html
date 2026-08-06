@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="LlmNpcServer 마스터데이터 레퍼런스 — 월드 플래그 42비트, 액션 카탈로그 37개, 아키타입 40종, 컨텍스트 버킷 2,880, 검증 규칙 V1~V11">
+<title>마스터데이터 레퍼런스 — LlmNpcServer</title>
+<style>
+:root{
+  --bg:#f7f8fb;--panel:#fff;--panel-2:#f1f3f7;--ink:#171a21;--ink-2:#4e5562;
+  --ink-3:#767e8d;--line:#e0e4eb;--line-2:#cdd3de;--accent:#315fdd;
+  --accent-soft:#eaf0ff;--ok:#176b45;--ok-soft:#e6f4ec;--warn:#915900;
+  --warn-soft:#fff2dc;--bad:#aa2922;--bad-soft:#fdeceb;--code-bg:#171b24;
+  --code-ink:#e8ebf2;--radius:14px;--shadow:0 10px 30px rgba(28,36,55,.06);
+  --mono:ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,"D2Coding",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Pretendard,
+         "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root[data-theme="auto"]{
+    --bg:#0d1015;--panel:#151922;--panel-2:#1c212c;--ink:#e9ebf1;--ink-2:#b8bfcc;
+    --ink-3:#858e9e;--line:#282e3a;--line-2:#394150;--accent:#86a8ff;
+    --accent-soft:#1c2842;--ok:#6cdb9c;--ok-soft:#14291f;--warn:#f0bd6b;
+    --warn-soft:#2d2415;--bad:#ff9c95;--bad-soft:#301918;--code-bg:#090c11;
+    --code-ink:#e2e6ef;--shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1015;--panel:#151922;--panel-2:#1c212c;--ink:#e9ebf1;--ink-2:#b8bfcc;
+  --ink-3:#858e9e;--line:#282e3a;--line-2:#394150;--accent:#86a8ff;
+  --accent-soft:#1c2842;--ok:#6cdb9c;--ok-soft:#14291f;--warn:#f0bd6b;
+  --warn-soft:#2d2415;--bad:#ff9c95;--bad-soft:#301918;--code-bg:#090c11;
+  --code-ink:#e2e6ef;--shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.75 var(--sans);word-break:keep-all;overflow-wrap:anywhere}
+a{color:var(--accent)}
+code{font:0.88em var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);max-width:1480px;margin:auto;min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;overflow:auto;padding:26px 18px 42px;background:var(--panel);border-right:1px solid var(--line)}
+.brand{display:flex;gap:11px;align-items:flex-start;padding:0 8px 16px;border-bottom:1px solid var(--line)}
+.brand-mark{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:9px;background:var(--accent);color:#fff;font-weight:800;font-size:13px}
+.brand strong{display:block;font-size:15px;line-height:1.4}.brand small{display:block;color:var(--ink-3);font-size:12px;line-height:1.45;margin-top:2px}
+.toc-title{margin:19px 9px 7px;color:var(--ink-3);font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.toc{list-style:none;margin:0;padding:0}.toc li{margin:2px 0}
+.toc a{display:block;padding:7px 9px;border-radius:8px;border-left:2px solid transparent;text-decoration:none;color:var(--ink-2);font-size:13px;line-height:1.45}
+.toc a:hover{background:var(--panel-2);color:var(--ink)}.toc a.active{background:var(--accent-soft);color:var(--accent);font-weight:700;border-left-color:var(--accent)}
+.toc .n{font:11px var(--mono);color:var(--ink-3);margin-right:7px}.toc a.active .n{color:var(--accent)}
+.side-tools{display:flex;gap:7px;flex-wrap:wrap;margin-top:20px;padding:16px 8px 0;border-top:1px solid var(--line)}
+.side-tools button,.side-tools a{border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink-2);border-radius:999px;padding:5px 10px;font:12px var(--sans);text-decoration:none;cursor:pointer}
+.side-tools button:hover,.side-tools a:hover{border-color:var(--accent);color:var(--accent)}
+main{min-width:0;padding:46px 46px 120px}
+.hero{position:relative;overflow:hidden;padding:34px 36px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,var(--panel),var(--panel-2));box-shadow:var(--shadow)}
+.hero:after{content:"DATA";position:absolute;right:-10px;bottom:-46px;color:var(--accent);opacity:.06;font-weight:900;font-size:140px;line-height:1}
+.eyebrow{color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:36px;line-height:1.25;letter-spacing:-.8px;margin:7px 0 10px}.lead{max-width:74ch;color:var(--ink-2);font-size:17px;margin:0}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:17px}.chip{padding:3px 10px;border:1px solid var(--line-2);border-radius:999px;background:var(--panel);color:var(--ink-2);font-size:12px}.chip.primary{border-color:transparent;background:var(--accent-soft);color:var(--accent);font-weight:700}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0 34px}
+.summary div{padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.summary strong{display:block;font-size:13px}.summary span{display:block;color:var(--ink-3);font-size:12.5px;margin-top:2px}
+section.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:27px 30px;margin:18px 0;box-shadow:var(--shadow)}
+.shead{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+.snum{display:grid;place-items:center;min-width:34px;height:28px;margin-top:3px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 12px var(--mono)}
+h2{font-size:23px;line-height:1.45;letter-spacing:-.35px;margin:0}h3{font-size:17px;letter-spacing:-.2px;margin:28px 0 7px}h4{font-size:14.5px;margin:20px 0 5px}
+p{margin:9px 0}.muted{color:var(--ink-2)}
+.grid{display:grid;gap:12px;margin:14px 0}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mini{padding:15px 16px;border:1px solid var(--line);border-radius:11px;background:var(--panel-2)}.mini strong{display:block;font-size:14px}.mini p{margin:4px 0 0;color:var(--ink-2);font-size:13.5px}
+.table-wrap{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:13.5px;background:var(--panel)}
+th,td{text-align:left;vertical-align:top;padding:9px 13px;border-bottom:1px solid var(--line)}th{background:var(--panel-2);color:var(--ink-2);font-size:12.5px;white-space:nowrap}tr:last-child td{border-bottom:0}
+td.bit{white-space:nowrap;font:700 13px var(--mono);color:var(--accent);text-align:right}
+td.rule{white-space:nowrap;font:700 13px var(--mono);color:var(--accent)}
+tbody tr.grp td{background:var(--panel-2);font-weight:750;color:var(--ink-2)}
+ul,ol{padding-left:22px;margin:8px 0}li{margin:4px 0}.check{list-style:none;padding-left:0}.check li{position:relative;padding-left:25px}.check li:before{content:"✓";position:absolute;left:2px;color:var(--ok);font-weight:800}
+.callout{margin:15px 0;padding:13px 16px;border-radius:10px;border-left:4px solid var(--accent);background:var(--accent-soft)}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}.callout.bad{border-left-color:var(--bad);background:var(--bad-soft)}.callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+.callout strong{display:block;margin-bottom:2px}.callout p{margin:3px 0;font-size:14px}
+pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);border-radius:11px;background:var(--code-bg);color:var(--code-ink);font:13px/1.65 var(--mono)}pre code{padding:0;border:0;background:none;color:inherit;font-size:inherit}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:750}.badge.ok{background:var(--ok-soft);color:var(--ok)}.badge.warn{background:var(--warn-soft);color:var(--warn)}.badge.bad{background:var(--bad-soft);color:var(--bad)}
+.refs{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12.5px}.refs a{margin-right:10px}
+.footer{margin-top:32px;text-align:center;color:var(--ink-3);font-size:12px}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}.toc{columns:2}.side-tools{padding-left:0}main{padding:30px 20px 80px}}
+@media(max-width:700px){h1{font-size:29px}.hero{padding:26px 22px}section.card{padding:22px 18px}.summary,.g2,.g3{grid-template-columns:1fr}.toc{columns:1}.shead{gap:9px}main{padding-left:13px;padding-right:13px}}
+@media print{.layout{display:block}.sidebar,.side-tools{display:none}main{padding:0}.hero,section.card{box-shadow:none;break-inside:avoid}body{background:#fff;color:#111}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" aria-label="목차">
+    <div class="brand">
+      <div class="brand-mark">LN</div>
+      <div><strong>마스터데이터 레퍼런스</strong><small>플래그 · 액션 · 아키타입 · 버킷</small></div>
+    </div>
+    <div class="toc-title">목차</div>
+    <ol class="toc" id="toc">
+      <li><a href="#files"><span class="n">01</span>파일 목록과 규모</a></li>
+      <li><a href="#flags"><span class="n">02</span>월드 플래그 42비트</a></li>
+      <li><a href="#actions"><span class="n">03</span>액션 카탈로그 37개</a></li>
+      <li><a href="#items"><span class="n">04</span>아이템과 레시피</a></li>
+      <li><a href="#world"><span class="n">05</span>존과 POI</a></li>
+      <li><a href="#arch"><span class="n">06</span>아키타입 40종</a></li>
+      <li><a href="#bucket"><span class="n">07</span>컨텍스트 버킷 2,880</a></li>
+      <li><a href="#intr"><span class="n">08</span>인터럽트 규칙</a></li>
+      <li><a href="#fallback"><span class="n">09</span>폴백 플랜과 인스턴스</a></li>
+      <li><a href="#prompt"><span class="n">10</span>프롬프트 프리픽스</a></li>
+      <li><a href="#validate"><span class="n">11</span>로딩과 검증 V1~V11</a></li>
+      <li><a href="#order"><span class="n">12</span>작성 순서</a></li>
+    </ol>
+    <div class="side-tools">
+      <button type="button" id="theme">테마: 자동</button>
+      <button type="button" onclick="window.print()">인쇄</button>
+      <a href="index.html">안내서</a>
+      <a href="reference_link.html">연동 계약</a>
+    </div>
+  </aside>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">Master Data Reference</div>
+      <h1>마스터데이터 레퍼런스</h1>
+      <p class="lead">NPC 서버를 동작시키는 정적 데이터 전체 정의다. <strong><code>masterdata/</code>가 단일 원천(SSOT)이며, LLM 프롬프트 프리픽스는 여기서 생성된다.</strong> 액션·플래그·아키타입을 코드에 하드코딩하지 않는다 — 둘이 어긋나면 검증 실패율이 즉시 치솟는다.</p>
+      <div class="chips">
+        <span class="chip primary">SSOT</span>
+        <span class="chip">플래그 42</span><span class="chip">액션 37</span>
+        <span class="chip">아키타입 40</span><span class="chip">버킷 2,880</span>
+      </div>
+    </header>
+
+    <section class="summary" aria-label="핵심 요약">
+      <div><strong>로딩 규약</strong><span>기동 시 전량 로드 → 검증 → 불변. 검증 실패는 기동 실패다.</span></div>
+      <div><strong>번호 규칙</strong><span>code·bit 번호를 재배치하지 않는다. 추가는 뒤에만.</span></div>
+      <div><strong>생성물</strong><span>prompt/ 카탈로그와 npc_instances는 손으로 편집하지 않는다.</span></div>
+    </section>
+
+    <section class="card" id="files">
+      <div class="shead"><span class="snum">01</span><h2>파일 목록과 규모</h2></div>
+<pre><code>masterdata/
+  world_flags.json        월드 상태 비트 플래그 정의 (64bit 중 42개 사용)
+  actions.json            액션 카탈로그 (37)
+  items.json              아이템·자원 (82) + 레시피
+  zones.json              존 (12)
+  pois.json               관심지점 (243)
+  poi_distances.bin       POI 간 거리 행렬 (사전계산, Half 행렬)
+  archetypes.json         NPC 아키타입 (40)
+  context_buckets.json    시간대·지역상태·기후 정의 + 버킷 키 규칙
+  interrupts.json         인터럽트 규칙 (14)
+  fallback_plans.json     폴백 플랜 (수동 작성, 아키타입당 1개 = 40)
+  npc_instances.json      NPC 인스턴스 (5,000, 생성 스크립트 산출물)
+  prompt/
+    system_rules.md       시스템 규칙 (프롬프트 프리픽스 1부)
+    fewshot/*.json        few-shot 예시</code></pre>
+      <div class="callout"><strong>로딩 규약</strong><p>기동 시 전량 로드 → 스키마 검증 → 참조 무결성 검증 → 읽기 전용 인덱스로 컴파일 → 이후 불변. <strong>검증 실패는 기동 실패다.</strong> 경고 후 진행을 허용하지 않는다.</p></div>
+      <div class="callout bad"><strong>번호를 재배치하지 않는다</strong><p><code>code</code> 번호와 <code>bit</code> 번호를 옮기면 프리베이크된 플랜 2,880개가 통째로 깨진다. <strong>추가는 항상 뒤에만.</strong></p></div>
+      <p>검증만 따로 돌릴 수 있다.</p>
+<pre><code>dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata</code></pre>
+    </section>
+
+    <section class="card" id="flags">
+      <div class="shead"><span class="snum">02</span><h2><code>world_flags.json</code> — 월드 플래그 42비트</h2></div>
+      <p>플랜의 전제조건·효과, 인지 스캔의 이탈 판정이 전부 이 64비트 위에서 돈다. <strong>가장 먼저 확정해야 하는 파일이다.</strong> 42개를 정의하고 <strong>bit 22~23과 44~63은 예약</strong>한다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>bit</th><th>id</th><th>뜻</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="3">위치 (0~7)</td></tr>
+          <tr><td class="bit">0</td><td><code>AtHome</code></td><td>자택에 있다</td></tr>
+          <tr><td class="bit">1</td><td><code>AtWorkplace</code></td><td>자신의 일터에 있다</td></tr>
+          <tr><td class="bit">2</td><td><code>AtMarket</code></td><td>시장에 있다</td></tr>
+          <tr><td class="bit">3</td><td><code>AtTavern</code></td><td>선술집에 있다</td></tr>
+          <tr><td class="bit">4</td><td><code>AtTemple</code></td><td>신전에 있다</td></tr>
+          <tr><td class="bit">5</td><td><code>AtGate</code></td><td>성문에 있다</td></tr>
+          <tr><td class="bit">6</td><td><code>AtField</code></td><td>농경지·채집지에 있다</td></tr>
+          <tr><td class="bit">7</td><td><code>InWilderness</code></td><td>마을 밖 야외에 있다</td></tr>
+          <tr class="grp"><td colspan="3">소지품 (8~15)</td></tr>
+          <tr><td class="bit">8</td><td><code>HasFood</code></td><td>식량을 가지고 있다</td></tr>
+          <tr><td class="bit">9</td><td><code>HasWater</code></td><td>물을 가지고 있다</td></tr>
+          <tr><td class="bit">10</td><td><code>HasTool</code></td><td>직업 도구를 가지고 있다</td></tr>
+          <tr><td class="bit">11</td><td><code>HasRawMaterial</code></td><td>가공 전 재료를 가지고 있다</td></tr>
+          <tr><td class="bit">12</td><td><code>HasProduct</code></td><td>판매 가능한 완성품을 가지고 있다</td></tr>
+          <tr><td class="bit">13</td><td><code>HasCoin</code></td><td>화폐를 가지고 있다</td></tr>
+          <tr><td class="bit">14</td><td><code>InventoryFull</code></td><td>인벤토리가 가득 찼다</td></tr>
+          <tr><td class="bit">15</td><td><code>HasWeapon</code></td><td>무기를 장비했다</td></tr>
+          <tr class="grp"><td colspan="3">신체 (16~21)</td></tr>
+          <tr><td class="bit">16</td><td><code>IsRested</code></td><td>충분히 쉬었다</td></tr>
+          <tr><td class="bit">17</td><td><code>IsHungry</code></td><td>배고프다</td></tr>
+          <tr><td class="bit">18</td><td><code>IsThirsty</code></td><td>목마르다</td></tr>
+          <tr><td class="bit">19</td><td><code>IsInjured</code></td><td>부상 상태 (HP &lt; 50%)</td></tr>
+          <tr><td class="bit">20</td><td><code>IsExhausted</code></td><td>탈진 상태 (스태미나 &lt; 20%)</td></tr>
+          <tr><td class="bit">21</td><td><code>IsSleeping</code></td><td>수면 중</td></tr>
+          <tr class="grp"><td colspan="3">시간 (24~27, 상호 배타)</td></tr>
+          <tr><td class="bit">24</td><td><code>IsDawn</code></td><td>새벽</td></tr>
+          <tr><td class="bit">25</td><td><code>IsDay</code></td><td>낮</td></tr>
+          <tr><td class="bit">26</td><td><code>IsEvening</code></td><td>저녁</td></tr>
+          <tr><td class="bit">27</td><td><code>IsNight</code></td><td>밤</td></tr>
+          <tr class="grp"><td colspan="3">사회 (28~31)</td></tr>
+          <tr><td class="bit">28</td><td><code>HasCustomer</code></td><td>손님이 있다</td></tr>
+          <tr><td class="bit">29</td><td><code>HasCompanion</code></td><td>동행 NPC가 있다</td></tr>
+          <tr><td class="bit">30</td><td><code>IsAlone</code></td><td>주변에 아무도 없다</td></tr>
+          <tr><td class="bit">31</td><td><code>OnDuty</code></td><td>근무 시간이다</td></tr>
+          <tr class="grp"><td colspan="3">월드 (32~39)</td></tr>
+          <tr><td class="bit">32</td><td><code>ShopOpen</code></td><td>자신의 상점이 열려 있다</td></tr>
+          <tr><td class="bit">33</td><td><code>MarketOpen</code></td><td>시장이 열려 있다</td></tr>
+          <tr><td class="bit">34</td><td><code>GatesOpen</code></td><td>성문이 열려 있다</td></tr>
+          <tr><td class="bit">35</td><td><code>RegionPeaceful</code></td><td>지역이 평시다</td></tr>
+          <tr><td class="bit">36</td><td><code>RegionUnderAttack</code></td><td>지역이 공격받고 있다</td></tr>
+          <tr><td class="bit">37</td><td><code>WeatherHarsh</code></td><td>악천후다</td></tr>
+          <tr><td class="bit">38</td><td><code>ResourceDepleted</code></td><td>대상 자원이 고갈됐다</td></tr>
+          <tr><td class="bit">39</td><td><code>PathBlocked</code></td><td>목표 경로가 막혔다</td></tr>
+          <tr class="grp"><td colspan="3">위협 (40~43)</td></tr>
+          <tr><td class="bit">40</td><td><code>ThreatNearby</code></td><td>적대 대상이 근처에 있다</td></tr>
+          <tr><td class="bit">41</td><td><code>PlayerNearby</code></td><td>플레이어가 인지 범위에 있다</td></tr>
+          <tr><td class="bit">42</td><td><code>AllyNearby</code></td><td>아군이 근처에 있다</td></tr>
+          <tr><td class="bit">43</td><td><code>InCombat</code></td><td>전투 중이다</td></tr>
+        </tbody>
+      </table></div>
+      <p><code>Npc.Core/WorldFlags.cs</code>의 <code>[Flags] enum WorldFlags : ulong</code>은 이 파일에서 <strong>소스 생성기가 자동 생성</strong>한다. 손으로 쓰지 않는다.</p>
+      <h3>이탈 판정 — 인지 스캔의 핵심 연산</h3>
+      <p>비트 연산 세 번이다. NPC 5,000을 매 틱 훑어야 하므로 이보다 무거우면 안 된다.</p>
+<pre><code>static bool IsDeviated(WorldFlags cur, WorldFlags required,
+                       WorldFlags requiredAny, WorldFlags forbidden)
+    =&gt; (required &amp; ~cur) != 0
+    || (requiredAny != 0 &amp;&amp; (requiredAny &amp; cur) == 0)
+    || (forbidden &amp; cur) != 0;</code></pre>
+    </section>
+
+    <section class="card" id="actions">
+      <div class="shead"><span class="snum">03</span><h2><code>actions.json</code> — 액션 카탈로그 37개</h2></div>
+      <p><strong>LLM이 조합할 수 있는 유일한 원자 단위다.</strong> 이 파일이 곧 프롬프트 프리픽스의 본문이 된다. <strong>상한은 40개</strong>이며, 추가하려면 하나를 빼거나 기존 액션의 파라미터로 흡수한다.</p>
+
+      <h3>스키마</h3>
+<pre><code>{
+  "id": "MoveTo",                    // 플랜 DSL에서 이 문자열을 쓴다
+  "code": 1,                         // 내부 ushort. 절대 재배치 금지
+  "category": "movement",
+  "desc": "지정한 POI로 이동한다",    // ← LLM 프롬프트에 그대로 실린다
+
+  "params": {                        // JSON Schema 부분집합
+    "poi":   { "type": "poi_ref", "required": true },
+    "speed": { "type": "enum", "values": ["walk", "run"], "default": "walk" }
+  },
+
+  "requires":     [],                          // 전제 플래그 — 전부 성립 (AND)
+  "requires_any": [],                          // 전제 플래그 — 하나 이상 (OR). 비면 검사 안 함
+  "forbids":   ["IsSleeping", "IsExhausted"],  // 금지 플래그
+  "grants":    [],                             // 성공 시 세팅되는 플래그
+  "clears":    ["AtHome","AtWorkplace","AtMarket","AtTavern",
+                "AtTemple","AtGate","AtField","InWilderness"],
+
+  "duration": { "kind": "distance", "base_s": 0, "per_meter_s": 0.6 },
+  "cost": 2,                                   // 계획 시 비용 힌트 (LLM에 노출)
+  "default_timeout_s": 300,
+
+  "emits": [                                   // 게임서버 명령 매핑
+    { "command": "MoveTo", "priority": "Normal",
+      "map": { "TargetPoi": "$poi", "Flags": "$speed" } }
+  ],
+  "completes_on": ["NpcArrived"],              // 이 이벤트 수신 시 스텝 완료
+  "fails_on":     ["NpcActionFailed"]
+}</code></pre>
+
+      <h3><code>emits[].map</code> 값 문법</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>값</th><th>뜻</th></tr></thead>
+        <tbody>
+          <tr><td><code>"$param"</code></td><td>플랜 스텝의 <code>args</code>에서 가져온다</td></tr>
+          <tr><td><code>"$home"</code> <code>"$workplace"</code> <code>"$self"</code> <code>"$zone"</code></td><td>NPC 인스턴스에서 바인딩한다</td></tr>
+          <tr><td><code>"$first:Flag"</code></td><td>해당 플래그를 세우는 인벤토리 아이템 중 첫 번째 (<code>Eat</code>·<code>Drink</code>)</td></tr>
+          <tr><td>그 외 문자열</td><td>아이템 id 또는 열거값 리터럴</td></tr>
+          <tr><td>숫자</td><td>정수 리터럴 (부호 있음)</td></tr>
+        </tbody>
+      </table></div>
+      <p><code>emits[].priority</code>는 역압 시 드롭 순서다. 생략하면 <code>Normal</code>이다.</p>
+
+      <h3>전체 목록 37개</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>액션</th><th>주요 파라미터</th><th>requires</th><th>grants</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="4">이동 (5)</td></tr>
+          <tr><td><code>MoveTo</code></td><td>poi, speed</td><td>—</td><td>(POI별)</td></tr>
+          <tr><td><code>Follow</code></td><td>npc, distance</td><td>—</td><td>HasCompanion</td></tr>
+          <tr><td><code>Wander</code></td><td>duration_s</td><td>—</td><td>—</td></tr>
+          <tr><td><code>Flee</code></td><td>poi</td><td>—</td><td>—</td></tr>
+          <tr><td><code>Patrol</code></td><td>route(poi[]), laps</td><td>OnDuty</td><td>—</td></tr>
+          <tr class="grp"><td colspan="4">노동 (8)</td></tr>
+          <tr><td><code>Work</code></td><td>recipe, count</td><td>AtWorkplace, HasTool</td><td>HasProduct</td></tr>
+          <tr><td><code>Gather</code></td><td>resource, count</td><td>AtField</td><td>HasRawMaterial</td></tr>
+          <tr><td><code>Mine</code></td><td>resource, count</td><td>AtField, HasTool</td><td>HasRawMaterial</td></tr>
+          <tr><td><code>Farm</code></td><td>crop, count</td><td>AtField, HasTool</td><td>HasRawMaterial</td></tr>
+          <tr><td><code>Fish</code></td><td>count</td><td>AtField</td><td>HasFood</td></tr>
+          <tr><td><code>Craft</code></td><td>recipe, count</td><td>AtWorkplace, HasRawMaterial</td><td>HasProduct</td></tr>
+          <tr><td><code>Cook</code></td><td>recipe, count</td><td>AtHome | AtTavern | AtWorkplace, HasRawMaterial</td><td>HasFood</td></tr>
+          <tr><td><code>Repair</code></td><td>target</td><td>AtWorkplace, HasTool</td><td>—</td></tr>
+          <tr class="grp"><td colspan="4">사회 (6)</td></tr>
+          <tr><td><code>Talk</code></td><td>npc, topic</td><td>—</td><td>—</td></tr>
+          <tr><td><code>Trade</code></td><td>npc/poi, item, amount</td><td>HasCoin | HasProduct</td><td>HasCoin / HasProduct</td></tr>
+          <tr><td><code>Greet</code></td><td>npc</td><td>—</td><td>—</td></tr>
+          <tr><td><code>Gossip</code></td><td>npc, topic</td><td>—</td><td>—</td></tr>
+          <tr><td><code>Pray</code></td><td>duration_s</td><td>AtTemple</td><td>IsRested</td></tr>
+          <tr><td><code>Perform</code></td><td>kind, duration_s</td><td>AtTavern | AtMarket</td><td>HasCoin</td></tr>
+          <tr class="grp"><td colspan="4">욕구 (5)</td></tr>
+          <tr><td><code>Eat</code></td><td>—</td><td>HasFood</td><td>(clears IsHungry)</td></tr>
+          <tr><td><code>Drink</code></td><td>—</td><td>HasWater</td><td>(clears IsThirsty)</td></tr>
+          <tr><td><code>Sleep</code></td><td>until_time</td><td>AtHome</td><td>IsRested (clears IsSleeping)</td></tr>
+          <tr><td><code>Rest</code></td><td>duration_s</td><td>—</td><td>IsRested</td></tr>
+          <tr><td><code>Bathe</code></td><td>—</td><td>AtHome</td><td>—</td></tr>
+          <tr class="grp"><td colspan="4">전투 (5)</td></tr>
+          <tr><td><code>Attack</code></td><td>target</td><td>HasWeapon</td><td>InCombat</td></tr>
+          <tr><td><code>Defend</code></td><td>poi</td><td>—</td><td>—</td></tr>
+          <tr><td><code>Guard</code></td><td>poi, duration_s</td><td>OnDuty</td><td>—</td></tr>
+          <tr><td><code>CallForHelp</code></td><td>—</td><td>—</td><td>AllyNearby</td></tr>
+          <tr><td><code>Retreat</code></td><td>poi</td><td>—</td><td>(clears InCombat)</td></tr>
+          <tr class="grp"><td colspan="4">물품 (5)</td></tr>
+          <tr><td><code>PickUp</code></td><td>item, count</td><td>—</td><td>—</td></tr>
+          <tr><td><code>Drop</code></td><td>item, count</td><td>—</td><td>(clears InventoryFull)</td></tr>
+          <tr><td><code>Store</code></td><td>item, count</td><td>AtHome | AtWorkplace</td><td>(clears InventoryFull)</td></tr>
+          <tr><td><code>Withdraw</code></td><td>item, count</td><td>AtHome | AtWorkplace</td><td>—</td></tr>
+          <tr><td><code>Equip</code></td><td>item</td><td>—</td><td>HasWeapon / HasTool</td></tr>
+          <tr class="grp"><td colspan="4">기타 (3)</td></tr>
+          <tr><td><code>Wait</code></td><td>duration_s</td><td>—</td><td>—</td></tr>
+          <tr><td><code>Observe</code></td><td>target, duration_s</td><td>—</td><td>—</td></tr>
+          <tr><td><code>Emote</code></td><td>animation</td><td>—</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+      <p><code>|</code>로 적힌 칸이 <code>requires_any</code>(OR)에 들어간다. 쉼표는 <code>requires</code>(AND)다.</p>
+
+      <h3>파라미터 타입</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>type</th><th>검증</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td><code>poi_ref</code></td><td><code>pois.json</code>에 존재 + 아키타입 접근 허용</td><td>검증기 2단</td></tr>
+          <tr><td><code>item_ref</code></td><td><code>items.json</code>에 존재</td><td></td></tr>
+          <tr><td><code>npc_ref</code></td><td><code>"self"</code> / <code>"nearest:&lt;archetype&gt;"</code> / <code>"poi_owner:&lt;poi&gt;"</code></td><td><strong>인스턴스 ID 직접 지정 금지</strong></td></tr>
+          <tr><td><code>zone_ref</code></td><td><code>zones.json</code>에 존재</td><td></td></tr>
+          <tr><td><code>enum</code></td><td><code>values</code> 내</td><td></td></tr>
+          <tr><td><code>int</code></td><td><code>min</code>·<code>max</code></td><td></td></tr>
+          <tr><td><code>route</code></td><td><code>poi_ref[]</code>, 길이 2~8</td><td></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="card" id="items">
+      <div class="shead"><span class="snum">04</span><h2><code>items.json</code> — 아이템 82개와 레시피</h2></div>
+<pre><code>{
+  "items": [
+    { "id": "iron_ore",    "code": 1,  "category": "raw",
+      "grants": ["HasRawMaterial"], "stack": 50 },
+    { "id": "iron_sword",  "code": 20, "category": "product",
+      "grants": ["HasProduct","HasWeapon"], "stack": 5 },
+    { "id": "bread",       "code": 40, "category": "food",
+      "grants": ["HasFood"], "stack": 20 },
+    { "id": "smith_hammer","code": 60, "category": "tool",
+      "grants": ["HasTool"], "stack": 1 },
+    { "id": "coin",        "code": 79, "category": "currency",
+      "grants": ["HasCoin"], "stack": 99999 }
+  ],
+  "recipes": [
+    { "id": "iron_sword", "workplace_type": "smithy",
+      "inputs": [{ "item": "iron_ore", "count": 3 }, { "item": "coal", "count": 1 }],
+      "outputs":[{ "item": "iron_sword", "count": 1 }],
+      "duration_s": 600 }
+  ]
+}</code></pre>
+      <div class="callout"><strong><code>grants</code>가 이 파일의 핵심이다</strong><p>인벤토리 변경 이벤트를 받으면 아이템의 <code>grants</code>를 OR 해서 월드 플래그를 재계산한다. <strong>"빵을 가지면 HasFood" 같은 규칙이 코드에 하드코딩돼 있으면 안 된다.</strong></p></div>
+    </section>
+
+    <section class="card" id="world">
+      <div class="shead"><span class="snum">05</span><h2><code>zones.json</code> · <code>pois.json</code> — 존 12개, POI 243개</h2></div>
+<pre><code>// zones.json
+{ "id": "town_center", "code": 1, "name_key": "zone.town_center",
+  "adjacent": ["town_north","town_south","gate_east"],
+  "default_region_state": "Peace",
+  "default_climate": "Fair",
+  "capacity": 1200 }
+
+// pois.json
+{ "id": "smithy_01", "code": 12, "zone": "town_center",
+  "type": "workplace",        // home | workplace | market | tavern
+                              // | temple | gate | field | wilderness
+  "subtype": "smithy",
+  "pos": { "x": 120.5, "y": 0.0, "z": -88.2 },
+  "capacity": 3,
+  "open_hours": { "from": "Morning", "to": "Evening" },
+  "grants": ["AtWorkplace"],  // 이 POI에 있을 때 세팅되는 플래그
+  "allowed_archetypes": ["blacksmith", "apprentice_smith"],
+  "resources": []             // field 타입일 때 채집 가능 자원
+}</code></pre>
+      <div class="callout warn"><strong><code>allowed_archetypes</code>는 출입 허가가 아니라 근무 허가다</strong><p>일터·채집지·야외 작업지에서만 출입을 제한하고, 시장·선술집·신전·성문·주거는 공공장소라 누구나 드나든다. <strong>농부가 시장에 못 가면 <code>$market</code> 바인딩이 실패한다.</strong></p></div>
+      <p><code>poi_distances.bin</code>은 <code>Half</code> 행렬이다. 이동 소요시간 계산과 검증기 3단(도달 가능성)에 쓰며, 빌드 스크립트가 <code>pois.json</code>에서 생성한다.</p>
+      <p>존의 <code>default_region_state</code>와 <code>default_climate</code>는 <strong>둘 다</strong> 초기 동기화 대상이다. 기후는 버킷 키의 한 축이라 하나만 보내면 그 존의 NPC가 다른 버킷의 플랜을 쓰게 된다.</p>
+    </section>
+
+    <section class="card" id="arch">
+      <div class="shead"><span class="snum">06</span><h2><code>archetypes.json</code> — 아키타입 40종</h2></div>
+<pre><code>{
+  "id": "blacksmith", "code": 3,
+  "name_key": "npc.blacksmith",
+  "desc": "마을의 대장장이. 광석을 제련해 무기와 도구를 만든다.",   // ← 프롬프트에 실린다
+
+  "allowed_actions": ["MoveTo","Work","Craft","Gather","Mine","Trade","Talk",
+                      "Eat","Drink","Sleep","Rest","Store","Withdraw","Equip",
+                      "Repair","Greet","Wait","Emote","Flee","Retreat"],
+
+  "home_poi_type": "home",
+  "workplace_poi_type": "smithy",
+  "primary_recipes": ["iron_sword","iron_tool","horseshoe"],
+
+  "traits": { "diligence": 80, "sociability": 40,      // 0~100.
+              "courage": 55,   "greed": 50 },          // LLM에 노출되어 성향에 반영
+
+  "default_goals": ["restock_ore","fulfill_orders","maintain_shop"],
+  "duty_hours": [],                  // 이 시간대의 버킷에서 OnDuty 가 선다
+  "initial_inventory": [ { "item": "smith_hammer", "count": 1 }, ... ],
+  "fallback_plan": "fb_blacksmith",
+  "combat_capable": true,
+  "population_weight": 0.012         // 5,000 중 약 60마리
+}</code></pre>
+      <div class="callout bad"><strong><code>duty_hours</code>를 비워두면 치안 아키타입이 자기 액션을 못 쓴다</strong><p><code>Guard</code>·<code>Patrol</code>은 <code>OnDuty</code>를 요구하는데, 이 필드가 없으면 마스터데이터의 어느 것도 그 플래그를 세우지 않는다. 검증기는 통과하는데 런타임에서는 인지 스캔이 매번 이탈로 읽어 <strong>재계획 큐가 포화한다</strong> — 실측으로 5,000마리 하루에 이탈 29,535건이 나왔다.</p></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>그룹</th><th>아키타입</th></tr></thead>
+        <tbody>
+          <tr><td>생산 (10)</td><td>blacksmith, carpenter, tailor, alchemist, baker, brewer, jeweler, tanner, mason, scribe</td></tr>
+          <tr><td>채집 (7)</td><td>miner, farmer, fisher, hunter, woodcutter, herbalist, shepherd</td></tr>
+          <tr><td>상업 (5)</td><td>merchant, innkeeper, stablemaster, banker, peddler</td></tr>
+          <tr><td>치안 (5)</td><td>guard_captain, town_guard, gate_guard, patrol_scout, watchman</td></tr>
+          <tr><td>종교·학문 (4)</td><td>priest, acolyte, scholar, healer</td></tr>
+          <tr><td>주민 (6)</td><td>villager, child, elder, beggar, drunkard, noble</td></tr>
+          <tr><td>특수 (3)</td><td>quest_giver, wandering_bard, caravan_leader</td></tr>
+        </tbody>
+      </table></div>
+      <p><code>population_weight</code> 합계는 1.0이어야 하며 검증기가 확인한다(V5).</p>
+    </section>
+
+    <section class="card" id="bucket">
+      <div class="shead"><span class="snum">07</span><h2><code>context_buckets.json</code> — 캐시 키 2,880</h2></div>
+      <p>플랜 캐시의 키 공간을 정의한다. <strong>수천 NPC가 같은 플랜을 공유하는 근거가 이 버킷이다.</strong></p>
+<pre><code>{
+  "dimensions": {
+    "time_of_day": {
+      "values": ["Dawn","Morning","Noon","Afternoon","Evening","Night"],
+      "game_hours": { "Dawn":[5,7], "Morning":[7,11], "Noon":[11,14],
+                      "Afternoon":[14,18], "Evening":[18,22], "Night":[22,5] },
+      "world_flag": { "Dawn":"IsDawn", "Morning":"IsDay", "Noon":"IsDay",
+                      "Afternoon":"IsDay", "Evening":"IsEvening", "Night":"IsNight" }
+    },
+    "region_state": { "values": ["Peace","Alert","War","Disaster"] },
+    "climate":      { "values": ["Fair","Cold","Storm"] }
+  },
+  "key_format":  "{archetype}@{time_of_day}.{region_state}.{climate}",
+  "key_example": "blacksmith@Evening.War.Cold",
+  "total_keys":  2880       // 40 × 6 × 4 × 3 — 검증기가 계산해 대조한다
+}</code></pre>
+<pre><code>// Npc.Core/Planning/BucketKey.cs
+public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState R, Climate C)
+{
+    public int ToIndex() =&gt; ((A.Value * 6 + (int)T) * 4 + (int)R) * 3 + (int)C;   // 0..2879
+}</code></pre>
+      <p>플랜 스토어는 <code>Plan[2880]</code> 고정 배열이면 충분하다. 조회는 인덱스 계산 한 번 — 해시맵도 필요 없다.</p>
+      <div class="callout"><strong>2,880을 다 채울 필요는 없다</strong><p>실측에서 실제로 도달한 버킷은 <strong>264개(9.2%)</strong>였다. 나머지는 조합상 존재하지만 시나리오에서 안 나온다. 프리베이크 우선순위를 <code>region_state</code> 가중치(Peace 10 : Alert 3 : War 2 : Disaster 1)로 두는 이유다.</p></div>
+    </section>
+
+    <section class="card" id="intr">
+      <div class="shead"><span class="snum">08</span><h2><code>interrupts.json</code> — 인터럽트 규칙 14개</h2></div>
+      <p><strong>LLM이 만들지 않는다.</strong> 인터럽트는 반응 속도가 생명이라 결정론 규칙으로만 정의한다. 공격·도주·긴급 대피처럼 재현성이 중요한 행동이 전부 이 경로에 있다.</p>
+<pre><code>{ "id": "flee_on_threat", "priority": 100,
+  "when": { "any_flag": ["ThreatNearby","InCombat"],
+            "archetype_trait": { "courage": "&lt;40" } },
+  "then": { "action": "Flee", "params": { "poi": "$nearest_safe" } },
+  "replan": { "urgency": 100 } },
+
+{ "id": "fight_on_threat", "priority": 100,
+  "when": { "any_flag": ["ThreatNearby"],
+            "archetype_trait": { "courage": "&gt;=40" }, "combat_capable": true },
+  "then": { "action": "Attack", "params": { "target": "$threat" } },
+  "replan": { "urgency": 90 } },
+
+{ "id": "yield_to_player", "priority": 90,
+  "when": { "event": "PlayerInteracted" },
+  "then": { "action": "Wait", "params": { "duration_s": 30 } },
+  "replan": { "urgency": 70 } },
+
+{ "id": "eat_when_starving", "priority": 50,
+  "when": { "all_flag": ["IsHungry","HasFood"] },
+  "then": { "action": "Eat" },
+  "replan": { "urgency": 10 } }</code></pre>
+      <p><code>then</code>은 <strong>즉시 실행</strong>되고 <code>replan.urgency</code>는 재계획 큐에 점수로 들어간다. 즉 <strong>"먼저 도망치고, 새 계획은 나중에 받는다".</strong></p>
+      <div class="callout warn"><strong>발동은 엣지 트리거다</strong><p><code>when</code> 조건은 대부분 플래그라 한 번 참이 되면 한동안 참으로 남는다. 이벤트마다 다시 발동시키면 <em>강제 액션 → 완료 이벤트 → 다시 강제</em>의 되먹임이 생겨 명령 수가 NPC당 수천 건으로 폭주한다. 그래서 매처는 NPC별로 마지막 발동 규칙을 기억하고, 같은 규칙이 이어서 걸리면 넘긴다. 조건이 한 번 풀렸다가 다시 참이 될 때 재무장한다.</p><p><strong><code>cooldown_s</code> 같은 필드를 두지 않는다</strong> — 시간 기반 쿨다운은 <code>Tick</code>에 의존해 리플레이 재현을 어렵게 만든다. 엣지 트리거는 상태만 보므로 결정론이다.</p></div>
+    </section>
+
+    <section class="card" id="fallback">
+      <div class="shead"><span class="snum">09</span><h2><code>fallback_plans.json</code> · <code>npc_instances.json</code></h2></div>
+      <h3>폴백 플랜 — 아키타입당 1개, 40개 전부 사람이 쓴다</h3>
+      <p>LLM과 캐시가 전부 실패했을 때 쓰는 최후 보루다. <strong>LLM 전면 차단 시나리오가 통과하는 이유가 이것이다.</strong></p>
+<pre><code>{ "id": "fb_blacksmith", "archetype": "blacksmith",
+  "goal": "survive_and_work",
+  "steps": [
+    { "action": "MoveTo", "args": { "poi": "$workplace" }, "timeout_s": 300 },
+    { "action": "Work",   "args": { "recipe": "$primary", "count": 1 }, "timeout_s": 900 },
+    { "action": "MoveTo", "args": { "poi": "$home" }, "timeout_s": 300 },
+    { "action": "Sleep",  "args": { "until_time": "Morning" } }
+  ],
+  "loop": true }</code></pre>
+      <p><code>$workplace</code>·<code>$home</code>·<code>$primary</code>는 NPC 인스턴스에서 바인딩되는 심볼이다. <strong>폴백 플랜은 반드시 <code>loop: true</code></strong>여서 무한히 지속 가능해야 한다.</p>
+      <p><strong>모든 스텝에 <code>timeout_s</code>가 있다.</strong> 응답 이벤트가 안 오면 로컬에서 실패를 합성해 진행을 재개한다 — 이것이 명령 유실 방어책이다.</p>
+
+      <h3>NPC 인스턴스 5,000 — 생성물이다</h3>
+      <p><code>tools/gen_npcs.cs</code>가 <code>population_weight</code>와 POI <code>capacity</code>를 보고 만든다. <strong>수동 편집 대상이 아니다.</strong></p>
+<pre><code>{ "seed": 20260725,                    // 결정론 재현용
+  "npcs": [
+    { "id": 1, "archetype": "blacksmith", "zone": "town_center",
+      "home_poi": "house_042", "workplace_poi": "smithy_01",
+      "spawn_pos": { "x": 120.5, "y": 0.0, "z": -90.0 },
+      "trait_offsets": { "diligence": +5, "sociability": -10 },   // ±15 개체 편차
+      "initial_inventory": [ ... ] }
+  ] }</code></pre>
+      <div class="callout ok"><strong>개체 편차는 플랜 선택에 영향을 주지 않는다</strong><p>같은 버킷의 NPC는 같은 플랜을 쓴다. <code>trait_offsets</code>는 실행 시 소요시간·대기시간·경로 랜덤화에만 쓴다. <strong>"같은 플랜인데 다 다르게 보이는" 값싼 다양성의 원천이다.</strong></p></div>
+    </section>
+
+    <section class="card" id="prompt">
+      <div class="shead"><span class="snum">10</span><h2><code>prompt/</code> — 프롬프트 프리픽스</h2></div>
+      <div class="callout bad"><strong>액션 카탈로그는 생성물이다</strong><p><code>prompt/</code>의 카탈로그는 <code>actions.json</code>에서 <strong>생성</strong>된다. 손으로 편집하지 않는다.</p></div>
+      <h3>프리픽스 조립</h3>
+<pre><code>[1] system_rules.md                             (  905 tok)
+[2] actions.json + items.json → 액션 카탈로그   (6,052 tok)  ← 자동 생성
+    (액션별 플래그 5종 표 · 레시피 입출력 포함)
+[3] archetypes.json → 아키타입별 허용 액션 표   (2,392 tok)  ← 자동 생성
+[4] 플랜 스키마 요약 + 스키마 본문              (1,718 tok)  ← 자동 생성
+[5] fewshot 3건                                 (  900 tok)
+────────────────────────────────────────────────────────────
+합계 실측: 11,967 토큰 (o200k_base)</code></pre>
+      <div class="table-wrap"><table>
+        <thead><tr><th>규칙</th><th>이유</th></tr></thead>
+        <tbody>
+          <tr><td>고정 프리픽스는 기동 시 <strong>1회 조립</strong>하고 이후 불변</td><td>프롬프트 캐시</td></tr>
+          <tr><td>프리픽스 토큰 <strong>하한 4,096</strong>. 상한 없음</td><td>Gemini 3.x·Claude Haiku 4.5의 캐시 최소 임계가 4,096이다. 미달하면 캐시가 아예 안 걸린다. <strong>상한을 지키려고 카탈로그를 줄이지 않는다</strong> — 상한은 비용 문제일 뿐이다</td></tr>
+          <tr><td>프리픽스 SHA-256을 모든 요청 메트릭에 태그로</td><td><strong>유니크 해시가 2개 이상 = 즉시 경보.</strong> 캐시 미적중의 탐지 장치다</td></tr>
+          <tr><td>가변 서픽스 <strong>≤ 300 토큰</strong> (테스트로 강제)</td><td>prefill이 느리다. 방치하면 반드시 자란다</td></tr>
+          <tr><td>재시도 피드백은 <strong>서픽스에만</strong></td><td>프리픽스를 건드리면 캐시가 깨진다</td></tr>
+          <tr><td><strong>플레이어 작성 문자열을 넣지 않는다</strong></td><td>프롬프트 인젝션. 캐릭터명·채팅·길드명 전부. 구조화 enum과 내부 ID만 쓴다</td></tr>
+        </tbody>
+      </table></div>
+<pre><code>public sealed class PromptPrefix
+{
+    public string Text  { get; }   // 조립 결과. 프로세스 생애 동안 불변
+    public string Sha256 { get; }  // 로그·메트릭에 항상 기록
+    public int TokenCount { get; }
+}
+// 테스트: PromptPrefix_IsByteIdentical_Across1000Builds</code></pre>
+      <h3><code>system_rules.md</code> 요지</h3>
+<pre><code>You are a behavior planner for NPCs in a fantasy MMORPG village simulation.
+
+Your ONLY job: given an NPC's archetype and current situation, output a JSON plan
+that composes actions from the catalog below.
+
+HARD RULES
+1. Use ONLY action ids from the catalog. Never invent an action.
+2. Maximum 10 steps. Prefer 5-8.
+3. Every step's `requires` flags must be satisfiable by the preceding steps' `grants`,
+   or already present in the given `flags` field.
+4. Reference POIs only by the symbolic forms: $home, $workplace, $market, $tavern,
+   $temple, $gate, $nearest_field, $nearest_safe, $nearest_shelter.
+   Never invent a POI id.
+5. Do not include dialogue text. Use Speak with a dialogue id only.
+6. The plan must be loopable or must end in a rest/sleep state.
+7. Output JSON only. No prose, no markdown fences.</code></pre>
+    </section>
+
+    <section class="card" id="validate">
+      <div class="shead"><span class="snum">11</span><h2>로딩과 검증 V1~V11</h2></div>
+<pre><code>public sealed class MasterDataSet
+{
+    public required FlagTable      Flags      { get; init; }
+    public required ActionCatalog  Actions    { get; init; }   // 배열 인덱싱
+    public required ItemTable      Items      { get; init; }
+    public required ZoneTable      Zones      { get; init; }
+    public required PoiTable       Pois       { get; init; }   // + 거리 행렬
+    public required ArchetypeTable Archetypes { get; init; }
+    public required BucketSpace    Buckets    { get; init; }
+    public required InterruptRules Interrupts { get; init; }
+    public required PlanTable      Fallbacks  { get; init; }
+    public required NpcRoster      Npcs       { get; init; }
+    public required PromptPrefix   Prefix     { get; init; }
+
+    public string ContentHash { get; init; }   // 플랜 스토어 유효성 판정에 쓴다
+}</code></pre>
+      <p><strong>전부 기동 실패 조건이다.</strong> 경고 후 진행을 허용하지 않는다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>검증</th></tr></thead>
+        <tbody>
+          <tr><td class="rule">V1</td><td>모든 <code>code</code> 값이 파일 내에서 유일하다</td></tr>
+          <tr><td class="rule">V2</td><td>모든 flag id 참조가 <code>world_flags.json</code>에 존재한다</td></tr>
+          <tr><td class="rule">V3</td><td>모든 poi·item·zone·action 참조가 대상 파일에 존재한다</td></tr>
+          <tr><td class="rule">V4</td><td><code>archetypes[].allowed_actions</code>가 전부 카탈로그에 있다</td></tr>
+          <tr><td class="rule">V5</td><td><code>population_weight</code> 합 = 1.0 (±0.001)</td></tr>
+          <tr><td class="rule">V6</td><td><code>context_buckets.total_keys</code> == 실제 조합 수 (2,880)</td></tr>
+          <tr><td class="rule">V7</td><td>모든 아키타입에 <code>fallback_plan</code>이 존재하고, 그 플랜이 검증기 4단을 통과한다</td></tr>
+          <tr><td class="rule">V8</td><td>모든 아키타입의 <code>allowed_actions</code>만으로 폴백 플랜이 구성 가능하다</td></tr>
+          <tr><td class="rule">V9</td><td>프롬프트 프리픽스 토큰 수 ≥ 4,096</td></tr>
+          <tr><td class="rule">V10</td><td>각 <code>allowed_archetypes</code>가 아키타입 정원을 충족한다 (workplace capacity 총합 ≥ 해당 아키타입 인구)</td></tr>
+          <tr><td class="rule">V11</td><td>모든 POI가 존 그래프에서 도달 가능하다 (고립 POI 없음)</td></tr>
+        </tbody>
+      </table></div>
+      <h3>콘텐츠 해시와 플랜 스토어 무효화</h3>
+<pre><code>MasterDataSet.ContentHash 가 바뀌면 → 프리베이크된 플랜 스토어 전량 무효
+단, 변경된 파일이 pois.json 뿐이고 POI가 추가만 되었다면 → 부분 무효화 허용</code></pre>
+      <p>마스터데이터를 조금 고칠 때마다 프리베이크를 통째로 다시 도는 것을 막아준다. <strong>프롬프트 프리픽스를 건드리면 해시가 바뀌고 플랜 스토어가 전량 무효가 된다</strong> — 의도한 것인지 반드시 확인한다.</p>
+    </section>
+
+    <section class="card" id="order">
+      <div class="shead"><span class="snum">12</span><h2>작성 순서</h2></div>
+      <p>마스터데이터는 <strong>의존 순서대로</strong> 만들어야 한다. 역순으로 만들면 계속 되돌아온다.</p>
+<pre><code>1. world_flags.json      ← 모든 것의 기반. 여기서 실수하면 전부 다시
+2. items.json            ← grants 가 flags 를 참조
+3. actions.json          ← requires/grants 가 flags 를, params 가 items 를 참조
+4. zones.json → pois.json → poi_distances.bin
+5. archetypes.json       ← allowed_actions 가 actions 를, poi_type 이 pois 를 참조
+6. context_buckets.json  ← archetypes 수에 의존 (2,880 계산)
+7. interrupts.json
+8. fallback_plans.json   ← 사람이 40개 작성. 가장 오래 걸린다
+9. prompt/               ← actions.json 에서 자동 생성
+10. npc_instances.json   ← 스크립트 생성</code></pre>
+      <div class="callout"><strong>8번이 사람 손이 가장 많이 가는 부분이다</strong><p>폴백 플랜 40개 수작성은 동시에 <strong>오써링 자동화의 비교 기준선</strong>이 된다 — 사람이 40개 만드는 데 걸린 시간 대 LLM이 2,880개 만드는 데 걸린 시간이 이 프로젝트의 핵심 수치다. 실측치는 <a href="reference_metrics.html">실측 데이터</a>에 있다.</p></div>
+      <div class="refs">
+        <a href="index.html">프로젝트 안내서</a>
+        <a href="reference_link.html">게임서버 연동 계약</a>
+        <a href="reference_metrics.html">실측 데이터</a>
+        <a href="FAQ.html">FAQ</a>
+      </div>
+    </section>
+
+    <p class="footer">LlmNpcServer — 마스터데이터 레퍼런스</p>
+  </main>
+</div>
+<script>
+(function(){
+  var root=document.documentElement,btn=document.getElementById('theme');
+  var modes=['auto','light','dark'],names={auto:'자동',light:'밝게',dark:'어둡게'};
+  var saved=localStorage.getItem('lnref-theme');
+  if(saved&&modes.indexOf(saved)>=0){root.setAttribute('data-theme',saved);}
+  function label(){btn.textContent='테마: '+names[root.getAttribute('data-theme')||'auto'];}
+  label();
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme')||'auto';
+    var next=modes[(modes.indexOf(cur)+1)%modes.length];
+    root.setAttribute('data-theme',next);localStorage.setItem('lnref-theme',next);label();
+  });
+  var links=[].slice.call(document.querySelectorAll('.toc a'));
+  var secs=links.map(function(a){return document.querySelector(a.getAttribute('href'));});
+  function sync(){
+    var y=window.scrollY+120,best=0;
+    secs.forEach(function(s,i){if(s&&s.offsetTop<=y){best=i;}});
+    links.forEach(function(a,i){a.classList.toggle('active',i===best);});
+  }
+  window.addEventListener('scroll',sync,{passive:true});sync();
+})();
+</script>
+</body>
+</html>

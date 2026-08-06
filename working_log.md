@@ -1,5 +1,26 @@
 # 작업 로그
 
+## 2026-08-06 17:58 KST · 사양 문서를 제품 레퍼런스 HTML 로 전환
+
+R&D 단계의 md 사양·진행 원장·실측 보고서를 걷어내고, 남겨야 할 내용을 HTML 레퍼런스 3종으로 옮겼다.
+
+- **신규** `docs/reference_link.html`(게임서버 연동 계약 — N1~N8·패킷·와이어·발행 규약) ·
+  `reference_masterdata.html`(플래그 42·액션 37·아키타입 40·버킷 2,880·V1~V11) ·
+  `reference_metrics.html`(성능·비용·품질·수용 기준 판정·미측정 목록).
+- **삭제 33개** — `docs/00`·`01`·`02`·`20`, `TASKS.md`, `docs/measurements/*.md` 23개,
+  그리고 삭제 문서를 읽던 R&D 평가 테스트(`tests/BlindEval/` 2파일, `Phase5GateTests` 5메서드).
+  실측 원자료(jsonl·csv)와 제품 테스트는 남겼다.
+- `CLAUDE.md` 를 제품 단계 기준으로 개정(태스크 단위 작업 규약 삭제·문서 지도 교체),
+  `README.md`·`LLM_NPC_Server_Plan.md`·HTML 16개의 깨진 참조를 전부 새 레퍼런스로 돌렸다.
+- 빌드 경고 0 · CI 기본 테스트 1,051개 전부 통과. 직전 커밋부터 깨져 있던
+  `Gate_ReportHasAllEightSections`(삭제된 `RnD_Report.md` 참조)도 같이 정리됐다.
+
+## 2026-08-06 16:28 KST · LlmNpcServer FAQ HTML 문서 작성
+
+- 기존 MMORPG NPC 서버 대비 이점·적합한 적용 범위·현재 한계를 FAQ로 통합했다.
+- 행동 플랜에 필요한 마스터데이터와 순찰·적대 플레이어 공격 설계를 단계별로 정리했다.
+- 고정 대사와 실시간 LLM 자유대화의 범위를 구분하고, 후속 FAQ를 추가할 수 있는 검색·목차 구조를 마련했다.
+
 ## 2026-07-28 16:37 KST · P6 — 테스트 게임서버 착수 (T6-14·T6-15·T6-16)
 
 `docs/20` D 절의 앞 셋. **게임서버 대역이 소켓을 갖고 NPC 서버와 실제로 붙었다.**

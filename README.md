@@ -9,7 +9,7 @@
 Phase 게이트는 **P1 전 항목 통과**, 나머지는 부분 통과다
 (P4 9/10 · P6 9/10 · P5 6/9 · P3 5통과·3미판정·1미측정 · P2 3/5 · P0 2/4).
 남은 항목은 대부분 **"아직 안 돌렸다"**(전량 프리베이크 회차 · GPU를 켠 부하 회차)거나 **"사람 시간이 필요하다"**(블라인드 평가 12명 · 플랜 검수 40건)다.
-판정 근거는 [`docs/measurements/`](docs/measurements/) 와 [`TASKS.md §3`](TASKS.md) 에 있다 — **미달·미측정을 통과로 적지 않는다.**
+판정 근거는 [`docs/reference_metrics.html`](docs/reference_metrics.html) 과 [`docs/measurements/`](docs/measurements/) 의 원자료에 있다 — **미달·미측정을 통과로 적지 않는다.**
 
 ---
 
@@ -20,9 +20,9 @@ Phase 게이트는 **P1 전 항목 통과**, 나머지는 부분 통과다
 | 대상 | 이번 프로젝트 | 비고 |
 |---|---|---|
 | **NPC 서버** (`Npc.Host`) | ✅ 만든다 | 본체 |
-| **경계 정의** (`IGameServerLink` + 패킷) | ✅ 만든다 | NPC 서버의 아웃바운드 포트. → `docs/02` |
+| **경계 정의** (`IGameServerLink` + 패킷) | ✅ 만든다 | NPC 서버의 아웃바운드 포트. → [`reference_link.html`](docs/reference_link.html) |
 | **게임서버 대역** (`Npc.Sim`) | ✅ 만든다 | 실제 게임서버 없이 검증하기 위한 가짜 |
-| **소켓 전송** (`Npc.Wire` + TCP 링크) | ✅ 만들었다 | P6. 프레임 코덱 · 핸드셰이크 · 재접속. → `docs/20` |
+| **소켓 전송** (`Npc.Wire` + TCP 링크) | ✅ 만들었다 | P6. 프레임 코덱 · 핸드셰이크 · 재접속. → [`reference_link.html`](docs/reference_link.html) |
 | **소켓 게임서버 대역 · 뷰어** (`testbed/`) | ✅ 만들었다 | P6. 눈으로 보는 자리. → [`testbed/README.md`](testbed/README.md) |
 | 실제 MMORPG 게임서버 | ❌ 안 만든다 | 이미 있거나 남이 만든다. "붙일 때 이렇게 붙는다"만 정의 |
 
@@ -125,7 +125,7 @@ dotnet run -c Release --project src/Npc.Host -- \
 
 # 5) 플랜 프리베이크 (외부 API)
 #    --concurrency 는 AIMD 초기값이다. 8 에서 시작해 올린다 —
-#    "동시 32" 는 상위 계획의 추정이고 실측이 아니다 (docs/measurements/W6_compile_stats.md §6)
+#    "동시 32" 는 상위 계획의 추정이고 실측이 아니다 (docs/reference_metrics.html §04)
 $env:OPENROUTER_API_KEY = "..."
 dotnet run -c Release --project tools/Npc.Prebake -- \
     --masterdata ./masterdata --out ./planstore \
@@ -168,7 +168,7 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--gs-host <host>` / `--gs-port N` | 게임서버 주소 (기본 `127.0.0.1:7010`). `--link tcp` 전용 |
 | `--zone <id>[,<id>]` | 로스터 존 필터. **게임서버와 같아야 한다** (다르면 핸드셰이크 거절) |
 | `--planstore <dir>` | 프리베이크된 플랜 스토어 (기본 `./planstore`). 없으면 폴백 40개로 돈다 |
-| `--weights A\|B\|C\|D` | 재계획 점수 가중치 세트 (`docs/14 §2` 표. 기본 B) |
+| `--weights A\|B\|C\|D` | 재계획 점수 가중치 세트 (기본 B. A/B 결과는 `reference_metrics.html` §11) |
 | `--scan-cap N` | 인지 스캔 틱당 상한. 0=해제. **측정 전용** |
 | `--dev-control` | `POST /control/killswitch` 를 연다 (기본 꺼짐. 데모용) |
 
@@ -198,7 +198,7 @@ tools/
   Npc.Narrate/      플랜을 사람 말로 풀어 주는 도구
   *.cs              파일 기반 .NET 앱 (gen_npcs · gen_poi_distances · report_scale · …)
   *.ps1             측정·검수 스크립트 (run_load · run_weight_ab · review · pin_plan)
-masterdata/         마스터데이터 11종  → docs/01
+masterdata/         마스터데이터 11종  → docs/reference_masterdata.html
 planstore/          프리베이크 플랜 (plans/ 는 gitignore, pinned/ 는 버전관리)
 scenarios/          시나리오 스크립트 (jsonl)
 tests/Npc.Tests/    단위 · 골든 · 부하 · 장애주입
@@ -214,41 +214,34 @@ docs/               설계 사양 (아래)
 > 책은 *이미 만들어진 코드를 앞에 두고* 답한다 — 이 파일은 왜 여기 있고, 이 상수는 왜 이 값이며,
 > 이 값을 바꾸면 무엇이 어떻게 달라지는가.
 
-**구현 착수 시 읽는 순서**
+**읽는 순서**
 
 ```
-1. LLM_NPC_Server_Plan.md   왜 이 구조인가 (타당성 판단 · 아키텍처 · 리스크)
-2. docs/00                  무엇을 만드는가 (결과물 · 데모 · 수용 기준)
-3. docs/01 → 02 → 03        공통 계약 3종. 여기서 정한 타입 이름을 전 코드가 쓴다
-4. docs/1x_Phase*.md        해당 Phase 설계 사양
-5. TASKS.md                 태스크 규약 · 진행 원장 — 여기서부터 구현 착수
+1. docs/index.html              전체 안내 — 아키텍처 · 동작 · 빌드 · 실행
+2. docs/book/index.html         코드 이해와 활용 안내서 (13장)
+3. docs/reference_link.html     게임서버에 붙일 때 — 계약 전문
+   docs/reference_masterdata.html  콘텐츠를 늘릴 때 — 스키마 전문
+4. LLM_NPC_Server_Plan.md       왜 이 구조인가 (판단 근거 · 리스크)
 ```
 
-> 설계 사양(`docs/1x_Phase*.md`)은 **무엇을 왜**를 정한다.
-> 코딩 에이전트에게는 항상 태스크 ID 하나(`T1-028` 등)를 준다. 총 203개 태스크 (196 완료).
->
-> **주차별 작업 지시서(`docs/1x_*_TASKS.md`)는 구현이 끝나 삭제했다 (2026-08-06).**
-> 개별 태스크의 파일·사양·완료 조건이 필요하면 `git log --diff-filter=D -- docs/` 에서 꺼낸다.
+> **구현이 끝난 제품이다.** 주차별 작업 지시서와 단계별 설계 사양은 구현 완료로 전부 삭제했다
+> (2026-08-06). 원문이 필요하면 `git log --diff-filter=D -- docs/ TASKS.md` 에서 꺼낸다.
+> 코드 주석에 남아 있는 `docs/NN §M` 참조는 그 시점의 근거를 가리키는 이력이고,
+> 지금은 아래 레퍼런스 HTML 이 대응한다.
 
 | 문서 | 내용 |
 |---|---|
-| [`docs/book/index.html`](docs/book/index.html) | **코드 이해와 활용 안내서 (HTML 책, 14장).** 왜 이 구조인가 → 계약 3종 → 런타임 → 플랜 생성 → 설정·실측 → 부록. 그림·애니메이션·인터랙티브 시뮬레이터. **코드를 읽거나 고쳐야 하면 여기부터** |
-| [`docs/index.html`](docs/index.html) | **한 장짜리 안내서 (HTML).** 아키텍처 · 용도 · 빌드 · 실행 · 실측 결과. 브라우저로 파일을 그대로 열면 된다 |
-| [`LLM_NPC_Server_Plan.md`](LLM_NPC_Server_Plan.md) | 상위 계획 · 타당성 판단 · 아키텍처 · 비용 분석 · 리스크 대장 |
-| [`docs/00_Deliverables.md`](docs/00_Deliverables.md) | 결과물 명세 · 데모 시나리오 · 최종 수용 기준 |
-| [`docs/01_MasterData_Spec.md`](docs/01_MasterData_Spec.md) | 마스터데이터 11종 스키마 · 검증 규칙 V1~V11 · 작업 순서 |
-| [`docs/02_GameServer_Link.md`](docs/02_GameServer_Link.md) | **NPC 서버 ↔ 게임서버 경계** · 패킷 29종 · 네트워크 안전 규칙 N1~N8 · Sim 사양 |
-| [`docs/03_PlanDSL_Spec.md`](docs/03_PlanDSL_Spec.md) | 플랜 DSL · JSON Schema · 4단 검증기 · 실행기 · 스토어 포맷 |
-| [`TASKS.md`](TASKS.md) | **태스크 규약 · 진행 원장 · 게이트 요약** (203개 태스크 · 196 완료) |
-| [`docs/10_Phase0_W1_Spike.md`](docs/10_Phase0_W1_Spike.md) | **W1** 스파이크 — 숫자 6개를 뽑는다 (13) |
-| [`docs/11_Phase1_W2-4_Core_Runtime.md`](docs/11_Phase1_W2-4_Core_Runtime.md) | **W2–4** 코어 · 런타임 · Sim — LLM 없이 돌린다 (62) |
-| [`docs/12_Phase2_W5-6_Plan_Compiler.md`](docs/12_Phase2_W5-6_Plan_Compiler.md) | **W5–6** 플랜 컴파일러 · 검증기 · 통과율 개선 (24) |
-| [`docs/13_Phase3_W7-8_Plan_Cache.md`](docs/13_Phase3_W7-8_Plan_Cache.md) | **W7–8** 플랜 캐시 · 프리베이크 · 사람 검수 (21) |
-| [`docs/14_Phase4_W9-10_Scheduler_Tiering.md`](docs/14_Phase4_W9-10_Scheduler_Tiering.md) | **W9–10** 우선순위 큐 · 3-티어 라우팅 · 부하 테스트 (24) |
-| [`docs/15_Phase5_W11-12_Verification.md`](docs/15_Phase5_W11-12_Verification.md) | **W11–12** 골든 · 결정론 · 장애주입 · 블라인드 평가 · 보고 (20) |
-| [`docs/20_TestBed_Spec.md`](docs/20_TestBed_Spec.md) | **P6** 테스트 베드 — 소켓 링크 · 게임서버 대역 · 테스트 클라이언트 (38). W1–12 본편 밖의 트랙이다 |
-| [`docs/testbed_guide.html`](docs/testbed_guide.html) | **게임서버 연동 테스트 안내서 (HTML).** 아키텍처 그림 · 핸드셰이크·틱 루프 애니메이션 · 무엇을 바꾸며 테스트하나 · **코드 분석 순서**. 브라우저로 파일을 그대로 열면 된다 |
+| [`docs/index.html`](docs/index.html) | **한 장짜리 안내서.** 아키텍처 · 용도 · 빌드 · 실행 · 실측 결과. 브라우저로 파일을 그대로 열면 된다 |
+| [`docs/book/index.html`](docs/book/index.html) | **코드 이해와 활용 안내서 (13장).** 왜 이 구조인가 → 계약 → 런타임 → 플랜 생성 → 설정·실측. **코드를 읽거나 고쳐야 하면 여기부터** |
+| [`docs/reference_link.html`](docs/reference_link.html) | **게임서버 연동 계약 ★** N1~N8 · 패킷 · 와이어 프로토콜 · 핸드셰이크 · **게임서버가 지켜야 할 발행 규약**. 연동 팀에 그대로 건넬 수 있다 |
+| [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | **마스터데이터 레퍼런스 ★** 월드 플래그 42 · 액션 37 · 아키타입 40 · 버킷 2,880 · 검증 V1~V11 · 작성 순서 |
+| [`docs/reference_metrics.html`](docs/reference_metrics.html) | **실측 데이터.** 런타임 성능 · 스케일 · LLM 지연 · 캐시 · 비용 · 프리베이크 · 플랜 품질 · 수용 기준 판정 · **미측정으로 남은 것** |
+| [`docs/FAQ.html`](docs/FAQ.html) | 도입 이점 · 적합한 범위와 한계 · 행동 플랜 준비 · 전투 반응 설계 · NPC 대화 확장 |
+| [`docs/startup_flow.html`](docs/startup_flow.html) | 기동 흐름 시각화 — 무엇이 어떤 순서로 조립되는가 |
+| [`docs/testbed_guide.html`](docs/testbed_guide.html) | **게임서버 연동 테스트 안내서.** 아키텍처 그림 · 핸드셰이크·틱 루프 애니메이션 · 무엇을 바꾸며 테스트하나 · 코드 분석 순서 |
 | [`testbed/README.md`](testbed/README.md) | **데모 띄우는 법** — 한 줄 실행 · 포트 · 화면 보는 법 · 알려진 한계 |
+| [`LLM_NPC_Server_Plan.md`](LLM_NPC_Server_Plan.md) | 상위 계획 · 타당성 판단 · 아키텍처 · 비용 분석 · 리스크 대장 |
+| [`docs/measurements/`](docs/measurements/) | 실측 **원자료** (jsonl · csv). 보고서는 `reference_metrics.html` 로 옮겼다 |
 
 AI 코딩 에이전트로 작업한다면 [`CLAUDE.md`](CLAUDE.md)를 먼저 읽는다.
 
