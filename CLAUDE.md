@@ -26,6 +26,7 @@
 | `docs/reference_metrics.html` | 실측 데이터 — 성능·비용·품질·수용 기준 판정 |
 | `docs/index.html` | 프로젝트 안내서 (허브) |
 | `docs/book/` | 코드 이해와 활용 안내서 (13장) |
+| `docs/tutorial/` | **활용 실습서 — 손으로 만들며 배우기 (6부 21장).** 예제는 `samples/` 에 실물로 있다 |
 | `docs/startup_flow.html` | 기동 흐름 |
 | `docs/testbed_guide.html` | 테스트 베드 · 게임서버 연동 시험 |
 | `docs/FAQ.html` | 도입·행동 플랜·전투 반응·대화 확장 |
