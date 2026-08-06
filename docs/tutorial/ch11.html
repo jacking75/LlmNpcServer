@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11장 · 일부러 부러뜨린다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p3)">3부 · 세계를 흔든다</p>
+  <h1>11장 · 일부러 부러뜨린다 — 유실 · 실패 · 킬스위치</h1>
+  <p class="lead">
+    <b>"명령은 유실된다고 가정한다"</b> 와 <b>"LLM 이 전부 죽어도 NPC 는 멈추지 않는다"</b>.
+    이 저장소가 반복해서 주장하는 두 문장을, 직접 유실시키고 직접 끊어서 확인한다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★☆</span>
+    <span class="chip">50분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">사본 불필요</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면 — 명령을 절반 버려도 안 멈춘다</span>
+<pre><code>rate p99(ms) bytes/tick     명령     스텝  타임아웃 타임아웃 % 진행률 % 크래시
+---- ------- ---------- ------ ------ ----- ------ ------ ----
+   0   0.179          0 109278 104032 13552   13.0  100.0   no
+ 0.1   0.133          0  94698  88988 18048   20.3   85.5   no
+ 0.2   0.131          0  84899  78766 21116   26.8   75.7   no
+ 0.3   0.140          0  77540  71015 23715   33.4   68.3   no
+ 0.5   0.117          0  66331  59238 27613   <span class="hl2">46.6</span>   <span class="hl">56.9</span>   no</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>느려지는 것은 정상이고, 멈추는 것이 실패다.</b>
+  명령의 절반이 사라져도 진행률 <b>56.9 %</b> 로 계속 간다 —
+  사라진 응답의 자리를 <b>로컬에서 합성한 타임아웃</b>이 메우기 때문이다.
+</div>
+
+<h2 id="why">왜 유실을 전제로 만들었나</h2>
+
+<p>
+  게임서버는 남이 만든다. 그리고 그 사이에는 소켓이 있다. 즉:
+</p>
+
+<div class="grid3">
+  <div class="card">
+    <h4>명령은 사라진다</h4>
+    <p class="small" style="margin:0">
+      역압으로 버려지고, 소켓이 끊기고, 게임서버가 바쁘면 무시한다.
+      <b>fire-and-forget(N1)</b> 이라 보낸 쪽은 성공 여부를 모른다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>응답은 안 올 수 있다</h4>
+    <p class="small" style="margin:0">
+      명령이 도착해도 게임서버가 완료 이벤트를 안 낼 수 있다.
+      NPC 는 <code>Waiting</code> 에서 <b>영원히</b> 멈춘다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>그래서 <code>timeout_s</code></h4>
+    <p class="small" style="margin:0">
+      <b>모든 플랜 스텝에 있다.</b> 응답이 없으면 NPC 서버가
+      <code>ActionFailed(Timeout)</code> 을 스스로 만들어 다음으로 간다.
+    </p>
+  </div>
+</div>
+
+<h2 id="drop">① 명령을 버린다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch11_chaos/chaos.ps1 -Csv ./lab/ch11_drop.csv
+
+<span class="cm"># 액션 실패 쪽을 보려면</span>
+PS&gt; ./samples/ch11_chaos/chaos.ps1 -Mode fail -Csv ./lab/ch11_fail.csv</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr>
+  <th class="num">drop</th><th class="num">p99(ms)</th><th class="num">bytes/tick</th>
+  <th class="num">명령</th><th class="num">스텝</th><th class="num">타임아웃</th>
+  <th class="num">타임아웃 %</th><th class="num">진행률 %</th>
+</tr></thead>
+<tbody>
+<tr><td class="num">0</td><td class="num">0.179</td><td class="num">0</td><td class="num">109,278</td><td class="num">104,032</td><td class="num">13,552</td><td class="num">13.0</td><td class="num">100.0</td></tr>
+<tr><td class="num">0.1</td><td class="num">0.133</td><td class="num">0</td><td class="num">94,698</td><td class="num">88,988</td><td class="num">18,048</td><td class="num">20.3</td><td class="num">85.5</td></tr>
+<tr><td class="num">0.2</td><td class="num">0.131</td><td class="num">0</td><td class="num">84,899</td><td class="num">78,766</td><td class="num">21,116</td><td class="num">26.8</td><td class="num">75.7</td></tr>
+<tr><td class="num">0.3</td><td class="num">0.140</td><td class="num">0</td><td class="num">77,540</td><td class="num">71,015</td><td class="num">23,715</td><td class="num">33.4</td><td class="num">68.3</td></tr>
+<tr><td class="num"><b>0.5</b></td><td class="num">0.117</td><td class="num">0</td><td class="num">66,331</td><td class="num">59,238</td><td class="num"><b>27,613</b></td><td class="num"><b>46.6</b></td><td class="num"><b>56.9</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>읽는 법</h3>
+
+<ol class="steps">
+<li>
+  <b>진행률이 0으로 수렴하지 않는다</b>
+  <p>
+    드롭 50 %에 진행률 56.9 %. <b>선형보다 낫다</b> —
+    한 스텝이 실패해도 <code>on_step_fail: skip</code> 으로 다음 스텝이 바로 나가기 때문이다.
+    이 열이 0에 가까워지면 그때가 진짜 고장이다.
+  </p>
+</li>
+<li>
+  <b>타임아웃이 정확히 그 자리를 메운다</b>
+  <p>
+    13.0 % → 46.6 %. <b>합성 실패가 유실된 응답의 대체재</b>다.
+    이 수치를 운영에서 보면 "링크가 새고 있다" 는 신호로 읽는다.
+  </p>
+</li>
+<li>
+  <b>틱은 오히려 조금 빨라진다</b>
+  <p>
+    할 일이 줄었으니 당연하다. <b>고장이 성능 지표로는 안 보인다</b> —
+    그래서 <code>timeouts</code> 와 <code>drops</code> 를 따로 봐야 한다.
+  </p>
+</li>
+<li>
+  <b><code>bytes/tick</code> 은 끝까지 0</b>
+  <p>
+    타임아웃 합성 경로에도 할당이 없다. <b>예외 경로가 정상 경로보다 비싸면</b>
+    장애 때 성능이 무너지는데, 그런 설계가 아니다.
+  </p>
+</li>
+</ol>
+
+<div class="note">
+  <span class="tag"><code>--drop-rate</code> 와 <code>--fail-rate</code> 의 차이</span>
+  <b><code>--drop-rate</code></b> 는 명령이 게임서버에 <b>도착하지 못한다</b> — 응답 자체가 없다.
+  <b><code>--fail-rate</code></b> 는 도착했는데 <b>실패로 응답한다</b> — <code>ActionFailed</code> 가 온다.
+  전자는 침묵이고 후자는 거절이다. <b>침묵이 훨씬 다루기 어렵다</b>(언제까지 기다릴지 정해야 하니까).
+  그래서 이 제품은 침묵 쪽을 기본 가정으로 잡았다.
+</div>
+
+<h2 id="kill">② LLM 을 끊는다 — 킬스위치</h2>
+
+<p>시나리오 C 다. <b>"만들 수 있는가"가 아니라 "끊겨도 도는가"</b>를 본다.</p>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch11_chaos/killswitch.ps1 -Npcs 200 -StepSeconds 5
+
+① NPC 서버 기동 (--dev-control)
+
+② 단계별로 끊는다
+   차단 전            tick      4 · 명령     222 · 스텝      22 · 표본32 bucket 0 / fallback 32
+   -&gt; T2 차단 (fired=True)
+   T2 차단 후         tick     55 · 명령     731 · 스텝     531 · 표본32 bucket 0 / fallback 32
+   -&gt; T1 차단 (fired=True)
+   T1 차단 후         tick    105 · 명령    1261 · 스텝    1061 · 표본32 bucket 0 / fallback 32
+   -&gt; PlanStore 차단 (fired=True)
+   PlanStore 차단 후  tick    156 · 명령    <span class="hl">2030</span> · 스텝    <span class="hl">1830</span> · 표본32 bucket 0 / fallback 32
+
+③ 판정
+   <span class="hl">전부 끊은 뒤에도 스텝이 22 → 1830 로 계속 늘었다.</span>
+   NPC 는 멈추지 않았다. 이것이 이 장의 성공 신호다.</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:120px">끊는 것</th><th>남는 것</th><th>NPC 는</th></tr></thead>
+<tbody>
+<tr><td><code>T2</code></td><td>캐시 + T1(로컬)</td><td>아무 변화 없다</td></tr>
+<tr><td><code>T1</code></td><td>캐시만</td><td>아무 변화 없다. <b>재계획이 전면 중단</b>될 뿐</td></tr>
+<tr><td><code>PlanStore</code></td><td><b>아키타입 폴백 40개</b></td><td>계속 움직인다. 행동이 덜 다양해질 뿐</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">왜 안 멈추나 — 한 줄</span>
+  <b><code>PlanStore.Resolve</code> 는 절대 <code>null</code> 을 반환하지 않는다.</b>
+  캐시가 비어도, LLM 이 전부 죽어도, 조회는 반드시 무언가를 돌려준다.
+  이 한 줄의 계약이 시나리오 C 를 통과시킨다.
+</div>
+
+<div class="warn">
+  <span class="tag">위 회차에서 <code>bucket</code> 이 0인 이유</span>
+  표본 32마리가 <b>차단 전부터 전부 <code>fallback</code></b> 이었다.
+  이 저장소의 <code>planstore/plans/</code> 는 2,880 중 <b>718개만</b> 채워져 있고,
+  그중 앞쪽 첨자의 NPC 가 쓰는 버킷은 비어 있었기 때문이다.
+  <br><br>
+  <b>bucket → fallback 이 내려가는 것을 보고 싶으면</b> 17장의 프리베이크를 먼저 하거나,
+  차단 전에 추적기로 <code>planKind=bucket</code> 인 NPC 를 찾아 그 첨자를 <code>-Npc</code> 로 준다.
+  <b>못 본 것을 봤다고 적지 않는다</b> — 이 책의 규칙이다.
+</div>
+
+<h3><code>--dev-control</code> 이 없으면</h3>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; curl -X POST "http://127.0.0.1:5093/control/killswitch?target=T2"
+<span class="hl3">404 Not Found</span></code></pre>
+</div>
+
+<p>
+  <b>401 이 아니라 404 다.</b> 조건부 인증이 아니라 <b>조건부 등록</b>이기 때문이다 —
+  <code>--dev-control</code> 없이 뜨면 그 라우트가 <b>아예 만들어지지 않는다</b>.
+  상태를 바꾸는 HTTP 를 기본으로 열어 두면, 대시보드가 열려 있는 동안 누구든 티어를 끊을 수 있다.
+  <b>실수 하나로 열리는 문을 만들지 않는다.</b>
+</p>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li>드롭률을 0.5까지 올려도 <b>진행률이 0으로 수렴하지 않는다</b></li>
+  <li>타임아웃 비율이 드롭률을 따라 <b>단조 증가</b>한다</li>
+  <li>모든 회차에서 <code>bytes/tick</code> = 0 · 크래시 없음</li>
+  <li>킬스위치 3단을 다 눌러도 <b>스텝이 계속 늘어난다</b></li>
+  <li><code>--dev-control</code> 없이 띄우면 <code>/control/killswitch</code> 가 <b>404</b></li>
+</ul>
+
+<h2 id="ops">운영에서 읽는 법</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>지표</th><th>정상</th><th>오르면</th></tr></thead>
+<tbody>
+<tr><td><code>timeouts</code> / <code>steps</code></td><td>배속에 따라 6~16 %</td><td><b>링크가 새고 있다.</b> 게임서버 응답을 먼저 본다</td></tr>
+<tr><td><code>drops link</code></td><td>0</td><td>발행 큐가 좁다. <code>PriorityCommandRing</code> 용량을 본다</td></tr>
+<tr><td><code>drops sim</code></td><td>0</td><td>상대가 못 받고 있다</td></tr>
+<tr><td><code>backlogs</code></td><td>0</td><td>이벤트가 세계보다 느리게 처리된다</td></tr>
+<tr><td><code>eventGaps</code></td><td>0</td><td><b>이벤트가 유실됐다</b> (N6). 상대의 시퀀스를 의심한다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="part3">3부를 마치며</h2>
+
+<p>
+  10장에서 <b>세계를 흔들었고</b>, 11장에서 <b>부러뜨렸다.</b>
+  두 장 모두에서 틱 예산과 <code>bytes/tick</code> 은 흔들리지 않았다.
+  <b>4부부터는 내 코드를 붙인다</b> — 여기서부터 C# 이다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>타임아웃 합성이 일어나는 곳</td><td><code>src/Npc.Runtime/PlanExecutor.cs</code> · <a href="../book/ch07.html">코드 안내서 7장</a></td></tr>
+<tr><td>역압과 우선순위 드롭</td><td><code>src/Npc.Gateway/PriorityCommandRing.cs</code></td></tr>
+<tr><td>킬스위치 배선</td><td><code>src/Npc.Core/KillSwitch.cs</code> · <code>src/Npc.Host/Replan/TierWiring.cs</code></td></tr>
+<tr><td>시나리오 C 의 원래 정의</td><td><code>scenarios/blackout.jsonl</code> · <a href="../reference_metrics.html">reference_metrics.html</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

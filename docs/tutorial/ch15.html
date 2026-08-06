@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15장 · 기록하고 되감는다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p4)">4부 · 내 코드에 붙인다</p>
+  <h1>15장 · 기록하고 되감는다 — 결정론을 내 회차에서 확인</h1>
+  <p class="lead">
+    같은 입력에 같은 출력이 나오는가. <b>세 가지 비교</b>로 확인하고,
+    <b>소켓 경로에서는 왜 성립하지 않는지</b>를 같이 배운다 —
+    그것은 결함이 아니라 사실이다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★☆</span>
+    <span class="chip">60분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">본체를 안 고친다</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면</span>
+<pre><code>PS&gt; ./samples/ch15_replay/record-replay.ps1 -Npcs 200
+
+① 같은 인자로 두 번 (루프백)
+   A  ticks 1440 · events 131050 · commands 109278 · steps 104032 · timeouts 13552 · …
+   B  ticks 1440 · events 131050 · commands 109278 · steps 104032 · timeouts 13552 · …
+   <span class="hl">일치 — 같은 입력에 같은 출력이다.</span>
+
+② 기록하며 한 번 (--link record)
+   link.jsonl  ·  78,489 KB  ·  240,328 줄
+
+③ 되밀어 한 번 (--link replay)
+
+④ 판정
+비교                  결과
+A vs B  (루프백 두 번)   <span class="hl">일치</span>
+C vs D  (기록 vs 재생)  <span class="hl">일치</span>
+A vs C  (루프백 vs 기록) <span class="hl">일치</span></code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>결정론은 기능이 아니라 제약의 결과다.</b> <code>DateTime.Now</code> 도 무시드 <code>Random</code> 도
+  <code>Guid.NewGuid()</code> 도 안 쓰기로 했기 때문에 같은 결과가 나온다.
+  그 제약이 지켜지고 있는지를 <b>이 스크립트 한 번으로</b> 확인할 수 있다.
+</div>
+
+<h2 id="why">무엇을 금지했기에 이게 되나</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:230px">금지</th><th>대체</th><th>안 지키면</th></tr></thead>
+<tbody>
+<tr><td><code>DateTime.Now</code> · <code>Stopwatch</code></td><td><code>Tick</code>(long)</td><td>회차마다 미세하게 다른 시각 → 다른 분기</td></tr>
+<tr><td>무시드 <code>Random</code></td><td><code>(npcId, tick)</code> 해시</td><td>매번 다른 지터</td></tr>
+<tr><td><code>Guid.NewGuid()</code></td><td>순증 <code>CorrelationId</code></td><td>상관 ID 가 매번 달라진다</td></tr>
+<tr><td><code>Dictionary</code> 순회 의존</td><td>정렬된 배열</td><td>순서가 런타임 버전에 따라 갈린다</td></tr>
+<tr><td>병렬 실행 순서 의존</td><td>틱 루프는 단일 스레드</td><td>스레드 스케줄이 결과를 바꾼다</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+  이 목록은 <b>지켜지는지 자동으로 검사된다</b> —
+  <code>ClockAuditTests</code>·<code>RandomAuditTests</code> 가 게임 로직 어셈블리를 훑어
+  금지된 호출을 찾아낸다. 내가 코드를 넣었다면 그 테스트가 먼저 잡는다.
+</p>
+
+<h2 id="run">세 가지 비교</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch15_replay/record-replay.ps1 -Npcs 200 -TimeScale 600 -Days 1</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:200px">비교</th><th>무엇을 확인하나</th><th>결과</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>A vs B</b><br><span class="small">루프백 두 번</span></td>
+  <td>같은 인자·같은 시드로 두 번 돌렸을 때 종료 요약이 <b>완전히</b> 같은가</td>
+  <td><span class="pill ok">일치</span></td>
+</tr>
+<tr>
+  <td><b>C vs D</b><br><span class="small">기록 vs 재생</span></td>
+  <td>기록한 이벤트 열을 되밀었을 때 같은 결과가 나오는가</td>
+  <td><span class="pill ok">일치</span></td>
+</tr>
+<tr>
+  <td><b>A vs C</b><br><span class="small">루프백 vs 기록</span></td>
+  <td><b>기록한다는 행위 자체</b>가 결과를 바꾸지 않는가</td>
+  <td><span class="pill ok">일치</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">A vs C 가 왜 중요한가</span>
+  <code>--link record</code> 는 데코레이터라 모든 명령·이벤트를 파일에 쓴다.
+  디스크 I/O 가 붙는데도 결과가 같다는 것은,
+  <b>기록이 게임 로직에 되먹임되지 않는다</b>는 뜻이다.
+  관측이 관측 대상을 바꾸면 그 관측은 못 쓴다.
+</div>
+
+<h2 id="record">기록 파일</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --link record --trace ./lab/ch15/link.jsonl `
+      --npcs 200 --time-scale 600 --days 1 --no-llm --max-speed --no-dashboard
+
+link.jsonl  ·  78,489 KB  ·  240,328 줄</code></pre>
+</div>
+
+<p>
+  NPC 200마리 게임 하루에 <b>24만 줄 · 78 MB</b> 다. 명령과 이벤트를 전부 담기 때문이다.
+  실전에서는 <b>필요한 구간만</b> 기록하거나 NPC 수를 줄인다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>쓰임</th><th>어떻게</th></tr></thead>
+<tbody>
+<tr><td><b>회귀 고정</b></td><td>버그가 난 회차를 기록해 두고, 고친 뒤 <code>--link replay</code> 로 되민다</td></tr>
+<tr><td><b>소켓 경로 재현</b></td><td><code>--link record --link tcp</code> 조합이면 <b>소켓으로 받은 이벤트 열</b>이 그대로 남는다</td></tr>
+<tr><td><b>사람 말로 읽기</b></td><td><code>Npc.Narrate --trace …</code> → 6장에서 썼던 그 도구</td></tr>
+<tr><td><b>게임서버 없이 돌리기</b></td><td><code>--link replay</code> 는 상대가 필요 없다. CI 에서 쓴다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="term">
+  <span class="cap">터미널 — 사람 말로</span>
+<pre><code>PS&gt; dotnet run -c Release --project tools/Npc.Narrate -- `
+      --trace ./lab/ch15/link.jsonl --npc 7 --time-scale 600 --population 200</code></pre>
+</div>
+
+<h2 id="socket">소켓 경로에서는 안 맞는다</h2>
+
+<div class="bad">
+  <span class="tag">이건 결함이 아니다</span>
+  <p>
+    <code>--link tcp</code> 로 붙여 같은 회차를 두 번 돌리면 <b>결과가 다르다.</b>
+    명령이 몇 틱 늦게 도착하고, 그것이 스텝 경계를 바꾸기 때문이다.
+  </p>
+  <p>
+    <b>실제 게임서버에 붙으면 원래 그렇다.</b> 네트워크는 결정론적이지 않다.
+    그래서 이 저장소는 <b>"리플레이 100 % 일치" 를 루프백 경로의 게이트로만</b> 정의한다 —
+    소켓 경로에 같은 것을 요구하면 지킬 수 없는 약속이 된다.
+  </p>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>경로</th><th>결정론</th><th>재현이 필요하면</th></tr></thead>
+<tbody>
+<tr><td><code>--loopback</code></td><td><span class="pill ok">100 % 일치</span></td><td>그냥 다시 돌린다</td></tr>
+<tr><td><code>--link replay</code></td><td><span class="pill ok">100 % 일치</span></td><td>파일이 입력이다</td></tr>
+<tr><td><code>--link tcp</code></td><td><span class="pill bad">일치하지 않는다</span></td><td><b><code>--link record</code> 로 이벤트 열을 남겨 <code>replay</code> 로 되민다</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag">그런데 루프백은 왜 맞나</span>
+  게임서버 대역(<code>Npc.Sim</code>)이 <b>같은 프로세스</b>에 있고, 호스트의 펌프가
+  <b>틱 루프보다 앞서 나가지 못하게 락스텝</b>으로 묶여 있기 때문이다.
+  세계를 밀기 <b>전에</b> 기다리고, 기준도 "처리 완료" 가 아니라 "명령 커밋 완료" 다.
+  이 둘이 루프백 결정론의 조건이다 — 하나만 빠져도 스레드 스케줄이 결과에 새어 든다.
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li><b>A vs B</b> 가 일치 — 같은 입력에 같은 출력</li>
+  <li><b>C vs D</b> 가 일치 — 기록을 되밀어도 같다</li>
+  <li><b>A vs C</b> 가 일치 — 기록이 결과를 안 바꾼다</li>
+  <li>기록 파일이 실제로 생기고 줄 수가 이벤트 수와 맞는다</li>
+  <li><code>--seed</code> 를 바꾸면 <b>결과가 달라진다</b> (달라져야 정상이다)</li>
+</ul>
+
+<h2 id="break">부러뜨려 본다</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>바꿔 보기</th><th>예상</th><th>왜</th></tr></thead>
+<tbody>
+<tr><td><code>-Seed</code> 를 다르게</td><td>A ≠ B</td><td>지터가 <code>(seed, npcId, tick)</code> 해시라 시드가 바뀌면 전부 바뀐다</td></tr>
+<tr><td><code>--player-bots</code> 를 다르게</td><td>A ≠ B</td><td>플레이어 위치가 LOD 를 바꾼다</td></tr>
+<tr><td>게임 로직에 <code>DateTime.Now</code> 를 넣는다</td><td><b>테스트가 먼저 깨진다</b></td><td><code>ClockAuditTests</code> 가 어셈블리를 훑는다</td></tr>
+<tr><td><code>--link tcp</code> 로 두 번</td><td><b>불일치</b></td><td>정상이다. 위 표를 다시 본다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="part4">4부를 마치며</h2>
+
+<div class="grid2">
+  <div class="card">
+    <h4>만든 것</h4>
+    <ul>
+      <li><b>12장</b> — 80줄짜리 링크. 런타임 diff 0줄</li>
+      <li><b>13장</b> — 250줄짜리 TCP 게임서버. 핸드셰이크·배치·갭 검출</li>
+      <li><b>14장</b> — 파이썬 130줄 스니퍼. 헤더 8바이트만으로</li>
+      <li><b>15장</b> — 결정론 확인 3종</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>확인한 것</h4>
+    <ul>
+      <li>경계는 <b>멤버 다섯 개</b>다</li>
+      <li>규칙 위반은 <b>컴파일과 테스트</b>가 잡는다</li>
+      <li>언어에 안 묶인 부분은 <b>헤더 8바이트</b></li>
+      <li>결정론은 <b>루프백 경로의 성질</b>이다</li>
+    </ul>
+  </div>
+</div>
+
+<p style="margin-top:20px">
+  <b>5부에서 처음으로 LLM 을 켠다.</b> 15장까지 한 번도 안 불렀다 —
+  그 사실 자체가 이 설계의 주장이었다.
+</p>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>결정론 규칙 전문</td><td><code>CLAUDE.md</code> §2.3 · <a href="../book/ch05.html">코드 안내서 5장</a></td></tr>
+<tr><td>감사 테스트</td><td><code>tests/Npc.Tests/Determinism/</code></td></tr>
+<tr><td>기록·재생 링크</td><td><code>src/Npc.Gateway/RecordingGameServerLink.cs</code> · <code>ReplayGameServerLink.cs</code></td></tr>
+<tr><td>실측 판정</td><td><a href="../reference_metrics.html">reference_metrics.html</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

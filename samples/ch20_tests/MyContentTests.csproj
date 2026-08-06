@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    20장 — 내가 넣은 콘텐츠를 지키는 테스트.
+
+    NpcServer.sln 에 넣지 않는다. 본체의 dotnet test 는 이 프로젝트를 보지 않는다.
+    돌릴 때 이 프로젝트를 직접 지정한다:
+
+        dotnet test samples/ch20_tests/MyContentTests.csproj
+
+    실무에서는 tests/Npc.Tests 안에 넣는 편이 낫다. 여기서 따로 두는 것은
+    "실습이 본체 CI 를 건드리지 않는다" 는 이 책의 규약 때문이다.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.Contracts\Npc.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Wire\Npc.Wire.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -234,7 +234,7 @@ docs/               설계 사양 (아래)
 |---|---|
 | [`docs/index.html`](docs/index.html) | **한 장짜리 안내서.** 아키텍처 · 용도 · 빌드 · 실행 · 실측 결과. 브라우저로 파일을 그대로 열면 된다 |
 | [`docs/book/index.html`](docs/book/index.html) | **코드 이해와 활용 안내서 (13장).** 왜 이 구조인가 → 계약 → 런타임 → 플랜 생성 → 설정·실측. **코드를 읽거나 고쳐야 하면 여기부터** |
-| [`docs/tutorial/index.html`](docs/tutorial/index.html) | **활용 실습서 (6부 21장).** 실행 한 줄 → 콘텐츠 추가 → 내 게임서버 붙이기 → LLM 켜기. 장마다 예제(`samples/`)와 확인 절차가 붙는다. **직접 만들어 보려면 여기부터** (0~9장 완성, 나머지 집필 중) |
+| [`docs/tutorial/index.html`](docs/tutorial/index.html) | **활용 실습서 (6부 21장 + 부록).** 실행 한 줄 → 콘텐츠 추가 → 내 게임서버 붙이기 → LLM 켜기 → 부하·테스트. 장마다 예제(`samples/` 24종)와 확인 절차가 붙고, **실린 수치는 전부 실제로 돌려 얻은 것**이다. **직접 만들어 보려면 여기부터** |
 | [`docs/reference_link.html`](docs/reference_link.html) | **게임서버 연동 계약 ★** N1~N8 · 패킷 · 와이어 프로토콜 · 핸드셰이크 · **게임서버가 지켜야 할 발행 규약**. 연동 팀에 그대로 건넬 수 있다 |
 | [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | **마스터데이터 레퍼런스 ★** 월드 플래그 42 · 액션 37 · 아키타입 40 · 버킷 2,880 · 검증 V1~V11 · 작성 순서 |
 | [`docs/reference_metrics.html`](docs/reference_metrics.html) | **실측 데이터.** 런타임 성능 · 스케일 · LLM 지연 · 캐시 · 비용 · 프리베이크 · 플랜 품질 · 수용 기준 판정 · **미측정으로 남은 것** |

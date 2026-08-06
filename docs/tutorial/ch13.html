@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13장 · 소켓 게임서버를 만든다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p4)">4부 · 내 코드에 붙인다</p>
+  <h1>13장 · 소켓 너머의 게임서버를 만든다</h1>
+  <p class="lead">
+    <b>이 책의 정점이다.</b> 진짜 TCP 소켓 반대편에 게임서버를 세우고
+    NPC 서버를 <code>--link tcp</code> 로 붙인다.
+    <b><code>Npc.Wire</code> 와 <code>Npc.MasterData</code> 두 개만 참조</b>하는 250줄짜리 프로그램이다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★★</span>
+    <span class="chip">90분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">본체를 안 고친다</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면 — 내 게임서버에 NPC 서버가 붙는다</span>
+<pre><code>PS&gt; dotnet run -c Release --project samples/ch13_mini_gs -- --npcs 100 --time-scale 60 --port 7011
+
+mini game server  ·  npcs 100  ·  time-scale 60
+masterdata  f37c02926c0b   (C:\github_edu\LlmNpcServer\masterdata)
+roster      d2e722de62bb
+listening   :7011
+
+[link] 접속: 127.0.0.1:60845
+<span class="hl">[handshake] 수락. npc 100 · time-scale 60</span>
+
+tick    100 | cmd      910 | ev      910 | 대기 4
+tick    200 | cmd     1719 | ev     1846 | 대기 3</code></pre>
+</div>
+
+<div class="term">
+  <span class="cap">NPC 서버 쪽 /status</span>
+<pre><code>{ "tick": 273, "npcs": 100,
+  "commandsEmitted": 2364, "stepsAdvanced": 2264, "<span class="hl">timeoutsSynthesized": 0</span>,
+  "link": { "commandsFlushed": 2364, "eventsReceived": 2537,
+            "commandsDropped": 0, "<span class="hl">eventGapsDetected": 0</span> } }</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>실제 게임서버에 붙이는 데 필요한 것은 이것이 전부다</b> —
+  프레임 헤더 8바이트, 핸드셰이크 한 왕복, 배치 두 종류, 그리고 <code>TickSync</code>.
+  NPC 서버는 <b>한 줄도 안 고친다</b>.
+</div>
+
+<h2 id="proto">프로토콜 — 네 단계</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 900 340" role="img" aria-label="핸드셰이크와 배치 흐름">
+      <defs>
+        <marker id="a13" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <text x="150" y="26" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--p1)">NPC 서버</text>
+      <text x="750" y="26" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--p2)">게임서버 (내가 만든다)</text>
+      <line x1="150" y1="38" x2="150" y2="320" stroke="var(--p1)" stroke-width="1.4" stroke-dasharray="4 4"/>
+      <line x1="750" y1="38" x2="750" y2="320" stroke="var(--p2)" stroke-width="1.4" stroke-dasharray="4 4"/>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.6" marker-end="url(#a13)" color="var(--ink-3)" font-size="12">
+        <path d="M155,68 L744,68"/>
+        <path d="M745,110 L156,110"/>
+        <path d="M155,152 L744,152"/>
+        <path d="M155,206 L744,206"/>
+        <path d="M745,248 L156,248"/>
+        <path d="M745,290 L156,290"/>
+      </g>
+
+      <g font-size="12" fill="var(--ink-2)">
+        <text x="450" y="60" text-anchor="middle">TCP connect  (연결은 NPC 서버가 건다)</text>
+        <text x="450" y="102" text-anchor="middle" font-weight="650">① Hello — 게임서버가 규격을 먼저 제시한다</text>
+        <text x="450" y="144" text-anchor="middle" font-weight="650">② HelloAck — 수락 / 거절</text>
+        <text x="450" y="198" text-anchor="middle" font-weight="650">③ CommandBatch  (FlushAsync 한 번 = 프레임 하나)</text>
+        <text x="450" y="240" text-anchor="middle" font-weight="650">④ EventBatch  (도착 · 완료 · TickSync)</text>
+        <text x="450" y="282" text-anchor="middle">Heartbeat  ·  Bye</text>
+      </g>
+
+      <text x="450" y="322" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">
+        ①의 방향에 주의한다 — 연결은 NPC 서버가 걸지만 Hello 는 게임서버가 보낸다
+      </text>
+    </svg>
+  </div>
+  <figcaption>핸드셰이크는 한 왕복뿐이다. 그 뒤로는 배치만 흐른다.</figcaption>
+</figure>
+
+<h2 id="handshake">① 핸드셰이크 — 네 값이 같아야 한다</h2>
+
+<pre><code>var hello = new WireHello
+{
+    ProtocolVersion = FrameCodec.Version,          <span class="cm">// 1</span>
+    TickRate        = 10,
+    TimeScale       = timeScale,                   <span class="cm">// 같아야 한다</span>
+    NpcCount        = roster.Count,                <span class="cm">// 같아야 한다</span>
+    StartTick       = 0,
+    MasterData      = WireHash.FromHex(data.ContentHash),   <span class="cm">// 같아야 한다</span>
+    Roster          = WireHash.FromHex(roster.Hash),        <span class="cm">// 같아야 한다</span>
+};
+
+await WriteFrameAsync(stream, LinkMessageKind.Hello, MemoryPackSerializer.Serialize(hello), ct);</code></pre>
+
+<div class="warn">
+  <span class="tag">해시를 <b>같은 함수</b>로 계산해야 한다</span>
+  <p>
+    로스터 해시는 "어떤 NPC 를 어떤 순서로 뽑았는가" 의 지문이다.
+    직접 계산하면 반드시 어긋난다 — 그래서 이 미니 서버는
+    <b><code>Npc.MasterData</code> 를 참조해 <code>NpcRoster.Select</code> 를 그대로 부른다.</b>
+  </p>
+  <pre style="margin:8px 0 0"><code>MasterDataSet data = MasterDataLoader.Load(mdDir);
+NpcInstanceTable instances = NpcInstanceTable.Load(Path.Combine(mdDir, "npc_instances.json"), data);
+NpcRoster roster = NpcRoster.Select(instances, npcs);   <span class="cm">// NPC 서버와 같은 함수</span></code></pre>
+  <p style="margin-top:8px">
+    <b>선택 규칙이 한 곳에만 있는 이유가 이것이다.</b> 양쪽이 각자 뽑으면
+    첨자가 어긋나고, 어긋나면 대장장이에게 밭을 갈라고 명령하게 된다.
+  </p>
+</div>
+
+<div class="term">
+  <span class="cap">거절당하면 이렇게 찍는다</span>
+<pre><code>if (ack.Accepted == 0)
+{
+    Console.WriteLine($"[handshake] 거절됐다: {(LinkRejectCode)ack.RejectCode}");
+    Console.WriteLine($"  내 masterdata {data.ContentHash[..12]} / 상대 {ack.MasterData.ToHex()[..12]}");
+    Console.WriteLine($"  내 roster     {roster.Hash[..12]} / 상대 {ack.Roster.ToHex()[..12]}");
+    Console.WriteLine($"  내 time-scale {timeScale} / 상대 {ack.TimeScale}");
+}</code></pre>
+</div>
+
+<p>
+  <b>양쪽 값을 나란히 찍는 것이 중요하다.</b> "거절됨" 만 나오면 어느 값이 다른지 알 수 없고,
+  3장에서 봤듯이 이건 며칠을 태울 수 있는 종류의 문제다.
+</p>
+
+<h2 id="frame">② 프레임 — 헤더 8바이트는 손으로 쓴다</h2>
+
+<pre><code>static async Task WriteFrameAsync(Stream stream, LinkMessageKind kind, byte[] payload, CancellationToken ct)
+{
+    var buffer = new ArrayBufferWriter&lt;byte&gt;(FrameCodec.HeaderSize + payload.Length);
+
+    FrameCodec.WriteHeader(buffer, kind, payload.Length);   <span class="cm">// 8바이트</span>
+    buffer.Write(payload);                                   <span class="cm">// MemoryPack</span>
+
+    await stream.WriteAsync(buffer.WrittenMemory, ct);
+    await stream.FlushAsync(ct);
+}
+
+static async Task&lt;(LinkMessageKind, byte[])&gt; ReadFrameAsync(PipeReader reader, CancellationToken ct)
+{
+    while (true)
+    {
+        ReadResult result = await reader.ReadAsync(ct);
+        ReadOnlySequence&lt;byte&gt; buffer = result.Buffer;
+
+        <span class="cm">// TCP 는 경계를 안 지켜 준다. 다 안 왔으면 false 를 받고 더 읽는다 — 정상 경로다.</span>
+        if (FrameCodec.TryReadFrame(ref buffer, out var kind, out var payload))
+        {
+            byte[] bytes = payload.ToArray();
+            reader.AdvanceTo(buffer.Start, buffer.End);
+            return (kind, bytes);
+        }
+
+        reader.AdvanceTo(buffer.Start, buffer.End);
+        if (result.IsCompleted) { throw new IOException("상대가 연결을 닫았다."); }
+    }
+}</code></pre>
+
+<h2 id="world">③ 세계를 흉내 낸다</h2>
+
+<p>
+  받은 명령을 <b>언제 완료로 칠지</b> 정하는 것이 게임서버의 일이다.
+  이 미니 서버는 규칙 하나로 끝낸다 — <b>이동은 N틱, 나머지는 1틱.</b>
+</p>
+
+<pre><code>foreach (WireCommand c in batch)
+{
+    bool isMove = c.Kind == (byte)NpcCommandKind.MoveTo;
+    long due = tick + (isMove ? travelTicks : 1);
+
+    pending[due].Add(new WireEvent
+    {
+        Kind        = (byte)(isMove ? GameEventKind.NpcArrived : GameEventKind.NpcActionCompleted),
+        OccurredAt  = due,
+        Npc         = c.Npc,
+        Correlation = c.Correlation,   <span class="cm">// N5 — 받은 값을 그대로</span>
+        Poi         = c.TargetPoi,
+    });
+}</code></pre>
+
+<div class="note">
+  <span class="tag"><code>TickSync</code> 를 빼먹지 않는다</span>
+  매 틱 하나씩 보낸다. <b>이게 없으면 NPC 서버의 게임 시계가 안 간다</b> —
+  시간대가 안 넘어가고, 버킷 전환이 안 일어나고, <code>--days N</code> 이 영원히 안 끝난다.
+  12장에서 같은 함정을 다른 모양으로 만났다.
+</div>
+
+<h2 id="steps">4단계로 증축한다</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:52px">단계</th><th>만드는 것</th><th>확인</th></tr></thead>
+<tbody>
+<tr><td><b>①</b></td><td>TCP 수신 + <code>Hello</code> 만 보낸다</td><td>NPC 서버 로그에 접속이 뜬다</td></tr>
+<tr><td><b>②</b></td><td><code>HelloAck</code> 를 읽고 수락 여부를 찍는다</td><td><code>[handshake] 수락</code></td></tr>
+<tr><td><b>③</b></td><td><code>CommandBatch</code> 를 읽어 카운트만</td><td><code>cmd</code> 가 계속 증가</td></tr>
+<tr><td><b>④</b></td><td><code>EventBatch</code> 로 도착·완료·<code>TickSync</code></td><td><b>NPC 가 실제로 이동·도착을 반복</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+  ③까지만 만들면 NPC 는 명령을 내다가 <b>전부 타임아웃</b>으로 넘어간다.
+  ④를 붙이는 순간 <code>timeouts</code> 가 0으로 떨어진다 — 그 변화가 이 장의 확인점이다.
+</p>
+
+<h2 id="verify">확인한다</h2>
+
+<div class="term">
+  <span class="cap">터미널 둘</span>
+<pre><code><span class="cm"># 터미널 1 — 게임서버</span>
+PS&gt; dotnet run -c Release --project samples/ch13_mini_gs -- --npcs 100 --time-scale 60 --port 7011
+
+<span class="cm"># 터미널 2 — NPC 서버</span>
+PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --link tcp --gs-port 7011 --npcs 100 --time-scale 60 --days 0 --no-llm --port 5094</code></pre>
+</div>
+
+<ul class="checks">
+  <li>게임서버가 <code>[handshake] 수락</code> 을 찍는다</li>
+  <li><code>cmd</code> 카운트가 <b>계속 증가</b>한다</li>
+  <li>NPC 서버 <code>/status</code> 의 <code>commandsFlushed</code> &gt; 0 · <code>commandsDropped</code> = 0</li>
+  <li><span class="sig"><code>timeoutsSynthesized</code> = 0</span> — 게임서버가 제때 답하고 있다</li>
+  <li><code>eventGapsDetected</code> = 0</li>
+  <li><b><code>src/</code> 에 diff 가 하나도 없다</b> — 이 장은 본체를 안 고친다</li>
+</ul>
+
+<h2 id="break">부러뜨려 본다 — 시퀀스를 하나 건너뛴다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; dotnet run -c Release --project samples/ch13_mini_gs -- `
+      --npcs 50 --time-scale 60 --port 7012 <span class="hl3">--gap-at 60</span>
+
+[N6] tick 60: 시퀀스를 하나 건너뛴다 → 갭 검출을 유도한다</code></pre>
+</div>
+
+<div class="term">
+  <span class="cap">NPC 서버 쪽 — 실측</span>
+<pre><code>tick=152 · 명령=759 · 이벤트=861 · <span class="hl3">갭검출=1</span></code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">여기서 배우는 것</span>
+  <p>
+    <b>NPC 서버가 갭을 잡아냈다</b>(<code>eventGapsDetected = 1</code>).
+    그리고 <b>죽지 않았다</b> — tick 152 에서도 명령을 계속 내고 있다.
+  </p>
+  <p>
+    N6 이 있는 이유가 이것이다. 이벤트 유실은 <b>조용히</b> 일어난다.
+    시퀀스가 없으면 "NPC 몇 마리가 가끔 안 움직인다" 로만 나타나고, 원인을 찾을 수가 없다.
+    번호를 붙여 두면 <b>유실 자체가 관측 가능한 사건</b>이 된다.
+  </p>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>더 부러뜨려 볼 것</th><th>예상</th></tr></thead>
+<tbody>
+<tr><td><code>--npcs</code> 를 어긋내고 띄운다</td><td><code>[handshake] 거절됐다: RosterMismatch</code> — 양쪽 해시가 나란히 찍힌다</td></tr>
+<tr><td><code>--time-scale</code> 을 어긋낸다</td><td><code>TimeScaleMismatch</code></td></tr>
+<tr><td>게임서버를 죽였다 살린다</td><td>NPC 서버가 <b>재접속</b>한다. 그동안의 명령은 유실되고 타임아웃이 오른다</td></tr>
+<tr><td><code>TickSync</code> 를 안 보낸다</td><td>게임 시계가 멈춘다. 시간대가 안 넘어간다</td></tr>
+<tr><td><code>Correlation</code> 을 0으로 답한다</td><td>어느 명령의 답인지 모르니 <b>전부 타임아웃</b>이 된다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="real">실제 게임서버에 붙일 때</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>할 일</th><th>어디를 본다</th></tr></thead>
+<tbody>
+<tr><td>상대 팀에 규격을 넘긴다</td><td><a href="../reference_link.html">reference_link.html</a> 를 그대로 준다 — <b>연동 계약 문서다</b></td></tr>
+<tr><td>이기종 런타임(C++·Java·Go)이면</td><td>14장 — <code>Npc.Wire</code> 한 곳만 고치면 된다</td></tr>
+<tr><td>재접속·역압을 제대로 다루려면</td><td><code>src/Npc.Gateway/TcpGameServerLink.cs</code>(661줄)가 참고 구현이다</td></tr>
+<tr><td>더 완전한 대역이 필요하면</td><td><code>testbed/Npc.TestGameServer/</code> — 이동·상호작용·플레이어까지 있다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">이 미니 서버가 안 하는 것</span>
+  좌표 계산 · 실제 이동 · 충돌 · 실패 판정 · 플레이어 · 존 상태 · 인벤토리 검증.
+  전부 <b>진짜 게임서버의 일</b>이고, 여기서는 "명령을 받고 제때 답한다" 만 한다.
+  <b>그래도 NPC 서버는 완전히 정상 동작한다</b> — 경계가 그만큼 얇다는 뜻이다.
+</div>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>와이어 프로토콜 전문</td><td><a href="../reference_link.html">reference_link.html</a> · <a href="../book/ch10.html">코드 안내서 10장</a></td></tr>
+<tr><td>바이트 레이아웃</td><td><span class="filepath" style="margin:0">samples/ch14_sniffer/LAYOUT.md</span> · 이 책 14장</td></tr>
+<tr><td>참고 구현 (재접속·역압 포함)</td><td><code>src/Npc.Gateway/TcpGameServerLink.cs</code></td></tr>
+<tr><td>완전한 게임서버 대역</td><td><code>testbed/Npc.TestGameServer/</code> · <a href="../testbed_guide.html">testbed_guide.html</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

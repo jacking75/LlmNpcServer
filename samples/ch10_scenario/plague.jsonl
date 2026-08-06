@@ -1,0 +1,22 @@
+{"_comment": "10장 대본 ② — 역병이 존을 타고 번진다. --time-scale 600 기준(1틱 = 게임 60초, 시작 06:00)."}
+{"_comment": "지역 상태는 Peace → Alert → War → Disaster 넷이다. 버킷 키의 세 번째 축이고,"}
+{"_comment": "존 하나가 바뀌면 그 존에 있는 NPC 전원의 플랜 키가 동시에 갈린다. 그 자체가 스파이크다."}
+{"_comment": "tick 120 = 08:00 Morning — 강가에서 시작한다."}
+{"at_tick": 120, "event": "ZoneStateChanged", "zone": "riverside",        "code": "Alert"}
+{"_comment": "tick 240 = 10:00 — 농지로 번진다. 강가는 재해로."}
+{"at_tick": 240, "event": "ZoneStateChanged", "zone": "riverside",        "code": "Disaster"}
+{"at_tick": 240, "event": "ZoneStateChanged", "zone": "farmlands",        "code": "Alert"}
+{"_comment": "tick 360 = 12:00 — 마을 남쪽까지."}
+{"at_tick": 360, "event": "ZoneStateChanged", "zone": "farmlands",        "code": "Disaster"}
+{"at_tick": 360, "event": "ZoneStateChanged", "zone": "town_south",       "code": "Alert"}
+{"_comment": "tick 480 = 14:00 — 중심가. 여기가 최대 인구 존(1,247)이라 전환 비용이 가장 크다."}
+{"at_tick": 480, "event": "ZoneStateChanged", "zone": "town_south",       "code": "Disaster"}
+{"at_tick": 480, "event": "ZoneStateChanged", "zone": "town_center",      "code": "Alert"}
+{"_comment": "tick 840 = 20:00 Evening — 잦아든다. 역순으로 회복."}
+{"at_tick": 840, "event": "ZoneStateChanged", "zone": "town_center",      "code": "Peace"}
+{"at_tick": 840, "event": "ZoneStateChanged", "zone": "town_south",       "code": "Alert"}
+{"at_tick": 960, "event": "ZoneStateChanged", "zone": "town_south",       "code": "Peace"}
+{"at_tick": 960, "event": "ZoneStateChanged", "zone": "farmlands",        "code": "Alert"}
+{"at_tick": 1080, "event": "ZoneStateChanged", "zone": "farmlands",       "code": "Peace"}
+{"at_tick": 1080, "event": "ZoneStateChanged", "zone": "riverside",       "code": "Alert"}
+{"at_tick": 1200, "event": "ZoneStateChanged", "zone": "riverside",       "code": "Peace"}

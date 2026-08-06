@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>20장 · 테스트로 지킨다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p6)">6부 · 제품으로 만든다</p>
+  <h1>20장 · 내 변경을 테스트로 지킨다 + 도입 체크리스트</h1>
+  <p class="lead">
+    이 책에서 만든 것들을 <b>CI 가 대신 지키게</b> 만든다.
+    그리고 실제 프로젝트에 얹기 전 <b>12항목 판정표</b>를 채운다 —
+    미달은 미달로 적는다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★☆</span>
+    <span class="chip">70분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">마지막 장</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<div class="term">
+  <span class="cap">실측</span>
+<pre><code>PS&gt; dotnet test -c Release samples/ch20_tests/MyContentTests.csproj
+
+<span class="hl">통과!  - 실패: 0, 통과: 4, 건너뜀: 0, 전체: 4, 기간: 334 ms</span></code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:52px">#</th><th>테스트</th><th>지키는 것</th><th>어느 장</th></tr></thead>
+<tbody>
+<tr><td><b>①</b></td><td><code>MasterData_PassesEveryRule</code></td><td>V1~V11 전부</td><td>4·5·7·8·9장</td></tr>
+<tr><td><b>②</b></td><td><code>Fallback_ExistsAndLoopsForEveryArchetype</code></td><td>모든 아키타입에 폴백이 있다</td><td>6·7장</td></tr>
+<tr><td><b>③</b></td><td><code>Interrupts_UseKnownActionsOnly</code></td><td>인터럽트가 실재하는 액션만 쓴다</td><td>8장</td></tr>
+<tr><td><b>④</b></td><td><code>Wire_CommandRoundTripsWithoutLoss</code></td><td>계약 ↔ 와이어 드리프트</td><td>13·14장</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>테스트가 사양이다.</b> 콘텐츠를 되돌리면 문서가 아니라 <b>테스트가 먼저 깨진다.</b>
+  그리고 그 이름이 곧 "무엇이 깨졌는가" 다.
+</div>
+
+<h2 id="write">네 개면 충분한 이유</h2>
+
+<p>
+  콘텐츠를 늘리면 테스트도 늘려야 한다는 강박이 생기지만, 실제로 필요한 것은
+  <b>"내가 넣은 것이 사라지면 알아채는" 최소 집합</b>이다.
+</p>
+
+<h3>① 마스터데이터가 멀쩡한가</h3>
+
+<pre><code>[Fact]
+public void MasterData_PassesEveryRule()
+{
+    MasterDataValidationReport report =
+        MasterDataValidator.Validate(MasterDataDir, new MasterDataValidationOptions(null));
+
+    string detail = string.Join(
+        Environment.NewLine,
+        report.Violations.Select(v =&gt; $"{v.Code}  {v.Detail}"));
+
+    Assert.True(report.IsValid, $"검증 위반 {report.Violations.Length}건{Environment.NewLine}{detail}");
+}</code></pre>
+
+<p>
+  <b>실패 메시지에 위반 목록을 통째로 넣는다.</b> "Assert.True 실패" 만 뜨면
+  CI 로그를 보고도 뭘 고쳐야 할지 모른다. 4장에서 본 그 메시지들이 그대로 나오게 한다.
+</p>
+
+<h3>④ 와이어 드리프트</h3>
+
+<pre><code>[Fact]
+public void Wire_CommandRoundTripsWithoutLoss()
+{
+    var original = new NpcCommand
+    {
+        Kind = NpcCommandKind.Interact, Npc = new NpcId(4321),
+        IssuedAt = new Tick(987_654), Correlation = new CorrelationId(555),
+        Priority = CommandPriority.Critical,
+        TargetPoi = new PoiId(244), TargetNpc = new NpcId(11),
+        Item = new ItemId(83), <span class="hl2">Amount = -7</span>, Flags = 3,
+    };
+
+    NpcCommand round = WireCommand.From(original).To();
+
+    Assert.Equal(original.Amount, round.Amount);   <span class="cm">// 부호가 살아야 한다</span>
+    ...
+}</code></pre>
+
+<div class="note">
+  <span class="tag">필드마다 <b>다른 값</b>을 넣는다</span>
+  전부 같은 값(예: 1)을 넣으면 <b>매핑이 뒤바뀌어도 통과한다.</b>
+  <code>Amount</code> 에 음수를 넣는 것도 같은 이유다 — <code>InventoryChange</code> 는 부호가 있고,
+  <code>uint</code> 으로 잘못 매핑하면 여기서만 잡힌다.
+</div>
+
+<h2 id="where">어디에 둘 것인가</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>위치</th><th>장점</th><th>단점</th></tr></thead>
+<tbody>
+<tr>
+  <td><b><code>tests/Npc.Tests/</code></b><br><span class="small">실무에서는 이쪽</span></td>
+  <td><code>dotnet test</code> 한 번에 같이 돈다. CI 가 자동으로 본다</td>
+  <td>본체 테스트 프로젝트가 커진다</td>
+</tr>
+<tr>
+  <td><b><code>samples/ch20_tests/</code></b><br><span class="small">이 책은 이쪽</span></td>
+  <td><b>본체 CI 에 영향 0.</b> 실습이 저장소를 안 건드린다</td>
+  <td>따로 지정해야 돈다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="term">
+  <span class="cap">MyContentTests.csproj — sln 에 넣지 않는다</span>
+<pre><code>&lt;ProjectReference Include="..\..\src\Npc.Contracts\Npc.Contracts.csproj" /&gt;
+&lt;ProjectReference Include="..\..\src\Npc.Core\Npc.Core.csproj" /&gt;
+&lt;ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" /&gt;
+&lt;ProjectReference Include="..\..\src\Npc.Wire\Npc.Wire.csproj" /&gt;</code></pre>
+</div>
+
+<p>
+  <code>NpcServer.sln</code> 은 프로젝트를 <b>명시 목록</b>으로 들고 있다.
+  넣지 않으면 <code>dotnet build</code>·<code>dotnet test</code> 가 <b>보지도 않는다</b> —
+  테스트 베드가 "단방향 잎" 인 것과 같은 원리다.
+</p>
+
+<h2 id="category">테스트 카테고리</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:130px">Category</th><th>내용</th><th>CI</th></tr></thead>
+<tbody>
+<tr><td>(없음)</td><td>단위. 빠르고 LLM 미호출</td><td>항상</td></tr>
+<tr><td><code>Contracts</code></td><td>N1~N8 강제 (리플렉션)</td><td>항상</td></tr>
+<tr><td><code>Wire</code></td><td>와이어 왕복·크기 고정·<b>드리프트</b></td><td>항상</td></tr>
+<tr><td><code>TestBed</code></td><td>게임서버 대역·종단</td><td>항상</td></tr>
+<tr><td><code>Determinism</code></td><td>리플레이 일치·멱등성</td><td>항상</td></tr>
+<tr><td><code>Load</code></td><td>NPC 5,000 부하. <b>측정 CSV 를 덮어쓴다</b></td><td>야간</td></tr>
+<tr><td><code>Golden</code></td><td>골든 50건 × 3회. <b>LLM 호출·비용</b></td><td>수동</td></tr>
+<tr><td><code>Gate</code></td><td>실측 산출물이 있어야 판정된다</td><td>수동</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="term">
+  <span class="cap">CI 기본 조합</span>
+<pre><code>PS&gt; dotnet test "--filter" "Category!=Golden&amp;Category!=Gate&amp;Category!=Load"</code></pre>
+</div>
+
+<p>
+  내 테스트에 카테고리를 붙이려면 <code>[Trait("Category", "…")]</code> 를 클래스에 단다.
+  <b>비용이 들거나 느린 것만 카테고리로 뺀다</b> — 나머지는 항상 돌아야 의미가 있다.
+</p>
+
+<h2 id="checklist">도입 전 12항목 판정표</h2>
+
+<p>
+  전체는 <span class="filepath">samples/ch20_tests/CHECKLIST.md</span> 에 있다. 요약하면:
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:52px">#</th><th>항목</th><th>기준</th><th>이 책에서 재는 법</th></tr></thead>
+<tbody>
+<tr><td colspan="4" style="background:var(--panel-2)"><b>A. 성능</b></td></tr>
+<tr><td>A1</td><td>틱 p99</td><td>≤ 20 ms</td><td>19장 <code>my-load.ps1</code></td></tr>
+<tr><td>A2</td><td>틱당 할당</td><td><b>= 0 B</b></td><td>같은 스크립트</td></tr>
+<tr><td>A3</td><td>예산 초과 틱</td><td>= 0</td><td>같은 스크립트</td></tr>
+<tr><td>A4</td><td>인지 스캔</td><td>≤ 150 / 틱</td><td>같은 스크립트</td></tr>
+<tr><td colspan="4" style="background:var(--panel-2)"><b>B. 가용성</b></td></tr>
+<tr><td>B1</td><td>명령 유실 하 진행</td><td>drop 0.5 에서 진행률 &gt; 0</td><td>11장 <code>chaos.ps1</code></td></tr>
+<tr><td>B2</td><td>LLM 3단 차단 후 동작</td><td>스텝 계속 증가</td><td>11장 <code>killswitch.ps1</code></td></tr>
+<tr><td>B3</td><td>링크 재접속</td><td>죽였다 살려도 복구</td><td>13장</td></tr>
+<tr><td colspan="4" style="background:var(--panel-2)"><b>C. 콘텐츠</b></td></tr>
+<tr><td>C1</td><td>마스터데이터 검증</td><td>V1~V11 통과</td><td>이 장 테스트 ①</td></tr>
+<tr><td>C2</td><td>결정론</td><td>루프백 두 회차 완전 일치</td><td>15장</td></tr>
+<tr><td colspan="4" style="background:var(--panel-2)"><b>D. 연동 · E. 비용</b></td></tr>
+<tr><td>D1</td><td>게임서버가 규격대로 붙는다</td><td>수락 · <code>timeouts</code> 0</td><td>13장</td></tr>
+<tr><td>D2</td><td>이벤트 유실 검출</td><td>갭이 잡힌다</td><td>13장 <code>--gap-at</code></td></tr>
+<tr><td>E1</td><td>프리픽스 SHA 유니크</td><td><b>= 1</b></td><td>17장 <code>--print-prefix</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="bad">
+  <span class="tag">미달로 적어야 하는 것들 (이 저장소의 현재 상태)</span>
+  <div class="tablewrap" style="margin:10px 0 0">
+  <table>
+  <thead><tr><th>항목</th><th>상태</th><th>이유</th></tr></thead>
+  <tbody>
+  <tr><td>GPU 사용률 ≤ 60 %</td><td><b>미측정</b></td><td>T1 을 켠 부하 회차를 안 돌렸다</td></tr>
+  <tr><td>프롬프트 캐시 적중률 ≥ 95 %</td><td><b>미달 30.7~42.6 %</b></td><td>암시적 캐싱이라 95 % 는 도달 불가</td></tr>
+  <tr><td>플랜 검증 통과율 ≥ 90 %</td><td><b>미달 64.6 %</b></td><td>288버킷 회차 기준</td></tr>
+  <tr><td>전량 프리베이크</td><td><b>미실행</b></td><td>2,880건 콜드 필을 안 돌렸다</td></tr>
+  <tr><td>블라인드 평가 12명</td><td><b>미실시</b></td><td>사람 시간이 필요하다</td></tr>
+  </tbody>
+  </table>
+  </div>
+  <p style="margin-top:10px">
+    <b>"아직 안 돌렸다" 와 "돌렸는데 안 나온다" 는 완전히 다른 이야기다.</b>
+    표에 한 줄로 적어 두면 다음 사람이 무엇부터 할지 안다.
+  </p>
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li><code>dotnet test samples/ch20_tests/MyContentTests.csproj</code> 가 <b>4개 전부 통과</b></li>
+  <li>본체 <code>dotnet test</code> 는 이 프로젝트를 <b>보지 않는다</b> (sln 밖)</li>
+  <li>마스터데이터를 일부러 깨면 테스트 ①이 <b>위반 목록과 함께</b> 실패한다</li>
+  <li><code>dotnet format --verify-no-changes</code> 통과</li>
+  <li>체크리스트 12항목에 <b>미달을 미달로</b> 적었다</li>
+</ul>
+
+<h2 id="end">이 책을 마치며</h2>
+
+<div class="grid3">
+  <div class="card">
+    <h4>1부 — 켰다</h4>
+    <p class="small" style="margin:0">
+      LLM 0회 호출로 명령 1만 건. NPC 한 마리의 하루를 끝까지 따라갔고,
+      소켓으로 3프로세스를 붙였다. <b>코드 0줄.</b>
+    </p>
+  </div>
+  <div class="card">
+    <h4>2·3부 — 만들고 흔들었다</h4>
+    <p class="small" style="margin:0">
+      아이템·POI·플랜·직업·인터럽트·액션을 넣었다. 아홉 가지로 깨뜨려 보고
+      명령을 절반 버려 봤다. <b>JSON 이 거의 전부였다.</b>
+    </p>
+  </div>
+  <div class="card">
+    <h4>4·5·6부 — 붙이고 지켰다</h4>
+    <p class="small" style="margin:0">
+      링크와 게임서버를 직접 썼고, LLM 을 켜고, 실패를 읽고, 부하로 재고,
+      테스트로 못 박았다.
+    </p>
+  </div>
+</div>
+
+<div class="ok" style="margin-top:20px">
+  <span class="tag">가장 중요한 한 줄</span>
+  <b>이 책의 모든 수치는 실제로 돌려서 얻은 것이다.</b>
+  안 돌린 것은 안 돌렸다고 적었고, 추정과 실측을 문장 단위로 구분했다.
+  <b>당신의 프로젝트에서도 같은 규칙을 지키면</b>,
+  1년 뒤에 이 표를 다시 볼 때 그 표를 믿을 수 있다.
+</div>
+
+<h2 id="next">이 다음</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>하려는 일</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>코드를 깊게 읽는다</td><td><a href="../book/index.html">코드 이해와 활용 안내서 (13장)</a></td></tr>
+<tr><td>게임서버 팀에 규격을 넘긴다</td><td><a href="../reference_link.html">reference_link.html</a> 를 그대로 전달</td></tr>
+<tr><td>콘텐츠를 대량으로 만든다</td><td><a href="../reference_masterdata.html">reference_masterdata.html</a></td></tr>
+<tr><td>도입을 판단한다</td><td><a href="../FAQ.html">FAQ</a> · <a href="../reference_metrics.html">reference_metrics.html</a></td></tr>
+<tr><td>코드를 고친다</td><td><code>CLAUDE.md</code>(규칙) · <code>CODEMAP.md</code>(어디를 여는가)</td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

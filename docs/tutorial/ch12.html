@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12장 · 가장 작은 링크 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p4)">4부 · 내 코드에 붙인다</p>
+  <h1>12장 · 가장 작은 링크 — <code>IGameServerLink</code> 를 직접 구현한다</h1>
+  <p class="lead">
+    <b>이 책의 첫 C# 이다.</b> NPC 서버와 게임서버 사이의 경계가 정말 멤버 다섯 개뿐인지,
+    링크를 하나 새로 써서 끼워 보고 확인한다.
+    그리고 <b>런타임 코드가 한 줄도 안 바뀌는 것</b>을 <code>git status</code> 로 증명한다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★☆</span>
+    <span class="chip">70분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip need">본체를 고친다 · 브랜치 필수</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<p>
+  명령을 콘솔에 찍고 완료를 즉시 합성해 돌려주는 링크. 게임서버가 <b>없어도</b> NPC 가 하루를 산다.
+</p>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면</span>
+<pre><code>PS&gt; dotnet run -c Release --project src/Npc.Host -- <span class="hl">--link console</span> `
+      --npcs 3 --time-scale 3600 --days 1 --no-llm --max-speed --no-dashboard
+
+[t=     1] npc     0 MoveTo           poi=55 speed=Walk  (corr 1, Normal)
+[t=     1] npc     1 MoveTo           poi=204 speed=Walk  (corr 2, Normal)
+[t=     1] npc     2 MoveTo           poi=98 speed=Walk  (corr 3, Normal)
+[t=     2] npc     0 Interact         poi=55 item=20 n=1  (corr 4, Normal)
+[t=     2] npc     1 Interact         poi=0 item=16 n=5  (corr 5, Normal)
+[t=     2] npc     2 Speak            to=0 dialogue=4  (corr 6, Cosmetic)
+[t=     3] npc     0 InventoryChange  item=20 delta=1  (corr 7, Normal)
+...
+
+tick p50 0.005ms · p99 0.725ms · max 4.951ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 63MB
+ticks 240 · game day 1 · events 957 · commands 720 · steps 717 · <span class="hl">timeouts 0</span> · ...</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>링크는 갈아 끼우는 부품이다.</b> 새 링크를 넣는 데 고친 곳은 셋뿐이고,
+  그중 둘은 배선(enum 값 하나, switch case 하나)이다.
+  <code>Npc.Runtime</code>·<code>Npc.Planning</code>·<code>Npc.Core</code>·<code>Npc.Contracts</code> 의 diff 는 <b>0줄</b>이다.
+</div>
+
+<h2 id="iface">경계는 다섯 개뿐이다</h2>
+
+<div class="filepath">src/Npc.Contracts/IGameServerLink.cs</div>
+<pre><code>public interface IGameServerLink : IAsyncDisposable
+{
+    void      Enqueue(in NpcCommand command);        <span class="cm">// 쌓는다. 반환값 없음 (N1)</span>
+    ValueTask FlushAsync(CancellationToken ct);      <span class="cm">// 내보낸다 (N8)</span>
+
+    ChannelReader&lt;GameEvent&gt; Events { get; }         <span class="cm">// 받는다</span>
+    LinkState State { get; }
+    LinkStats Stats { get; }
+
+    event Action&lt;LinkState&gt;? StateChanged;
+}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:52px">규칙</th><th>여기서 어떻게 드러나는가</th></tr></thead>
+<tbody>
+<tr><td><b>N1</b></td><td><code>Enqueue</code> 가 <code>void</code> 다. <b>보낸 쪽은 성공 여부를 모른다.</b> 결과는 <code>Events</code> 로만 온다</td></tr>
+<tr><td><b>N8</b></td><td>단건 전송 메서드가 없다. <code>Enqueue</code> 로 쌓고 <code>FlushAsync</code> 로 한 번에 내보낸다</td></tr>
+<tr><td><b>N5</b></td><td>응답을 만들 때 <code>Correlation</code> 을 <b>그대로 돌려준다</b>. 이게 없으면 어느 명령의 답인지 모른다</td></tr>
+<tr><td><b>N6</b></td><td>내보내는 이벤트마다 <code>Sequence</code> 를 순증으로 매긴다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag">왜 반환값을 금지했나</span>
+  <code>Task&lt;bool&gt; SendAsync(...)</code> 하나만 있으면 편해 보인다. 그런데 그 메서드는
+  <b>네트워크 왕복을 기다린다.</b> 틱 루프가 그것을 <code>await</code> 하는 순간
+  10Hz 예산 20ms 안에 RTT 가 들어와야 하고, 게임서버가 한 번 느려지면 NPC 서버 전체가 밀린다.
+  <br><br>
+  그래서 <b>편의를 금지하는 규칙</b>을 계약에 박고, 테스트로 강제한다.
+</div>
+
+<h2 id="code">링크를 쓴다</h2>
+
+<p>
+  전체는 <span class="filepath">samples/ch12_console_link/ConsoleGameServerLink.cs</span> 에 있다(약 180줄).
+  핵심은 셋이다.
+</p>
+
+<h3>① 쌓고 · 내보내고 · 답한다</h3>
+
+<pre><code>public void Enqueue(in NpcCommand command)
+{
+    _pending.Add(command);      <span class="cm">// 반환값이 없다 (N1)</span>
+    _enqueued++;
+}
+
+public ValueTask FlushAsync(CancellationToken ct)
+{
+    foreach (NpcCommand command in _pending)
+    {
+        _out.WriteLine(Format(command));
+        Respond(command);       <span class="cm">// 응답을 합성한다</span>
+        _flushed++;
+    }
+
+    _pending.Clear();
+    return ValueTask.CompletedTask;
+}</code></pre>
+
+<h3>② 명령 종류마다 어떤 이벤트로 답하나</h3>
+
+<pre><code>GameEventKind kind = command.Kind switch
+{
+    NpcCommandKind.MoveTo  =&gt; GameEventKind.<span class="hl2">NpcArrived</span>,     <span class="cm">// 이동은 "도착"</span>
+    NpcCommandKind.Spawn   =&gt; GameEventKind.NpcSpawned,
+    NpcCommandKind.Despawn =&gt; GameEventKind.NpcDespawned,
+    _                      =&gt; GameEventKind.<span class="hl2">NpcActionCompleted</span>, <span class="cm">// 나머지는 "완료"</span>
+};
+
+_events.Writer.TryWrite(new GameEvent
+{
+    Kind        = kind,
+    Sequence    = Interlocked.Increment(ref _sequence),   <span class="cm">// N6</span>
+    OccurredAt  = command.IssuedAt,
+    Npc         = command.Npc,
+    Correlation = command.Correlation,                    <span class="cm">// N5 — 그대로 돌려준다</span>
+    Poi         = command.TargetPoi,
+});</code></pre>
+
+<h3>③ 데코레이터인 이유 — 시간은 누가 미나</h3>
+
+<div class="bad">
+  <span class="tag">여기서 한 번 걸렸다</span>
+  <p>
+    처음엔 자기 채널만 들고 만들었다. 빌드도 되고 배선도 됐는데
+    <b><code>--days 1</code> 이 영원히 안 끝났다.</b>
+  </p>
+  <p>
+    <b>세계 시간을 미는 것은 링크가 아니라 호스트의 펌프</b>다.
+    펌프는 게임서버 대역이 없을 때 <code>NullGameServerLink.PushTick()</code> 으로
+    <code>TickSync</code> 를 넣는데, 우리 링크가 자기 채널만 보면 그 틱이 아무에게도 안 간다.
+    게임 시계가 안 가니 "게임 1일"이 영원히 안 온다.
+  </p>
+  <p>
+    그래서 <b><code>NullGameServerLink</code> 를 감싼다.</b> 안쪽 이벤트를 우리 채널로 옮기고
+    시퀀스만 다시 매긴다 — <code>RecordingGameServerLink</code> 와 같은 모양이다.
+  </p>
+</div>
+
+<pre><code>public ConsoleGameServerLink(NullGameServerLink inner, ...)
+{
+    _inner = inner;
+    _forward = Task.Run(ForwardAsync);   <span class="cm">// 안쪽 이벤트를 우리 채널로</span>
+}
+
+private async Task ForwardAsync()
+{
+    await foreach (GameEvent e in _inner.Events.ReadAllAsync())
+    {
+        <span class="cm">// 합성분과 섞이므로 시퀀스는 한 줄기여야 한다 (N6)</span>
+        _events.Writer.TryWrite(e with { Sequence = Interlocked.Increment(ref _sequence) });
+    }
+}</code></pre>
+
+<h2 id="wire">배선한다 — 고치는 곳 셋</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; git switch -c lab/ch12-console-link
+PS&gt; ./samples/ch12_console_link/apply.ps1 -Run
+
+① src/Npc.Gateway/ConsoleGameServerLink.cs
+  복사했다 (Npc.Gateway 는 Npc.Contracts 만 참조한다)
+
+② src/Npc.Host/HostOptions.cs — LinkKind.Console
+  LinkKind 에 Console 추가
+
+③ src/Npc.Host/Program.cs — switch 에 case 하나
+  case LinkKind.Console
+
+④ 빌드
+   빌드했습니다.  <span class="hl">경고 0개 · 오류 0개</span></code></pre>
+</div>
+
+<pre><code><span class="cm">// ③ 이 전부다</span>
+case LinkKind.Console:
+    nullLink = new NullGameServerLink();
+    link = new ConsoleGameServerLink(nullLink);
+    break;</code></pre>
+
+<p>
+  <code>--link console</code> 을 파싱하는 코드는 <b>안 만들었다.</b>
+  <code>HostOptions</code> 가 <code>Enum.TryParse&lt;LinkKind&gt;</code> 로 읽기 때문에
+  enum 값 하나만 추가하면 CLI 가 알아서 받는다.
+</p>
+
+<h2 id="verify">확인한다 — 런타임이 안 바뀌었나</h2>
+
+<div class="term">
+  <span class="cap">실측 — apply.ps1 의 ⑤단계</span>
+<pre><code>⑤ 무엇이 바뀌었나
+    M src/Npc.Host/HostOptions.cs
+    M src/Npc.Host/Program.cs
+   ?? src/Npc.Gateway/ConsoleGameServerLink.cs
+
+   <span class="hl">Npc.Runtime · Npc.Planning · Npc.Core · Npc.Contracts diff = 0줄</span>
+   링크는 갈아 끼우는 부품이다. 그것이 IGameServerLink 가 존재하는 이유다.</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이것이 P6 게이트가 잰 것과 같은 성질이다</span>
+  테스트 베드(<code>testbed/</code>)를 만들 때도 게임서버·클라이언트·와이어 프로토콜을 통째로
+  새로 썼는데 <b>런타임 4개 프로젝트의 diff 가 0줄</b>이었다.
+  같은 성질을 여기서 <b>80줄짜리 링크로</b> 다시 확인한 것이다.
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th class="num">--link console</th><th class="num">--link loopback</th><th>왜</th></tr></thead>
+<tbody>
+<tr><td><code>timeouts</code></td><td class="num"><b>0</b></td><td class="num">2,065</td><td>이 링크는 <b>즉시</b> 성공으로 답한다 — 기다릴 일이 없다</td></tr>
+<tr><td><code>steps</code> / <code>commands</code></td><td class="num">717 / 720</td><td class="num">4,449 / 4,491</td><td>NPC 3마리 vs 20마리</td></tr>
+<tr><td><code>bytes/tick</code></td><td class="num">0</td><td class="num">0</td><td>링크를 갈아도 틱 루프는 그대로다</td></tr>
+</tbody>
+</table>
+</div>
+
+<ul class="checks">
+  <li>빌드 <b>경고 0 · 오류 0</b></li>
+  <li><code>git status -- src</code> 에 <b>Host 와 Gateway 만</b> 나온다</li>
+  <li><code>--link console</code> 로 NPC 가 게임 하루를 <b>완주</b>한다</li>
+  <li>콘솔에 흐르는 명령의 <code>corr</code> 번호가 <b>1부터 순증</b>한다</li>
+  <li><code>timeouts 0</code> — 모든 명령이 즉시 성공했다</li>
+</ul>
+
+<h2 id="break">부러뜨려 본다 — N1 을 어긴다</h2>
+
+<p>계약에 반환값 있는 전송 메서드를 하나 추가해 본다.</p>
+
+<div class="filepath">src/Npc.Contracts/IGameServerLink.cs</div>
+<pre><code>public interface IGameServerLink : IAsyncDisposable
+{
+    void Enqueue(in NpcCommand command);
+    ValueTask FlushAsync(CancellationToken ct);
+
+<span class="hl3">    Task&lt;bool&gt; SendAndWaitAsync(NpcCommand command, CancellationToken ct);   // N1 위반</span>
+    ...
+}</code></pre>
+
+<div class="term">
+  <span class="cap">실측 — 빌드가 먼저 막는다</span>
+<pre><code>error CS0535: 'ConsoleGameServerLink'은(는) 'IGameServerLink.SendAndWaitAsync(...)'
+              인터페이스 멤버를 구현하지 않습니다.
+error CS0535: 'LoopbackGameServerLink'은(는) ...
+error CS0535: 'NullGameServerLink'은(는) ...
+              (링크 구현 6개가 전부)</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">여기서 배우는 것 둘</span>
+  <p>
+    <b>① 테스트보다 컴파일이 먼저다.</b> 경계가 작으니 구현체도 여섯 개뿐이고,
+    멤버를 하나 늘리면 <b>여섯 곳이 동시에 깨진다.</b>
+    "인터페이스에 하나만 더" 가 싸지 않다는 것을 컴파일러가 먼저 말해 준다.
+  </p>
+  <p>
+    <b>② 억지로 구현해 통과시켜도 테스트가 잡는다.</b>
+    <code>Contracts_LinkHasNoRequestResponseMethod</code> 가 리플렉션으로
+    <code>IGameServerLink</code> 의 모든 메서드를 훑어 <code>void</code>·<code>Task</code>·<code>ValueTask</code>
+    가 아닌 반환형을 찾아낸다. 위반이 있으면 이렇게 보고한다:
+    <br>
+    <code>IGameServerLink.SendAndWaitAsync → Task`1</code>
+  </p>
+</div>
+
+<h2 id="revert">되돌린다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch12_console_link/revert.ps1 -Yes
+PS&gt; git switch main
+PS&gt; git branch -D lab/ch12-console-link</code></pre>
+</div>
+
+<p>
+  <b>13장은 이 결과에 의존하지 않는다.</b> 거기서는 링크를 바꾸는 게 아니라
+  <code>--link tcp</code> 반대편에 설 <b>진짜 게임서버</b>를 만든다.
+</p>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>계약 규칙 N1~N8 전문</td><td><a href="../reference_link.html">reference_link.html</a></td></tr>
+<tr><td>기존 링크 구현 5종</td><td><code>src/Npc.Gateway/</code> · <a href="../book/ch03.html">코드 안내서 3장</a></td></tr>
+<tr><td>왜 계약에 <code>string</code>·<code>DateTime</code> 이 없나</td><td><a href="../book/ch03.html">코드 안내서 3장</a></td></tr>
+<tr><td>이 링크를 소켓 너머로</td><td>이 책 13장</td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

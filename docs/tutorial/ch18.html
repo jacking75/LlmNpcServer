@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18장 · 실패한 플랜을 읽는다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p5)">5부 · LLM을 켠다</p>
+  <h1>18장 · 실패한 플랜을 읽는다 — rejected · 재시도 · pinned</h1>
+  <p class="lead">
+    반려된 플랜 <b>766건</b>이 저장소에 남아 있다. 버리지 않았기 때문이다.
+    그것을 집계해 <b>다음에 무엇을 고칠지</b>를 뽑아낸다 —
+    <b>이 장은 API 키 없이 지금 바로 돌아간다.</b>
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★★</span>
+    <span class="chip">70분</span>
+    <span class="chip">키 불필요</span>
+    <span class="chip">실측 원자료 766건</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 하나</h2>
+
+<div class="term">
+  <span class="cap">실측 — planstore/rejected/ 집계</span>
+<pre><code>PS&gt; ./samples/ch18_review/failures.ps1 -Top 8
+
+반려 기록 <span class="hl">766건</span> — C:\github_edu\LlmNpcServer\planstore\rejected
+
+① 어느 단계에서 걸렸나
+단계          건수 비율 %
+Coherence  460 <span class="hl2">60.1</span>
+Vocabulary 264 34.5
+DryRun      27  3.5
+Schema      15    2
+
+② 무슨 규칙에 걸렸나 (상위 8)
+코드                       건수 비율 % 단계
+<span class="hl3">V3.PRECONDITION_UNMET   367 47.9</span> Coherence
+V2.RANGE                107 14.0 Vocabulary
+V3.RESOURCE_IMBALANCE    62  8.1 Coherence
+V2.TYPE_MISMATCH         58  7.6 Vocabulary
+V2.ACTION_NOT_ALLOWED    46  6.0 Vocabulary
+V3.UNREACHABLE_POI       28  3.7 Coherence
+V2.UNKNOWN_POI           24  3.1 Vocabulary
+V2.MISSING_REQUIRED_ARG  16  2.1 Vocabulary
+
+③ 어느 직업이 잘 실패하나 (상위 8)
+아키타입        반려
+innkeeper   64
+scribe      53
+acolyte     48
+alchemist   48
+healer      47
+quest_giver 46
+watchman    43
+beggar      39
+
+④ 플랜의 몇 번째 스텝에서 걸리나
+스텝  건수
+0   28
+1  <span class="hl2">271</span>
+2  151
+3  148
+4   67
+...
+
+⑤ 이 실패들이 쓴 것
+   비용        $0.5743
+   입력 토큰   10,669,977  (그중 캐시 적중 6,503,211 · 60.9%)
+   평균 지연   1,916 ms</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>실패를 버리면 품질 개선의 원자료가 사라진다.</b>
+  반려 기록에는 실패 코드뿐 아니라 <b>응답 원문·토큰·비용·지연</b>이 다 들어 있다.
+  이것 없이는 "왜 통과율이 낮은가" 에 답할 수 없다.
+</div>
+
+<h2 id="read">네 개의 축으로 읽는다</h2>
+
+<h3>① 단계 — Coherence 가 60 %다</h3>
+
+<p>
+  검증기는 4단이다. <b>뒤로 갈수록 통과하기 어렵다.</b>
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:120px">단계</th><th>무엇을 보는가</th><th class="num">실측</th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><b>1 Schema</b></td><td>모양 — 스텝 수, 필드, 범위</td><td class="num">2 %</td><td>거의 안 틀린다. <b>구조화 출력이 잘 먹는다</b></td></tr>
+<tr><td><b>2 Vocabulary</b></td><td>이름이 실재하나 — 액션·아이템·POI</td><td class="num">34.5 %</td><td>있는 어휘를 <b>잘못 쓴다</b></td></tr>
+<tr><td><b>3 Coherence</b></td><td><b>이 순서로 가능한가</b> — GOAP 시뮬</td><td class="num"><b>60.1 %</b></td><td>여기가 진짜 벽이다</td></tr>
+<tr><td><b>4 DryRun</b></td><td>Sim 월드에서 완주하나</td><td class="num">3.5 %</td><td>앞의 셋이 거르고 남은 것</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag">왜 Coherence 가 가장 어려운가</span>
+  1·2단은 <b>표를 보고 맞추면</b> 된다 — 형식과 어휘다. 3단은 <b>계획</b>이다.
+  "밭에 가야 수확할 수 있다" 를 스텝 순서로 지켜야 하고, 그건 LLM 이 자주 놓친다.
+  <b>사람이 6장에서 처음 플랜을 쓸 때 정확히 같은 곳에서 걸렸다.</b>
+</div>
+
+<h3>② 코드 — 하나가 절반이다</h3>
+
+<p>
+  <code>V3.PRECONDITION_UNMET</code> 하나가 <b>47.9 %</b> 다.
+  나머지 열몇 가지를 다 합쳐도 이것보다 적다.
+  <b>고칠 곳이 하나로 좁혀졌다는 뜻이고, 그게 이 집계의 값어치다.</b>
+</p>
+
+<div class="term">
+  <span class="cap">터미널 — 사례 하나를 원문까지 펼친다</span>
+<pre><code>PS&gt; ./samples/ch18_review/failures.ps1 -Show V3.PRECONDITION_UNMET
+
+⑥ 사례 하나 — V3.PRECONDITION_UNMET
+   버킷    acolyte@Afternoon.Alert.Fair
+   단계    Coherence  (시도 1회차)
+   스텝    1
+   파일    acolyte@Afternoon.Alert.Fair.1.json
+
+   detail:
+     <span class="hl2">Repair requires AtWorkplace|HasTool but no preceding step grants it.</span>
+     <span class="hl">Insert a MoveTo step with poi $workplace before it.</span>
+     State before this step: AtTemple|HasFood|HasWater|HasCoin|IsDay|RegionPeaceful.</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 문장이 재시도 프롬프트가 된다</span>
+  <p>
+    <b>"Insert a MoveTo step with poi $workplace before it."</b>
+    검증기가 "틀렸다" 가 아니라 <b>"이렇게 고쳐라"</b> 까지 말하도록 만든 이유가 이것이다.
+  </p>
+  <p>
+    이 문장은 재시도 프롬프트의 <b>서픽스</b>에 실린다.
+    <b>프리픽스는 절대 건드리지 않는다</b> — 건드리면 캐시가 깨지고,
+    재시도 한 번이 프롬프트 캐시 전체보다 비싸진다.
+  </p>
+  <p>
+    6장에서 사람이 같은 실수를 했을 때도 <b>똑같은 문장</b>이 나왔다.
+    검증기는 사람과 LLM 을 구분하지 않는다.
+  </p>
+</div>
+
+<h3>③ 아키타입 — 누가 어려운가</h3>
+
+<p>
+  <code>innkeeper</code>·<code>scribe</code>·<code>acolyte</code>·<code>alchemist</code> 가 상위다.
+  공통점은 <b>일터에서 하는 일이 많고 전제조건이 긴 직업</b>이라는 것이다.
+  <code>Repair</code>·<code>Craft</code>·<code>Work</code> 는 <code>AtWorkplace</code> + <code>HasTool</code> 처럼
+  전제가 둘 이상이라 순서를 틀리기 쉽다.
+</p>
+
+<p>
+  <b>고치는 방향 둘.</b> ① 그 직업의 few-shot 예시를 프리픽스에 추가한다(전량 무효화를 감수).
+  ② <code>allowed_actions</code> 를 줄여 어려운 조합을 아예 못 만들게 한다(콘텐츠 변경).
+</p>
+
+<h3>④ 스텝 위치 — 1번이 가장 위험하다</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th class="num">스텝</th><th class="num">0</th><th class="num">1</th><th class="num">2</th><th class="num">3</th><th class="num">4</th><th class="num">5+</th></tr></thead>
+<tbody>
+<tr><td>반려</td><td class="num">28</td><td class="num"><b>271</b></td><td class="num">151</td><td class="num">148</td><td class="num">67</td><td class="num">64</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+  <b>0번이 아니라 1번이다.</b> 첫 스텝은 대개 <code>MoveTo</code> 라 전제가 없다.
+  문제는 <b>그다음</b> — 어디에 도착했는지를 잘못 가정한 채 일을 시킨다.
+  <br>
+  뒤로 갈수록 줄어드는 것은 <b>거기까지 가기 전에 이미 실패했기 때문</b>이지
+  뒤쪽이 쉬워서가 아니다.
+</p>
+
+<h2 id="retry">재시도는 1회만</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:170px">선택</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td>재시도 없음</td><td>통과율이 크게 떨어진다</td></tr>
+<tr><td><b>1회</b></td><td><b>지금 설정.</b> 피드백이 구체적이라 상당수가 2회차에 통과한다</td></tr>
+<tr><td>2회 이상</td><td><b>성공률이 거의 안 오르고 토큰만 탄다</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+  반려 기록의 <code>attempt</code> 필드로 이것을 직접 잴 수 있다 —
+  1회차 실패 중 2회차에 통과한 비율과, 2회차도 실패한 것의 비율을 견주면 된다.
+  <b>"재시도는 1회만" 은 취향이 아니라 측정 결과다.</b>
+</p>
+
+<h2 id="pin">사람이 고친 플랜을 고정한다</h2>
+
+<p>
+  자동으로 안 되는 것이 있다. 그때는 사람이 고치고 <b><code>planstore/pinned/</code> 에 넣는다.</b>
+</p>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code><span class="cm"># ① 반려된 플랜의 응답 원문을 꺼낸다</span>
+PS&gt; ./samples/ch18_review/failures.ps1 -Show V3.PRECONDITION_UNMET
+
+<span class="cm"># ② 손으로 고친다 — 6장에서 배운 그대로</span>
+<span class="cm">#    detail 이 시키는 대로 MoveTo 스텝을 앞에 끼운다</span>
+
+<span class="cm"># ③ 고정한다</span>
+PS&gt; ./tools/pin_plan.ps1 -Bucket "acolyte@Afternoon.Alert.Fair" -File ./lab/fixed.json</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>폴더</th><th>성격</th><th>git</th></tr></thead>
+<tbody>
+<tr><td><code>planstore/plans/</code></td><td>LLM 이 만든 것. <b>재현 가능</b></td><td><span class="pill bad">ignore</span></td></tr>
+<tr><td><code>planstore/rejected/</code></td><td>반려 기록. 재현 가능</td><td><span class="pill bad">ignore</span></td></tr>
+<tr><td><b><code>planstore/pinned/</code></b></td><td><b>사람이 고친 것. 재현 불가</b></td><td><span class="pill ok">커밋한다</span></td></tr>
+<tr><td><code>planstore/manifest.json</code></td><td>실측 원자료</td><td><span class="pill ok">커밋한다</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="bad">
+  <span class="tag">pinned 를 잃으면 검수 시간이 날아간다</span>
+  플랜 40건을 사람이 검수하는 데 드는 시간은 다시 만들 수 없다.
+  그래서 <code>pinned/</code> 만은 생성물 취급하지 않고 <b>소스로 다룬다.</b>
+  프리베이크를 다시 돌려도 pinned 는 <b>덮어쓰지 않는다.</b>
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li><code>failures.ps1</code> 이 <b>766건</b>을 읽고 네 축으로 집계한다</li>
+  <li>단계 분포에서 <b>Coherence 가 가장 크다</b></li>
+  <li>코드 분포에서 <code>V3.PRECONDITION_UNMET</code> 이 <b>절반 가까이</b></li>
+  <li>사례 하나의 <code>detail</code> 이 <b>고치는 방법까지</b> 알려 준다</li>
+  <li>실패에 든 비용이 집계된다 — <b>$0.5743</b></li>
+  <li>고친 플랜을 <code>pinned/</code> 에 넣으면 <b>재기동 후에도 살아 있다</b></li>
+</ul>
+
+<h2 id="numbers">이 수치들이 말하는 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>관측</th><th>해석</th><th>다음 행동</th></tr></thead>
+<tbody>
+<tr><td>Coherence 60 %</td><td>형식이 아니라 <b>계획</b>에서 진다</td><td>few-shot 에 "이동 → 작업" 패턴을 더 넣는다</td></tr>
+<tr><td>스텝 1 에 271건</td><td>도착 상태를 잘못 가정한다</td><td>프리픽스의 심볼 표를 더 명시적으로</td></tr>
+<tr><td>캐시 적중 60.9 %</td><td>실패 요청도 프리픽스 캐시를 탄다</td><td>정상이다. <b>실패가 비싸지 않게 만든 결과</b></td></tr>
+<tr><td>평균 지연 1,916 ms</td><td>실패는 빨리 돌아온다</td><td>—</td></tr>
+<tr><td>Schema 2 %</td><td>구조화 출력이 잘 먹는다</td><td><b>강제 디코딩을 신뢰하지는 않는다</b> — 4단은 그대로 둔다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="part5">5부를 마치며</h2>
+
+<p>
+  16장에서 <b>티어를 켜도 틱은 안 변한다</b>는 것을 확인했고,
+  17장에서 <b>2,880 중 264만 구우면 된다</b>는 것을 봤고,
+  18장에서 <b>실패가 자산이 되는 절차</b>를 만들었다.
+  <br>
+  <b>6부에서 지금까지 만든 것을 지킨다.</b>
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>4단 검증기 구현</td><td><code>src/Npc.Core/Validation/</code> · <a href="../book/ch04.html">코드 안내서 4장</a></td></tr>
+<tr><td>플랜 품질 실측 전부</td><td><a href="../reference_metrics.html">reference_metrics.html</a></td></tr>
+<tr><td>검수 도구</td><td><code>tools/review.ps1</code> · <code>tools/pin_plan.ps1</code> · <code>tools/report_failures.cs</code></td></tr>
+<tr><td>플랜을 사람 말로</td><td><code>tools/Npc.Narrate/</code> · 이 책 6장</td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

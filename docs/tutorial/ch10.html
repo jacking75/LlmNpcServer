@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10장 · 사건 대본을 쓴다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p3)">3부 · 세계를 흔든다</p>
+  <h1>10장 · 사건 대본을 쓴다 — 시나리오 jsonl</h1>
+  <p class="lead">
+    지금까지는 <b>아무 일도 안 일어나는 하루</b>를 봤다. 이제 날씨를 바꾸고 역병을 풀어 놓는다.
+    한 줄짜리 이벤트가 <b>존 하나의 NPC 전원의 플랜 키를 동시에</b> 갈아 끼우는 것을 본다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★☆☆</span>
+    <span class="chip">40분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">사본 불필요 — 대본만 만든다</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<p>
+  jsonl 대본 둘과, 대본 유무를 나란히 견주는 스크립트를 만든다.
+</p>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면</span>
+<pre><code>PS&gt; ./samples/ch10_scenario/run.ps1 -Npcs 200
+
+회차      p99(ms) bytes/tick 이벤트    명령     스텝     인터럽트 이월
+기준선     0.173   0          131050 109278 104032 200  0
+weather 0.146   0          130678 109216 104249 200  0
+plague  0.109   0          <span class="hl2">127695</span> <span class="hl2">106673</span> 101081 201  0
+siege   0.131   0          127489 105095  98098 201  0</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>이벤트 한 줄이 수백 마리의 플랜 키를 동시에 바꾼다.</b> 그런데 틱 p99 는 안 오르고
+  이벤트 이월도 0이다 — 대량 전환을 <b>여러 틱에 나눠</b> 처리하기 때문이다.
+  한 틱에 다 갈면 그것 자체가 사고다.
+</div>
+
+<h2 id="format">대본의 문법</h2>
+
+<div class="filepath">samples/ch10_scenario/plague.jsonl</div>
+<pre><code>{"_comment": "역병이 존을 타고 번진다. --time-scale 600 기준."}
+{"at_tick": 120, "event": "ZoneStateChanged", "zone": "riverside", "code": "Alert"}
+{"at_tick": 240, "event": "ZoneStateChanged", "zone": "riverside", "code": "Disaster"}
+{"at_tick": 240, "event": "ZoneStateChanged", "zone": "farmlands", "code": "Alert"}
+...</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:110px">필드</th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><code>at_tick</code></td><td>이 틱에 주입한다. <b>배속에 묶여 있다</b> — 아래에서 다시 본다</td></tr>
+<tr><td><code>event</code></td><td><code>GameEventKind</code> 의 이름. <code>ZoneStateChanged</code> · <code>WeatherChanged</code> · …</td></tr>
+<tr><td><code>zone</code></td><td>대상 존. <code>zones.json</code> 의 id 여야 한다 — <b>오타면 조용히 무시된다</b></td></tr>
+<tr><td><code>code</code></td><td>값. 지역 상태 <code>Peace·Alert·War·Disaster</code> / 기후 <code>Fair·Cold·Storm</code></td></tr>
+<tr><td><code>_comment</code></td><td>주석. 로더가 무시한다 — <b>대본에 의도를 적어 두는 자리다</b></td></tr>
+<tr><td><code>target</code></td><td><code>"event": "KillSwitch"</code> 전용. <code>T2</code>·<code>T1</code>·<code>PlanStore</code> → 11장</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">왜 이벤트만 주입하나</span>
+  대본은 <b>게임서버가 할 일</b>을 흉내 내는 것이다. NPC 서버 안쪽 상태(플랜·플래그)를
+  직접 건드리는 문법이 없는 이유가 그것이다. 세계를 미는 것은 언제나 상대방이고,
+  NPC 서버는 <b>받아서 반응할 뿐</b>이다. 유일한 예외가 <code>KillSwitch</code> 인데,
+  그건 이벤트가 아니라 NPC 서버 자신의 스위치다.
+</div>
+
+<h2 id="tick">틱 좌표 — 대본을 배속에 맞춘다</h2>
+
+<div class="bad">
+  <span class="tag">가장 흔한 실수</span>
+  <b><code>at_tick</code> 은 배속에 묶여 있다.</b> 배속 600으로 쓴 대본을 60으로 돌리면
+  사건이 <b>10배 이른 시각</b>에 터진다 — 아무도 밭에 안 나간 새벽에 폭풍이 오고,
+  화면상으로는 "아무 일도 안 일어난 것처럼" 보인다.
+</div>
+
+<div class="term">
+  <span class="cap">터미널 — 환산표를 먼저 뽑는다</span>
+<pre><code>PS&gt; ./samples/ch10_scenario/tick-calc.ps1
+
+시간대 경계 — 게임 첫날 (시작 06:00 Dawn)
+  시간대         시각            ts 60      ts 600     ts 3600
+  ------------------------------------------------------
+  Dawn        05:00         13800        1380         230
+  Morning     07:00           600          60          10
+  Noon        11:00          3000         300          50
+  Afternoon   14:00          4800         480          80
+  Evening     18:00          7200         720         120
+  Night       22:00          9600         960         160
+
+  하루 = ts 60: 14400틱   ts 600: 1440틱   ts 3600: 240틱
+
+PS&gt; ./samples/ch10_scenario/tick-calc.ps1 -At "18:00"
+
+게임 day 0 18:00
+  --time-scale 60     at_tick    7200   (실시간 12분)
+  --time-scale 600    at_tick     720   (실시간 1.2분)
+  --time-scale 3600   at_tick     120   (실시간 0.2분)</code></pre>
+</div>
+
+<p class="small">
+  Dawn 행이 13,800(ts 60)으로 크게 나오는 것은 <b>시작이 06:00 이라 05:00 은 다음 날</b>이기 때문이다.
+  첫날의 Dawn 은 tick 0 이다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>공식</th><th></th></tr></thead>
+<tbody>
+<tr><td>1틱 = 실시간 0.1초</td><td>10Hz 고정</td></tr>
+<tr><td>1틱 = 게임 <code>time_scale / 10</code> 초</td><td>ts 600 → 60 게임초</td></tr>
+<tr><td>게임 하루 = <code>864000 / time_scale</code> 틱</td><td>ts 600 → 1,440틱</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="write">대본 둘</h2>
+
+<div class="grid2">
+  <div class="card">
+    <h4>① <code>weather.jsonl</code> — 기후</h4>
+    <p class="small">
+      Fair → <b>Cold</b>(11:00) → <b>Storm</b>(14:00) → Fair(18:00).
+      기후는 버킷 키의 <b>네 번째 축</b>이라, 바뀌면 그 존 NPC 의 플랜 키가 통째로 갈린다.
+      그리고 <code>Storm</code> 은 <code>WeatherHarsh</code> 를 세워 8장의 인터럽트를 건드린다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>② <code>plague.jsonl</code> — 지역 상태</h4>
+    <p class="small">
+      강가 → 농지 → 마을 남쪽 → 중심가로 <b>번지고 역순으로 회복</b>한다.
+      지역 상태는 버킷 키의 <b>세 번째 축</b>이다.
+      중심가는 인구 1,247로 가장 커서 <b>전환 비용이 제일 크다</b>.
+    </p>
+  </div>
+</div>
+
+<h2 id="run">돌려서 견준다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch10_scenario/run.ps1 -Npcs 200 -Csv ./lab/ch10.csv</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr>
+  <th>회차</th><th class="num">p99(ms)</th><th class="num">bytes/tick</th>
+  <th class="num">이벤트</th><th class="num">명령</th><th class="num">스텝</th>
+  <th class="num">인터럽트</th><th class="num">이월</th>
+</tr></thead>
+<tbody>
+<tr><td>기준선 <span class="small">(대본 없음)</span></td><td class="num">0.173</td><td class="num">0</td><td class="num">131,050</td><td class="num">109,278</td><td class="num">104,032</td><td class="num">200</td><td class="num">0</td></tr>
+<tr><td><code>weather</code></td><td class="num">0.146</td><td class="num">0</td><td class="num">130,678</td><td class="num">109,216</td><td class="num">104,249</td><td class="num">200</td><td class="num">0</td></tr>
+<tr><td><code>plague</code></td><td class="num">0.109</td><td class="num">0</td><td class="num"><b>127,695</b></td><td class="num"><b>106,673</b></td><td class="num">101,081</td><td class="num">201</td><td class="num">0</td></tr>
+<tr><td><code>siege</code> <span class="small">(저장소 기본)</span></td><td class="num">0.131</td><td class="num">0</td><td class="num">127,489</td><td class="num">105,095</td><td class="num">98,098</td><td class="num">201</td><td class="num">0</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>표에서 볼 것 셋</h3>
+
+<ol class="steps">
+<li>
+  <b>대본이 세계를 실제로 바꾼다</b>
+  <p>
+    <code>plague</code>·<code>siege</code> 는 명령이 <b>3,000~4,000건 줄었다.</b>
+    존이 <code>Disaster</code>·<code>War</code> 로 가면 그 버킷의 플랜이 달라지고,
+    <b>덜 돌아다니는 계획</b>으로 갈아타기 때문이다. 대본은 장식이 아니다.
+  </p>
+</li>
+<li>
+  <b>틱이 안 느려졌다</b> <span class="pill ok">전부 p99 &lt; 0.2 ms</span>
+  <p>
+    수백 마리가 동시에 플랜을 갈아타는 순간이 있는데도 예산(20ms) 근처에 못 간다.
+    <b>버킷 전환을 한 틱에 다 하지 않고 나눠 처리하기 때문</b>이다 (<code>BucketTransition</code>).
+  </p>
+</li>
+<li>
+  <b><code>이월</code>이 전부 0이다</b>
+  <p>
+    <code>backlogs</code> 는 "한 틱 상한에 걸려 다음 틱으로 넘긴 이벤트 뭉치" 다.
+    대본이 이벤트를 밀어 넣어도 <b>밀리지 않았다</b>는 뜻이다.
+    이 값이 계속 오르면 이벤트 처리가 세계보다 느린 것이고, 그때는 링크를 먼저 본다.
+  </p>
+</li>
+</ol>
+
+<div class="warn">
+  <span class="tag">표로는 안 보이는 것</span>
+  <b>"어느 NPC 가 언제 갈아탔는가" 는 이 표에 안 나온다.</b> 그건 2장의 추적기로 본다.
+  <pre style="margin:8px 0 0"><code>PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --loopback --npcs 200 --time-scale 600 --days 1 --no-llm --port 5080 `
+      --scenario ./samples/ch10_scenario/plague.jsonl
+
+PS&gt; ./samples/ch02_watch/watch-npc.ps1 -Npc 7 -Seconds 120</code></pre>
+  <code>at_tick 120</code> 근처에서 <code>plan #… -&gt; #…</code> 줄이 뜨면 그게 전환이다.
+</div>
+
+<h2 id="break">부러뜨려 본다</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>바꿔 보기</th><th>결과</th><th>왜</th></tr></thead>
+<tbody>
+<tr>
+  <td>존 이름에 오타 (<code>riverside</code> → <code>riverisde</code>)</td>
+  <td><b>조용히 무시된다</b></td>
+  <td>대본은 검증기를 안 거친다. <b>가장 조심할 지점</b> — 대본을 쓰면 반드시 지표로 확인한다</td>
+</tr>
+<tr>
+  <td>배속만 60으로 바꾼다</td>
+  <td>사건이 10배 이른 시각에</td>
+  <td><code>at_tick</code> 은 배속에 묶여 있다. 환산표를 다시 뽑는다</td>
+</tr>
+<tr>
+  <td><code>at_tick</code> 을 하루 밖으로 (예: 99999)</td>
+  <td>아무 일도 안 일어난다</td>
+  <td><code>--days 1</code> 이면 1,440틱에서 끝난다</td>
+</tr>
+<tr>
+  <td>같은 틱에 이벤트 100줄</td>
+  <td>여전히 이월 0</td>
+  <td>한 틱 이벤트 상한에 걸리면 다음 틱으로 넘긴다 — <b>밀리지 사라지지 않는다</b></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>버킷 전환을 나눠 처리하는 코드</td><td><code>src/Npc.Runtime/BucketTransition.cs</code> · <a href="../book/ch07.html">코드 안내서 7장</a></td></tr>
+<tr><td>저장소 기본 대본 3종</td><td><code>scenarios/</code> · <code>testbed/scenarios/</code></td></tr>
+<tr><td>이벤트 17종 전부</td><td><a href="../reference_link.html">reference_link.html</a></td></tr>
+<tr><td>데모 시나리오를 화면으로</td><td>이 책 3장 · <a href="../testbed_guide.html">testbed_guide.html</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

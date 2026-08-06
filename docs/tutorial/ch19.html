@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>19장 · 부하로 확인한다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p6)">6부 · 제품으로 만든다</p>
+  <h1>19장 · 부하로 확인한다 — NPC 5,000과 <code>bytesPerTick</code></h1>
+  <p class="lead">
+    2부에서 넣은 콘텐츠가 성능을 깎았는지 판정한다.
+    그리고 <b>왜 계기가 <code>bytesPerTick</code> 하나뿐인지</b>를 이해한다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★★</span>
+    <span class="chip">60분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">회차당 3~4초</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<div class="term">
+  <span class="cap">실측 — NPC 를 올려 가며</span>
+<pre><code>PS&gt; ./samples/ch19_load/my-load.ps1
+
+ NPC p50(ms) p99(ms) max(ms) bytes/tick 초과틱 스캔/틱      명령 힙(MB) 실시간(s)
+ 500   0.097   0.244   7.434          <span class="hl">0</span>   0   53  276718  69.5    2.6
+1000   0.198   0.570   8.790          <span class="hl">0</span>   0   97  560189  65.7    3.1
+2000   0.311   1.051   8.236          <span class="hl">0</span>   0  <span class="hl2">150</span> 1126309  71.4    2.9
+5000   0.443   <span class="hl">2.672</span>  14.068          <span class="hl">0</span>   0  <span class="hl2">150</span> 2789957  82.8    3.9
+
+수용 기준 넷을 전부 넘겼다.</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>NPC 를 10배로 늘려도 스캔/틱은 150에서 멈춘다.</b>
+  그 상한 하나가 "NPC 를 늘려도 인지 비용은 O(1)" 을 만들고,
+  덕분에 5,000마리에서도 틱 p99 가 예산의 <b>13 %</b> 다.
+</div>
+
+<div class="bad">
+  <span class="tag"><code>tools/run_load.ps1</code> 을 그냥 쓰지 않는다</span>
+  저장소의 부하 스크립트는 <b><code>docs/measurements/W10_load.csv</code> 를 덮어쓴다.</b>
+  그 파일은 실측 원자료라, 실습으로 덮으면 저장소의 근거가 오염된다.
+  <br>
+  이 장의 <code>my-load.ps1</code> 은 <b><code>lab/</code> 에만 쓴다.</b>
+  <br><br>
+  본래 스크립트를 돌렸다면 반드시 <code>git diff</code> 로 <b>의도한 갱신인지</b> 확인한다.
+</div>
+
+<h2 id="metric">계기는 하나다 — <code>bytesPerTick</code></h2>
+
+<div class="grid2">
+  <div class="card" style="border-left:3px solid var(--ok)">
+    <h4><code>bytesPerTick</code> ✔</h4>
+    <p class="small" style="margin:0">
+      <b>틱 루프가 틱마다 힙에 쓴 바이트.</b> 틱 루프 안에서만 잰다.
+      0이 아니면 <code>new</code>·LINQ·문자열 보간·클로저 중 하나가 들어왔다는 뜻이고,
+      원인이 <b>반드시 있다.</b>
+    </p>
+  </div>
+  <div class="card" style="border-left:3px solid var(--bad)">
+    <h4><code>gen0Collections</code> ✘</h4>
+    <p class="small" style="margin:0">
+      <code>GC.CollectionCount(0)</code> 이라 <b>프로세스 전역</b>이다.
+      대시보드 HTTP · 소켓 리시버 · JSON 직렬화 · 로깅이 전부 여기 들어간다.
+      <b>이 값으로 틱 루프를 재면 잡음만 잰다.</b>
+    </p>
+  </div>
+</div>
+
+<h2 id="numbers">표에서 읽는 것 넷</h2>
+
+<ol class="steps">
+<li>
+  <b>스캔/틱이 150에서 멈춘다</b> <span class="pill a">2,000부터</span>
+  <p>
+    500 → 53, 1,000 → 97, <b>2,000 → 150, 5,000 → 150</b>.
+    <code>CognitionScheduler.MaxScansPerTick</code> 이다.
+    NPC 가 늘어도 <b>매 틱 보는 수가 안 늘어난다</b> — 대신 한 마리를 다시 보기까지의
+    주기가 길어질 뿐이다. 이 교환이 스케일을 만든다.
+  </p>
+</li>
+<li>
+  <b>p99 가 10배에 11배</b> <span class="pill">0.244 → 2.672 ms</span>
+  <p>
+    거의 선형이다. 인지 스캔은 상한에 걸렸지만 <b>플랜 실행과 명령 발행은
+    NPC 수에 비례</b>하기 때문이다. 그래도 예산 20 ms 의 13 %다.
+  </p>
+</li>
+<li>
+  <b><code>bytes/tick</code> 이 전부 0</b>
+  <p>
+    NPC 가 10배가 되어도 틱 루프는 <b>한 바이트도</b> 안 쓴다.
+    SoA 배열이라 NPC 가 늘어도 새 객체가 안 생긴다.
+  </p>
+</li>
+<li>
+  <b>힙이 안 자란다</b> <span class="pill">69.5 → 82.8 MB</span>
+  <p>
+    NPC 10배에 힙은 <b>19 %</b> 만 늘었다. NPC 상태가 5,000개의 객체가 아니라
+    몇 개의 배열이기 때문이다. <code>NpcStore</code> 의 핫 배열은 합쳐 ~100 KB 로 L2 에 들어간다.
+  </p>
+</li>
+</ol>
+
+<h2 id="regress">부러뜨려 본다 — 틱 루프에 LINQ 한 줄</h2>
+
+<p>
+  <code>bytesPerTick</code> 이 정말로 계기 노릇을 하는지 확인한다.
+  <b>전용 브랜치에서</b> 틱 루프에 할당을 하나 심는다.
+</p>
+
+<div class="filepath">src/Npc.Runtime/NpcServerLoop.cs (실습용 · 브랜치에서만)</div>
+<pre><code>// 틱 루프 안 어딘가에
+<span class="hl3">int busy = _store.StepStatus.Count(s =&gt; s == (byte)StepStatus.Waiting);</span></code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th class="num">전</th><th class="num">후</th></tr></thead>
+<tbody>
+<tr><td><code>bytes/tick</code></td><td class="num">0</td><td class="num"><b>0 이 아니게 된다</b></td></tr>
+<tr><td><code>gen0</code></td><td class="num">0</td><td class="num">늘어나긴 하는데 <b>대시보드를 켜도 늘어난다</b></td></tr>
+<tr><td>틱 p99</td><td class="num">2.672</td><td class="num">눈에 띄게 안 변할 수도 있다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">여기서 배우는 것</span>
+  <b>p99 만 봐서는 회귀를 못 잡는다.</b> 할당이 생겨도 당장은 안 느려진다 —
+  느려지는 것은 GC 가 도는 순간이고, 그건 <b>부하가 몰릴 때</b> 온다.
+  <code>bytesPerTick</code> 은 <b>증상이 나기 전에</b> 원인을 잡는 계기다.
+  <br><br>
+  <code>TickAllocationTests</code> 가 CI 에서 같은 것을 잰다.
+  이 실습은 그 테스트가 무엇을 지키는지 몸으로 아는 과정이다.
+</div>
+
+<h2 id="mine">내 콘텐츠로 잰다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code><span class="cm"># 기준선 — 원본 마스터데이터</span>
+PS&gt; ./samples/ch19_load/my-load.ps1 -Csv ./lab/base.csv
+
+<span class="cm"># 내 콘텐츠 — 5장의 양봉장이 들어간 사본</span>
+PS&gt; ./samples/ch19_load/my-load.ps1 -Masterdata ./lab/ch05/masterdata -Csv ./lab/mine.csv
+
+<span class="cm"># 견준다</span>
+PS&gt; Compare-Object (Import-Csv ./lab/base.csv) (Import-Csv ./lab/mine.csv) -Property NPC,'p99(ms)','bytes/tick'</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>차이가 나면</th><th>먼저 볼 곳</th></tr></thead>
+<tbody>
+<tr><td><code>bytes/tick</code> ≠ 0</td><td><b>무조건 회귀다.</b> 틱 루프에 뭔가 들어왔다</td></tr>
+<tr><td>p99 가 크게 올랐다</td><td>POI 를 많이 늘렸나(거리표 커짐) · 플랜 스텝이 길어졌나</td></tr>
+<tr><td>스캔/틱이 150 미만인데 올랐다</td><td>인지 밴드 분포가 바뀌었다 — 플레이어 봇 수를 확인</td></tr>
+<tr><td>명령 수가 크게 줄었다</td><td>플랜이 실패하고 있을 수 있다. <code>timeouts</code> 를 같이 본다</td></tr>
+<tr><td>힙이 계속 자란다</td><td>회차를 길게(<code>-Days 7</code>) 돌려 누수인지 본다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li>NPC 5,000 회차에서 <b>수용 기준 넷 전부 OK</b></li>
+  <li><code>bytes/tick</code> 이 <b>모든 회차에서 0</b></li>
+  <li>스캔/틱이 2,000 이상에서 <b>150에 붙는다</b></li>
+  <li>내 마스터데이터 회차가 기준선과 <b>같은 판정</b></li>
+  <li><code>docs/measurements/</code> 에 <b>diff 가 없다</b> — 원자료를 안 건드렸다</li>
+</ul>
+
+<h2 id="limits">실측의 한계를 같이 적는다</h2>
+
+<div class="warn">
+  <span class="tag">이 표가 말하지 않는 것</span>
+  <p>
+    <b>① 이 회차는 <code>--max-speed</code> 다.</b> 10Hz 페이싱 없이 최대 속도로 돈다.
+    실시간 3.9초에 게임 하루가 끝났다는 것은 <b>여유가 많다</b>는 뜻이지
+    실시간 부하를 잰 것이 아니다.
+  </p>
+  <p>
+    <b>② LLM 이 꺼져 있다.</b> 티어를 켜면 워커가 CPU 를 나눠 쓴다.
+    <b>GPU 사용률은 이 저장소에서 아직 미측정</b>이다.
+  </p>
+  <p>
+    <b>③ 소켓이 아니다.</b> <code>--loopback</code> 이라 직렬화·네트워크 비용이 없다.
+    <code>--link tcp</code> 회차는 따로 재야 한다.
+  </p>
+  <p>
+    <b>재지 않은 것을 잰 것처럼 적지 않는다.</b> 20장의 체크리스트에 그 목록이 있다.
+  </p>
+</div>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>틱 루프의 금지 목록</td><td><code>CLAUDE.md</code> §2.1 · <a href="../book/ch05.html">코드 안내서 5장</a></td></tr>
+<tr><td>인지 스캔 상한이 나온 산술</td><td><a href="../book/ch06.html">코드 안내서 6장</a></td></tr>
+<tr><td>저장소의 부하 실측 원자료</td><td><code>docs/measurements/W10_load.csv</code></td></tr>
+<tr><td>수용 기준 판정 전부</td><td><a href="../reference_metrics.html">reference_metrics.html</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

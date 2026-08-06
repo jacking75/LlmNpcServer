@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14장 · 다른 언어에서 붙는다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p4)">4부 · 내 코드에 붙인다</p>
+  <h1>14장 · 다른 언어 · 엔진에서 붙는다 — 와이어 포맷</h1>
+  <p class="lead">
+    게임서버가 C++ 이거나 Java 라면? <b>C# 한 줄 없이</b> 프레임을 읽는 스니퍼를
+    파이썬 130줄로 만들어, 이 프로토콜에서 <b>언어에 안 묶인 부분이 어디까지인지</b> 확인한다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★★</span>
+    <span class="chip">60분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip need">Python 3</span>
+    <span class="chip">13장 결과 사용</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<p>
+  NPC 서버와 게임서버 사이에 끼어 앉아 프레임을 세는 <b>투명 중계</b>다. 읽기만 하고 안 고친다.
+</p>
+
+<pre><code>[NPC 서버] --&gt; :7013 (sniff.py) --&gt; :7010 [게임서버]</code></pre>
+
+<div class="term">
+  <span class="cap">실측 — NPC 50마리 · 배속 60 · 12초</span>
+<pre><code>  프레임 집계  (12.1초)
+  방향       종류                프레임          바이트      평균
+  ------------------------------------------------------
+  npc→gs   CommandBatch        179       24,940      139
+  gs→npc   EventBatch           89       29,612      332
+  npc→gs   Heartbeat             8          192       24
+  gs→npc   Hello                 1           96       96
+  npc→gs   HelloAck              1           96       96</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>언어에 안 묶인 부분은 헤더 8바이트다.</b> 그 8바이트만 읽으면 프레임 경계를 알 수 있고,
+  프레임 경계를 알면 중계도 계측도 된다. 페이로드를 해석해야만 할 수 있는 일은
+  그다음 이야기다.
+</div>
+
+<h2 id="header">헤더 8바이트</h2>
+
+<pre><code> 0      1      2      3      4      5      6      7      8 ...
++------+------+------+------+------+------+------+------+---------------+
+|      PayloadLength (u32)   | Kind | Ver  |   Reserved  |    Payload    |
++------+------+------+------+------+------+------+------+---------------+
+        little-endian          u8     u8      u16 = 0     MemoryPack</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:150px">필드</th><th>값</th><th>왜</th></tr></thead>
+<tbody>
+<tr><td><code>PayloadLength</code></td><td>u32 LE · <b>상한 1 MiB</b></td><td>길이 접두. 상한이 없으면 잘못된 4바이트 하나로 프로세스가 죽는다</td></tr>
+<tr><td><code>Kind</code></td><td>u8 · 1~6</td><td>Hello · HelloAck · CommandBatch · EventBatch · Heartbeat · Bye</td></tr>
+<tr><td><code>Ver</code></td><td>u8 = <b>1</b></td><td><b>길이보다 먼저 본다</b> — 버전이 다르면 길이 해석 자체를 못 믿는다</td></tr>
+<tr><td><code>Reserved</code></td><td>u16 = 0</td><td>정렬용. 지금은 안 쓴다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">헤더를 손으로 쓰는 이유</span>
+  MemoryPack 안에 길이를 <b>또</b> 넣지 않는다. 진실의 출처를 둘로 만들면 언젠가 어긋나고,
+  어긋나는 순간 스트림이 통째로 깨진다. 그래서 길이는 <b>헤더에만</b> 있다.
+</div>
+
+<h2 id="code">파이썬으로 프레임을 뗀다</h2>
+
+<div class="filepath">samples/ch14_sniffer/sniff.py</div>
+<pre><code>HEADER = 8
+KINDS = {1: "Hello", 2: "HelloAck", 3: "CommandBatch",
+         4: "EventBatch", 5: "Heartbeat", 6: "Bye"}
+
+def pump(src, dst, label, verbose):
+    buf = bytearray()
+
+    while True:
+        chunk = src.recv(65536)
+        if not chunk:
+            break
+
+        dst.sendall(chunk)          <span class="cm"># 그대로 흘려보낸다 — 투명 중계</span>
+        buf += chunk
+
+        <span class="cm"># TCP 는 경계를 안 지켜 준다. 이 재조립이 정상 경로다.</span>
+        while len(buf) &gt;= HEADER:
+            length, kind, version, reserved = struct.unpack_from("&lt;IBBH", buf, 0)
+
+            if version != 1:            <span class="cm"># 버전을 먼저</span>
+                return
+            if length &gt; (1 &lt;&lt; 20):      <span class="cm"># 그다음 상한</span>
+                return
+            if len(buf) &lt; HEADER + length:
+                break                   <span class="cm"># 아직 다 안 왔다</span>
+
+            stats[(label, KINDS.get(kind))] += 1
+            del buf[: HEADER + length]</code></pre>
+
+<p>
+  <b><code>struct.unpack_from("&lt;IBBH", ...)</code> 한 줄이 전부다.</b>
+  C# 쪽 <code>FrameCodec.TryReadFrame</code> 과 논리가 같다 — 버전을 먼저 보고,
+  길이 상한을 보고, 다 안 왔으면 그냥 더 읽는다.
+</p>
+
+<h2 id="run">돌려 본다</h2>
+
+<div class="term">
+  <span class="cap">터미널 셋</span>
+<pre><code><span class="cm"># 1 — 게임서버 (13장의 미니 서버)</span>
+PS&gt; dotnet run -c Release --project samples/ch13_mini_gs -- --npcs 50 --time-scale 60 --port 7010
+
+<span class="cm"># 2 — 스니퍼</span>
+PS&gt; python -u samples/ch14_sniffer/sniff.py --listen 7013 --forward 7010 --seconds 12
+
+<span class="cm"># 3 — NPC 서버를 스니퍼로 보낸다</span>
+PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --link tcp <span class="hl">--gs-port 7013</span> --npcs 50 --time-scale 60 --days 0 --no-llm --port 5096</code></pre>
+</div>
+
+<h3>집계에서 읽는 것 넷</h3>
+
+<ol class="steps">
+<li>
+  <b>핸드셰이크는 딱 한 왕복, 96바이트씩</b>
+  <p>
+    <code>Hello</code> 1프레임 96 B, <code>HelloAck</code> 1프레임 96 B.
+    그 뒤로는 배치만 흐른다. <b>연결당 고정비가 거의 없다.</b>
+  </p>
+</li>
+<li>
+  <b><code>CommandBatch</code> 프레임 수 = <code>FlushAsync</code> 횟수</b> <span class="pill">179</span>
+  <p>
+    12초면 120틱인데 프레임은 179개다. <b>틱 수와 다르다</b> —
+    한 틱에 여러 번 flush 될 수도, 보낼 게 없어 건너뛸 수도 있다.
+    N8("배치가 기본") 이 여기서 눈에 보인다.
+  </p>
+</li>
+<li>
+  <b>배치가 실제로 뭉친다</b> <span class="pill">평균 139 B / 332 B</span>
+  <p>
+    명령 하나가 56바이트다. 평균 139바이트면 <b>프레임당 명령 두 개쯤</b> 들어 있다는 뜻이다.
+    이벤트는 64바이트니 평균 332바이트면 <b>네다섯 개</b>다.
+    명령 하나에 프레임 하나였다면 헤더 오버헤드가 14 %가 된다.
+  </p>
+</li>
+<li>
+  <b>Heartbeat 이 24바이트다</b>
+  <p>
+    헤더 8 + 페이로드 16(<code>long</code> 둘). <b><code>DateTime</code> 이 없다</b>(N4) —
+    살아 있는지는 틱과 시퀀스로만 말한다.
+  </p>
+</li>
+</ol>
+
+<h2 id="payload">페이로드 — 여기부터는 MemoryPack</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Kind</th><th>페이로드</th><th>크기</th></tr></thead>
+<tbody>
+<tr><td><code>CommandBatch</code></td><td><code>WireCommand[]</code></td><td>원소 <b>56 B 고정</b></td></tr>
+<tr><td><code>EventBatch</code></td><td><code>WireEvent[]</code></td><td>원소 <b>64 B 고정</b></td></tr>
+<tr><td><code>Hello</code> / <code>HelloAck</code></td><td><code>WireHello</code> / <code>WireHelloAck</code></td><td>프레임 96 B</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+  크기가 고정인 것은 <b>필드 순서를 큰 타입부터</b> 놓았기 때문이다
+  (<code>long</code> → <code>int</code> → <code>float</code> → <code>ushort</code> → <code>byte</code>).
+  패딩이 생기면 크기가 달라지고 <code>Wire_LayoutIsFrozen</code> 테스트가 먼저 깨진다.
+</p>
+
+<div class="ok">
+  <span class="tag">MemoryPack 을 못 쓰는 언어라면 — 두 갈래</span>
+  <p>
+    <b>① <code>Npc.Wire</code> 를 고친다.</b> 이 프로젝트 <b>하나만</b> 다른 직렬화로 바꾸면 된다.
+    <code>Npc.Contracts</code> 도 <code>Npc.Runtime</code> 도 안 바뀐다 —
+    <b>와이어 DTO 를 계약과 따로 둔 이유가 정확히 이것이다.</b>
+    (<code>[MemoryPackable]</code> 을 계약에 붙이는 순간 계약이 직렬화기 버전에 묶인다.)
+  </p>
+  <p>
+    <b>② 고정 크기를 이용한다.</b> <code>WireCommand[]</code> 는 결국 56바이트 블록의 연속이다.
+    MemoryPack 의 배열 헤더만 해석하면 나머지는 raw 로 읽을 수 있다.
+  </p>
+  <p>
+    어느 쪽이든 <b>헤더 8바이트와 다섯 규칙은 그대로다.</b>
+  </p>
+</div>
+
+<h2 id="rules">붙을 때 지켜야 할 다섯</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:40px">#</th><th>규칙</th><th>어기면</th></tr></thead>
+<tbody>
+<tr><td><b>1</b></td><td>헤더 8바이트를 손으로 쓴다 (LE u32 길이 · Kind · Ver=1 · Reserved=0)</td><td>첫 프레임에서 끊긴다</td></tr>
+<tr><td><b>2</b></td><td>TCP 경계를 믿지 않고 버퍼에 모아 뗀다</td><td>가끔 깨진다 — <b>가장 찾기 어렵다</b></td></tr>
+<tr><td><b>3</b></td><td><code>Hello</code> 를 먼저 보낸다. 네 값이 같아야 한다</td><td>거절. 우회 옵션 없음</td></tr>
+<tr><td><b>4</b></td><td><code>Sequence</code> 순증(N6) · <code>Correlation</code> 은 받은 값 그대로(N5)</td><td>갭 경보 / 전부 타임아웃</td></tr>
+<tr><td><b>5</b></td><td><code>TickSync</code> 를 매 틱 보낸다</td><td>게임 시계가 멈춘다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li>스니퍼를 끼워도 <b>NPC 가 정상 동작</b>한다 (투명 중계)</li>
+  <li>집계에 <code>Hello</code> 1 · <code>HelloAck</code> 1 · 각 <b>96 B</b></li>
+  <li><code>CommandBatch</code> 평균이 <b>56 B 보다 크다</b> — 배치가 뭉치고 있다</li>
+  <li>스니퍼가 읽은 종류가 전부 <b>알려진 6종</b> 안에 있다 (<code>?N</code> 이 안 나온다)</li>
+  <li>버전 검사·길이 상한에 걸리는 프레임이 <b>없다</b></li>
+</ul>
+
+<h2 id="break">부러뜨려 본다</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>바꿔 보기</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td>스니퍼에서 <code>version != 1</code> 검사를 뺀다</td><td>당장은 잘 돈다. <b>버전이 올라가는 날 조용히 깨진다</b></td></tr>
+<tr><td>재조립 없이 <code>recv</code> 한 번을 한 프레임으로 친다</td><td>부하가 낮으면 통과하고 높으면 깨진다 — <b>가장 나쁜 종류의 버그</b></td></tr>
+<tr><td><code>&lt;IBBH</code> 를 <code>&gt;IBBH</code>(빅엔디언)로</td><td>길이가 터무니없이 커져 상한 검사에 걸린다. <b>검사가 잡아 준다</b></td></tr>
+<tr><td>중계에서 <code>sendall</code> 을 빼고 읽기만 한다</td><td>핸드셰이크가 안 끝난다 — 중계는 <b>양방향 다</b> 흘려야 한다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>바이트 레이아웃 전체</td><td><span class="filepath" style="margin:0">samples/ch14_sniffer/LAYOUT.md</span></td></tr>
+<tr><td>와이어 계약 전문 (연동 팀에 줄 것)</td><td><a href="../reference_link.html">reference_link.html</a></td></tr>
+<tr><td>DTO 를 계약과 가른 이유</td><td><a href="../book/ch10.html">코드 안내서 10장</a> · <code>CLAUDE.md</code> §3</td></tr>
+<tr><td>드리프트를 잡는 테스트</td><td><code>tests/Npc.Tests/Wire/WireDtoTests.cs</code></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

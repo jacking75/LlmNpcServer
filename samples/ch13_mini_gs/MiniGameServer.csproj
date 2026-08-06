@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    13장 — 최소 게임서버.
+
+    NpcServer.sln 에 넣지 않는다. 본체 빌드·테스트가 이 프로젝트를 보지 않는다.
+    돌릴 때는 "dotnet run" 에 이 프로젝트를 직접 지정한다.
+
+    참조는 둘뿐이다.
+      Npc.Wire       프레임 코덱 · 와이어 DTO — 소켓 위의 표현
+      Npc.MasterData 로스터 해시를 NPC 서버와 <b>같은 함수</b>로 계산하려고
+
+    Npc.Runtime · Npc.Planning · Npc.Llm 은 참조하지 않는다. 게임서버는 그것들을 알 이유가 없다.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>MiniGameServer</AssemblyName>
+    <RootNamespace>MiniGameServer</RootNamespace>
+    <!-- 실습용이라 본체의 엄격한 규칙을 그대로 걸지 않는다. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.Wire\Npc.Wire.csproj" />
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+  </ItemGroup>
+
+</Project>

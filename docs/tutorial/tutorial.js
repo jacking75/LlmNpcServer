@@ -33,20 +33,34 @@
     { part: '2부 · 세계를 바꾼다', file: 'ch09.html', no: '9장', title: '새 행동을 추가한다', status: 'done',
       desc: '액션 Tend 추가 · 프리픽스 SHA 변경 · 플랜 스토어 전량 무효' },
 
-    { part: '3부 · 세계를 흔든다', file: 'index.html#ch10', no: '10장', title: '사건 대본을 쓴다', status: 'todo' },
-    { part: '3부 · 세계를 흔든다', file: 'index.html#ch11', no: '11장', title: '일부러 부러뜨린다', status: 'todo' },
+    { part: '3부 · 세계를 흔든다', file: 'ch10.html', no: '10장', title: '사건 대본을 쓴다', status: 'done',
+      desc: '시나리오 jsonl · 틱 좌표 환산 · 대본 유무 대조' },
+    { part: '3부 · 세계를 흔든다', file: 'ch11.html', no: '11장', title: '일부러 부러뜨린다', status: 'done',
+      desc: '명령 유실 스윕 · 킬스위치 3단 · 진행률 56.9%' },
 
-    { part: '4부 · 내 코드에 붙인다', file: 'index.html#ch12', no: '12장', title: '가장 작은 링크', status: 'todo' },
-    { part: '4부 · 내 코드에 붙인다', file: 'index.html#ch13', no: '13장', title: '소켓 게임서버를 만든다', status: 'todo' },
-    { part: '4부 · 내 코드에 붙인다', file: 'index.html#ch14', no: '14장', title: '다른 언어에서 붙는다', status: 'todo' },
-    { part: '4부 · 내 코드에 붙인다', file: 'index.html#ch15', no: '15장', title: '기록하고 되감는다', status: 'todo' },
+    { part: '4부 · 내 코드에 붙인다', file: 'ch12.html', no: '12장', title: '가장 작은 링크', status: 'done',
+      desc: 'IGameServerLink 직접 구현 · 런타임 diff 0줄 · N1 위반' },
+    { part: '4부 · 내 코드에 붙인다', file: 'ch13.html', no: '13장', title: '소켓 게임서버를 만든다', status: 'done',
+      desc: '250줄 TCP 게임서버 · 핸드셰이크 · 갭 검출' },
+    { part: '4부 · 내 코드에 붙인다', file: 'ch14.html', no: '14장', title: '다른 언어에서 붙는다', status: 'done',
+      desc: '파이썬 스니퍼 · 헤더 8바이트 · 프레임 실측' },
+    { part: '4부 · 내 코드에 붙인다', file: 'ch15.html', no: '15장', title: '기록하고 되감는다', status: 'done',
+      desc: '결정론 3종 비교 · record/replay · 소켓은 왜 안 맞나' },
 
-    { part: '5부 · LLM을 켠다', file: 'index.html#ch16', no: '16장', title: '티어를 켠다', status: 'todo' },
-    { part: '5부 · LLM을 켠다', file: 'index.html#ch17', no: '17장', title: '플랜을 미리 굽는다', status: 'todo' },
-    { part: '5부 · LLM을 켠다', file: 'index.html#ch18', no: '18장', title: '실패한 플랜을 읽는다', status: 'todo' },
+    { part: '5부 · LLM을 켠다', file: 'ch16.html', no: '16장', title: '티어를 켠다', status: 'done',
+      desc: '엔진 설정 · 무엇이 안 달라지나 · 비용 패널' },
+    { part: '5부 · LLM을 켠다', file: 'ch17.html', no: '17장', title: '플랜을 미리 굽는다', status: 'done',
+      desc: 'manifest 읽기 · 2,880 중 264 · 프리픽스 캐시' },
+    { part: '5부 · LLM을 켠다', file: 'ch18.html', no: '18장', title: '실패한 플랜을 읽는다', status: 'done',
+      desc: '반려 766건 집계 · Coherence 60% · pinned' },
 
-    { part: '6부 · 제품으로', file: 'index.html#ch19', no: '19장', title: '부하로 확인한다', status: 'todo' },
-    { part: '6부 · 제품으로', file: 'index.html#ch20', no: '20장', title: '테스트로 지킨다', status: 'todo' }
+    { part: '6부 · 제품으로', file: 'ch19.html', no: '19장', title: '부하로 확인한다', status: 'done',
+      desc: 'NPC 5,000 · 스캔 상한 150 · bytesPerTick' },
+    { part: '6부 · 제품으로', file: 'ch20.html', no: '20장', title: '테스트로 지킨다', status: 'done',
+      desc: 'xUnit 4개 · 카테고리 · 도입 체크리스트 12항목' },
+
+    { part: '뒤에', file: 'appendix.html', no: '부록', title: '옵션 · 엔드포인트 · 오류 · 되돌리기', status: 'done',
+      desc: 'A 실행 옵션 · B 관측 · C 오류 사전 · D 되돌리기 · E 대조표' }
   ];
 
   var here = (location.pathname.split('/').pop() || 'index.html').toLowerCase();

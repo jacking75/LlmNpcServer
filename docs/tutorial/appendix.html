@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>부록 A~E — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--ink-3)">부록</p>
+  <h1>부록 A~E — 옵션 · 엔드포인트 · 오류 · 되돌리기 · 대조표</h1>
+  <p class="lead">
+    실습 중에 자주 되돌아오게 되는 것들을 한 곳에 모았다.
+    본문에서 설명한 것은 다시 설명하지 않고 <b>표만</b> 둔다.
+  </p>
+</div>
+
+<h2 id="a">A. 실행 옵션</h2>
+
+<h3><code>Npc.Host</code> — NPC 서버</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:200px">옵션</th><th>기본</th><th>언제 바꾸나</th></tr></thead>
+<tbody>
+<tr><td colspan="3" style="background:var(--panel-2)"><b>링크</b></td></tr>
+<tr><td><code>--loopback</code></td><td>기본</td><td><code>Npc.Sim</code> 인프로세스 직결</td></tr>
+<tr><td><code>--link null|record|replay|loopback|tcp</code></td><td><code>loopback</code></td><td>13장 <code>tcp</code> · 15장 <code>record</code>/<code>replay</code></td></tr>
+<tr><td><code>--trace &lt;path&gt;</code></td><td>—</td><td><code>record</code> 의 출력 · <code>replay</code> 의 입력 (jsonl)</td></tr>
+<tr><td><code>--gs-host</code> / <code>--gs-port</code></td><td><code>127.0.0.1</code> / 7010</td><td><code>--link tcp</code> 전용</td></tr>
+<tr><td><code>--zone &lt;id&gt;[,&lt;id&gt;]</code></td><td>전체</td><td>존을 나눠 여러 NPC 서버를 붙일 때. <b>게임서버와 같아야 한다</b></td></tr>
+<tr><td colspan="3" style="background:var(--panel-2)"><b>세계</b></td></tr>
+<tr><td><code>--npcs N</code></td><td>500</td><td>1장 대조 실험 · 19장 부하</td></tr>
+<tr><td><code>--time-scale N</code></td><td>60</td><td><b>2장 참고</b> — 관찰은 60, 스모크는 600</td></tr>
+<tr><td><code>--days N</code></td><td>1</td><td>0 = 무제한</td></tr>
+<tr><td><code>--seed N</code></td><td>20260725</td><td>15장 — 바꾸면 결과가 달라진다</td></tr>
+<tr><td><code>--player-bots N</code></td><td>20</td><td>0이면 인지 스캔이 0이 된다</td></tr>
+<tr><td><code>--masterdata &lt;dir&gt;</code></td><td><code>./masterdata</code></td><td><b>절대 경로로 준다</b> — 5장의 함정</td></tr>
+<tr><td><code>--planstore &lt;dir&gt;</code></td><td><code>./planstore</code></td><td>없는 경로를 주면 폴백만으로 돈다 (6장)</td></tr>
+<tr><td><code>--scenario &lt;jsonl&gt;</code></td><td>—</td><td>10장</td></tr>
+<tr><td><code>--fail-rate</code> / <code>--drop-rate</code></td><td>0</td><td>11장</td></tr>
+<tr><td colspan="3" style="background:var(--panel-2)"><b>LLM</b></td></tr>
+<tr><td><code>--tier none|t1|t2|all</code></td><td><code>none</code></td><td>16장</td></tr>
+<tr><td><code>--no-llm</code></td><td>—</td><td><code>--tier none</code> 의 별칭</td></tr>
+<tr><td><code>--t1-workers</code> / <code>--t2-workers</code></td><td>2 / 8</td><td>워커 수. <b>틱 루프 밖이다</b></td></tr>
+<tr><td><code>--t1-engine</code> / <code>--t2-engine</code></td><td>설정의 기본</td><td><code>appsettings.Llm.json</code> 의 엔진 id</td></tr>
+<tr><td colspan="3" style="background:var(--panel-2)"><b>관측 · 측정</b></td></tr>
+<tr><td><code>--port N</code></td><td>5080</td><td>여럿 띄울 때</td></tr>
+<tr><td><code>--no-dashboard</code></td><td>—</td><td>웹 호스트를 안 띄운다. <b>측정 회차의 기본</b></td></tr>
+<tr><td><code>--max-speed</code></td><td>—</td><td>10Hz 페이싱 없이. <b>게임 하루가 2~4초</b></td></tr>
+<tr><td><code>--dev-control</code></td><td>꺼짐</td><td><code>POST /control/killswitch</code> 를 연다 (11장)</td></tr>
+<tr><td><code>--weights A|B|C|D</code></td><td>B</td><td>재계획 점수 가중치 세트</td></tr>
+<tr><td><code>--scan-cap N</code></td><td>150</td><td>0=해제. <b>측정 전용</b></td></tr>
+<tr><td><code>validate --masterdata &lt;dir&gt;</code></td><td>—</td><td>서브커맨드. V1~V11 만 돌린다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>도구</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:180px">도구</th><th>주요 옵션</th><th>장</th></tr></thead>
+<tbody>
+<tr><td><code>tools/Npc.Prebake</code></td><td><code>--budget-usd</code> <code>--limit</code> <code>--archetypes</code> <code>--concurrency</code> <code>--print-prefix</code> <code>--resume</code></td><td>17장</td></tr>
+<tr><td><code>tools/Npc.Narrate</code></td><td><code>--trace</code> <code>--npc</code> <code>--time-scale</code> <code>--population</code> <code>--cycles</code></td><td>6·15장</td></tr>
+<tr><td><code>tools/gen_poi_distances.cs</code></td><td>없음 — <b>저장소 루트를 찾아 <code>masterdata/</code></b></td><td>5장</td></tr>
+<tr><td><code>tools/gen_npcs.cs</code></td><td><code>--seed</code> <code>--population</code> <code>--out</code></td><td>7장</td></tr>
+<tr><td><code>testbed/Npc.TestGameServer</code></td><td><code>--npcs</code> <code>--time-scale</code> <code>--link-port</code> <code>--client-port</code> <code>--headless</code></td><td>3장</td></tr>
+<tr><td><code>samples/ch13_mini_gs</code></td><td><code>--npcs</code> <code>--time-scale</code> <code>--port</code> <code>--travel-ticks</code> <code>--gap-at</code></td><td>13장</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="b">B. 관측 엔드포인트</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:170px">주소</th><th>무엇</th><th>언제</th></tr></thead>
+<tbody>
+<tr><td><code>GET /status</code></td><td>세계 요약 한 장</td><td>"돌고 있나?"</td></tr>
+<tr><td><code>GET /metrics</code></td><td>패널 7종 전체 지표</td><td>수치를 정확히</td></tr>
+<tr><td><code>GET /npc/{id}</code></td><td><b>NPC 한 마리의 속사정</b></td><td>"왜 저기로 가는가"</td></tr>
+<tr><td><code>GET /heatmap.csv</code></td><td>버킷 조회 히트맵</td><td>무엇을 구울지 정할 때</td></tr>
+<tr><td><code>GET /dashboard</code></td><td>단일 HTML 대시보드</td><td>그래프로</td></tr>
+<tr><td><code>POST /control/killswitch?target=…</code></td><td>T2·T1·PlanStore 차단</td><td><b><code>--dev-control</code> 필요</b>. 없으면 404</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>경보 기준 — 이 값이 이러면 본다</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:220px">필드</th><th>정상</th><th>이상하면</th></tr></thead>
+<tbody>
+<tr><td><code>tick.bytesPerTick</code></td><td><b>0</b></td><td>0이 아니면 <b>그 자체가 회귀</b> (19장)</td></tr>
+<tr><td><code>tick.p99Ms</code></td><td>≤ 20</td><td>예산 초과</td></tr>
+<tr><td><code>tick.overruns</code></td><td>0</td><td>—</td></tr>
+<tr><td><code>link.commandsDropped</code></td><td>0</td><td>발행 큐가 좁다</td></tr>
+<tr><td><code>link.eventGaps</code></td><td>0</td><td><b>이벤트 유실</b> (N6). 상대의 시퀀스를 의심 (13장)</td></tr>
+<tr><td><code>link.eventBacklogs</code></td><td>0</td><td>이벤트가 세계보다 느리게 처리된다</td></tr>
+<tr><td><code>replan.queueDepth</code></td><td><code>--tier none</code> 이면 안 준다</td><td>티어를 켰는데도 안 줄면 워커를 본다</td></tr>
+<tr><td><code>cache.hitRate</code></td><td>≥ 0.98 목표</td><td><code>topMisses</code> 가 다음에 구울 목록</td></tr>
+<tr><td><code>cost.uniquePrefixHashes</code></td><td><b>1</b></td><td>2 이상이면 <b>즉시 경보</b> — 캐시 전면 미적중</td></tr>
+<tr><td><code>cost.breakerState</code></td><td><code>Closed</code></td><td><code>Open</code> = 제공사 장애. 폴백으로 계속 돈다</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">
+  필드 전체 사전은 <span class="filepath" style="margin:0">samples/ch02_watch/read-metrics.md</span> 에 있다.
+</p>
+
+<h2 id="c">C. 오류 사전</h2>
+
+<h3>세 겹의 검사</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:150px">출력</th><th>어디서</th><th>무엇을</th></tr></thead>
+<tbody>
+<tr><td><code>FAIL LOAD</code></td><td>로더 · 플랜 4단 검증기</td><td>파일이 읽히나 · 첨자가 맞나 · 플랜이 성립하나</td></tr>
+<tr><td><code>FAIL V1</code> ~ <code>V11</code></td><td>마스터데이터 검증기</td><td>참조와 총합</td></tr>
+<tr><td><code>SKIP V9</code></td><td>—</td><td>LLM 을 켜야 판정된다. <b>정상이다</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>마스터데이터 V1~V11</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:52px">규칙</th><th>무엇을</th><th>대표 메시지</th></tr></thead>
+<tbody>
+<tr><td><b>V1</b></td><td><code>code</code>·<code>id</code>·<code>bit</code> 유일</td><td><code>code 0 가 중복이다 ('blacksmith' 와 'carpenter')</code></td></tr>
+<tr><td><b>V2</b></td><td>플래그 참조</td><td><code>없는 플래그 'AtBakery' 를 참조한다</code></td></tr>
+<tr><td><b>V3</b></td><td>poi·item·zone·action 참조</td><td><code>없는 존 'atlantis' 을 가리킨다</code></td></tr>
+<tr><td><b>V4</b></td><td><code>allowed_actions</code></td><td><code>카탈로그에 없는 액션 'Fly' 을 허용한다</code></td></tr>
+<tr><td><b>V5</b></td><td>인구 가중치 합 = 1.0</td><td><code>합이 1.087000 다. 1.0 ±0.001 이어야 한다</code></td></tr>
+<tr><td><b>V6</b></td><td><code>total_keys</code> = 아키타입 × 6 × 4 × 3</td><td><code>total_keys 가 2880 인데 실제 조합은 2400 다</code></td></tr>
+<tr><td><b>V7</b></td><td>폴백 존재 · <code>loop:true</code></td><td><code>폴백 플랜 'fb_shepherd' 이 … 에 없다</code></td></tr>
+<tr><td><b>V8</b></td><td>폴백이 허용 액션만</td><td><code>허용되지 않은 액션 'Mine' 을 쓴다</code></td></tr>
+<tr><td><b>V9</b></td><td>프리픽스 ≥ 4,096 토큰</td><td>LLM 을 켜야 판정</td></tr>
+<tr><td><b>V10</b></td><td>일터·주거 정원</td><td><code>정원 합이 64 인데 … 인구는 495 다</code></td></tr>
+<tr><td><b>V11</b></td><td>존 대칭 · POI 도달</td><td><code>인접이 비대칭이다 — A → B 는 있는데 반대가 없다</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>플랜 4단 검증기</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:120px">단계</th><th>대표 코드</th><th>고치는 법</th></tr></thead>
+<tbody>
+<tr><td><b>1 Schema</b></td><td><code>V1.STEP_COUNT</code></td><td>스텝을 <b>3~10개</b>로</td></tr>
+<tr><td><b>2 Vocabulary</b></td><td><code>V2.RANGE</code> · <code>V2.TYPE_MISMATCH</code> · <code>V2.ACTION_NOT_ALLOWED</code> · <code>V2.UNKNOWN_POI</code></td><td><code>actions.json</code> 의 <code>params</code> 대로</td></tr>
+<tr><td><b>3 Coherence</b></td><td><code>V3.PRECONDITION_UNMET</code> · <code>V3.RESOURCE_IMBALANCE</code> · <code>V3.UNREACHABLE_POI</code></td><td><b>메시지가 방법까지 알려 준다</b></td></tr>
+<tr><td><b>4 DryRun</b></td><td>도달 불가 · 정원 초과</td><td>Sim 월드에서 실제로 안 된다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>링크 핸드셰이크 거절</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:200px">코드</th><th>원인</th></tr></thead>
+<tbody>
+<tr><td><code>ProtocolVersion</code></td><td>와이어 버전이 다르다</td></tr>
+<tr><td><code>MasterDataMismatch</code></td><td>양쪽이 다른 <code>masterdata/</code> 를 읽는다</td></tr>
+<tr><td><code>RosterMismatch</code></td><td><code>--npcs</code> 나 <code>--zone</code> 이 다르다</td></tr>
+<tr><td><code>TimeScaleMismatch</code></td><td><code>--time-scale</code> 이 다르다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>자주 만나는 증상</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>증상</th><th>원인</th></tr></thead>
+<tbody>
+<tr><td>영어 스택 트레이스가 쏟아진다</td><td><b>JSON 문법 오류.</b> 검증기 전에 파서가 죽었다 (0장)</td></tr>
+<tr><td>검증은 통과인데 서버가 다르게 돈다</td><td><b>상대 경로 함정.</b> 절대 경로로 준다 (5장)</td></tr>
+<tr><td>새 직업을 넣었는데 안 보인다</td><td><code>--npcs</code> 가 작다. 뒤쪽 첨자는 안 뜬다 (7장)</td></tr>
+<tr><td>내 폴백 플랜이 안 나온다</td><td>버킷 플랜이 이긴다. <code>--planstore ./nonexistent</code> (6장)</td></tr>
+<tr><td><code>--days N</code> 이 안 끝난다</td><td><code>TickSync</code> 가 안 오고 있다 (12·13장)</td></tr>
+<tr><td>대본이 안 먹는다</td><td>존 이름 오타 · 배속 불일치 (10장)</td></tr>
+<tr><td><code>localhost</code> 요청이 느리다</td><td><code>127.0.0.1</code> 로 바꾼다 (2장)</td></tr>
+<tr><td><code>/control/*</code> 이 404</td><td><code>--dev-control</code> 이 없다 (11장)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="d">D. 되돌리기</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:200px">무엇을</th><th>어떻게</th></tr></thead>
+<tbody>
+<tr><td>실습장 하나</td><td><code>./samples/lab.ps1 -Drop &lt;이름&gt;</code></td></tr>
+<tr><td>실습장 전부</td><td><code>Remove-Item lab -Recurse -Force</code> — <code>.gitignore</code> 라 흔적이 없다</td></tr>
+<tr><td>본체를 고친 실습 (7·9·12장)</td><td><b>전용 브랜치에서 한다.</b> <code>revert.ps1 -Yes</code> → <code>git switch main</code></td></tr>
+<tr><td><code>ArchetypeCount</code> 를 되돌렸는데 이상하다</td><td><b>다시 빌드한다.</b> 파일은 40인데 바이너리가 41이면 가장 찾기 어렵다</td></tr>
+<tr><td>생성물 (<code>npc_instances.json</code> · <code>poi_distances.bin</code>)</td><td>손으로 못 되돌린다. <code>git restore masterdata</code></td></tr>
+<tr><td>플랜 스토어</td><td><code>planstore/plans/</code> 는 지워도 된다 — 재생성 가능.<br><b><code>pinned/</code> 는 지우지 않는다</b></td></tr>
+<tr><td>측정 원자료를 덮어썼다</td><td><code>git restore docs/measurements</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="bad">
+  <span class="tag">되돌리기 전에 확인</span>
+  <code>git restore</code> 는 <b>그 경로의 모든 변경</b>을 날린다.
+  실습 중에 다른 것도 고쳤다면 그것까지 사라진다.
+  <b>전용 브랜치에서 실습하라</b>고 반복하는 이유다.
+</div>
+
+<h2 id="e">E. 이 책 ↔ 저장소 대조표</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:52px">장</th><th>건드리는 곳</th><th>같이 볼 것</th></tr></thead>
+<tbody>
+<tr><td><b>0</b></td><td><code>samples/lab.ps1</code> · <code>check.ps1</code> · <code>.gitignore</code></td><td>—</td></tr>
+<tr><td><b>1</b></td><td>없음 (실행만)</td><td><code>src/Npc.Host/HostOptions.cs</code></td></tr>
+<tr><td><b>2</b></td><td>없음 (관측만)</td><td><code>src/Npc.Host/Api/NpcTraceEndpoint.cs</code> · <code>Metrics/NpcMeter.cs</code></td></tr>
+<tr><td><b>3</b></td><td>없음</td><td><code>testbed/</code> · <code>src/Npc.Gateway/TcpGameServerLink.cs</code></td></tr>
+<tr><td><b>4</b></td><td><code>lab/</code> 사본</td><td><code>src/Npc.MasterData/Validation/MasterDataValidator.cs</code></td></tr>
+<tr><td><b>5</b></td><td><code>items.json</code> · <code>pois.json</code> · <code>poi_distances.bin</code></td><td><code>tools/gen_poi_distances.cs</code> · <code>src/Npc.MasterData/MasterDataLoader.cs</code></td></tr>
+<tr><td><b>6</b></td><td><code>fallback_plans.json</code></td><td><code>src/Npc.Core/Validation/</code> · <code>src/Npc.Core/Plan/CompiledPlan.cs</code></td></tr>
+<tr><td><b>7</b></td><td><b><code>src/Npc.Core/Planning/BucketKey.cs</code></b> + 마스터데이터 4개</td><td><code>tools/gen_npcs.cs</code> · <code>src/Npc.Planning/PlanStore.cs</code></td></tr>
+<tr><td><b>8</b></td><td><code>interrupts.json</code></td><td><code>src/Npc.Runtime/InterruptMatcher.cs</code> · <code>src/Npc.MasterData/InterruptRules.cs</code></td></tr>
+<tr><td><b>9</b></td><td><code>actions.json</code> · <code>archetypes.json</code> · <code>fallback_plans.json</code></td><td><code>src/Npc.Llm/CatalogRenderer.cs</code> · <code>src/Npc.Runtime/CommandEmitter.cs</code></td></tr>
+<tr><td><b>10</b></td><td><code>samples/ch10_scenario/*.jsonl</code></td><td><code>src/Npc.Sim/ScenarioRunner.cs</code> · <code>src/Npc.Runtime/BucketTransition.cs</code></td></tr>
+<tr><td><b>11</b></td><td>없음</td><td><code>src/Npc.Runtime/PlanExecutor.cs</code> · <code>src/Npc.Core/KillSwitch.cs</code></td></tr>
+<tr><td><b>12</b></td><td><b><code>src/Npc.Gateway/</code> + <code>Npc.Host</code> 배선</b></td><td><code>src/Npc.Contracts/IGameServerLink.cs</code></td></tr>
+<tr><td><b>13</b></td><td><code>samples/ch13_mini_gs/</code> (본체 무변경)</td><td><code>src/Npc.Wire/</code> · <code>src/Npc.MasterData/NpcRoster.cs</code></td></tr>
+<tr><td><b>14</b></td><td><code>samples/ch14_sniffer/</code></td><td><code>src/Npc.Wire/FrameCodec.cs</code> · <code>tests/Npc.Tests/Wire/</code></td></tr>
+<tr><td><b>15</b></td><td>없음</td><td><code>src/Npc.Gateway/RecordingGameServerLink.cs</code> · <code>tests/Npc.Tests/Determinism/</code></td></tr>
+<tr><td><b>16</b></td><td><code>appsettings.Llm.json</code> (읽기)</td><td><code>src/Npc.Llm/TieredPlanCompiler.cs</code> · <code>ChatClientFactory.cs</code></td></tr>
+<tr><td><b>17</b></td><td><code>planstore/</code></td><td><code>tools/Npc.Prebake/</code> · <code>src/Npc.Llm/PromptPrefix.cs</code></td></tr>
+<tr><td><b>18</b></td><td><code>planstore/pinned/</code></td><td><code>tools/pin_plan.ps1</code> · <code>src/Npc.Core/Validation/</code></td></tr>
+<tr><td><b>19</b></td><td><code>lab/</code> CSV</td><td><code>src/Npc.Runtime/NpcServerLoop.cs</code> · <code>tests/Npc.Tests/Runtime/TickAllocationTests.cs</code></td></tr>
+<tr><td><b>20</b></td><td><code>samples/ch20_tests/</code></td><td><code>tests/Npc.Tests/</code> · <code>CLAUDE.md</code> §5</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">
+  파일을 이름으로 못 찾을 때는 <a href="../../CODEMAP.md"><code>CODEMAP.md</code></a> 의 추적 경로 3개를 탄다 —
+  <b>명령이 나가는 길 · 이벤트가 들어오는 길 · 플랜이 만들어지는 길</b>.
+</p>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

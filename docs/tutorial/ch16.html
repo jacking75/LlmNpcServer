@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16장 · 티어를 켠다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p5)">5부 · LLM을 켠다</p>
+  <h1>16장 · 티어를 켠다 — 무엇이 달라지고 무엇이 안 달라지나</h1>
+  <p class="lead">
+    <b>15개 장을 LLM 없이 왔다.</b> 이제 켠다. 그런데 늘어나는 것은
+    <b>"플랜의 출처" 하나뿐</b>이고, 틱 p99 도 틱당 할당도 안 변한다 —
+    그것이 이 설계의 전부다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★☆</span>
+    <span class="chip">60분</span>
+    <span class="chip need">API 키 또는 로컬 GPU</span>
+    <span class="chip">키 없이도 읽힌다</span>
+  </div>
+</div>
+
+<div class="warn">
+  <span class="tag">이 책이 실제로 돌린 것과 안 돌린 것</span>
+  <p>
+    5부의 <b>유료 호출은 이 책을 쓰면서 실행하지 않았다.</b> 대신 저장소에 이미 있는
+    <b>실측 산출물</b>을 읽는다 — <code>planstore/manifest.json</code>(프리베이크 한 회차의 원자료)과
+    <code>planstore/rejected/</code>(반려 기록 766건)다.
+  </p>
+  <p>
+    <b>돌린 것</b>: 엔진 설정 점검 · 프리픽스 출력 · manifest 읽기 · 반려 집계.
+    <b>안 돌린 것</b>: 실제 LLM 호출.
+    안 돌린 것을 돌린 것처럼 적지 않는다.
+  </p>
+</div>
+
+<h2 id="tier">티어 셋</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 900 250" role="img" aria-label="티어 라우팅">
+      <defs>
+        <marker id="a16" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <rect x="30" y="95" width="170" height="60" rx="10" fill="var(--panel-2)" stroke="var(--p2)" stroke-width="1.8"/>
+      <text x="115" y="120" text-anchor="middle" font-size="13" font-weight="700" fill="var(--p2)">T0 캐시</text>
+      <text x="115" y="140" text-anchor="middle" font-size="11" fill="var(--ink-3)">배열 첨자 · 0 ms</text>
+
+      <rect x="270" y="95" width="170" height="60" rx="10" fill="var(--panel-2)" stroke="var(--p3)" stroke-width="1.8"/>
+      <text x="355" y="120" text-anchor="middle" font-size="13" font-weight="700" fill="var(--p3)">T1 로컬</text>
+      <text x="355" y="140" text-anchor="middle" font-size="11" fill="var(--ink-3)">dotLLM · 실측 3.7~5.1 s</text>
+
+      <rect x="510" y="95" width="170" height="60" rx="10" fill="var(--panel-2)" stroke="var(--p5)" stroke-width="1.8"/>
+      <text x="595" y="120" text-anchor="middle" font-size="13" font-weight="700" fill="var(--p5)">T2 외부</text>
+      <text x="595" y="140" text-anchor="middle" font-size="11" fill="var(--ink-3)">OpenAI 호환 API</text>
+
+      <rect x="740" y="95" width="130" height="60" rx="10" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="1.8"/>
+      <text x="805" y="120" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ok)">폴백 40</text>
+      <text x="805" y="140" text-anchor="middle" font-size="11" fill="var(--ok)">최후 보루</text>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.5" marker-end="url(#a16)" color="var(--ink-3)">
+        <path d="M204,125 L266,125"/>
+        <path d="M444,125 L506,125"/>
+        <path d="M684,125 L736,125"/>
+      </g>
+      <text x="235" y="115" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">미스</text>
+      <text x="475" y="115" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">실패</text>
+      <text x="710" y="115" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">전부 실패</text>
+
+      <text x="450" y="40" text-anchor="middle" font-size="13" font-weight="650" fill="var(--ink-2)">
+        틱 루프는 이 그림 <tspan font-weight="800">밖에</tspan> 있다
+      </text>
+      <text x="450" y="62" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">
+        전부 BackgroundService 다. 결과는 Volatile.Write 로 넘어오고, 스왑은 스텝 경계에서만
+      </text>
+      <text x="450" y="205" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">
+        --tier none (기본) · t1 · t2 · all — 어디까지 켤지 고른다
+      </text>
+      <text x="450" y="228" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">
+        어느 티어에서 끝나든 <tspan font-weight="700">PlanStore.Resolve 는 null 을 반환하지 않는다</tspan>
+      </text>
+    </svg>
+  </div>
+  <figcaption>15장까지는 T0 와 폴백만 쓰고 있었다. 16장에서 가운데 둘을 켠다.</figcaption>
+</figure>
+
+<h2 id="config">엔진 설정</h2>
+
+<div class="filepath">appsettings.Llm.json</div>
+<pre><code>{
+  "preferred": [
+    "poe-gemini-2.5-flash-lite",
+    "openrouter-gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite"
+  ],
+  "engines": [
+    { "id": "dotllm-qwen2.5-7b",  "model": "Qwen2.5-7B-Instruct-Q4_K_M", ... },
+    { "id": "openrouter-gpt-5-nano", "model": "openai/gpt-5-nano",
+      <span class="hl2">"api_key_env": "OPENROUTER_API_KEY"</span>, ... }
+  ]
+}</code></pre>
+
+<div class="bad">
+  <span class="tag">키를 파일에 쓰지 않는다</span>
+  설정에는 <b>환경변수 이름만</b> 적는다. 키 자체는 셸에만 둔다.
+  <pre style="margin:8px 0 0"><code>PS&gt; $env:OPENROUTER_API_KEY = "..."</code></pre>
+  설정 파일은 git 에 들어가고, 키가 한 번 들어가면 히스토리에서 지우기 어렵다.
+</div>
+
+<div class="term">
+  <span class="cap">터미널 — 지금 무엇을 켤 수 있나 (실측)</span>
+<pre><code>PS&gt; ./samples/ch16_tier/check-engines.ps1 -SkipRun
+
+① 등록된 엔진
+id                               연결            모델                        키변수                상태
+dotllm-qwen2.5-7b                로컬 엔드포인트  Qwen2.5-7B-Instruct-Q4_K_M  (없음)             서버가 떠 있어야 함
+llamacpp-qwen3-8b                로컬 엔드포인트  qwen3-8b                    (없음)             서버가 떠 있어야 함
+openrouter-gemini-2.5-flash-lite 외부 API        google/gemini-2.5-flash-lite OPENROUTER_API_KEY <span class="hl">키 있음</span>
+poe-gemini-2.5-flash-lite        외부 API        gemini-2.5-flash-lite        POE_API_KEY        키 없음
+...
+
+② 우선순위 (앞에서부터 키가 채워진 첫 엔진을 쓴다)
+   1. poe-gemini-2.5-flash-lite
+   2. openrouter-gemini-2.5-flash-lite
+   3. gemini-3.1-flash-lite
+
+③ 판정
+   키가 채워진 외부 엔진 6개. --tier t2 를 켤 수 있다.</code></pre>
+</div>
+
+<p>
+  <b>우선순위 목록이 있는 이유.</b> 사람이 회차마다 <code>--model</code> 을 바꿔 주면
+  엔진이 달라져 <b>실측치를 나란히 놓을 수 없다.</b> 앞에서부터 키가 채워진 첫 엔진을
+  자동으로 고른다.
+</p>
+
+<div class="bad">
+  <span class="tag">dotLLM 은 GPLv3 다</span>
+  <b>NuGet 참조로 인프로세스 임베딩하지 않는다.</b> 별도 프로세스를 띄우고
+  HTTP(OpenAI 호환)로만 부른다. 라이선스 경계 외에도 GC 격리 · 크래시 격리 ·
+  엔진 교체 용이성이라는 실익이 있다.
+  <pre style="margin:8px 0 0"><code>PS&gt; .\tools\dotllm\dotllm.exe serve --model .\models\Qwen3-8B-Q4_K_M.gguf --port 8080 --gpu-layers 99</code></pre>
+</div>
+
+<h2 id="run">켠다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code><span class="cm"># 기준선 — 지금까지 계속 돌려 온 것</span>
+PS&gt; ./samples/ch16_tier/check-engines.ps1 -Npcs 200
+
+④ 기준선 (--tier none)
+   tick p50 … · p99 … · bytes/tick 0 · …
+   ticks 1440 · … · llm 0
+
+<span class="cm"># 티어를 켠다 (키가 있을 때)</span>
+PS&gt; $env:OPENROUTER_API_KEY = "..."
+PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --loopback --npcs 200 --time-scale 600 --days 1 `
+      <span class="hl">--tier t2 --t2-workers 2</span> --port 5080</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:180px">옵션</th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><code>--tier none</code></td><td>기본. 캐시 + 폴백만. <code>--no-llm</code> 과 같다</td></tr>
+<tr><td><code>--tier t1</code></td><td>로컬 개별 재계획까지</td></tr>
+<tr><td><code>--tier t2</code></td><td>외부 API 로 버킷 미스까지 채운다</td></tr>
+<tr><td><code>--tier all</code></td><td>둘 다</td></tr>
+<tr><td><code>--t1-workers</code> / <code>--t2-workers</code></td><td>워커 수 (기본 2 / 8). <b>틱 루프 밖의 별도 스레드다</b></td></tr>
+<tr><td><code>--t1-engine</code> / <code>--t2-engine</code></td><td><code>appsettings.Llm.json</code> 의 엔진 id 를 직접 지정</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="expect">무엇이 달라지고 무엇이 안 달라지나</h2>
+
+<div class="grid2">
+  <div class="card" style="border-left:3px solid var(--bad)">
+    <h4>안 달라져야 하는 것</h4>
+    <ul>
+      <li><b>틱 p50 · p99</b> — LLM 은 틱 루프 밖이다</li>
+      <li><b><code>bytes/tick</code> = 0</b></li>
+      <li><b><code>overruns</code> = 0</b></li>
+      <li>명령이 나가는 경로 전체</li>
+    </ul>
+    <p class="small" style="margin:10px 0 0">
+      <b>이게 달라지면 배선이 잘못된 것이다.</b> 재계획 워커가 틱 루프 상태를
+      직접 고치고 있거나, 어딘가에서 <code>await</code> 가 틱 안으로 들어왔다는 뜻이다.
+    </p>
+  </div>
+  <div class="card" style="border-left:3px solid var(--ok)">
+    <h4>달라져야 하는 것</h4>
+    <ul>
+      <li><code>/metrics</code> 의 <code>llmCalls</code> &gt; 0</li>
+      <li><code>cost</code> 패널의 <code>enabled</code> 가 <b>true</b></li>
+      <li><code>replan.tiers</code> 배열에 <b>행이 생긴다</b></li>
+      <li>일부 NPC 의 <code>planKind</code> 가 <code>individual</code> 로</li>
+      <li>재계획 큐가 <b>줄어들기 시작한다</b> — 꺼내 가는 워커가 생겼으니까</li>
+    </ul>
+  </div>
+</div>
+
+<div class="ok">
+  <span class="tag">2장의 그 실험이 여기서 갈린다</span>
+  1·2장에서 <code>--player-bots 0</code> 회차가 기준선과 <b>한 건도 안 틀렸다.</b>
+  인지 스캔은 "누구를 재계획 대상으로 고를까" 만 정하는데 <code>--tier none</code> 에서는
+  재계획 자체가 없었기 때문이다.
+  <b>티어를 켜면 이 둘이 처음으로 갈라진다</b> — 플레이어 근처 NPC 가 개별 플랜을 받는다.
+</div>
+
+<h2 id="cost">비용 패널 읽기</h2>
+
+<pre><code>"cost": {
+  "enabled": true,
+  "engine": "openrouter-gemini-2.5-flash-lite",
+  "calls": 128, "promptTokens": 1785344, "completionTokens": 51712,
+  "costUsd": 0.1299,
+  "promptCacheHitRate": 0.61,
+  <span class="hl2">"uniquePrefixHashes": 1,</span>
+  "tokensToday": 1837056, "tokenCapUsage": 0.18,
+  "downgrades": 0, "rejections": 0, "failovers": 0,
+  "breakerState": "Closed"
+}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:200px">필드</th><th>정상</th><th>이상하면</th></tr></thead>
+<tbody>
+<tr><td><code>uniquePrefixHashes</code></td><td><b>1</b></td><td><b>2 이상이면 즉시 경보.</b> 프리픽스에 동적 값이 섞였고 캐시가 전면 미적중이다</td></tr>
+<tr><td><code>promptCacheHitRate</code></td><td>실측 <b>30.7~42.6 %</b></td><td>0 이면 캐시가 아예 안 걸린다. 프리픽스 4,096 토큰 하한을 확인</td></tr>
+<tr><td><code>tokenCapUsage</code></td><td>&lt; 1.0</td><td>1.0 에 닿으면 <b>T2 → T1 강등 → 거절</b> 순으로 내려간다</td></tr>
+<tr><td><code>downgrades</code> · <code>rejections</code></td><td>0</td><td>예산이 부족하다</td></tr>
+<tr><td><code>breakerState</code></td><td><code>Closed</code></td><td><code>Open</code> 이면 제공사 장애로 회로가 끊겼다 — <b>폴백으로 계속 돈다</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="bad">
+  <span class="tag">일일 캡을 우회하는 코드를 만들지 않는다</span>
+  토큰 캡은 안전장치다. 넘으면 T2 를 끄고 T1 으로 내리고, 그것도 넘으면 거절한다.
+  거절돼도 <b>NPC 는 캐시와 폴백으로 계속 돈다</b> — 11장에서 확인한 그대로다.
+  캡을 우회하면 그날 예산이 새벽에 다 타고, 그때는 <b>진짜로</b> 아무것도 못 만든다.
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li><code>check-engines.ps1</code> 이 키가 채워진 엔진을 <b>정확히</b> 가려낸다</li>
+  <li>기준선(<code>--tier none</code>)의 <code>cost.enabled</code> 가 <b>false</b></li>
+  <li>티어를 켠 뒤 <code>llmCalls</code> &gt; 0 · <code>cost.enabled</code> = true</li>
+  <li><span class="sig">틱 p99 와 <code>bytes/tick</code> 이 기준선과 같다</span></li>
+  <li><code>uniquePrefixHashes</code> 가 <b>1</b></li>
+</ul>
+
+<h2 id="break">부러뜨려 본다</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>바꿔 보기</th><th>예상</th></tr></thead>
+<tbody>
+<tr><td>키를 지우고 <code>--tier t2</code></td><td>기동은 된다. 호출이 전부 실패하고 <b>폴백으로 돈다</b></td></tr>
+<tr><td><code>--t2-workers 32</code></td><td>429 가 나기 시작한다. <b>실측 동시성은 24까지 무사고</b>, 32·64는 미측정</td></tr>
+<tr><td>돌리는 중에 킬스위치로 T2 차단</td><td>11장 그대로 — 아무 일도 안 일어난다</td></tr>
+<tr><td>프롬프트에 동적 값을 섞는다</td><td><code>uniquePrefixHashes</code> 가 폭증. <b>비용이 몇 배로 뛴다</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>티어 라우팅·회로 차단기</td><td><code>src/Npc.Llm/TieredPlanCompiler.cs</code> · <a href="../book/ch09.html">코드 안내서 9장</a></td></tr>
+<tr><td>프롬프트 조립과 캐시</td><td><a href="../book/ch08.html">코드 안내서 8장</a> · 이 책 17장</td></tr>
+<tr><td>지연·비용 실측 전부</td><td><a href="../reference_metrics.html">reference_metrics.html</a></td></tr>
+<tr><td>예산과 캡</td><td><code>src/Npc.Planning/ReplanBudget.cs</code></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>
