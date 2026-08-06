@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1장 · 5분 만에 NPC를 살린다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p1)">1부 · 일단 켠다</p>
+  <h1>1장 · 5분 만에 NPC를 살린다</h1>
+  <p class="lead">
+    명령 <b>한 줄</b>로 NPC 20마리가 게임 하루를 산다. 밭에 나가고, 캐고, 팔고, 집에 가서 잔다.
+    그동안 <b>LLM은 한 번도 부르지 않는다.</b> 이 장에서 쓰는 코드는 0줄이다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★☆☆☆</span>
+    <span class="chip">20분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">OS 무관</span>
+    <span class="chip">0장 결과에 의존하지 않음</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<p>
+  아무것도 안 만든다. <b>이미 만들어진 것을 켜고 관찰한다.</b>
+  이 장의 목표는 화면 하나를 얻는 것이다 — 그리고 그 화면의 숫자 한 쌍이
+  이 제품의 핵심 주장을 통째로 담고 있다.
+</p>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면 이 두 줄을 읽을 수 있다</span>
+<pre><code>tick p50 0.013ms · p99 0.108ms · max 6.566ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 70.6MB
+ticks 1440 · game day 1 · events 15175 · commands <span class="hl">11825</span> · steps 11118 · timeouts 1381 ·
+scan/tick 3 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 · llm <span class="hl">0</span></code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b><code>llm 0</code> 인데 <code>commands 11825</code> 다.</b>
+  LLM을 한 번도 안 불렀는데 게임서버로 명령이 1만 건 넘게 나갔다.
+  플랜은 <i>이미</i> 만들어져 있었고, 런타임은 그것을 <i>실행만</i> 했다.
+  "LLM은 게임 크리티컬 패스에 없다"는 주장의 실물이 이 두 숫자다.
+</div>
+
+<h2 id="run">한 줄로 돌린다</h2>
+
+<div class="term">
+  <span class="cap">터미널 — 저장소 루트에서</span>
+<pre><code>PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --loopback --npcs 20 --time-scale 600 --days 1 --no-llm --port 5080</code></pre>
+</div>
+
+<p>이게 전부다. 옵션 여섯 개의 뜻은 이렇다.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:150px">옵션</th><th>뜻</th><th>바꾸면</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>--loopback</code></td>
+  <td>게임서버 대역(<code>Npc.Sim</code>)을 <b>같은 프로세스 안에</b> 붙인다. 소켓을 안 쓴다</td>
+  <td><code>--link tcp</code> 로 바꾸면 진짜 소켓 너머의 게임서버에 붙는다 → 3·13장</td>
+</tr>
+<tr>
+  <td><code>--npcs 20</code></td>
+  <td>NPC 수</td>
+  <td>5,000까지 올려도 틱 예산 안에 있다 → 아래 대조 실험</td>
+</tr>
+<tr>
+  <td><code>--time-scale 600</code></td>
+  <td>실시간 1초 = 게임 600초. <b>1틱(0.1초) = 게임 60초</b></td>
+  <td>낮추면 NPC 의 하루를 자세히 볼 수 있다 → 2장</td>
+</tr>
+<tr>
+  <td><code>--days 1</code></td>
+  <td>게임 1일을 돌고 <b>스스로 끝난다</b>. 0이면 무제한</td>
+  <td>배속 600에서 게임 1일 = 1,440틱 = 실시간 <b>약 144초</b></td>
+</tr>
+<tr>
+  <td><code>--no-llm</code></td>
+  <td><code>--tier none</code> 의 별칭. <b>LLM 을 한 번도 안 부른다</b></td>
+  <td>16장에서 처음으로 뗀다. 그때까지 15개 장이 이 상태로 진행된다</td>
+</tr>
+<tr>
+  <td><code>--port 5080</code></td>
+  <td>대시보드·메트릭 HTTP 포트</td>
+  <td>여러 개를 동시에 띄우려면 다르게 준다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">스크립트로도 된다</span>
+  <span class="filepath">samples/ch01_first_run/run.ps1</span>
+  같은 명령을 대신 치면서 <b>옵션의 뜻을 먼저 화면에 적어 주고, 끝난 뒤 종료 요약을 짚어 준다.</b>
+  <pre style="margin:8px 0 0"><code>PS&gt; ./samples/ch01_first_run/run.ps1 -Npcs 20</code></pre>
+</div>
+
+<h3>돌기 시작하면 나오는 것</h3>
+
+<div class="term">
+  <span class="cap">터미널 — 기동 직후</span>
+<pre><code>planstore C:\github_edu\LlmNpcServer\planstore · 버킷 718/2880 (pinned 0) · 폴백 40 · 0.215s
+warn: 미생성 버킷 2162건. 아키타입 폴백으로 해소된다.
+npcs 20 · link Loopback · time-scale 600 · days 1 (1440 ticks) · 버킷 718/2880 · llm off (런타임 호출 없음)
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5080
+dashboard: http://localhost:5080/dashboard</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>줄</th><th>읽는 법</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>버킷 718/2880</code></td>
+  <td>미리 구워 둔 플랜이 <b>718개</b> 있다는 뜻. 전체 버킷은 2,880개다</td>
+</tr>
+<tr>
+  <td><code>warn: 미생성 버킷 2162건</code></td>
+  <td><b>경고지만 정상이다.</b> 없는 버킷은 아키타입 폴백 40개로 메운다 — 플랜 조회는 절대 실패하지 않는다</td>
+</tr>
+<tr>
+  <td><code>폴백 40</code></td>
+  <td>아키타입 40종 각각의 최후 보루 플랜. LLM·캐시가 전부 죽어도 이게 남는다 → 11장</td>
+</tr>
+<tr>
+  <td><code>llm off (런타임 호출 없음)</code></td>
+  <td>틱 루프에서 LLM 을 부를 길 자체가 없다는 선언</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">버킷이 0/2880 이라고 나와도 정상이다</span>
+  <code>planstore/plans/</code> 는 <b>생성물</b>이라 <code>.gitignore</code> 대상이다.
+  저장소를 새로 받았으면 비어 있고, 그러면 모든 NPC 가 <b>폴백 40개</b>로만 돈다.
+  <b>NPC 는 똑같이 하루를 산다.</b> 다만 행동이 덜 다양할 뿐이고,
+  2장에서 볼 <code>planKind</code> 가 전부 <code>fallback</code> 으로 나온다.
+  플랜을 직접 굽는 것은 17장이다.
+</div>
+
+<h2 id="read">종료 요약 읽는 법</h2>
+
+<p>게임 하루가 끝나면 두 줄이 나온다. <b>이 책에서 가장 자주 보게 될 두 줄</b>이다.</p>
+
+<div class="term">
+  <span class="cap">터미널 — 종료 요약 (NPC 20 · 배속 600 · 게임 1일)</span>
+<pre><code>tick p50 0.013ms · p99 0.108ms · max 6.566ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 70.6MB
+ticks 1440 · game day 1 · events 15175 · commands 11825 · steps 11118 · timeouts 1381 ·
+scan/tick 3 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 · llm 0</code></pre>
+</div>
+
+<h3>첫 줄 — 틱 루프가 건강한가</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:130px">값</th><th>실측</th><th>기준</th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><code>p50</code> · <code>p99</code></td><td class="num">0.013 · 0.108 ms</td><td>p99 ≤ <b>20 ms</b></td><td>한 틱을 처리하는 데 걸린 시간. 예산은 100ms 틱의 20%다</td></tr>
+<tr><td><code>max</code></td><td class="num">6.566 ms</td><td>—</td><td>최댓값. 대개 <b>첫 몇 틱의 JIT 컴파일</b>이다</td></tr>
+<tr><td><code>overruns</code></td><td class="num">0</td><td><b>0</b></td><td>예산을 넘긴 틱 수</td></tr>
+<tr><td><code>gen0</code></td><td class="num">0</td><td>—</td><td>Gen0 GC 횟수. <b>이 값으로 틱 루프를 재지 않는다</b> (프로세스 전역이라 HTTP·직렬화가 섞인다)</td></tr>
+<tr><td><code>bytes/tick</code></td><td class="num">0</td><td><b>0</b></td><td>틱 루프가 틱당 힙에 쓴 바이트. <b>틱 루프를 재는 계기는 이것 하나뿐이다</b></td></tr>
+<tr><td><code>heap</code></td><td class="num">70.6 MB</td><td>—</td><td>관리 힙. 계속 자라면 누수다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">여기서 볼 것</span>
+  <b><code>bytes/tick 0</code> 이 우연이 아니다.</b> NPC 상태를 <code>class Npc</code> 객체 5,000개가 아니라
+  <b>SoA(struct of arrays)</b> 배열로 들고, 틱 루프 안에 <code>new</code>·LINQ·문자열 보간·클로저를
+  하나도 안 쓰기 때문이다. 19장에서 일부러 LINQ 한 줄을 넣어 이 값이 0이 아니게 되는 것을 본다.
+</div>
+
+<h3>둘째 줄 — 세계가 실제로 돌았나</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:130px">값</th><th>실측</th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><code>ticks</code></td><td class="num">1,440</td><td>돈 틱. 배속 600에서 게임 1일 = 1,440틱이다</td></tr>
+<tr><td><code>events</code></td><td class="num">15,175</td><td>게임서버가 보내온 통보 (도착·완료·실패·근접·시간 변경…)</td></tr>
+<tr><td><code>commands</code></td><td class="num">11,825</td><td><b>NPC 서버가 발행한 명령.</b> 이게 이 서버의 산출물이다</td></tr>
+<tr><td><code>steps</code></td><td class="num">11,118</td><td>플랜 스텝이 전진한 횟수</td></tr>
+<tr><td><code>timeouts</code></td><td class="num">1,381</td><td><b>응답이 안 와서 로컬에서 합성한 실패.</b> 아래에서 따로 본다</td></tr>
+<tr><td><code>scan/tick</code></td><td class="num">3</td><td>마지막 틱에 인지 스캔한 NPC 수. <b>상한 150</b></td></tr>
+<tr><td><code>interrupts</code></td><td class="num">20</td><td>인터럽트 규칙이 즉시 발행한 액션 → 8장</td></tr>
+<tr><td><code>replan-q</code></td><td class="num">20</td><td>재계획 대기열 깊이. <b><code>--tier none</code> 이면 아무도 안 꺼내 간다</b></td></tr>
+<tr><td><code>drops</code></td><td class="num">link 0 sim 0</td><td>버려진 명령. <b>0이어야 한다</b></td></tr>
+<tr><td><code>backlogs</code></td><td class="num">0</td><td>한 틱 상한에 걸려 다음 틱으로 넘긴 이벤트 뭉치</td></tr>
+<tr><td><code>llm</code></td><td class="num">0</td><td><b>LLM 호출 수</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag">왜 타임아웃이 1,381건이나 되나</span>
+  스텝 11,118건 중 12%가 타임아웃으로 끝났다. 고장이 아니다 —
+  <b>배속을 600으로 준 결과</b>다. 1틱이 게임 60초이므로 <code>timeout_s: 300</code> 인 스텝은
+  <b>5틱이면 만료된다.</b> 게임서버 대역이 이동을 마치기 전에 시간이 먼저 지나간다.
+  <br><br>
+  중요한 것은 <b>그래도 NPC 가 멈추지 않는다</b>는 점이다. 응답이 안 오면 NPC 서버가
+  <code>ActionFailed(Timeout)</code> 을 스스로 만들어 다음 스텝으로 넘어간다.
+  <b>"명령은 유실된다고 가정한다"</b>가 설계이고, 이 숫자가 그 설계가 도는 증거다.
+  배속을 60으로 낮추면 이 비율이 6%로 떨어진다.
+</div>
+
+<h2 id="watch">도는 동안 볼 것</h2>
+
+<p>실행이 도는 <b>동안</b> 브라우저나 다른 터미널로 들여다볼 수 있다.</p>
+
+<div class="term">
+  <span class="cap">터미널 2 — 지금 세계가 어떤 상태인가</span>
+<pre><code>PS&gt; curl http://localhost:5080/status
+<span class="cm"># PowerShell 이면 이쪽이 읽기 좋다</span>
+PS&gt; Invoke-RestMethod http://localhost:5080/status | ConvertTo-Json
+
+{
+    "tick":  86,
+    "gameDay":  0,
+    "gameHour":  7,
+    "timeOfDay":  "<span class="hl2">Morning</span>",
+    "npcs":  20,
+    "ticksProcessed":  86,
+    "eventsDrained":  942,
+    "commandsEmitted":  719,
+    "stepsAdvanced":  699,
+    "timeoutsSynthesized":  78,
+    "scanPerTick":  5,
+    "deviations":  117,
+    "interruptsForced":  0,
+    "replanQueued":  0,
+    "eventBacklogs":  0,
+    "llmCalls":  <span class="hl">0</span>,
+    "link":  {
+        "commandsEnqueued":  719,
+        "commandsFlushed":  719,
+        "commandsDropped":  0,
+        "eventsReceived":  0,
+        "eventGapsDetected":  0,
+        "pendingCommands":  0
+    }
+}</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>주소</th><th>무엇</th><th>언제 쓰나</th></tr></thead>
+<tbody>
+<tr><td><code>/status</code></td><td>지금 세계의 요약 한 장</td><td>"돌고 있나?" 를 1초에 확인</td></tr>
+<tr><td><code>/dashboard</code></td><td>브라우저용 대시보드 (단일 HTML)</td><td>그래프로 보고 싶을 때</td></tr>
+<tr><td><code>/metrics</code></td><td>패널 7종의 전체 지표 JSON</td><td>수치를 정확히 볼 때 → 2장</td></tr>
+<tr><td><code>/npc/{id}</code></td><td><b>NPC 한 마리의 속사정</b></td><td>"왜 저기로 가는가" → 2장</td></tr>
+<tr><td><code>/heatmap.csv</code></td><td>버킷 조회 히트맵 원자료</td><td>어떤 플랜을 구울지 정할 때 → 17장</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">게임 시각은 06:00 에서 시작한다</span>
+  <code>gameHour: 7</code> · <code>timeOfDay: "Morning"</code> 이 보인다.
+  시간대는 <b>Dawn · Morning · Noon · Afternoon · Evening · Night</b> 여섯 가지이고,
+  이것이 플랜 캐시 키의 한 축이다 — 같은 대장장이라도 아침 플랜과 밤 플랜이 다르다.
+  시간대가 넘어가는 순간 플랜이 갈리는 것을 2장에서 직접 본다.
+</div>
+
+<h2 id="variants">옵션 하나씩 바꿔 보기</h2>
+
+<p>
+  옵션 설명을 읽는 것과, 바꿔 보고 숫자가 어떻게 움직이는지 보는 것은 다른 일이다.
+  <span class="filepath">samples/ch01_first_run/variants.ps1</span> 이 <b>기준선에서 하나씩만</b> 바꿔
+  8회를 돌리고 표로 모은다. 전부 <code>--max-speed</code> 라 다 합쳐 1분이면 끝난다.
+</p>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch01_first_run/variants.ps1 -NoBuild -Csv ./lab/ch01_variants.csv</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr>
+  <th>회차</th><th class="num">틱</th><th class="num">p99(ms)</th><th class="num">bytes/tick</th>
+  <th class="num">명령</th><th class="num">스텝</th><th class="num">타임아웃</th><th class="num">스캔/틱</th><th class="num">LLM</th>
+</tr></thead>
+<tbody>
+<tr><td>기준선 <span class="small">(NPC 50 · 배속 600 · 1일)</span></td><td class="num">1,440</td><td class="num">0.105</td><td class="num">0</td><td class="num">26,746</td><td class="num">25,236</td><td class="num">3,980</td><td class="num">7</td><td class="num">0</td></tr>
+<tr><td><code>--npcs 500</code></td><td class="num">1,440</td><td class="num">0.278</td><td class="num">0</td><td class="num">276,718</td><td class="num">263,787</td><td class="num">34,208</td><td class="num">53</td><td class="num">0</td></tr>
+<tr><td><code>--npcs 5000</code></td><td class="num">1,440</td><td class="num">2.368</td><td class="num">0</td><td class="num">2,789,957</td><td class="num">2,658,422</td><td class="num">356,288</td><td class="num"><b>150</b></td><td class="num">0</td></tr>
+<tr><td><code>--time-scale 60</code></td><td class="num">14,400</td><td class="num">0.011</td><td class="num">0</td><td class="num">68,687</td><td class="num">61,603</td><td class="num">4,002</td><td class="num">7</td><td class="num">0</td></tr>
+<tr><td><code>--days 7</code></td><td class="num">10,080</td><td class="num">0.025</td><td class="num">0</td><td class="num">175,686</td><td class="num">160,629</td><td class="num">29,485</td><td class="num">6</td><td class="num">0</td></tr>
+<tr><td><code>--player-bots 0</code></td><td class="num">1,440</td><td class="num">0.054</td><td class="num">0</td><td class="num">26,746</td><td class="num">25,236</td><td class="num">3,980</td><td class="num"><b>0</b></td><td class="num">0</td></tr>
+<tr><td><code>--drop-rate 0.2</code></td><td class="num">1,440</td><td class="num">0.069</td><td class="num">0</td><td class="num">20,509</td><td class="num">18,756</td><td class="num"><b>5,802</b></td><td class="num">4</td><td class="num">0</td></tr>
+<tr><td><code>--fail-rate 0.2</code></td><td class="num">1,440</td><td class="num">0.081</td><td class="num">0</td><td class="num">29,915</td><td class="num">27,092</td><td class="num">3,647</td><td class="num">6</td><td class="num">0</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="small">실측 2026-08-06 · Windows 11 · Release 빌드 · 원자료 <code>lab/ch01_variants.csv</code></p>
+
+<h3>이 표에서 볼 것 다섯</h3>
+
+<ol class="steps">
+<li>
+  <b>LLM 열이 전부 0이다</b>
+  <p>
+    옵션을 어떻게 바꾸든 <code>--no-llm</code> 인 한 LLM 은 안 불린다.
+    명령은 최대 <b>279만 건</b>이 나갔다. 플랜은 이미 있었고 런타임은 실행만 했다.
+  </p>
+</li>
+<li>
+  <b><code>bytes/tick</code> 이 전부 0이다</b>
+  <p>
+    NPC 를 100배로 늘려도 틱 루프는 힙에 <b>한 바이트도</b> 안 쓴다.
+    이 열이 0이 아니게 되는 순간이 회귀다.
+  </p>
+</li>
+<li>
+  <b>NPC 100배에 p99 는 23배다</b> <span class="pill">0.105 → 2.368 ms</span>
+  <p>
+    선형보다 낫고, 여전히 예산 20ms 의 <b>12%</b> 다. 5,000마리는 이 제품의 설계 목표치다.
+  </p>
+</li>
+<li>
+  <b><code>--npcs 5000</code> 의 스캔/틱이 정확히 150이다</b>
+  <p>
+    우연이 아니라 <b>상한값</b>이다 (<code>CognitionScheduler.MaxScansPerTick</code>).
+    5,000마리를 매 틱 전수 조사하지 않고 <b>150마리만</b> 본다.
+    이 상한 하나가 "NPC 를 늘려도 인지 비용은 O(1)" 을 만든다 → 6장
+  </p>
+</li>
+<li>
+  <b><code>--drop-rate 0.2</code> 에서 명령은 줄고 타임아웃은 늘었다</b>
+  <span class="pill">명령 26,746 → 20,509</span> <span class="pill">타임아웃 3,980 → 5,802</span>
+  <p>
+    명령 5건 중 1건을 일부러 버렸는데 <b>NPC 는 멈추지 않았다.</b>
+    합성한 타임아웃이 그 자리를 메웠기 때문이다. 11장에서 더 세게 흔든다.
+  </p>
+</li>
+</ol>
+
+<div class="why">
+  <span class="tag">덤으로 보이는 것 둘</span>
+  <p>
+    <b>① <code>--player-bots 0</code> 의 명령·스텝·타임아웃이 기준선과 <u>한 건도</u> 안 틀리다.</b>
+    플레이어가 없으면 인지 스캔은 0이 되는데(스캔/틱 0), <b>행동은 똑같다.</b>
+    인지 스캔은 <i>누구를 재계획 대상으로 고를까</i>만 정하고,
+    <code>--tier none</code> 에서는 재계획 자체가 없으니 결과가 안 바뀐다.
+    16장에서 티어를 켜면 이 두 회차가 갈라진다.
+  </p>
+  <p>
+    <b>② 배속은 "같은 것을 빨리 보기"가 아니다.</b>
+    배속 600은 스텝의 16%가 타임아웃이고, 배속 60은 6%다.
+    배속을 올리면 <b>다른 세계</b>가 된다 — 게임서버가 이동을 마치기 전에 시간이 지나가기 때문이다.
+    NPC 의 하루를 제대로 보려면 배속을 60쯤으로 낮춘다. 2장이 그렇게 한다.
+  </p>
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li>실행이 <b>스스로 끝난다</b> — <code>--days 1</code> 이면 1,440틱 뒤에 종료 요약을 찍고 나간다</li>
+  <li>종료 요약에 <code>llm 0</code> 인데 <code>commands</code> 가 <b>수천~수만</b></li>
+  <li><code>bytes/tick 0</code> · <code>overruns 0</code> · <code>drops link 0 sim 0</code></li>
+  <li>도는 동안 <code>/status</code> 가 응답하고 <code>tick</code> 이 <b>계속 증가</b>한다</li>
+  <li>브라우저로 <code>/dashboard</code> 가 열린다</li>
+  <li><code>variants.ps1</code> 이 8행짜리 표를 찍고 <code>bytes/tick</code> 열이 <b>전부 0</b></li>
+</ul>
+
+<h2 id="break">부러뜨려 본다</h2>
+
+<p>NPC 를 <b>정말로 멈출 수 있는지</b> 시도해 본다. 명령을 절반이나 버려 보자.</p>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --loopback --npcs 20 --time-scale 600 --days 1 --no-llm --max-speed --no-dashboard `
+      <span class="hl3">--drop-rate 0.5</span></code></pre>
+</div>
+
+<div class="term">
+  <span class="cap">터미널 — 결과</span>
+<pre><code>tick p50 0.012ms · p99 0.189ms · max 10.582ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 67.7MB
+ticks 1440 · game day 1 · events 7430 · commands 6477 · steps 5712 · timeouts <span class="hl2">2744</span> ·
+scan/tick 2 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 · llm 0</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th class="num">기준</th><th class="num">drop 0.5</th><th>무슨 일이</th></tr></thead>
+<tbody>
+<tr><td><code>commands</code></td><td class="num">11,825</td><td class="num">6,477</td><td>절반이 버려졌으니 줄어든다</td></tr>
+<tr><td><code>steps</code></td><td class="num">11,118</td><td class="num">5,712</td><td>진행이 느려진다</td></tr>
+<tr><td><code>timeouts</code></td><td class="num">1,381</td><td class="num"><b>2,744</b></td><td><b>합성 실패가 그 자리를 메운다</b></td></tr>
+<tr><td><code>overruns</code></td><td class="num">0</td><td class="num">0</td><td>틱은 여전히 예산 안</td></tr>
+<tr><td>NPC</td><td colspan="2" style="text-align:center">계속 움직인다</td><td>크래시 없음 · 멈춤 없음</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+  명령의 절반이 게임서버에 도착하지 못했는데도 <b>NPC 는 멈추지 않았다.</b>
+  느려졌을 뿐이고, 타임아웃 합성이 정확히 두 배로 늘어 그 자리를 메웠다.
+</p>
+
+<div class="ok">
+  <span class="tag">여기서 배우는 것</span>
+  이 서버는 <b>명령이 도착한다고 믿지 않는다.</b> 모든 플랜 스텝에 <code>timeout_s</code> 가 있고,
+  응답 이벤트가 안 오면 로컬에서 실패를 만들어 진행을 재개한다.
+  실제 게임서버에 붙이면 명령은 <b>반드시</b> 유실되므로, 이 경로가 예외가 아니라 <b>기본</b>이다.
+  11장에서 이 경로만 집중적으로 흔든다.
+</div>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>실행 옵션 전부와 기본값</td><td><code>dotnet run --project src/Npc.Host -- --help</code> · <a href="../book/ch11.html">코드 안내서 11장</a></td></tr>
+<tr><td>틱 루프가 한 틱에 무엇을 하나</td><td><a href="../book/ch05.html">코드 안내서 5장</a> · <a href="../startup_flow.html">기동 흐름</a></td></tr>
+<tr><td>스캔 상한 150은 어떻게 나온 값인가</td><td><a href="../book/ch06.html">코드 안내서 6장</a></td></tr>
+<tr><td>이 수치들의 전체 실측표</td><td><a href="../reference_metrics.html">reference_metrics.html</a></td></tr>
+<tr><td>이 회차의 원자료</td><td><code>lab/ch01_variants.csv</code> · <code>samples/ch01_first_run/variants.md</code></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

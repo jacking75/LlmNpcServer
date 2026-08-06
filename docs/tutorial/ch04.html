@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4장 · 마스터데이터 지도와 검증기 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p2)">2부 · 세계를 바꾼다</p>
+  <h1>4장 · 마스터데이터 지도와 검증기 V1~V11</h1>
+  <p class="lead">
+    콘텐츠를 고치기 전에 <b>안전망이 어디에 쳐져 있는지</b> 먼저 안다.
+    JSON 11개가 서로 무엇을 참조하는지 보고, <b>일부러 9가지 방식으로 깨뜨려서</b>
+    각각 어느 규칙이 잡는지 확인한다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★☆☆</span>
+    <span class="chip">40분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">0장의 <code>lab.ps1</code> 필요</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<p>
+  깨진 마스터데이터 9벌과, 각각이 어느 규칙에 걸리는지 적은 대조표를 만든다.
+  <b>고칠 줄 아는 것보다 깨졌을 때 알아보는 것이 먼저다.</b>
+</p>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면 이 표를 얻는다</span>
+<pre><code>패치  예상  실제     위반 일치
+--   --   --     -- --
+v1   V1   V1      1 OK
+v2   V2   V2      1 OK
+v3   V3   <span class="hl2">V3+V11</span>   2 OK
+v4   V4   V4      1 OK
+v5   V5   <span class="hl2">V5+V10</span>   2 OK
+v6   V6   V6      1 OK
+v7   V7   V7      1 OK
+v8   V8   V8      1 OK
+v11  V11  V11     1 OK
+
+<span class="hl">패치 9종이 전부 예상한 규칙에 걸렸다.</span></code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>한 곳을 고쳤는데 규칙이 둘 걸리는 경우가 있다.</b>
+  마스터데이터는 독립된 설정 파일 11개가 아니라 <b>서로 물려 있는 하나의 그래프</b>다.
+  대장장이를 8배로 늘리면 인구 가중치(V5)만 깨지는 게 아니라 대장간 정원(V10)도 같이 깨진다.
+</div>
+
+<h2 id="map">먼저 — 11개 파일의 지도</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 900 400" role="img" aria-label="마스터데이터 참조 관계">
+      <defs>
+        <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <g font-size="12.5" text-anchor="middle">
+        <rect x="30"  y="20"  width="150" height="44" rx="9" fill="var(--panel-2)" stroke="var(--p2)" stroke-width="1.6"/>
+        <text x="105" y="40" font-weight="700" fill="var(--p2)">world_flags</text>
+        <text x="105" y="56" font-size="10.5" fill="var(--ink-3)">64비트 어휘</text>
+
+        <rect x="30"  y="96"  width="150" height="44" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="105" y="116" font-weight="650" fill="var(--ink)">items</text>
+        <text x="105" y="132" font-size="10.5" fill="var(--ink-3)">grants → 플래그</text>
+
+        <rect x="30"  y="172" width="150" height="44" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="105" y="192" font-weight="650" fill="var(--ink)">actions</text>
+        <text x="105" y="208" font-size="10.5" fill="var(--ink-3)">37개 · 전제/결과</text>
+
+        <rect x="290" y="20"  width="150" height="44" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="365" y="40" font-weight="650" fill="var(--ink)">zones</text>
+        <text x="365" y="56" font-size="10.5" fill="var(--ink-3)">12개 · 인접 그래프</text>
+
+        <rect x="290" y="96"  width="150" height="44" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="365" y="116" font-weight="650" fill="var(--ink)">pois</text>
+        <text x="365" y="132" font-size="10.5" fill="var(--ink-3)">243개 · 정원 · grants</text>
+
+        <rect x="290" y="172" width="150" height="44" rx="9" fill="var(--panel-2)" stroke="var(--p1)" stroke-width="1.6"/>
+        <text x="365" y="192" font-weight="700" fill="var(--p1)">archetypes</text>
+        <text x="365" y="208" font-size="10.5" fill="var(--ink-3)">40개 · 인구 가중치</text>
+
+        <rect x="550" y="96"  width="150" height="44" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="625" y="116" font-weight="650" fill="var(--ink)">fallback_plans</text>
+        <text x="625" y="132" font-size="10.5" fill="var(--ink-3)">40개 · 최후 보루</text>
+
+        <rect x="550" y="172" width="150" height="44" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="625" y="192" font-weight="650" fill="var(--ink)">interrupts</text>
+        <text x="625" y="208" font-size="10.5" fill="var(--ink-3)">14개 · 반사신경</text>
+
+        <rect x="550" y="20"  width="150" height="44" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="625" y="40" font-weight="650" fill="var(--ink)">context_buckets</text>
+        <text x="625" y="56" font-size="10.5" fill="var(--ink-3)">2,880 키 공간</text>
+
+        <rect x="290" y="266" width="150" height="44" rx="9" fill="var(--panel-3)" stroke="var(--line-2)" stroke-dasharray="4 3"/>
+        <text x="365" y="286" font-weight="650" fill="var(--ink-2)">poi_distances.bin</text>
+        <text x="365" y="302" font-size="10.5" fill="var(--ink-3)">생성물</text>
+
+        <rect x="550" y="266" width="150" height="44" rx="9" fill="var(--panel-3)" stroke="var(--line-2)" stroke-dasharray="4 3"/>
+        <text x="625" y="286" font-weight="650" fill="var(--ink-2)">npc_instances.json</text>
+        <text x="625" y="302" font-size="10.5" fill="var(--ink-3)">생성물 · 5,000마리</text>
+
+        <rect x="30" y="266" width="150" height="44" rx="9" fill="var(--panel-3)" stroke="var(--line-2)" stroke-dasharray="4 3"/>
+        <text x="105" y="286" font-weight="650" fill="var(--ink-2)">prompt/</text>
+        <text x="105" y="302" font-size="10.5" fill="var(--ink-3)">일부 생성 · 8·9장</text>
+      </g>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.3" marker-end="url(#a4)" color="var(--ink-3)">
+        <path d="M105,68 L105,92"/>
+        <path d="M105,144 L105,168"/>
+        <path d="M184,118 L286,112"/>
+        <path d="M184,192 L286,192"/>
+        <path d="M365,68 L365,92"/>
+        <path d="M365,144 L365,168"/>
+        <path d="M444,192 L546,196"/>
+        <path d="M444,186 L546,132"/>
+        <path d="M365,220 L365,262"/>
+        <path d="M444,206 L546,272"/>
+      </g>
+
+      <text x="450" y="360" text-anchor="middle" font-size="12" fill="var(--ink-3)">
+        화살표 방향이 곧 <tspan font-weight="700">작성 순서</tspan>다. 거꾸로 만들면 없는 것을 참조하게 되고 검증기가 막는다.
+      </text>
+      <text x="450" y="382" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">
+        점선 상자는 생성물이다 — 손으로 편집하지 않는다
+      </text>
+    </svg>
+  </div>
+  <figcaption>실선 상자 9개가 사람이 쓰는 원천이고, 점선 3개는 도구가 만든다.</figcaption>
+</figure>
+
+<div class="note">
+  <span class="tag">작성 순서</span>
+  <code>world_flags → items → actions → zones → pois → archetypes → context_buckets →
+  interrupts → fallback_plans → prompt → npc_instances</code>
+  <br>
+  이 순서를 지키지 않으면 <b>계속 되돌아온다.</b> 5장에서 아이템을 먼저 넣고 POI 를 나중에 넣는 이유가 이것이다.
+</div>
+
+<h2 id="rules">검증 규칙 V1~V11</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:48px">규칙</th><th>무엇을 보는가</th><th>어긴 예</th></tr></thead>
+<tbody>
+<tr><td><b>V1</b></td><td>파일 안에서 <code>code</code>·<code>id</code>·<code>bit</code> 가 유일한가</td><td>두 아키타입이 같은 code</td></tr>
+<tr><td><b>V2</b></td><td>플래그 참조가 <code>world_flags.json</code> 에 있는가</td><td>POI 가 <code>AtBakery</code> 를 세운다</td></tr>
+<tr><td><b>V3</b></td><td>poi·item·zone·action 참조가 실재하는가</td><td>POI 가 없는 존을 가리킨다</td></tr>
+<tr><td><b>V4</b></td><td><code>allowed_actions</code> 가 카탈로그 안에 있는가</td><td>대장장이에게 <code>Fly</code> 를 허용</td></tr>
+<tr><td><b>V5</b></td><td><code>population_weight</code> 합이 1.0 (±0.001)인가</td><td>한 직업만 8배로</td></tr>
+<tr><td><b>V6</b></td><td><code>total_keys</code> = 아키타입 × 6 × 4 × 3 인가</td><td>시간대를 하나 지운다</td></tr>
+<tr><td><b>V7</b></td><td>모든 아키타입에 폴백이 있고 <code>loop:true</code> 인가</td><td>폴백 id 를 바꾼다</td></tr>
+<tr><td><b>V8</b></td><td>폴백이 그 아키타입의 허용 액션만 쓰는가</td><td>목동에게 <code>Mine</code></td></tr>
+<tr><td><b>V9</b></td><td>프롬프트 프리픽스 ≥ 4,096 토큰인가</td><td>LLM 을 켜야 판정된다 (지금은 SKIP)</td></tr>
+<tr><td><b>V10</b></td><td>일터·주거 정원이 인구를 감당하는가</td><td>대장간 64석에 대장장이 495명</td></tr>
+<tr><td><b>V11</b></td><td>존 그래프가 대칭이고 POI 가 도달 가능한가</td><td>인접을 한 방향만 남긴다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">V 규칙이 전부가 아니다</span>
+  검증기는 세 겹이다. <b>로더</b>(파일이 읽히는가 · 첨자가 맞는가) →
+  <b>V1~V11</b>(참조와 총합) → <b>플랜 4단 검증기</b>(Schema · Vocabulary · Coherence · DryRun).
+  출력에 <code>FAIL LOAD</code> 가 뜨면 앞의 둘 중 하나, <code>FAIL V5</code> 처럼 번호가 붙으면 가운데다.
+  6장에서 마지막 것을 만난다.
+</div>
+
+<h2 id="break">아홉 가지로 깨뜨린다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch04_break/break.ps1 -List
+
+패치 9종
+  v1    V1   code 중복 — 목수에게 대장장이 번호를 준다
+  v2    V2   없는 플래그 참조 — POI 가 AtBakery 를 세운다
+  v3    V3   없는 존 참조 — POI 를 아틀란티스로 보낸다
+  v4    V4   카탈로그에 없는 액션 — 대장장이에게 Fly 를 허용한다
+  v5    V5   인구 가중치 합이 1.0 이 아니다 — 대장장이를 8배로
+  v6    V6   버킷 총수가 안 맞는다 — 시간대를 하나 지운다
+  v7    V7   폴백이 사라진다 — 목동 폴백의 id 를 바꾼다
+  v8    V8   폴백이 허용 안 된 액션을 쓴다 — 목동에게 광질을 시킨다
+  v11   V11  존 인접이 비대칭이다 — 한쪽 방향만 남긴다
+
+PS&gt; ./samples/ch04_break/break.ps1</code></pre>
+</div>
+
+<p>
+  스크립트가 하는 일은 단순하다. 패치마다 <b>깨끗한 사본을 새로 뜨고</b>,
+  원문 한 곳만 바꾸고, <code>validate</code> 를 돌리고, 사본을 지운다.
+</p>
+
+<div class="term">
+  <span class="cap">samples/ch04_break/break.ps1 — 패치 하나의 정의</span>
+<pre><code>@{
+    key = 'v5'; expect = 'V5'
+    title = '인구 가중치 합이 1.0 이 아니다 — 대장장이를 8배로'
+    file = 'archetypes.json'
+    from = "`"population_weight`": 0.012`n    },`n    {`n      `"id`": `"carpenter`""
+    to   = "`"population_weight`": 0.099`n    },`n    {`n      `"id`": `"carpenter`""
+    why  = '가중치는 인구 배분표다. 합이 1이 아니면 몇 마리를 만들지가 정해지지 않는다'
+}</code></pre>
+</div>
+
+<p>
+  <b>JSON 을 파싱해서 다시 쓰지 않고 원문을 그대로 찾아 바꾼다.</b>
+  파싱해 다시 쓰면 서식이 통째로 흐트러져서, <code>git diff</code> 로
+  "내가 무엇을 고쳤나"를 못 읽게 된다. 실습에서도 실무에서도 같은 이유로 그렇게 한다.
+</p>
+
+<h2 id="result">실행 결과 — 아홉 개의 오류 메시지</h2>
+
+<div class="term">
+  <span class="cap">실측 출력 (요약)</span>
+<pre><code>[V1] code 중복 — 목수에게 대장장이 번호를 준다
+      FAIL V1  archetypes.json: code 0 가 중복이다 ('blacksmith' 와 'carpenter').
+
+[V2] 없는 플래그 참조 — POI 가 AtBakery 를 세운다
+      FAIL V2  pois.json:farm_001_08.grants 가 없는 플래그 'AtBakery' 를 참조한다.
+
+[V3] 없는 존 참조 — POI 를 아틀란티스로 보낸다
+      <span class="hl2">FAIL V3   pois.json: house_001_08 가 없는 존 'atlantis' 을 가리킨다.
+      FAIL V11  pois.json: house_001_08 이 도달 불가 존 'atlantis' 에 있다.</span>
+
+[V4] 카탈로그에 없는 액션 — 대장장이에게 Fly 를 허용한다
+      FAIL V4  archetypes.json: blacksmith 가 카탈로그에 없는 액션 'Fly' 을 허용한다.
+
+[V5] 인구 가중치 합이 1.0 이 아니다 — 대장장이를 8배로
+      <span class="hl2">FAIL V5   archetypes.json: population_weight 합이 1.087000 다. 1.0 ±0.001 이어야 한다.
+      FAIL V10  pois.json: 일터 'smithy' 정원 합이 64 인데 그 일터를 쓰는 아키타입 인구는 495 다.</span>
+
+[V6] 버킷 총수가 안 맞는다 — 시간대를 하나 지운다
+      FAIL V6  context_buckets.json: total_keys 가 2880 인데 실제 조합은 2400 다.
+
+[V7] 폴백이 사라진다 — 목동 폴백의 id 를 바꾼다
+      FAIL V7  archetypes.json: shepherd 의 폴백 플랜 'fb_shepherd' 이 fallback_plans.json 에 없다.
+
+[V8] 폴백이 허용 안 된 액션을 쓴다 — 목동에게 광질을 시킨다
+      FAIL V8  fallback_plans.json: 'fb_shepherd' 이 shepherd 에게 허용되지 않은 액션 'Mine' 을 쓴다.
+
+[V11] 존 인접이 비대칭이다 — 한쪽 방향만 남긴다
+      FAIL V11  zones.json: 인접이 비대칭이다 — town_east_market → town_center 는 있는데 반대가 없다.</code></pre>
+</div>
+
+<h3>여기서 볼 것 넷</h3>
+
+<ol class="steps">
+<li>
+  <b>메시지가 무엇을 어떻게 고치라고 말해 준다</b>
+  <p>
+    "1.087 인데 1.0 ±0.001 이어야 한다" · "64 인데 495 다" · "'blacksmith' 와 'carpenter'".
+    <b>규칙 번호만 던지고 끝나지 않는다.</b> 2부 내내 이 메시지를 읽는 것이 일이 된다.
+  </p>
+</li>
+<li>
+  <b>한 곳을 고쳤는데 둘이 걸린다</b> <span class="pill a">v3 · v5</span>
+  <p>
+    POI 하나를 없는 존으로 보냈더니 <b>참조(V3)</b>와 <b>도달 가능성(V11)</b>이 같이 깨졌다.
+    대장장이를 8배로 늘렸더니 <b>가중치(V5)</b>와 <b>정원(V10)</b>이 같이 깨졌다.
+    <br>
+    이것이 <b>"콘텐츠 하나를 고칠 때 무엇까지 따라가야 하는가"</b>의 답이다 —
+    검증기가 대신 따라가 준다.
+  </p>
+</li>
+<li>
+  <b>실패는 경고가 아니라 기동 실패다</b>
+  <p>
+    <code>validate</code> 는 종료 코드 1로 끝나고, 서버도 같은 데이터로는 뜨지 않는다.
+    "경고를 내고 계속 도는" 선택지를 안 만든 이유는 <b>콘텐츠가 반쯤 어긋난 채 도는 서버가
+    안 도는 서버보다 훨씬 비싸기</b> 때문이다.
+  </p>
+</li>
+<li>
+  <b>9종이 전부 서로 다른 규칙에 걸렸다</b>
+  <p>
+    <b>하나라도 조용히 통과했다면 그게 이 저장소의 구멍</b>이고, 보고할 거리다.
+    스크립트가 <code>MISS</code> 로 표시한다.
+  </p>
+</li>
+</ol>
+
+<h2 id="limit">정적 검증의 한계</h2>
+
+<p>
+  검증기가 전부 잡아 주지는 않는다. <b>안 걸리는데 런타임에서 증상이 나는</b> 종류가 있다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>고침</th><th>검증</th><th>런타임 증상</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>duty_hours</code> 없이 <code>Guard</code>·<code>Patrol</code> 을 허용</td>
+  <td><span class="pill ok">통과</span></td>
+  <td><b>재계획 큐가 포화된다.</b> <code>OnDuty</code> 를 세우는 것은 <code>duty_hours</code> 뿐인데,
+      인지 스캔이 매 틱 "근무 중이어야 하는데 아니다"로 읽는다</td>
+</tr>
+<tr>
+  <td>POI 를 늘리고 거리표를 안 굽는다</td>
+  <td><span class="pill bad">LOAD 에서 걸린다</span></td>
+  <td>— (5장에서 직접 본다)</td>
+</tr>
+<tr>
+  <td>플랜의 전제조건이 성립 불가</td>
+  <td><span class="pill bad">Coherence 에서 걸린다</span></td>
+  <td>— (6장에서 직접 본다)</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">그래서 확인 3단이다</span>
+  검증만으로 끝내지 않고 <b>짧게 돌려서 관측까지</b> 하는 이유가 이것이다.
+  <code>check.ps1</code> 의 ②·③단계가 위 표의 왼쪽 두 줄을 잡는다.
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li><code>break.ps1 -List</code> 가 패치 9종을 찍는다</li>
+  <li><code>break.ps1</code> 이 <b>패치 9종이 전부 예상한 규칙에 걸렸다</b> 로 끝난다</li>
+  <li>v3 과 v5 는 <b>위반이 2건</b>으로 나온다 (연쇄)</li>
+  <li>실행이 끝나면 <code>lab/</code> 에 사본이 <b>하나도 안 남는다</b> (<code>-Keep</code> 없이 돌렸을 때)</li>
+  <li>원본 <code>masterdata/</code> 의 <code>content_hash</code> 가 그대로다 —
+      <code>f37c0292…</code></li>
+</ul>
+
+<h2 id="explore">더 해 볼 것</h2>
+
+<div class="term">
+  <span class="cap">터미널 — 하나만 골라 사본을 남기고 직접 열어 본다</span>
+<pre><code>PS&gt; ./samples/ch04_break/break.ps1 -Only v5 -Keep
+PS&gt; ./samples/lab.ps1 -Diff ch04_v5
+
+lab/ch04_v5/masterdata  vs  masterdata/
+  ~ 수정  archetypes.json
+
+PS&gt; ./samples/lab.ps1 -Drop ch04_v5</code></pre>
+</div>
+
+<p>
+  <code>-Diff</code> 가 <b>파일 단위</b>로만 알려 준다. 마스터데이터 JSON 은 수천 줄이라
+  줄 단위 diff 를 눈으로 못 읽기 때문이다. 실습 중에 필요한 답은
+  대개 <b>"어느 파일을 건드렸나"</b> 하나다.
+</p>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>11개 파일의 스키마 전문</td><td><a href="../reference_masterdata.html">reference_masterdata.html</a></td></tr>
+<tr><td>검증기 구현</td><td><code>src/Npc.MasterData/Validation/MasterDataValidator.cs</code></td></tr>
+<tr><td>왜 이 어휘로 세계를 정의했나</td><td><a href="../book/ch02.html">코드 안내서 2장</a></td></tr>
+<tr><td>플랜 4단 검증기</td><td><a href="../book/ch04.html">코드 안내서 4장</a> · 이 책 6장</td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

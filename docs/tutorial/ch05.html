@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5장 · 마을에 없던 것을 만든다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p2)">2부 · 세계를 바꾼다</p>
+  <h1>5장 · 마을에 없던 것을 만든다 — 아이템과 POI</h1>
+  <p class="lead">
+    첫 콘텐츠 추가다. <b>꿀</b>이라는 아이템과 <b>양봉장</b>이라는 장소를 만든다.
+    작성 순서를 지키면 한 번에 끝나고, 거꾸로 하면 두 번 돌아온다.
+    그리고 <b>거리표를 다시 굽는 것</b>을 잊으면 어떻게 되는지 본다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★☆☆</span>
+    <span class="chip">45분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">7장이 이 결과를 쓴다</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면</span>
+<pre><code>PS&gt; ./samples/ch05_apiary/patch.ps1
+
+① items.json — honey 를 넣는다
+  honey (code 83, raw, HasRawMaterial)
+
+② pois.json — 양봉장 둘을 세운다
+  apiary_001_12 (244) · apiary_002_08 (245)
+
+③ poi_distances.bin — 다시 굽는다
+   poi_distances.bin: POI <span class="hl">245</span>개 · 120,058 bytes (117.2 KB) · 최대 거리 5241.0m
+
+④ 검증
+   OK   액션 37 · 아이템 <span class="hl">83</span> · 존 12 · POI <span class="hl">245</span> · 아키타입 40 · 인터럽트 14
+   content_hash: <span class="hl2">1901823e5ad5e360</span>2d6b6f6fb2139a693c388ce3aa7a226cf4d867517c345081
+   검증 통과 (V1~V11, 건너뜀 1건)</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>콘텐츠 추가는 파일 두 개를 고치고 생성물 하나를 다시 굽는 일이다.</b>
+  그리고 <code>content_hash</code> 가 바뀐다 — 그 순간 미리 구워 둔 플랜의 유효성을 스스로 판정해야 한다.
+</div>
+
+<h2 id="order">왜 items 가 먼저인가</h2>
+
+<p>
+  4장의 지도에서 화살표는 <code>items → pois</code> 방향이었다. POI 는
+  <code>resources</code> 로 아이템을 가리키기 때문이다. 거꾸로 하면 이렇게 된다.
+</p>
+
+<div class="term">
+  <span class="cap">순서를 거꾸로 했을 때</span>
+<pre><code><span class="cm"># pois.json 에 resources: ["honey"] 를 먼저 넣고 검증하면</span>
+FAIL V3  pois.json: apiary_001_12 가 없는 아이템 'honey' 을 낸다.</code></pre>
+</div>
+
+<p>
+  검증기가 막아 주니 사고가 나지는 않는다. 다만 <b>되돌아오는 시간이 든다.</b>
+  순서를 지키는 이유는 안전이 아니라 <b>속도</b>다.
+</p>
+
+<h2 id="item">① 아이템 — <code>honey</code></h2>
+
+<div class="filepath">masterdata/items.json</div>
+<pre><code>    { "id": "map",            "code": 82, "category": "product", "grants": ["HasProduct"], "stack": 10 },
+<span class="hl">    { "id": "honey",          "code": 83, "category": "raw",     "grants": ["HasRawMaterial"], "stack": 30 }</span>
+  ],</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:110px">필드</th><th>뜻</th><th>고를 때</th></tr></thead>
+<tbody>
+<tr><td><code>code</code></td><td>배열 첨자. <b>재배치 금지, 추가는 뒤에만</b></td><td>지금 최대가 82니까 <b>83</b></td></tr>
+<tr><td><code>category</code></td><td><code>raw</code>·<code>product</code>·<code>food</code>·<code>drink</code>·<code>tool</code>·<code>weapon</code>·<code>currency</code></td><td>벌통에서 <b>거두는</b> 것이니 <code>raw</code></td></tr>
+<tr><td><code>grants</code></td><td><b>이 파일의 핵심.</b> 이 아이템을 가지면 서는 플래그</td><td><code>HasRawMaterial</code></td></tr>
+<tr><td><code>stack</code></td><td>한 칸에 몇 개까지</td><td>30</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="why">
+  <span class="tag"><code>grants</code> 가 왜 핵심인가</span>
+  코드 어디에도 <b>"빵을 가지면 <code>HasFood</code>"</b> 같은 규칙이 없다.
+  인벤토리 변경 이벤트를 받으면 그 NPC 가 가진 아이템들의 <code>grants</code> 를 전부 OR 해서
+  <code>WorldFlags</code> 를 다시 계산할 뿐이다.
+  <b>그래서 아이템을 추가하는 것만으로 새로운 행동 조건이 생긴다</b> —
+  코드를 한 줄도 안 고치고.
+</div>
+
+<h2 id="poi">② 장소 — 양봉장 둘</h2>
+
+<div class="filepath">masterdata/pois.json</div>
+<pre><code>    {
+      "id": "apiary_001_12",
+      "code": 244,
+      "zone": "highland_pasture",
+      "type": "field",
+      "subtype": <span class="hl">"apiary"</span>,
+      "pos": { "x": -420.0, "y": 0.0, "z": -980.0 },
+      "capacity": 12,
+      "open_hours": { "from": "Dawn", "to": "Evening" },
+      "grants": [<span class="hl2">"AtField"</span>],
+      "allowed_archetypes": ["shepherd", "herbalist"],
+      "resources": [<span class="hl">"honey"</span>]
+    },</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:150px">필드</th><th>왜 이 값인가</th></tr></thead>
+<tbody>
+<tr><td><code>code</code> 244 · 245</td><td><b>1부터 연속이어야 한다.</b> 거리표의 첨자가 <code>code - 1</code> 이다</td></tr>
+<tr><td><code>type</code> <code>field</code></td><td>기존 <code>pasture</code>·<code>farm</code> 과 같은 부류. <code>$nearest_field</code> 심볼이 여기로 풀린다</td></tr>
+<tr><td><code>subtype</code> <code>apiary</code></td><td><b>새 subtype 이다.</b> 7장에서 양봉가의 <code>workplace_poi_type</code> 이 된다</td></tr>
+<tr><td><code>grants</code> <code>AtField</code></td><td>도착하면 서는 플래그. <b><code>Gather</code> 가 요구하는 것이 이것이다</b></td></tr>
+<tr><td><code>capacity</code> 12</td><td>동시에 몇 명까지. 둘이면 24명 — V10 이 이 총합을 본다</td></tr>
+<tr><td><code>resources</code> <code>honey</code></td><td>여기서 무엇을 거둘 수 있나. ①에서 만든 아이템이라야 한다 (V3)</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">왜 <code>grants</code> 가 <code>AtApiary</code> 가 아닌가</span>
+  월드 플래그는 <b>64비트 고정</b>이고 지금 42개를 쓴다(bit 0~43 중 22·23은 예약).
+  장소 종류마다 비트를 하나씩 주면 금방 바닥난다.
+  그래서 플래그는 <b>부류</b>(<code>AtField</code>·<code>AtWorkplace</code>·<code>AtMarket</code>…)만 두고,
+  구체적인 장소는 POI id 로 구분한다.
+  <b>새 장소를 만들 때 플래그를 새로 만들 필요는 거의 없다</b> — 그게 이 설계의 의도다.
+</div>
+
+<h2 id="distances">③ 거리표를 다시 굽는다</h2>
+
+<p>
+  <code>poi_distances.bin</code> 은 <b>N×N 행렬</b>이다. POI 가 243개면 243×243,
+  245개가 되면 245×245여야 한다. 손으로 못 고치고 생성기를 돌린다.
+</p>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; cd lab/ch05
+PS&gt; dotnet run ../../tools/gen_poi_distances.cs
+
+poi_distances.bin: POI 245개 · 120,058 bytes (117.2 KB) · 최대 거리 5241.0m</code></pre>
+</div>
+
+<div class="why">
+  <span class="tag">생성기가 왜 실습장 안에서 도는가</span>
+  <code>gen_poi_distances.cs</code> 는 <b><code>--masterdata</code> 인자를 안 받는다.</b>
+  <code>NpcServer.sln</code> 이 있는 폴더를 위로 찾아 올라가 그 아래 <code>masterdata/</code> 를 읽는다.
+  <br><br>
+  그래서 0장의 <code>lab.ps1</code> 이 실습장마다 <b>같은 이름의 빈 파일</b>을 하나 둔다.
+  그러면 실습장이 <b>작은 저장소 루트</b>가 되고, 생성기가 원본이 아니라 사본을 고친다.
+  <code>patch.ps1</code> 이 이 트릭에 기대고 있다.
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<div class="term">
+  <span class="cap">터미널 — 확인 3단</span>
+<pre><code>PS&gt; ./samples/check.ps1 -Masterdata ./lab/ch05/masterdata -Npcs 50
+
+① 검증 — C:\github_edu\LlmNpcServer\lab\ch05\masterdata
+     OK   액션 37 · 아이템 <span class="hl">83</span> · 존 12 · POI <span class="hl">245</span> · 아키타입 40 · 인터럽트 14
+     content_hash: 1901823e5ad5e360…
+   검증 통과 (V1~V11, 건너뜀 1건)
+
+② 실행 — npcs 50 · days 1 · time-scale 600 · tier none
+   tick p50 0.017ms · p99 0.08ms · max 7.474ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 67.6MB
+   ticks 1440 · game day 1 · events <span class="hl2">32556</span> · commands 26746 · steps 25236 · timeouts <span class="hl2">3855</span> · …
+
+③ 판정 — 실시간 2 초
+   [OK  ] 틱 p99 · 틱당 할당 · 예산 초과 · 드롭 · 이월  … 6항목 전부
+
+확인 3단 통과.</code></pre>
+</div>
+
+<h3>원본과 견준다 — 세계가 실제로 달라졌나</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th class="num">원본</th><th class="num">양봉장 추가</th><th>읽는 법</th></tr></thead>
+<tbody>
+<tr><td>POI</td><td class="num">243</td><td class="num">245</td><td>둘 늘었다</td></tr>
+<tr><td>아이템</td><td class="num">82</td><td class="num">83</td><td>하나 늘었다</td></tr>
+<tr><td><code>events</code></td><td class="num">32,411</td><td class="num"><b>32,556</b></td><td><b>세계가 달라졌다</b></td></tr>
+<tr><td><code>timeouts</code></td><td class="num">3,980</td><td class="num"><b>3,855</b></td><td>이동 거리가 달라져 만료 패턴이 바뀌었다</td></tr>
+<tr><td><code>commands</code></td><td class="num">26,746</td><td class="num">26,746</td><td>같다 — <b>플랜은 안 바뀌었으니까</b></td></tr>
+<tr><td><code>content_hash</code></td><td colspan="2" class="num">f37c0292… → 1901823e…</td><td>플랜 스토어 무효화 판정 대상</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">가장 중요한 확인</span>
+  <b><code>commands</code> 는 같은데 <code>events</code> 와 <code>timeouts</code> 는 다르다.</b>
+  플랜(무엇을 할까)은 안 바뀌었고 세계(어디까지 얼마나 걸리나)만 바뀌었기 때문이다.
+  <b>이 구분이 이 제품의 뼈대다</b> — 플랜은 L1 캐시에 있고 세계는 게임서버에 있다.
+</div>
+
+<ul class="checks">
+  <li><code>validate</code> 가 <b>아이템 83 · POI 245</b> 로 올라간다</li>
+  <li><code>poi_distances.bin</code> 이 <b>245개 기준</b>으로 다시 구워진다</li>
+  <li><code>content_hash</code> 가 <code>f37c0292…</code> 에서 바뀐다</li>
+  <li>확인 3단 6항목이 전부 OK</li>
+  <li>원본 <code>masterdata/</code> 는 <b>그대로다</b> — <code>git status</code> 가 깨끗하다</li>
+</ul>
+
+<h2 id="break">부러뜨려 본다 — 거리표를 안 굽는다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch05_apiary/patch.ps1 -Lab ch05_trap <span class="hl3">-SkipDistances</span>
+
+③ poi_distances.bin — 일부러 건너뛴다
+   POI 는 245개가 됐는데 거리표는 243개짜리 그대로다.
+
+④ 검증
+   <span class="hl3">FAIL LOAD  poi_distances.bin 이 POI 243개 기준인데 pois.json 은 245개다. 행렬을 다시 생성해라.</span></code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">좋은 소식</span>
+  <b>로더가 첫 줄에서 잡는다.</b> 그리고 메시지가 <b>무엇을 하라고까지</b> 말해 준다.
+  N×N 행렬의 크기 하나로 어긋남을 검출할 수 있기 때문이다 —
+  이런 검사는 싸고, 싸니까 어디에나 넣을 수 있다.
+</div>
+
+<div class="warn">
+  <span class="tag">여기서 진짜로 조심할 것 — 상대 경로</span>
+  <p>
+    <code>--masterdata</code> 에 <b>상대 경로</b>를 주면 두 프로그램이 서로 다른 폴더를 볼 수 있다.
+  </p>
+  <div class="tablewrap" style="margin:10px 0">
+  <table>
+  <thead><tr><th></th><th>상대 경로를 어떻게 푸는가</th><th>결과</th></tr></thead>
+  <tbody>
+  <tr><td><code>validate</code></td><td>상대 경로 <b>전체</b>를 위로 올라가며 찾는다</td><td><span class="pill ok">사본</span></td></tr>
+  <tr><td>서버</td><td><b>맨 끝 폴더 이름만</b> 찾는다 (<code>masterdata</code>)</td><td><span class="pill bad">원본</span></td></tr>
+  </tbody>
+  </table>
+  </div>
+  <p>
+    그러면 <b>"검증은 사본을 보고 실행은 원본을 도는"</b> 상태가 되고 아무 경고도 안 난다.
+    <b>항상 절대 경로를 준다.</b> <code>check.ps1</code> 은 받은 경로를 절대 경로로 바꿔서 넘긴다.
+  </p>
+  <pre style="margin:8px 0 0"><code>PS&gt; ./samples/check.ps1 -Masterdata ./lab/ch05/masterdata   <span class="cm"># 안에서 절대경로로 바꾼다</span>
+PS&gt; dotnet run … -- --masterdata <span class="hl">C:\…\lab\ch05\masterdata</span>   <span class="cm"># 손으로 칠 땐 절대경로로</span></code></pre>
+</div>
+
+<h2 id="revert">되돌린다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/lab.ps1 -Drop ch05_trap
+PS&gt; ./samples/lab.ps1 -List</code></pre>
+</div>
+
+<p>
+  <b><code>lab/ch05</code> 는 남겨 둔다.</b> 7장에서 이 내용(꿀 + 양봉장)을 다시 쓴다 —
+  거기서는 이 장소를 일터로 삼는 <b>직업</b>을 만든다.
+</p>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>POI·아이템 스키마 전 필드</td><td><a href="../reference_masterdata.html">reference_masterdata.html</a></td></tr>
+<tr><td>거리표를 어떻게 재는가 (존 그래프 · Floyd–Warshall)</td><td><code>tools/gen_poi_distances.cs</code> 머리말</td></tr>
+<tr><td>심볼(<code>$home</code>·<code>$nearest_field</code>)이 어떻게 풀리나</td><td><code>src/Npc.Runtime/PoiBinder.cs</code> · <a href="../book/ch07.html">코드 안내서 7장</a></td></tr>
+<tr><td><code>content_hash</code> 가 바뀌면 무엇을 다시 해야 하나</td><td>이 책 17장 · <a href="../book/ch09.html">코드 안내서 9장</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

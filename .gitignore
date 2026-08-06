@@ -440,3 +440,5 @@ logs/
 replays/
 # 스파이크의 대용량 원시 응답 (스키마·집계 결과는 커밋한다)
 spike/out/raw/
+# 활용 실습서의 실습장. masterdata/ 사본이라 재현 가능하다 (samples/lab.ps1)
+lab/

@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3장 · 눈으로 본다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p1)">1부 · 일단 켠다</p>
+  <h1>3장 · 눈으로 본다 — 게임서버 · NPC 서버 · 뷰어</h1>
+  <p class="lead">
+    1·2장은 <b>같은 프로세스 안</b>에서 돌렸다. 이번에는 진짜 소켓으로 세 프로세스를 붙인다.
+    그리고 <b>누가 무엇을 아는지</b>를 구분한다 — 게임서버는 좌표를 알고,
+    NPC 서버는 이유를 알고, 뷰어는 둘 다 물어본다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★☆☆</span>
+    <span class="chip">40분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip need">뷰어는 Windows 전용</span>
+    <span class="chip">선택 장</span>
+  </div>
+</div>
+
+<div class="note">
+  <span class="tag">이 장은 건너뛰어도 된다</span>
+  뷰어가 <b>WinForms(<code>net10.0-windows</code>)</b> 라 Windows 에서만 뜬다.
+  이 책의 나머지 20개 장은 OS 를 안 가린다.
+  <br>
+  다만 <b>이 장 후반의 핸드셰이크 실험은 뷰어 없이도 돌아간다</b> —
+  게임서버를 <code>--headless</code> 로 띄우기 때문이다. Windows 가 아니라면
+  <a href="#handshake">거기</a>만 하고 4장으로 넘어간다.
+</div>
+
+<h2 id="what">무엇을 띄우나</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 900 330" role="img" aria-label="3프로세스 구성도">
+      <defs>
+        <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <!-- NPC 서버 -->
+      <rect x="40" y="30" width="250" height="120" rx="12" fill="var(--panel-2)" stroke="var(--p1)" stroke-width="1.8"/>
+      <text x="64" y="60" font-size="14" font-weight="700" fill="var(--p1)">Npc.Host</text>
+      <text x="64" y="82" font-size="12" fill="var(--ink-2)">NPC 서버 — 우리가 만드는 것</text>
+      <text x="64" y="104" font-size="11.5" fill="var(--ink-3)">플랜 · 스텝 · 인지 LOD · 명령 발행</text>
+      <text x="64" y="126" font-size="11.5" fill="var(--ink-3)">HTTP :5080  /npc/{id} · /metrics</text>
+
+      <!-- 게임서버 -->
+      <rect x="610" y="30" width="250" height="120" rx="12" fill="var(--panel-2)" stroke="var(--p2)" stroke-width="1.8"/>
+      <text x="634" y="60" font-size="14" font-weight="700" fill="var(--p2)">Npc.TestGameServer</text>
+      <text x="634" y="82" font-size="12" fill="var(--ink-2)">게임서버 대역 — 상대방 역할</text>
+      <text x="634" y="104" font-size="11.5" fill="var(--ink-3)">좌표 · 이동 · 상호작용 · 플레이어</text>
+      <text x="634" y="126" font-size="11.5" fill="var(--ink-3)">TCP :7010 링크 · :7020 클라이언트</text>
+
+      <!-- 뷰어 -->
+      <rect x="325" y="200" width="250" height="100" rx="12" fill="var(--panel-2)" stroke="var(--p4)" stroke-width="1.8"/>
+      <text x="349" y="230" font-size="14" font-weight="700" fill="var(--p4)">Npc.TestClient</text>
+      <text x="349" y="252" font-size="12" fill="var(--ink-2)">뷰어 (WinForms · Windows)</text>
+      <text x="349" y="274" font-size="11.5" fill="var(--ink-3)">맵 · 인스펙터 · 로그 · 제어 · 링크</text>
+
+      <!-- 링크 -->
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.6" marker-end="url(#a3)" color="var(--ink-3)">
+        <path d="M294,74 L604,74"/>
+        <path d="M604,110 L294,110"/>
+        <path d="M610,140 L500,196"/>
+        <path d="M170,152 L340,196"/>
+      </g>
+      <text x="449" y="66" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">명령 (MoveTo · Interact · Speak …)</text>
+      <text x="449" y="128" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">이벤트 (Arrived · Completed · Proximity …)</text>
+      <text x="580" y="180" font-size="11" fill="var(--ink-3)">TCP 7020 — 좌표·시각</text>
+      <text x="150" y="185" font-size="11" fill="var(--ink-3)">HTTP 5080 — 이유</text>
+
+      <text x="449" y="322" text-anchor="middle" font-size="12" fill="var(--ink-3)">
+        뷰어가 NPC 서버를 <tspan font-weight="700">직접</tspan> 물어보는 것이 이 구성의 핵심이다
+      </text>
+    </svg>
+  </div>
+  <figcaption>세 프로세스. 링크(7010)는 13장에서 우리가 직접 구현한다.</figcaption>
+</figure>
+
+<h2 id="who">누가 무엇을 아는가</h2>
+
+<p>
+  뷰어가 게임서버 하나만 보면 될 것 같은데 <b>NPC 서버에도 따로 붙는다.</b> 이유가 있다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:170px">아는 것</th><th>게임서버</th><th>NPC 서버</th></tr></thead>
+<tbody>
+<tr><td>NPC 의 좌표·HP</td><td><span class="pill ok">안다</span></td><td><span class="pill">이벤트로 받은 만큼</span></td></tr>
+<tr><td>지금 무슨 행동 중인가</td><td><span class="pill ok">안다</span> (명령을 받았으니)</td><td><span class="pill ok">안다</span></td></tr>
+<tr><td><b>왜</b> 그 행동을 하는가 (플랜·goal)</td><td><span class="pill bad">모른다</span></td><td><span class="pill ok">안다</span></td></tr>
+<tr><td>몇 번째 스텝인가</td><td><span class="pill bad">모른다</span></td><td><span class="pill ok">안다</span></td></tr>
+<tr><td>월드 플래그 (<code>AtField</code>·<code>HasCoin</code>…)</td><td><span class="pill bad">모른다</span></td><td><span class="pill ok">안다</span></td></tr>
+<tr><td>플랜 출처 (bucket/fallback)</td><td><span class="pill bad">모른다</span></td><td><span class="pill ok">안다</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>플랜 id · 스텝 번호 · 월드 플래그는 게임서버가 알 수 없는 정보다.</b>
+  링크에 그런 필드가 없고, <b>있어서도 안 된다</b> — 명령은 fire-and-forget 이고(N1),
+  패킷에는 문자열이 없다(N3). 게임서버를 경유해 중계하면
+  <b>실제로는 존재하지 않는 결합</b>을 테스트 베드가 만들어 낸다.
+  그래서 뷰어가 NPC 서버에 직접 붙는다.
+</div>
+
+<h2 id="run">띄운다</h2>
+
+<h3>한 줄로</h3>
+
+<div class="term">
+  <span class="cap">터미널 — Windows</span>
+<pre><code>PS&gt; ./testbed/run_demo.ps1 -Scenario day</code></pre>
+</div>
+
+<p>
+  게임서버 → NPC 서버 → 뷰어를 순서대로 띄우고, <b><code>Ctrl-C</code> 에 셋 다 내린다.</b>
+  창을 하나 닫아도 나머지가 따라 내려간다. 첫 실행은 빌드 때문에 30초쯤 걸리고,
+  두 번째부터는 <code>-NoBuild</code> 를 준다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>옵션</th><th>기본</th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><code>-Scenario day|siege|blackout</code></td><td><code>day</code></td><td>데모 시나리오 3종</td></tr>
+<tr><td><code>-Npcs N</code></td><td>300</td><td><b>게임서버와 NPC 서버에 같은 값이 간다</b></td></tr>
+<tr><td><code>-TimeScale N</code></td><td>60</td><td>데모 시나리오의 틱 좌표가 60 기준이다</td></tr>
+<tr><td><code>-Tier none|t1|t2|all</code></td><td><code>none</code></td><td>재계획 티어. 기본이 <code>none</code> 이라 LLM 을 안 부른다</td></tr>
+<tr><td><code>-NoBuild</code></td><td>—</td><td>빌드를 건너뛴다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>손으로 셋을</h3>
+
+<p>스크립트가 하는 일은 이 셋이다. 무엇이 무엇에 붙는지 보려면 터미널 셋에 하나씩 넣는다.</p>
+
+<ol class="steps">
+<li>
+  <b>게임서버 — 먼저 떠 있어야 한다</b>
+  <div class="term">
+    <span class="cap">터미널 1</span>
+<pre><code>PS&gt; dotnet run -c Release --project testbed/Npc.TestGameServer -- `
+      --npcs 300 --time-scale 60 --link-port 7010 --client-port 7020 `
+      --scenario testbed/scenarios/demo_day.jsonl</code></pre>
+  </div>
+  <div class="term">
+    <span class="cap">터미널 1 — 출력</span>
+<pre><code>game server: npcs=100 time-scale=60 bots=0 max-clients=4
+masterdata: C:\github_edu\LlmNpcServer\masterdata (<span class="hl2">f37c02926c0b</span>)
+<span class="hl2">roster hash: d2e722de62bb</span>
+listening: link :7010 | client :7020
+tick 50 | <span class="hl3">link down</span> | cmd 0 | ev 155 | players 0 | clients 0 | ...</code></pre>
+  </div>
+  <p>
+    <b>두 해시를 기억한다.</b> <code>masterdata</code> 해시는 0장의 <code>content_hash</code> 앞 12자리이고,
+    <code>roster hash</code> 는 "NPC 몇 마리를 어떤 아키타입으로 배치했는가"의 지문이다.
+    <b>이 둘이 NPC 서버와 같아야 링크가 붙는다.</b>
+    아직 NPC 서버가 없으니 <code>link down</code> 이 정상이다.
+  </p>
+</li>
+
+<li>
+  <b>NPC 서버 — <code>--link tcp</code> 로 바꾼다</b>
+  <div class="term">
+    <span class="cap">터미널 2</span>
+<pre><code>PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      <span class="hl2">--link tcp --gs-port 7010</span> --npcs 300 --time-scale 60 --days 0 `
+      --tier none --planstore ./planstore --port 5080 --dev-control</code></pre>
+  </div>
+  <p>
+    1·2장의 <code>--loopback</code> 이 <code>--link tcp</code> 로 바뀐 것이 <b>전부</b>다.
+    <code>Npc.Runtime</code> 도 <code>Npc.Planning</code> 도 한 줄 안 바뀌었다 —
+    링크는 갈아 끼우는 부품이고, 그게 <code>IGameServerLink</code> 가 존재하는 이유다.
+  </p>
+  <p>
+    <code>--days 0</code> 은 무제한이다. <code>--dev-control</code> 은 뷰어의 킬스위치 버튼을 위해 필요하다
+    (없으면 <code>POST /control/killswitch</code> 라우트가 <b>등록조차 안 된다</b> — 404다).
+  </p>
+</li>
+
+<li>
+  <b>뷰어</b>
+  <div class="term">
+    <span class="cap">터미널 3 — Windows 전용</span>
+<pre><code>PS&gt; dotnet run -c Release --project testbed/Npc.TestClient -- `
+      --host 127.0.0.1 --port 7020 --npc-http http://localhost:5080</code></pre>
+  </div>
+  <p>
+    <code>--port 7020</code> 은 게임서버로, <code>--npc-http</code> 는 NPC 서버로 간다.
+    <b>주소가 둘인 것이 이 장의 요지다.</b>
+  </p>
+</li>
+</ol>
+
+<div class="warn">
+  <span class="tag">양쪽이 같아야 하는 값 셋</span>
+  <b><code>--npcs</code> · <code>--time-scale</code> · <code>--zone</code></b> 은 게임서버와 NPC 서버가
+  같아야 한다. 하나라도 다르면 <b>핸드셰이크에서 거절된다</b> — 그리고 그것이 의도된 동작이다.
+  <a href="#handshake">아래에서 직접 어긋내 본다.</a>
+</div>
+
+<h2 id="screen">화면 보는 법</h2>
+
+<pre><code>┌───────────────────────────────────────────────┬──────────────────────────┐
+│                                               │ [인스펙터][로그][제어][링크]│
+│                 맵 패널                        │  npc #128 blacksmith     │
+│   ○ 존 배경원   · POI   ■ NPC                 │  plan #412  [bucket]     │
+│   ▲ 내 플레이어  ─ 이동선  ◎ 선택              │   0 MoveTo smithy  ✓     │
+│                                               │ ▶ 1 Craft  sword   ●     │
+├───────────────────────────────────────────────┤  flags AtWorkplace|IsDay │
+│ day 2 09:14 Morning │ town_center: Peace/Fair │  inv   iron_ingot × 3    │
+│ client ● 12ms  npc-link ●  gs 5,412  npc 5,410│                          │
+└───────────────────────────────────────────────┴──────────────────────────┘</code></pre>
+
+<div class="grid2">
+  <div class="card">
+    <h4>맵에서 읽는 것</h4>
+    <ul>
+      <li><b>존 배경원 테두리</b> — 회색 Peace · 주황 Alert · <b>빨강 War</b></li>
+      <li><b>NPC 사각 색</b> — 아키타입 40종을 황금각(137.5°)으로 갈랐다</li>
+      <li><b>NPC 테두리</b> — 흰색 Working · 반투명 Sleeping</li>
+      <li><b>이동선</b> — 목표 POI 로 향하는 옅은 선.
+          <b>"왜 저기로 가는가"의 절반이 이 선이다</b></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>탭 넷</h4>
+    <ul>
+      <li><b>인스펙터</b> — 2장의 <code>/npc/{id}</code> 를 1초마다 폴링한 것.
+          <b>이 패널이 데모의 핵심이다</b></li>
+      <li><b>로그</b> — 명령·이벤트 500줄. <b>여기서 처음으로 id 가 사람 말이 된다</b>
+          (<code>MoveTo poi=137</code> 이 아니라 <code>MoveTo smithy_001_05</code>)</li>
+      <li><b>제어</b> — 존 상태·날씨·시간 건너뛰기·고장 주입·킬스위치</li>
+      <li><b>링크</b> — 양쪽 연결 상태와 <code>/metrics</code> 요약</li>
+    </ul>
+  </div>
+</div>
+
+<p class="small">
+  키: <code>W A S D</code> 이동(<code>Shift</code> 달리기) · 좌클릭 선택 · <code>Tab</code> 다음 NPC ·
+  <code>E</code>/<code>R</code> 대화/공격(30m 안에서만) · 휠 줌 · <code>Home</code> 전체 보기 ·
+  <code>Space</code> 플레이어 추적
+</p>
+
+<div class="note">
+  <span class="tag">인스펙터가 2장의 그 화면이다</span>
+  뷰어의 인스펙터 탭은 <b>우리가 2장에서 만든 추적기와 같은 데이터를 본다</b> —
+  <code>GET /npc/{id}</code> 하나다. 2장을 하고 왔다면 이 패널의 모든 줄이 이미 익숙할 것이다.
+</div>
+
+<h2 id="scenario">데모 3종 — 무엇을 볼 것인가</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:120px">시나리오</th><th class="num">실시간</th><th>볼 것</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>day</code></td><td class="num">약 17분</td>
+  <td><b>주입 이벤트가 0개다.</b> 18:00 에 시간대가 Evening 으로 넘어갈 때
+      버킷 키가 바뀌어 인스펙터의 plan id 가 갈리는 것을 본다.
+      <b>이벤트 없이 NPC 가 하루를 사는 것 자체가 이 프로젝트의 결과물이다</b></td>
+</tr>
+<tr>
+  <td><code>siege</code></td><td class="num">4분</td>
+  <td>tick 1200 에 <code>town_center</code>·<code>gate_east</code> 가 War 로 간다.
+      <b>존 테두리가 빨개지는 순간 그 존의 NPC 전원이 동시에 다른 계획으로 갈아탄다.</b>
+      tick 2400 에 평화로 되돌린다 → 10장에서 이런 대본을 직접 쓴다</td>
+</tr>
+<tr>
+  <td><code>blackout</code></td><td class="num">3분</td>
+  <td>T2 → T1 → PlanStore 를 600틱 간격으로 끊는다.
+      <b>볼 것은 "아무 일도 일어나지 않는다"</b> — NPC 는 계속 움직이고 크래시가 없다.
+      인스펙터의 <code>PlanKind</code> 가 <code>bucket</code> → <code>fallback</code> 으로
+      내려가는 것이 성공 신호다 → 11장</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="handshake">부러뜨려 본다 — 핸드셰이크를 어긋낸다</h2>
+
+<p>
+  <b>이 절은 Windows 가 아니어도 된다.</b> 게임서버를 <code>--headless</code> 로 띄우므로
+  뷰어가 필요 없다. <span class="filepath">samples/ch03_demo/handshake-fail.ps1</span> 이
+  두 회차를 자동으로 돌린다.
+</p>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch03_demo/handshake-fail.ps1 -Npcs 100 -Seconds 10</code></pre>
+</div>
+
+<div class="term">
+  <span class="cap">실측 출력</span>
+<pre><code>① 어긋난 회차 — NPC 수가 하나 다르다
+   게임서버 --npcs 100   ·   NPC 서버 --npcs <span class="hl3">99</span>
+   ── 게임서버가 남긴 줄 ─────────────────────────────
+   game server: npcs=100 time-scale=60 bots=0 max-clients=4
+   roster hash: d2e722de62bb
+   tick  50 | <span class="hl3">link down</span> | cmd <span class="hl3">0</span> | ev 155 | players 0 | clients 0 | ...
+   tick 100 | <span class="hl3">link down</span> | cmd <span class="hl3">0</span> | ev 218 | players 0 | clients 0 | ...
+   결과: 거절됨 — link down 이 계속되고 명령이 하나도 안 나갔다
+         조용히 도는 대신 연결 시점에 죽는 쪽을 고른 것이다.
+
+② 맞춘 회차 — 양쪽이 같다
+   게임서버 --npcs 100   ·   NPC 서버 <span class="hl">100</span>
+   ── 게임서버가 남긴 줄 ─────────────────────────────
+   game server: npcs=100 time-scale=60 bots=0 max-clients=4
+   roster hash: d2e722de62bb
+   tick  50 | <span class="hl">link up</span> | cmd <span class="hl">213</span> | ev 396 | players 0 | clients 0 | ...
+   tick 100 | <span class="hl">link up</span> | cmd <span class="hl">510</span> | ev 732 | players 0 | clients 0 | ...
+   결과: link up · 명령이 흐른다
+
+실험 통과 — 어긋나면 거절하고, 맞으면 붙는다.</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">여기서 배우는 것</span>
+  <p>
+    <b>NPC 수가 하나 달랐을 뿐인데 아예 안 붙는다.</b> 그리고 <b>우회 옵션이 없다</b> —
+    "경고만 내고 붙여 줘" 같은 플래그를 만들지 않았다.
+  </p>
+  <p>
+    이유는 이 첨자가 <b>배열 인덱스</b>이기 때문이다. 게임서버의 42번 NPC 와
+    NPC 서버의 42번 NPC 가 다른 사람이면, <b>대장장이에게 밭을 갈라고 명령하게 된다.</b>
+    그리고 증상은 크래시가 아니라 <b>"가끔 이상하게 행동한다"</b> 로만 나타난다 —
+    며칠을 태우는 종류의 사고다.
+  </p>
+  <p>
+    <b>연결 시점에 죽는 편이 훨씬 싸다.</b> 이것이 핸드셰이크에서
+    프로토콜 버전 · 배속 · 마스터데이터 해시 · 로스터 해시 넷을 다 보는 이유다.
+  </p>
+</div>
+
+<h3>스크립트가 무엇을 보는가</h3>
+
+<div class="term">
+  <span class="cap">samples/ch03_demo/handshake-fail.ps1 — 판정부</span>
+<pre><code><span class="cm"># 증거는 게임서버 쪽 콘솔에 있다 — roster hash 와 매 50틱의 link up/down 이다.</span>
+<span class="cm"># NPC 서버는 거절당한 사실을 링크 상태로만 들고 있고 콘솔에 따로 찍지 않는다.</span>
+$gsLog  = Read-Log $gs
+$linkUp = ($gsLog -match 'link up')
+
+<span class="cm"># NPC 서버 쪽에서는 "명령이 한 건도 안 나갔다" 로 확인한다</span>
+$s = Invoke-RestMethod "http://localhost:$Port/status"
+$connected = ($s.link.commandsFlushed -gt 0)</code></pre>
+</div>
+
+<p>
+  <b>NPC 서버는 거절당했다는 사실을 콘솔에 찍지 않는다.</b> 링크 상태(<code>Faulted</code>)로만 들고 있다.
+  그래서 판정은 게임서버 콘솔의 <code>link up/down</code> 과 NPC 서버
+  <code>/status</code> 의 <code>link.commandsFlushed</code> 두 곳에서 본다.
+  <b>실제 연동에서 "왜 안 붙지?" 를 만나면 이 두 곳을 먼저 본다.</b>
+</p>
+
+<h3>다른 방식으로도 어긋내 본다</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>어긋내는 것</th><th>어떻게</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td>NPC 수</td><td>양쪽 <code>--npcs</code> 를 다르게</td><td>로스터 해시 불일치 → 거절</td></tr>
+<tr><td>배속</td><td>양쪽 <code>--time-scale</code> 을 다르게</td><td>거절 (틱 좌표가 어긋난다)</td></tr>
+<tr><td>마스터데이터</td><td>NPC 서버만 <code>--masterdata ./lab/…</code> 로</td><td>콘텐츠 해시 불일치 → 거절</td></tr>
+<tr><td>존 필터</td><td>한쪽만 <code>--zone town_center</code></td><td>로스터가 달라져 거절</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="limits">알아 둘 한계 셋</h2>
+
+<p><b>전부 의도한 것이거나 근거가 있는 미완이다.</b> 버그로 오해하지 않도록 적는다.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:200px">무엇</th><th>내용</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>소켓 경로에서는 리플레이가 100% 일치하지 않는다</b></td>
+  <td>명령이 몇 틱 늦게 도착할 수 있고 그것이 스텝 경계를 바꾼다.
+      <b>결함이 아니라 사실이다</b> — 실제 게임서버에 붙으면 원래 그렇다.
+      결정론이 필요한 회차는 <code>--loopback</code> 으로 돌린다 → 15장</td>
+</tr>
+<tr>
+  <td><b>킬스위치는 링크로 안 간다</b></td>
+  <td>NPC 서버 안쪽 상태이고 <code>GameEvent</code> 에 그런 종류가 없다 —
+      만들면 계약 규칙을 어긴다. 제어 패널 버튼은 <code>POST /control/killswitch</code> 를 직접 부르고,
+      <code>--dev-control</code> 없이 뜬 서버에는 <b>라우트가 아예 없어서</b> 404다</td>
+</tr>
+<tr>
+  <td><b>상태바의 <code>npc</code> 틱이 늙는다</b></td>
+  <td>게임서버는 NPC 서버의 틱을 <b>명령의 <code>IssuedAt</code> 에서 딴다.</b>
+      하트비트에는 그 값이 없다. NPC 서버가 한동안 명령을 안 내면 멈춘 것처럼 보이는데,
+      <b>그것도 정보다</b></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li>게임서버 콘솔이 <code>listening: link :7010 | client :7020</code> 을 찍는다</li>
+  <li>NPC 서버를 띄우면 게임서버 콘솔이 <code>link down</code> → <b><code>link up</code></b> 으로 바뀐다</li>
+  <li>게임서버의 <code>cmd</code> 카운트가 <b>계속 증가</b>한다</li>
+  <li>NPC 서버 <code>/status</code> 의 <code>link.commandsFlushed</code> 가 <b>0보다 크다</b></li>
+  <li>(Windows) 뷰어 맵에 NPC 사각형과 <b>이동선</b>이 보인다</li>
+  <li>(Windows) 인스펙터에 <b>plan id · 스텝 목록 · 플래그</b>가 나온다 — 2장에서 본 그 값들이다</li>
+  <li><code>handshake-fail.ps1</code> 이 <b>실험 통과</b> 로 끝난다</li>
+</ul>
+
+<h2 id="trouble">잘 안 될 때</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>증상</th><th>원인과 조치</th></tr></thead>
+<tbody>
+<tr><td>게임서버가 <code>link down</code> 이고 NPC 가 안 움직인다</td><td>양쪽 <code>--npcs</code>·<code>--time-scale</code> 이 다르다. 두 콘솔의 <code>roster hash</code> 를 견준다</td></tr>
+<tr><td>뷰어가 "게임서버를 찾는 중…" 에서 안 넘어간다</td><td>게임서버 <code>--client-port</code> 와 뷰어 <code>--port</code> 가 같은지 본다 (기본 7020)</td></tr>
+<tr><td>인스펙터가 "NPC 서버 미연결"</td><td>NPC 서버가 안 떴거나 <code>--port</code> 가 다르다. <b>뷰어는 이 상태로도 계속 돈다</b></td></tr>
+<tr><td>킬스위치 버튼이 "미연결" 만 뜬다</td><td>NPC 서버에 <code>--dev-control</code> 이 없다</td></tr>
+<tr><td>"마스터데이터 해시가 게임서버와 다르다" 경고</td><td>두 프로세스가 서로 다른 <code>masterdata/</code> 를 읽고 있다. <b>가장 찾기 어려운 종류의 사고다</b></td></tr>
+<tr><td>창은 뜨는데 NPC 가 하나도 안 보인다</td><td>AOI 가 플레이어 반경 1,200m 다. <code>Home</code> 키로 전체를 보고 무리 쪽으로 걸어간다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="next">1부를 마치며</h2>
+
+<p>여기까지 <b>코드를 한 줄도 안 썼다.</b> 그런데 이만큼 확인했다.</p>
+
+<div class="grid3">
+  <div class="card">
+    <h4>1장에서</h4>
+    <p class="small" style="margin:0">
+      LLM 0회 호출로 명령 1만 건. NPC 5,000마리에 틱 p99 2.4ms · 틱당 할당 0B.
+      명령을 절반 버려도 안 멈춘다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>2장에서</h4>
+    <p class="small" style="margin:0">
+      NPC 한 마리의 플랜·스텝·플래그·인벤토리를 읽었다.
+      플랜 교체가 <b>스텝 경계에서만</b> 일어나는 것을 로그로 확인했다.
+    </p>
+  </div>
+  <div class="card">
+    <h4>3장에서</h4>
+    <p class="small" style="margin:0">
+      <code>--loopback</code> 을 <code>--link tcp</code> 로 바꾸는 것만으로 소켓 너머에 붙었다.
+      런타임 코드는 한 줄도 안 바뀌었다.
+    </p>
+  </div>
+</div>
+
+<p style="margin-top:20px">
+  <b>2부부터는 세계를 바꾼다.</b> 마을에 없던 것을 만들고, 없던 직업을 만들고,
+  없던 반응을 넣는다. 여전히 C# 은 안 쓴다 — JSON 만 고친다.
+  <b>그 전에 0장에서 만든 <code>lab.ps1</code> 이 필요해진다.</b>
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>테스트 베드의 전체 안내</td><td><a href="../testbed_guide.html">testbed_guide.html</a> · <a href="../../testbed/README.md">testbed/README.md</a></td></tr>
+<tr><td>링크 계약 전문 (N1~N8 · 패킷 · 와이어)</td><td><a href="../reference_link.html">reference_link.html</a></td></tr>
+<tr><td>핸드셰이크가 검사하는 값 넷</td><td><a href="../book/ch10.html">코드 안내서 10장</a></td></tr>
+<tr><td>이 링크를 직접 구현하려면</td><td>12·13장 (아직 집필 전)</td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

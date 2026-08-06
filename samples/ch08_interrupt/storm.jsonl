@@ -1,0 +1,10 @@
+{"_comment": "8장 — 폭풍 인터럽트 실험. --time-scale 600 기준이다. 1틱 = 게임 60초, 시작 06:00(Dawn)."}
+{"_comment": "tick 100 = 07:40 Morning. 밭에 사람이 다 나가 있는 시각에 폭풍을 때린다."}
+{"at_tick": 100, "event": "WeatherChanged", "zone": "farmlands", "code": "Storm"}
+{"at_tick": 100, "event": "WeatherChanged", "zone": "highland_pasture", "code": "Storm"}
+{"_comment": "tick 400 = 12:40 Noon. 갠다. 여기서 인터럽트가 다시 걸리면 안 된다 — 엣지 트리거이기 때문이다."}
+{"at_tick": 400, "event": "WeatherChanged", "zone": "farmlands", "code": "Fair"}
+{"at_tick": 400, "event": "WeatherChanged", "zone": "highland_pasture", "code": "Fair"}
+{"_comment": "tick 700 = 17:40 Afternoon. 한 번 더 때려서 두 번째 발동을 확인한다."}
+{"at_tick": 700, "event": "WeatherChanged", "zone": "farmlands", "code": "Storm"}
+{"at_tick": 700, "event": "WeatherChanged", "zone": "highland_pasture", "code": "Storm"}

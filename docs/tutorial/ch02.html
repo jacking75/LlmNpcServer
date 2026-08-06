@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2장 · NPC 한 마리를 따라간다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p1)">1부 · 일단 켠다</p>
+  <h1>2장 · NPC 한 마리를 끝까지 따라간다</h1>
+  <p class="lead">
+    1장에서는 <b>수천 건의 명령</b>을 봤다. 이번에는 그중 한 마리를 찍어서
+    <b>왜 저기로 가는가</b>에 답한다. 관측 엔드포인트 네 개를 읽고,
+    변화만 찍어 주는 <b>추적기</b>를 40줄로 만든다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★☆☆☆</span>
+    <span class="chip">30분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">OS 무관</span>
+    <span class="chip">터미널 2개</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<p>
+  <code>GET /npc/7</code> 을 주기적으로 읽어서 <b>바뀐 것만</b> 한 줄로 찍는 스크립트다.
+  전부 찍으면 초당 수십 줄이라 아무것도 안 보인다. 변화만 남기면 <b>하루가 30줄로 줄어든다.</b>
+</p>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면 이 화면을 얻는다</span>
+<pre><code>npc #7  shepherd
+  집 house_002_12 · 일터 pasture_004_12
+  플랜 #617 [<span class="hl">bucket</span>]  goal=morning_graze_and_gather  bucket=shepherd@Morning.Peace.Fair  loop=True
+  스텝
+    0. MoveTo -&gt; NearestField   timeout 600s
+    1. Gather x5   timeout 900s
+    ...
+────────────────────────────────────────────────────────────────
+[t=  4932] step 1 Gather -&gt; 2 Gather
+[t=  4932] inv wool +5 (=290)
+[t=  4982] step 2 Gather -&gt; 3 MoveTo(Home)
+[t=  4982] inv milk +5 (=225)
+[t=  5010] step 3 MoveTo(Home) -&gt; 4 Store
+[t=  5010] where pasture_001_12 -&gt; house_002_12
+[t=  5010] flags +AtHome -AtField</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  게임서버는 NPC 가 <b>어디 있는지</b>만 안다. <b>왜 거기 있는지</b>를 아는 것은 NPC 서버뿐이고,
+  그 답을 꺼내 보는 창이 <code>/npc/{id}</code> 하나다.
+</div>
+
+<h2 id="endpoint">먼저 — <code>/npc/{id}</code> 가 무엇을 주나</h2>
+
+<p>1장의 실행을 다시 띄우고, 터미널을 하나 더 열어 한 마리를 찍어 본다.</p>
+
+<div class="term">
+  <span class="cap">터미널 1 — 배속을 60으로 낮춰서 띄운다</span>
+<pre><code>PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --loopback --npcs 20 <span class="hl2">--time-scale 60</span> --days 1 --no-llm --port 5080</code></pre>
+</div>
+
+<div class="warn">
+  <span class="tag">1장과 다른 점 하나 — 배속</span>
+  1장은 <code>--time-scale 600</code> 이었다. 이번엔 <b>60</b> 이다.
+  배속 600에서는 1틱이 게임 60초라 <code>timeout_s: 300</code> 인 스텝이 <b>5틱이면 만료된다</b> —
+  스텝이 자연스럽게 끝나는 게 아니라 계속 타임아웃으로 넘어가서, 관찰하면 NPC 가
+  안절부절 못하는 것처럼 보인다. 배속 60이면 1틱이 게임 6초라 <b>이동이 실제로 완료된다.</b>
+  <br><br>
+  대신 게임 하루가 실시간 24분이다. 끝까지 볼 필요는 없다 — 몇 분만 보고 <code>Ctrl-C</code> 한다.
+</div>
+
+<div class="term">
+  <span class="cap">터미널 2 — 한 마리를 찍는다</span>
+<pre><code>PS&gt; Invoke-RestMethod http://localhost:5080/npc/7 | ConvertTo-Json -Depth 5</code></pre>
+</div>
+
+<p>돌아오는 것을 네 덩어리로 끊어 읽는다.</p>
+
+<h3>① 이 NPC 는 누구인가</h3>
+
+<div class="term">
+  <span class="cap">/npc/7 — 신원</span>
+<pre><code>"found":     true,
+"npc":       7,
+"tick":      242,
+"archetype": "<span class="hl2">shepherd</span>",      <span class="cm">// 아키타입 40종 중 하나. 이게 곧 직업이다</span>
+"zone":      "highland_pasture",
+"poi":       "pasture_001_12",  <span class="cm">// 지금 있는 곳</span>
+"homePoi":   "house_002_12",    <span class="cm">// $home 심볼이 가리키는 곳</span>
+"workPoi":   "pasture_004_12",  <span class="cm">// $workplace 심볼이 가리키는 곳</span>
+"lod":       3,                 <span class="cm">// 인지 LOD 밴드. 3 = 비활성 (아무도 안 본다)</span>
+"hp":        88,
+"stamina":   68,</code></pre>
+</div>
+
+<p>
+  <code>homePoi</code> 와 <code>workPoi</code> 가 중요하다. 플랜에는
+  <code>house_002_12</code> 같은 구체적 이름이 없고 <b><code>$home</code>·<code>$workplace</code> 같은
+  심볼</b>만 있다. 같은 플랜 하나를 목동 수백 명이 공유하고, 각자의 집으로 알아서 간다.
+  <b>이 심볼 치환이 플랜 캐시를 성립시키는 장치</b>다 → 6장에서 직접 쓴다.
+</p>
+
+<h3>② 지금 어떤 계획을 들고 있나</h3>
+
+<div class="term">
+  <span class="cap">/npc/7 — 플랜</span>
+<pre><code>"planId":       17,
+"planKind":     "<span class="hl2">fallback</span>",                      <span class="cm">// bucket · individual · fallback</span>
+"planGoal":     "gather_and_sell",
+"planBucket":   "shepherd@Morning.Peace.Fair",   <span class="cm">// 아키타입@시간대.지역상태.기후</span>
+"planLoop":     true,                            <span class="cm">// 끝나면 처음으로 돌아간다</span>
+"planAgeTicks": 242,                             <span class="cm">// 이 플랜을 쓴 지 242틱</span>
+"pendingPlanId": 0,                              <span class="cm">// 워커가 걸어 둔 새 플랜 (0 = 없음)</span>
+"pendingUrgency": 0,</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:120px"><code>planKind</code></th><th>어디서 왔나</th><th>언제 보이나</th></tr></thead>
+<tbody>
+<tr><td><code>bucket</code></td><td>미리 구워 둔 <b>버킷 플랜</b>. 같은 상황의 NPC 수천이 공유한다</td><td><code>planstore/plans/</code> 에 그 버킷이 있을 때</td></tr>
+<tr><td><code>individual</code></td><td>이 NPC 만을 위해 <b>방금 만든</b> 플랜</td><td>티어를 켰을 때만 → 16장</td></tr>
+<tr><td><code>fallback</code></td><td>아키타입별 <b>최후 보루</b> 40개 중 하나</td><td>버킷이 비었거나 LLM 이 죽었을 때</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">전부 fallback 으로 보여도 정상이다</span>
+  <code>planstore/plans/</code> 는 생성물이라 <code>.gitignore</code> 대상이다.
+  저장소를 새로 받았으면 비어 있고, 그러면 <b>모든 NPC 가 <code>fallback</code></b> 이다.
+  NPC 는 똑같이 하루를 산다 — 행동이 덜 다양할 뿐이다.
+  <code>bucket</code> 을 보고 싶으면 17장에서 직접 구우면 된다.
+  <br><br>
+  <b><code>PlanStore.Resolve</code> 는 절대 <code>null</code> 을 반환하지 않는다.</b>
+  캐시가 비어도, LLM 이 전부 죽어도, 플랜 조회는 <b>반드시 무언가를 돌려준다.</b>
+  그래서 "LLM 전면 차단" 시나리오가 통과한다 → 11장
+</div>
+
+<h3>③ 무엇을 하고 있나</h3>
+
+<div class="term">
+  <span class="cap">/npc/7 — 스텝과 상태</span>
+<pre><code>"stepStatus": "<span class="hl2">Waiting</span>",   <span class="cm">// 명령을 보내고 응답 이벤트를 기다리는 중</span>
+"steps": [
+  { "index":0, "action":"MoveTo", "poi":"NearestField", "count":0, "timeoutSeconds":300, "current":false },
+  { "index":1, "action":"Gather", "poi":"",             "count":5, "timeoutSeconds":900, "current":false },
+  { "index":2, "action":"MoveTo", "poi":"Market",       "count":0, "timeoutSeconds":300, "current":<span class="hl">true</span> },
+  { "index":3, "action":"Trade",  "poi":"",             "count":5, "timeoutSeconds":600, "current":false },
+  { "index":4, "action":"MoveTo", "poi":"Home",         "count":0, "timeoutSeconds":300, "current":false },
+  { "index":5, "action":"Sleep",  "poi":"",             "count":0, "timeoutSeconds":7200,"current":false }
+],</code></pre>
+</div>
+
+<p>
+  <b>이 여섯 줄이 "왜 저기로 가는가"의 답이다.</b> 지금 스텝 2 — 시장으로 가는 중이다.
+  양털 5개를 모았고(스텝 1), 이제 팔러 간다(스텝 3). 그러고 집에 가서 잔다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:110px"><code>stepStatus</code></th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><code>Ready</code></td><td>다음 틱에 명령이 나간다</td></tr>
+<tr><td><code>Waiting</code></td><td><b>명령을 보내고 응답을 기다린다.</b> 정상 구동의 대부분이 이 상태다</td></tr>
+<tr><td><code>Completed</code></td><td>완료 이벤트를 받았다. 다음 스텝 경계에서 전진한다</td></tr>
+<tr><td><code>Failed</code></td><td>실패 이벤트를 받았거나 <b>타임아웃이 합성됐다</b></td></tr>
+<tr><td><code>Done</code></td><td>플랜이 끝났다 (<code>loop=false</code> 인 플랜만)</td></tr>
+<tr><td><code>Unspawned</code></td><td>아직 스폰 확인 전. 명령을 발행하지 않는다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>④ 무엇을 갖고 있고 무슨 일을 겪었나</h3>
+
+<div class="term">
+  <span class="cap">/npc/7 — 플래그 · 인벤토리 · 최근 사건</span>
+<pre><code>"flags": [ "AtField", "HasFood", "HasWater", "HasTool",
+           "HasRawMaterial", "HasCoin", "IsRested", "IsDawn", "RegionPeaceful" ],
+
+"inventory": [ "wool × 115", "bread × 2", "water × 1", "shepherd_crook × 1", "coin × 10" ],
+
+"recent": [
+  { "kind":"NpcInventoryChanged", "at":242, "agoTicks":0,  "subject":11, "salience":50 },
+  { "kind":"PlayerProximity",     "at":160, "agoTicks":82, "subject":20, "salience":80 },
+  ...
+]</code></pre>
+</div>
+
+<p>
+  <b><code>flags</code> 가 이 세계의 어휘다.</b> 액션마다 전제조건이 있고, 그 전제조건은
+  전부 이 플래그로 쓰여 있다. <code>masterdata/actions.json</code> 에서 세 개만 꺼내 보면 이렇다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>액션</th><th><code>requires</code> (전부)</th><th><code>requires_any</code> (하나 이상)</th><th><code>forbids</code></th><th><code>grants</code></th></tr></thead>
+<tbody>
+<tr><td><code>Gather</code></td><td><code>AtField</code></td><td>—</td><td><code>IsSleeping</code></td><td><code>HasRawMaterial</code></td></tr>
+<tr><td><code>Trade</code></td><td>—</td><td><code>HasProduct</code> · <code>HasCoin</code></td><td><code>IsSleeping</code></td><td><code>HasCoin</code></td></tr>
+<tr><td><code>Store</code></td><td>—</td><td><code>AtHome</code> · <code>AtWorkplace</code></td><td><code>IsSleeping</code></td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+  그래서 위 로그에서 <code>MoveTo(NearestField)</code> 다음에 곧바로
+  <code>flags +AtField</code> 가 서고, <b>그제서야</b> <code>Gather</code> 가 돌아간다.
+  플래그가 안 서 있으면 그 스텝은 실행되지 않는다.
+  <b>이 표를 사람이 손으로 쓰는 것이 6장</b>이고, LLM 이 이 표를 보고 플랜을 짜는 것이 8장이다.
+</p>
+
+<p>
+  <b><code>recent</code> 는 자연어 요약이 아니라 값 8개짜리 링 버퍼다.</b>
+  "어제 대장장이와 싸웠다" 같은 문장이 아니라 <code>(Kind, At, Subject, Salience)</code> 구조체다.
+  LLM 프롬프트에 실릴 때 <b>300토큰 예산</b> 안에 들어가야 하기 때문이다.
+  중요도(<code>salience</code>)가 낮은 것부터 밀려난다.
+</p>
+
+<h2 id="watcher">추적기를 만든다</h2>
+
+<p>
+  한 번 찍어 보는 것으로는 <b>변화</b>가 안 보인다. 폴링해서 <b>달라진 것만</b> 찍자.
+  전체 코드는 <span class="filepath">samples/ch02_watch/watch-npc.ps1</span> 이고 약 200줄인데,
+  핵심은 이 모양이다.
+</p>
+
+<div class="term">
+  <span class="cap">samples/ch02_watch/watch-npc.ps1 — 뼈대</span>
+<pre><code>$prev = $null
+
+while ($true) {
+    $t = Invoke-RestMethod "$BaseUrl/npc/$Npc"
+
+    if ($prev) {
+        $changes = @()
+
+        <span class="cm"># ① 스텝이 넘어갔나</span>
+        $ps = Get-CurrentStep $prev
+        $cs = Get-CurrentStep $t
+        if ((Format-Step $ps) -ne (Format-Step $cs)) {
+            $changes += "step $(Format-Step $ps) -&gt; $(Format-Step $cs)"
+        }
+
+        <span class="cm"># ② 플랜이 갈렸나 — 이 줄이 이 스크립트의 핵심이다</span>
+        if ($prev.planId -ne $t.planId -or $prev.planKind -ne $t.planKind) {
+            $changes += "plan #$($prev.planId)[$($prev.planKind)] -&gt; #$($t.planId)[$($t.planKind)]"
+        }
+
+        <span class="cm"># ③ 플래그가 서거나 졌나 — 집합 차이로 구한다</span>
+        $gone = @($prev.flags | Where-Object { $t.flags -notcontains $_ })
+        $came = @($t.flags   | Where-Object { $prev.flags -notcontains $_ })
+
+        <span class="cm"># ④ 인벤토리 증감 — "wool × 115" 를 파싱해 델타로</span>
+        <span class="cm"># ⑤ 존 · POI 이동</span>
+
+        foreach ($c in $changes) { Write-Host "[t=$($t.tick)] $c" }
+    }
+
+    $prev = $t
+    Start-Sleep -Milliseconds $IntervalMs
+}</code></pre>
+</div>
+
+<div class="note">
+  <span class="tag">왜 폴링인가</span>
+  <code>/npc/{id}</code> 는 SoA 배열을 <b>읽기만</b> 하고 값을 복사해 나간다. 락도 없고 쓰기도 없다.
+  한 틱 낡은 값을 볼 수 있지만 추적에는 그걸로 충분하다 — 다음 폴링에 새 값이 온다.
+  <b>락을 잡으면 그 자체가 틱 예산을 먹는다.</b> 관찰이 관찰 대상을 느리게 만들면 안 된다.
+  <br><br>
+  같은 이유로 개별 플랜은 <b>LRU 를 갱신하지 않고</b> 들여다본다. 대시보드를 열어 둔 것만으로
+  게임 상태가 달라지면 안 되기 때문이다.
+</div>
+
+<div class="term">
+  <span class="cap">터미널 2 — 추적 시작</span>
+<pre><code>PS&gt; ./samples/ch02_watch/watch-npc.ps1 -Npc 7 -Seconds 40</code></pre>
+</div>
+
+<h2 id="read">추적 로그를 읽는다</h2>
+
+<div class="term">
+  <span class="cap">실측 — NPC 20 · 배속 60 · 40초 관찰</span>
+<pre><code>npc #7  shepherd
+  집 house_002_12 · 일터 pasture_004_12
+  플랜 #617 [bucket]  goal=morning_graze_and_gather  bucket=shepherd@Morning.Peace.Fair  loop=True
+  스텝
+    0. MoveTo -&gt; NearestField   timeout 600s
+    1. Gather x5   timeout 900s
+    2. Gather x5   timeout 900s
+    3. MoveTo -&gt; Home   timeout 600s
+    4. Store x5   timeout 120s
+    5. Store x5   timeout 120s
+    6. Eat   timeout 300s
+    7. Rest x600   timeout 1200s
+    8. Sleep   timeout 7200s
+──────────────────────────────────────────────────────────────────
+[t=  4903] flags +PlayerNearby
+[t=  4925] flags -PlayerNearby
+[t=  4932] step 1 Gather -&gt; 2 Gather
+[t=  4932] inv wool +5 (=290)
+[t=  4982] step 2 Gather -&gt; 3 MoveTo(Home)
+[t=  4982] inv milk +5 (=225)
+[t=  5010] step 3 MoveTo(Home) -&gt; 4 Store
+[t=  5010] where pasture_001_12 -&gt; house_002_12
+[t=  5010] flags +AtHome -AtField
+[t=  5017] step 4 Store -&gt; 0 MoveTo(NearestField)
+[t=  5017] inv milk +5 (=230), wool +5 (=295)
+[t=  5046] step 0 MoveTo(NearestField) -&gt; 1 Gather
+[t=  5046] where house_002_12 -&gt; pasture_001_12
+[t=  5046] flags +AtField -AtHome
+[t=  5096] step 1 Gather -&gt; 2 Gather
+[t=  5096] inv wool +5 (=300)
+[t=  5153] step 2 Gather -&gt; 3 MoveTo(Home)
+[t=  5153] inv milk +5 (=235)
+[t=  5160] flags +PlayerNearby
+[t=  5181] step 3 MoveTo(Home) -&gt; 0 MoveTo(NearestField)
+[t=  5181] <span class="hl2">plan #617[bucket] -&gt; #611[bucket]</span>
+[t=  5181] where pasture_001_12 -&gt; house_002_12
+[t=  5181] flags +AtHome -AtField -PlayerNearby
+[t=  5217] step 0 MoveTo(NearestField) -&gt; 1 Gather
+[t=  5217] where house_002_12 -&gt; pasture_001_12
+[t=  5217] flags +AtField -AtHome
+[t=  5245] flags +PlayerNearby
+[t=  5267] step 1 Gather -&gt; 0 MoveTo(NearestField)
+[t=  5267] <span class="hl2">plan #611[bucket] -&gt; #617[bucket]</span>
+[t=  5267] flags -PlayerNearby
+[t=  5267] inv wool +5 (=305)</code></pre>
+</div>
+
+<h3>이 로그에서 볼 것 넷</h3>
+
+<ol class="steps">
+<li>
+  <b>플랜이 실제로 실행된다</b>
+  <p>
+    <code>0 MoveTo → 1 Gather → 2 Gather → 3 MoveTo(Home) → 4 Store</code> 순서로
+    스텝이 넘어간다. 목동이 <b>목초지로 가서 · 양털과 우유를 모으고 · 집에 가서 · 저장하고 ·
+    다시 나간다.</b> 아무도 이 시나리오를 손으로 쓰지 않았다 — LLM 이 만든 플랜이고,
+    런타임은 그것을 첨자로 조회해 실행할 뿐이다.
+  </p>
+</li>
+<li>
+  <b>상태 변화가 스텝 완료 직후에만 일어난다</b>
+  <p>
+    <code>[t=5010]</code> 을 보면 세 줄이 같은 틱이다 —
+    스텝 전진 · POI 이동 · 플래그 변화가 <b>한 덩어리로</b> 일어난다.
+    틱 중간에 상태가 흔들리는 일이 없다. 이것이 <b>스텝 경계</b>다.
+  </p>
+</li>
+<li>
+  <b>플랜 교체도 스텝 경계에서만 일어난다</b> <span class="pill a">확인 포인트</span>
+  <p>
+    <code>[t=5181]</code> 과 <code>[t=5267]</code> 두 번 플랜이 갈렸는데,
+    <b>두 번 다 스텝 전진과 같은 틱</b>이다. 우연이 아니라 규칙이다 —
+    스텝 중간에 플랜을 바꾸면 이미 보낸 명령의 상관 ID 가 꼬인다.
+    (예외는 인터럽트뿐이다. 그건 즉시 갈아탄다 → 8장)
+    <br>
+    <b>무엇이 이 교체를 일으켰는지</b>는 6·9장의 주제다. 여기서는 "경계에서만 갈린다"만 확인한다.
+  </p>
+</li>
+<li>
+  <b><code>PlayerNearby</code> 가 섰다 졌다 한다</b>
+  <p>
+    가상 플레이어 봇(<code>--player-bots</code>, 기본 20)이 돌아다니면서 근처를 스칠 때마다
+    플래그가 선다. 이 플래그가 <b>인지 LOD 등급</b>을 올리고, 등급이 올라가면
+    <b>재계획 우선순위</b>가 올라간다. 티어를 켜면 이 NPC 가 개별 플랜을 받을 후보가 된다 → 16장
+    <br>
+    <code>--player-bots 0</code> 으로 돌리면 이 줄이 하나도 안 나온다.
+  </p>
+</li>
+</ol>
+
+<h2 id="speed">배속이 관찰을 바꾼다</h2>
+
+<p>
+  1장의 배속 600으로 같은 NPC 를 보면 완전히 다른 로그가 나온다. <b>같은 코드, 같은 플랜인데도.</b>
+</p>
+
+<div class="term">
+  <span class="cap">실측 — 같은 NPC, 배속 600</span>
+<pre><code>[t=   100] step 1 Gather -&gt; <span class="hl3">3 Trade</span>        <span class="cm">// 스텝 2를 건너뛰었다</span>
+[t=   106] step 3 Trade -&gt; 0 MoveTo(NearestField)
+[t=   112] step 0 MoveTo(NearestField) -&gt; 1 Gather
+[t=   118] step 1 Gather -&gt; 2 MoveTo(Market)
+[t=   124] step 2 MoveTo(Market) -&gt; <span class="hl3">4 MoveTo(Home)</span>  <span class="cm">// 스텝 3을 건너뛰었다</span></code></pre>
+</div>
+
+<div class="why">
+  <span class="tag">왜 스텝을 건너뛰나</span>
+  배속 600에서 1틱 = 게임 60초다. <code>timeout_s: 300</code> 인 <code>MoveTo</code> 는
+  <b>5틱이면 만료</b>된다. 게임서버 대역이 목적지에 도착시키기 전에 시간이 먼저 지나가고,
+  NPC 서버는 <code>ActionFailed(Timeout)</code> 을 합성한다. 폴백 플랜의
+  <code>on_step_fail</code> 이 <code>skip</code> 이므로 <b>그 스텝을 건너뛰고 다음으로 간다.</b>
+  <br><br>
+  <b>버그가 아니라 설계다.</b> 명령은 유실된다고 가정하고 만들었고, 배속을 올리는 것은
+  그 가정을 인위적으로 자주 성립시키는 일이다. 다만 <b>관찰용으로는 못 쓴다</b> —
+  NPC 의 하루를 보려면 배속 60쯤이 맞다.
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>배속</th><th>1틱 = 게임</th><th><code>timeout_s: 300</code> 은</th><th>타임아웃 비율</th><th>쓰임</th></tr></thead>
+<tbody>
+<tr><td><code>60</code></td><td>6초</td><td>50틱</td><td class="num">6 %</td><td><b>관찰</b> · 데모 · 뷰어</td></tr>
+<tr><td><code>600</code></td><td>60초</td><td>5틱</td><td class="num">16 %</td><td>빠른 스모크</td></tr>
+<tr><td><code>3600</code></td><td>360초</td><td>&lt; 1틱</td><td class="num">46 %</td><td>쓰지 않는다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="metrics"><code>/metrics</code> — 전체를 한 장으로</h2>
+
+<p>
+  <code>/npc/{id}</code> 가 한 마리라면 <code>/metrics</code> 는 전부다. 패널 7종이 들어 있다.
+  <b>필드 사전 전문은 <span class="filepath">samples/ch02_watch/read-metrics.md</span></b> 에 있고,
+  여기서는 지금 당장 알아야 할 세 줄만 본다.
+</p>
+
+<div class="term">
+  <span class="cap">/metrics — 발췌 (NPC 20 · 배속 600)</span>
+<pre><code>"tick":  { "p99Ms":0.568, "overruns":0, "gen0Collections":0, <span class="hl">"bytesPerTick":0</span>, "managedHeapMb":70.2 },
+"npc":   { "total":20, <span class="hl2">"byLod":[0,11,0,9]</span>, "byStepStatus":[0,20,0,0,0,0,0,0] },
+"cache": { "hitRate":0.9714, "filledBuckets":718, "coldBuckets":2162 },
+"llmCalls": <span class="hl">0</span></code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>값</th><th>읽는 법</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>bytesPerTick: 0</code></td>
+  <td><b>틱 루프를 재는 계기는 이것 하나뿐이다.</b> <code>gen0Collections</code> 로 재면 안 된다 —
+      그 값은 프로세스 전역이라 대시보드 HTTP·소켓·JSON 직렬화가 전부 섞인다</td>
+</tr>
+<tr>
+  <td><code>byLod: [0,11,0,9]</code></td>
+  <td>인지 LOD 밴드별 인원. 첨자가 곧 밴드다 —
+      <b>0 시야내</b>(매 틱) · <b>1 동일존</b>(10틱마다) · <b>2 원거리</b>(100틱마다) · <b>3 비활성</b>(안 봄).
+      플레이어 근처에 아무도 없으면 0번이 비고, 그게 정상이다</td>
+</tr>
+<tr>
+  <td><code>byStepStatus: [0,20,0,…]</code></td>
+  <td>첨자가 곧 상태다 — <code>0 Ready · 1 Waiting · 2 Done · 3 Unspawned · 4 Completed · 5 Failed</code>.
+      20마리 전원이 <code>Waiting</code>, 즉 <b>응답을 기다리는 중</b>이다. 정상 구동의 기본 모습이다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li>추적기 머리말에 <b>아키타입 · 집 · 일터 · 플랜 · 스텝 목록</b>이 전부 나온다</li>
+  <li>스텝이 <code>0 → 1 → 2 → …</code> 순으로 <b>차례로</b> 넘어간다 (배속 60에서)</li>
+  <li>스텝 전진 · POI 이동 · 플래그 변화가 <b>같은 틱</b>에 묶여 나온다</li>
+  <li><code>plan #… -&gt; #…</code> 줄이 나온다면 <b>반드시 <code>step</code> 줄과 같은 틱</b>이다</li>
+  <li>인벤토리 증감이 <code>Gather</code>·<code>Store</code> 스텝 직후에만 찍힌다</li>
+  <li><code>/metrics</code> 의 <code>byLod</code> 합과 <code>byStepStatus</code> 합이 둘 다 <code>total</code> 과 같다</li>
+</ul>
+
+<h2 id="break">부러뜨려 본다</h2>
+
+<h3>① 없는 NPC 를 물어본다</h3>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; Invoke-RestMethod http://127.0.0.1:5080/npc/999 | ConvertTo-Json -Compress
+
+{"<span class="hl2">found":false</span>,"npc":999,"tick":4535,"archetype":null,"zone":null,"poi":null,
+ "planId":0,"planKind":null,"flags":null,"steps":null,"recent":null}
+
+PS&gt; ./samples/ch02_watch/watch-npc.ps1 -Npc 999
+<span class="hl3">그 첨자에 NPC 가 없다: 999 (--npcs 보다 작아야 한다)</span></code></pre>
+</div>
+
+<p>
+  <b>500 이 아니라 200 에 <code>found: false</code></b> 다.
+  "없는 것을 물어보는 것"은 오류가 아니라 정상적인 질문이기 때문이다.
+  대시보드가 첨자를 넘겨 가며 훑을 때 예외로 죽으면 안 된다.
+</p>
+
+<p>
+  <b>첨자는 0 부터 <code>--npcs - 1</code> 까지</b>다. 이 값은 <code>NpcStore</code> 배열의
+  인덱스이지 게임 세계의 영구 ID 가 아니다 — 그래서 <b>양쪽 프로세스의 <code>--npcs</code> 가
+  같아야</b> 한다. 3장에서 이 첨자를 어긋내면 무슨 일이 나는지 직접 본다.
+</p>
+
+<div class="note">
+  <span class="tag">잘 안 될 때 하나</span>
+  <code>localhost</code> 로 요청이 몇십 초씩 걸리면 <b><code>127.0.0.1</code> 로 바꿔 본다.</b>
+  일부 환경에서 <code>localhost</code> 가 IPv6(<code>::1</code>)부터 시도하다 지연된다.
+  추적기도 <code>-BaseUrl http://127.0.0.1:5080</code> 을 받는다.
+</div>
+
+<h3>② 플레이어를 없애 본다</h3>
+
+<div class="term">
+  <span class="cap">터미널 1</span>
+<pre><code>PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --loopback --npcs 20 --time-scale 60 --days 1 --no-llm --port 5080 <span class="hl3">--player-bots 0</span></code></pre>
+</div>
+
+<div class="term">
+  <span class="cap">터미널 2 — 실측</span>
+<pre><code>PS&gt; $m = Invoke-RestMethod http://127.0.0.1:5083/metrics
+PS&gt; "byLod       : " + ($m.npc.byLod -join ', ')
+PS&gt; "scanPerTick : " + $m.replan.scanPerTick
+
+byLod        : <span class="hl2">0, 0, 0, 20</span>      <span class="cm">// 20마리 전원이 마지막 칸(비활성)</span>
+byStepStatus : 0, 20, 0, 0, 0, 0, 0, 0
+scanPerTick  : <span class="hl2">0</span>               <span class="cm">// 인지 스캔이 아예 안 돈다</span></code></pre>
+</div>
+
+<p>
+  추적 로그에서 <code>PlayerNearby</code> 줄이 <b>완전히 사라진다.</b>
+  <code>byLod</code> 는 <code>[0, 0, 0, 20]</code> — 전원이 비활성 밴드로 몰렸고,
+  <code>scanPerTick</code> 은 <b>0</b> 이다. <b>아무도 안 보고 있으니 아무도 볼 필요가 없다.</b>
+</p>
+
+<div class="ok">
+  <span class="tag">그런데 행동은 안 바뀐다</span>
+  1장의 대조 실험에서 봤듯이 <code>--player-bots 0</code> 회차의
+  명령·스텝·타임아웃은 기준선과 <b>한 건도 다르지 않다.</b>
+  인지 스캔은 <i>누구를 재계획 대상으로 고를까</i>만 정하는데,
+  <code>--tier none</code> 에서는 재계획 자체가 없기 때문이다.
+  <b>16장에서 티어를 켜면 이 두 회차가 처음으로 갈라진다.</b>
+</div>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td><code>/metrics</code> 필드 전부와 경보 기준</td><td><span class="filepath" style="margin:0">samples/ch02_watch/read-metrics.md</span></td></tr>
+<tr><td>인지 LOD 밴드가 어떻게 정해지나</td><td><a href="../book/ch06.html">코드 안내서 6장</a></td></tr>
+<tr><td>스텝 상태기계와 타임아웃 합성</td><td><a href="../book/ch07.html">코드 안내서 7장</a></td></tr>
+<tr><td>플랜 캐시 키와 <code>planKind</code></td><td><a href="../book/ch09.html">코드 안내서 9장</a></td></tr>
+<tr><td>월드 플래그·액션 카탈로그 전문</td><td><a href="../reference_masterdata.html">reference_masterdata.html</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

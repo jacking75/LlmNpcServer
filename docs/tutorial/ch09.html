@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9장 · 새 행동을 추가한다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p2)">2부 · 세계를 바꾼다</p>
+  <h1>9장 · 새 행동을 추가한다 — 액션 카탈로그 37 → 38</h1>
+  <p class="lead">
+    <b>2부에서 파급이 가장 큰 변경이다.</b> 액션 하나를 넣으면 카탈로그·아키타입·플랜만
+    바뀌는 게 아니라 <b>프롬프트 프리픽스가 바뀌고, 그 순간 미리 구워 둔 플랜이 전량 무효</b>가 된다.
+    그 무효화를 <b>해시로 눈으로 확인</b>한다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★★</span>
+    <span class="chip">70분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">사본에서 한다</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<p>
+  <code>Tend</code> — 가축과 벌통, 작물을 <b>돌보는</b> 행동을 만든다.
+  뭔가를 생산하지는 않고 <code>ResourceDepleted</code> 를 걷어낸다.
+</p>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면 — 프리픽스가 얼마나 흔들렸는지 숫자로 나온다</span>
+<pre><code>① 고치기 전 프리픽스
+     --- Full: <span class="hl2">13488</span> tok · sha <span class="hl2">56a0c601f48392e0</span>
+     action_catalog     6182
+
+⑥ 고친 뒤 프리픽스
+     --- Full: <span class="hl">13602</span> tok · sha <span class="hl">0d8cf2bf8bbbd3a8</span>
+     action_catalog     6291
+
+   토큰  13488 → 13602  (<span class="hl">+114</span>)
+   SHA   56a0c601f48392e0 → 0d8cf2bf8bbbd3a8
+
+   <span class="hl3">프리픽스 SHA 가 바뀌었다 = 미리 구워 둔 플랜이 전량 무효다.</span></code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>액션 카탈로그는 손으로 쓴 문서가 아니라 <code>actions.json</code> 에서 생성되는 프롬프트의 본문이다.</b>
+  그래서 액션을 하나 넣는 것은 <b>LLM 에게 주는 설명서를 다시 쓰는 일</b>이고,
+  설명서가 바뀌면 그 설명서로 만든 플랜을 믿을 수 없다.
+</div>
+
+<h2 id="ripple">한 줄이 흔드는 곳 넷</h2>
+
+<figure>
+  <div class="svgbox">
+    <svg viewBox="0 0 900 300" role="img" aria-label="액션 추가의 파급">
+      <defs>
+        <marker id="a9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <rect x="40" y="120" width="180" height="60" rx="10" fill="var(--panel-2)" stroke="var(--p3)" stroke-width="2"/>
+      <text x="130" y="146" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--p3)">actions.json</text>
+      <text x="130" y="166" text-anchor="middle" font-size="11.5" fill="var(--ink-3)">Tend (code 38)</text>
+
+      <g font-size="12" text-anchor="middle">
+        <rect x="360" y="20" width="200" height="52" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="460" y="42" font-weight="650" fill="var(--ink)">archetypes.json</text>
+        <text x="460" y="60" font-size="11" fill="var(--ink-3)">누가 쓸 수 있나</text>
+
+        <rect x="360" y="90" width="200" height="52" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="460" y="112" font-weight="650" fill="var(--ink)">fallback_plans.json</text>
+        <text x="460" y="130" font-size="11" fill="var(--ink-3)">실제로 써 본다</text>
+
+        <rect x="360" y="160" width="200" height="52" rx="9" fill="var(--panel-2)" stroke="var(--l3, #8b5cf6)" stroke-width="1.8"/>
+        <text x="460" y="182" font-weight="700" fill="var(--p4)">프롬프트 프리픽스</text>
+        <text x="460" y="200" font-size="11" fill="var(--ink-3)">CatalogRenderer 가 생성</text>
+
+        <rect x="360" y="230" width="200" height="52" rx="9" fill="var(--panel-2)" stroke="var(--line-2)"/>
+        <text x="460" y="252" font-weight="650" fill="var(--ink)">CommandEmitter</text>
+        <text x="460" y="270" font-size="11" fill="var(--ink-3)">emits.map 해석</text>
+
+        <rect x="680" y="160" width="180" height="52" rx="9" fill="var(--bad-soft)" stroke="var(--bad)" stroke-width="1.8"/>
+        <text x="770" y="182" font-weight="700" fill="var(--bad)">플랜 스토어</text>
+        <text x="770" y="200" font-size="11" fill="var(--bad)">전량 무효</text>
+      </g>
+
+      <g stroke="var(--ink-3)" fill="none" stroke-width="1.4" marker-end="url(#a9)" color="var(--ink-3)">
+        <path d="M224,140 L356,50"/>
+        <path d="M224,146 L356,116"/>
+        <path d="M224,156 L356,186"/>
+        <path d="M224,162 L356,254"/>
+        <path d="M564,186 L674,186"/>
+      </g>
+      <text x="620" y="178" font-size="11" fill="var(--bad)">SHA 변경</text>
+    </svg>
+  </div>
+  <figcaption>왼쪽 파일 하나를 고치면 오른쪽 넷이 따라 움직인다. 빨간 상자가 이 장에서 확인할 것이다.</figcaption>
+</figure>
+
+<h2 id="action">① 액션을 쓴다</h2>
+
+<div class="filepath">masterdata/actions.json</div>
+<pre><code>{
+  "id": "Tend",
+  "code": <span class="hl">38</span>,
+  "category": "labor",
+  "desc": "가축과 벌통, 작물을 돌본다. 무언가를 만들어 내지는 않지만 다음 수확이 가능한
+           상태로 되돌린다. 밭에 서 있어야 하고, 지친 상태에서는 할 수 없다.",
+  "params": {
+    "duration_s": { "type": "int", "min": 60, "max": 1800, "default": 300 }
+  },
+  "requires":     [<span class="hl2">"AtField"</span>],
+  "requires_any": [],
+  "forbids":      ["IsSleeping", "IsExhausted"],
+  "grants":       [],
+  "clears":       ["ResourceDepleted"],
+  "duration": { "kind": "param", "base_s": 0, "per_meter_s": 0, "param": "duration_s" },
+  "cost": 2,
+  "default_timeout_s": 900,
+  "emits": [
+    { "command": <span class="hl2">"SetVisualState"</span>, "priority": "Normal", "map": { "Visual": "Working" } }
+  ],
+  "completes_on": ["NpcActionCompleted"],
+  "fails_on":     ["NpcActionFailed"]
+}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:130px">필드</th><th>고를 때 생각할 것</th></tr></thead>
+<tbody>
+<tr><td><code>code</code></td><td><b>38.</b> 지금 최대가 37이다. <b>절대 중간에 끼우지 않는다</b></td></tr>
+<tr><td><code>desc</code></td><td><b>이 문장이 프롬프트에 그대로 실린다.</b> LLM 이 이 액션을 언제 쓸지 이 문장으로 배운다</td></tr>
+<tr><td><code>requires</code> / <code>forbids</code></td><td>Coherence 단이 이걸로 GOAP 시뮬을 돌린다. <b>느슨하면 이상한 플랜이 통과한다</b></td></tr>
+<tr><td><code>grants</code> / <code>clears</code></td><td>스텝 완료 후의 상태 전이. <code>Tend</code> 는 아무것도 주지 않고 고갈만 걷어낸다</td></tr>
+<tr><td><code>emits</code></td><td><b>게임서버에 실제로 나가는 명령.</b> 여기가 비면 아무 일도 안 일어난다</td></tr>
+<tr><td><code>completes_on</code></td><td>어떤 이벤트를 완료로 칠 것인가. 안 오면 <code>timeout_s</code> 가 대신 끝낸다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><code>emits.map</code> 의 문법</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:170px">값</th><th>뜻</th><th>예</th></tr></thead>
+<tbody>
+<tr><td><code>"$param"</code></td><td>플랜 스텝의 <code>args</code> 에서 가져온다</td><td><code>"Amount": "$count"</code></td></tr>
+<tr><td><code>"$home"</code> <code>"$workplace"</code> <code>"$self"</code> <code>"$zone"</code></td><td>NPC 인스턴스에서 바인딩</td><td><code>"TargetPoi": "$workplace"</code></td></tr>
+<tr><td><code>"$first:Flag"</code></td><td>그 플래그를 세우는 인벤토리 첫 아이템</td><td><code>Eat</code> · <code>Drink</code></td></tr>
+<tr><td>그 외 문자열</td><td>아이템 id 또는 <b>열거값 리터럴</b></td><td><code>"Visual": "Working"</code></td></tr>
+<tr><td>숫자</td><td>정수 리터럴</td><td><code>"Amount": 1</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="tag">왜 <code>SetVisualState</code> 인가</span>
+  게임서버의 명령 종류는 <b>12개로 고정</b>이다 (<code>NpcCommand.Kind</code>).
+  새 액션을 만든다고 새 명령을 만들지 않는다 — <b>기존 12개 중 하나로 표현</b>한다.
+  <code>Tend</code> 는 자원을 옮기지도 대화하지도 않으니 "일하는 겉모습"만 내보내면 충분하다.
+  <code>Rest</code>·<code>Bathe</code> 가 같은 방식이다.
+  <br>
+  명령 종류를 늘려야 하는 변경은 <b>게임서버 팀과의 계약 변경</b>이고, 그건 13장의 영역이다.
+</div>
+
+<h2 id="apply">② ~ ④ 나머지 셋</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch09_action/apply.ps1
+
+① 고치기 전 프리픽스
+     --- Full: 13488 tok · sha 56a0c601f48392e0
+     action_catalog     6182
+
+② actions.json — Tend 를 추가한다 (code 38)
+  Tend (code 38, labor, requires AtField)
+
+③ archetypes.json — 목동에게 Tend 를 허용한다
+  shepherd.allowed_actions += Tend
+
+④ fallback_plans.json — 목동 폴백에 Tend 를 끼운다
+  fb_shepherd 의 Gather 앞에 Tend 를 넣는다
+
+⑤ 검증
+     OK   액션 <span class="hl">38</span> · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14
+     content_hash: 5e0c684ec3a92a1d…
+   검증 통과 (V1~V11, 건너뜀 1건)</code></pre>
+</div>
+
+<p>
+  ③이 없으면 <code>V8</code>(폴백이 허용 안 된 액션을 쓴다)에 걸리고,
+  ④가 없으면 <b>검증은 통과하지만 아무 일도 안 일어난다</b> —
+  아무도 안 쓰는 액션을 카탈로그에만 넣은 셈이 된다.
+</p>
+
+<h2 id="prefix">⑤ 프리픽스가 얼마나 흔들렸나</h2>
+
+<div class="term">
+  <span class="cap">실측</span>
+<pre><code>   토큰  13488 → 13602  (+114)
+   SHA   56a0c601f48392e0 → 0d8cf2bf8bbbd3a8
+
+   프리픽스 SHA 가 바뀌었다 = 미리 구워 둔 플랜이 전량 무효다.
+   의도한 무효화인지 스스로 판정한다. 아니라면 되돌린다.</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>절</th><th class="num">전</th><th class="num">후</th><th>왜 이만큼</th></tr></thead>
+<tbody>
+<tr><td><code>system_rules</code></td><td class="num">1,745</td><td class="num">1,745</td><td>안 건드렸다</td></tr>
+<tr><td><code>action_catalog</code></td><td class="num">6,182</td><td class="num"><b>6,291</b></td><td><b>+109.</b> 액션 하나의 설명·전제·결과가 이만큼이다</td></tr>
+<tr><td><code>archetypes</code></td><td class="num">2,392</td><td class="num">2,392</td><td>목록에 이름 하나 추가라 반올림 안쪽</td></tr>
+<tr><td><code>dsl_summary</code></td><td class="num">1,718</td><td class="num">1,718</td><td>—</td></tr>
+<tr><td><code>fewshot</code></td><td class="num">1,451</td><td class="num">1,451</td><td>—</td></tr>
+<tr><td><b>Full</b></td><td class="num">13,488</td><td class="num"><b>13,602</b></td><td>+114</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="bad">
+  <span class="tag">SHA 가 바뀌면 무슨 일이 일어나나</span>
+  <p>
+    <b>① 프롬프트 캐시가 통째로 미적중이 된다.</b> 제공사의 프롬프트 캐시는
+    <b>접두 일치</b>로 걸린다. 프리픽스 첫 글자부터 달라졌으니 이전 캐시는 하나도 안 맞는다.
+    실측 기준 prefill 이 <b>85~88 % 절감</b>되던 것이 첫 요청들에서 사라진다.
+  </p>
+  <p>
+    <b>② 이미 구워 둔 플랜의 근거가 사라진다.</b> 그 플랜들은 <code>Tend</code> 를 모르는
+    카탈로그로 만들어졌다. 문법적으로는 여전히 유효하지만
+    <b>"지금 카탈로그로 다시 만들면 다른 답이 나오는" 플랜</b>이다.
+  </p>
+  <p>
+    <b>판단은 사람이 한다.</b> 액션 하나 추가에 2,880건을 다시 굽는 것이 늘 옳지는 않다 —
+    실측 기준 <b>전량 프리베이크가 $5.12</b> 다. 17장에서 "무엇부터 다시 구울까"를 정하는 법을 본다.
+  </p>
+</div>
+
+<div class="warn">
+  <span class="tag">프리픽스를 무효화하려면 <b>앞</b>에 넣는다</span>
+  캐시 무효화용 주석을 프리픽스 <b>뒤</b>에 붙이면 <b>캐시가 안 깨진다.</b>
+  접두 일치라 앞부분이 같으면 그대로 적중한다. 그러면 "무효화했다고 믿는데 실제로는 옛 캐시를 쓰는"
+  상태가 되고 <b>측정이 거짓이 된다.</b> 무효화는 반드시 프리픽스 <b>맨 앞</b>이다.
+</div>
+
+<h2 id="verify">확인한다 — 명령이 실제로 나가나</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --loopback --npcs 20 --time-scale 60 --days 1 --no-llm --port 5080 `
+      --planstore ./nonexistent --masterdata C:\…\lab\ch09\masterdata
+
+PS&gt; ./samples/ch02_watch/watch-npc.ps1 -Npc 7 -Seconds 60</code></pre>
+</div>
+
+<div class="term">
+  <span class="cap">실측 — 추적기</span>
+<pre><code>npc #7  shepherd
+  플랜 #17 [fallback]  goal=gather_and_sell  loop=True
+  스텝
+    0. MoveTo -&gt; NearestField   timeout 300s
+    1. <span class="hl">Tend x300</span>   timeout 900s
+    2. Gather x5   timeout 900s
+    3. MoveTo -&gt; Market   timeout 300s
+    4. Trade x5   timeout 600s
+    5. MoveTo -&gt; Home   timeout 300s
+    6. Sleep   timeout 7200s
+──────────────────────────────────────────────────────────────
+[t=   537] step 0 MoveTo(NearestField) -&gt; <span class="hl">1 Tend</span>
+[t=   537] where house_002_12 -&gt; pasture_001_12
+[t=   537] flags +AtField -AtHome
+[t=   543] step <span class="hl">1 Tend</span> -&gt; 2 Gather</code></pre>
+</div>
+
+<p>
+  <code>AtField</code> 가 서고 <b>그제서야</b> <code>Tend</code> 가 돌고, 6틱 뒤 완료돼 다음 스텝으로 간다.
+  <code>requires: ["AtField"]</code> 와 <code>duration.kind: "param"</code> 이 그대로 동작한 것이다.
+</p>
+
+<ul class="checks">
+  <li><code>validate</code> 가 <b>액션 38</b> 로 올라간다</li>
+  <li>프리픽스 SHA 가 바뀌고 <code>action_catalog</code> 토큰이 <b>+109</b></li>
+  <li>추적기 스텝 목록에 <b><code>Tend x300</code></b> 이 보인다</li>
+  <li><code>step 1 Tend -&gt; 2 Gather</code> 로 <b>완료되고 넘어간다</b> (타임아웃이 아니다)</li>
+  <li><code>content_hash</code> 가 바뀐다</li>
+</ul>
+
+<h2 id="limit">왜 상한이 40개인가</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>액션을 하나 더 넣으면</th><th>얼마나</th></tr></thead>
+<tbody>
+<tr><td>프롬프트 프리픽스</td><td><b>+109 토큰</b> (실측). 40개면 카탈로그만 6,500 토큰대</td></tr>
+<tr><td>요청당 입력 토큰</td><td>프리픽스가 그대로 실린다 — 실측 요청당 <b>13,948</b> 중 대부분</td></tr>
+<tr><td>LLM 의 선택지</td><td>조합 폭발. <b>다양성은 늘지만 통과율은 떨어진다</b> (실측 통과율 64.6 %)</td></tr>
+<tr><td>검증기</td><td>전제조건 그래프가 커진다. <code>V3.PRECONDITION_UNMET</code> 이 늘어난다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">새 액션 요청을 받았을 때의 기준</span>
+  <b>① 기존 액션의 파라미터로 흡수할 수 있나?</b>
+  <code>Tend</code> 도 사실 <code>Work</code> 의 파라미터 하나로 표현할 수 있었다.
+  <b>② 하나를 뺄 수 있나?</b> 안 쓰이는 액션이 있는지 <code>/metrics</code> 의 액션 분포로 확인한다.
+  <b>③ 그래도 필요하면</b> 이 장의 절차를 밟고, 프리픽스 무효화를 감수한다.
+</div>
+
+<h2 id="revert">되돌린다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/lab.ps1 -Drop ch09</code></pre>
+</div>
+
+<p>
+  이 장은 <b>사본에서만</b> 했으므로 원본은 처음부터 그대로다.
+  7장과 달리 <code>src/</code> 를 안 건드렸다 — <b>액션 추가는 코드 변경이 아니다.</b>
+  카탈로그가 커질 뿐이다.
+</p>
+
+<h2 id="part2">2부를 마치며</h2>
+
+<div class="grid3">
+  <div class="card">
+    <h4>배운 것 — 안전망</h4>
+    <p class="small" style="margin:0">
+      로더 · V1~V11 · 플랜 4단 검증기. 9가지로 깨뜨려 보고 어디서 잡히는지 확인했다.
+      <b>검증 실패는 경고가 아니라 기동 실패다.</b>
+    </p>
+  </div>
+  <div class="card">
+    <h4>배운 것 — 콘텐츠</h4>
+    <p class="small" style="margin:0">
+      아이템 · POI · 플랜 · 아키타입 · 인터럽트 · 액션을 하나씩 만들었다.
+      전부 JSON 이고, <b>딱 한 번만 코드를 건드렸다</b>(7장).
+    </p>
+  </div>
+  <div class="card">
+    <h4>배운 것 — 대가</h4>
+    <p class="small" style="margin:0">
+      <code>content_hash</code> · 프리픽스 SHA · 테스트 18개.
+      <b>무엇을 고치면 무엇을 다시 해야 하는지</b>가 이제 보인다.
+    </p>
+  </div>
+</div>
+
+<p style="margin-top:20px">
+  3부에서는 만든 세계를 <b>흔든다</b> — 사건 대본을 쓰고, 명령을 유실시키고, LLM 을 끊는다.
+</p>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>액션 카탈로그가 프롬프트가 되는 과정</td><td><code>src/Npc.Llm/CatalogRenderer.cs</code> · <a href="../book/ch08.html">코드 안내서 8장</a></td></tr>
+<tr><td>명령 12종과 이벤트 17종</td><td><a href="../reference_link.html">reference_link.html</a></td></tr>
+<tr><td><code>emits.map</code> 을 해석하는 곳</td><td><code>src/Npc.Runtime/CommandEmitter.cs</code></td></tr>
+<tr><td>프리픽스 캐시와 비용</td><td>이 책 16~17장 · <a href="../reference_metrics.html">reference_metrics.html</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

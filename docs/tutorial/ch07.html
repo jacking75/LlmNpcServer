@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7장 · 새 직업을 만든다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p2)">2부 · 세계를 바꾼다</p>
+  <h1>7장 · 새 직업을 만든다 — JSON만으로 안 되는 첫 사례</h1>
+  <p class="lead">
+    5장의 양봉장에서 일할 <b>양봉가</b>를 만든다. 그런데 아키타입을 하나 늘리면
+    <b>JSON 네 개 + 코드 한 줄 + 생성기 두 번 + 테스트 18개</b>가 따라온다.
+    왜 그런지, 그리고 그 대가를 치를 만한지 판단하는 법을 배운다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★☆</span>
+    <span class="chip">60분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip need">저장소 본체를 고친다 · 브랜치 필수</span>
+  </div>
+</div>
+
+<div class="bad">
+  <span class="tag">먼저 읽는다</span>
+  <b>이 장은 <code>lab/</code> 사본으로 못 한다.</b>
+  <code>BucketKey.ArchetypeCount</code> 는 <b>컴파일 상수</b>라 사본에만 아키타입을 넣으면
+  바이너리는 여전히 40으로 컴파일돼 있다. 그러면 41번째 직업이 배열 첨자 밖으로 나간다.
+  <br><br>
+  <b>반드시 전용 브랜치에서 한다.</b>
+  <pre style="margin:8px 0 0"><code>PS&gt; git switch -c lab/ch07-beekeeper</code></pre>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면 — 41번째 직업이 마을에 산다</span>
+<pre><code>PS&gt; Invoke-RestMethod http://127.0.0.1:5091/npc/4981
+
+archetype : <span class="hl">beekeeper</span>
+zone      : town_south
+workPoi   : <span class="hl">apiary_002_08</span>
+planKind  : fallback
+planGoal  : <span class="hl">harvest_and_sell_honey</span>
+스텝:
+  0. MoveTo -&gt; NearestField
+  1. Gather x5     &lt;= 지금
+  2. MoveTo -&gt; Home
+  3. Store x5
+  4. Eat
+  5. MoveTo -&gt; Market
+  6. Trade x5
+  7. MoveTo -&gt; Home
+  8. Sleep</code></pre>
+</div>
+
+<h2 id="why">왜 코드를 건드리게 되는가</h2>
+
+<p>
+  플랜 캐시의 키는 <b>(아키타입 × 시간대 × 지역상태 × 기후)</b> 네 축이다.
+  그리고 조회는 해시맵이 아니라 <b>배열 첨자 하나</b>다.
+</p>
+
+<div class="filepath">src/Npc.Core/Planning/BucketKey.cs</div>
+<pre><code>public const int ArchetypeCount = 40;
+public const int TimeOfDayCount = 6;
+public const int RegionStateCount = 4;
+public const int ClimateCount = 3;
+
+<span class="cm">/// 전체 키 수. 40 × 6 × 4 × 3.</span>
+public const int TotalKeys = ArchetypeCount * TimeOfDayCount * RegionStateCount * ClimateCount;
+
+<span class="cm">/// 0..2879. 전단사다.</span>
+public int ToIndex() =&gt; ((((A.Value * 6) + (int)T) * 4) + (int)R) * 3 + (int)C;</code></pre>
+
+<div class="why">
+  <span class="tag">이 한 줄이 성능의 근거다</span>
+  <code>PlanStore</code> 는 <code>CompiledPlan[2880]</code> 고정 배열이면 충분하다.
+  틱 루프에서 플랜을 찾는 비용이 <b>곱셈 세 번과 덧셈 세 번</b>이고, 해시도 락도 할당도 없다.
+  1장에서 본 <b>틱당 할당 0바이트</b>의 일부가 여기서 나온다.
+  <br><br>
+  대가는 <b>아키타입 수가 컴파일 타임에 고정된다</b>는 것이다. 늘리려면 다시 컴파일해야 한다.
+  <b>이것이 이 설계가 명시적으로 치른 값</b>이고, 7장은 그 값을 실제로 치러 보는 장이다.
+</div>
+
+<h2 id="code">고치는 곳 여섯 + 생성기 둘</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:52px">—</th><th>파일</th><th>무엇을</th><th>왜</th></tr></thead>
+<tbody>
+<tr><td><b>①</b></td><td><code>items.json</code></td><td><code>honey</code> (code 83)</td><td>5장과 같다. 벌통에서 거둘 것</td></tr>
+<tr><td><b>②</b></td><td><code>pois.json</code></td><td>양봉장 둘 (244·245)</td><td>일터가 있어야 직업이 성립한다. <b>정원 24 ≥ 인구 20</b> (V10)</td></tr>
+<tr><td><b>③</b></td><td><code>archetypes.json</code></td><td><code>beekeeper</code> (code <b>40</b>) · 목동 가중치 0.025 → 0.021</td><td>가중치 합은 <b>정확히 1.0</b> (V5)</td></tr>
+<tr><td><b>④</b></td><td><code>context_buckets.json</code></td><td><code>total_keys</code> 2880 → <b>2952</b></td><td>41 × 6 × 4 × 3 (V6)</td></tr>
+<tr><td><b>⑤</b></td><td><code>fallback_plans.json</code></td><td><code>fb_beekeeper</code> (9스텝)</td><td>폴백 없는 아키타입은 없다 (V7)</td></tr>
+<tr><td><b>⑥</b></td><td><code>BucketKey.cs</code></td><td><code>ArchetypeCount</code> 40 → <b>41</b></td><td><b>여기부터 코드다</b></td></tr>
+<tr><td><b>⑦</b></td><td colspan="2"><code>gen_poi_distances</code> · <code>gen_npcs</code> 재실행</td><td>POI 와 인구가 바뀌었으니 생성물도 바뀐다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="term">
+  <span class="cap">터미널 — 한 번에</span>
+<pre><code>PS&gt; git switch -c lab/ch07-beekeeper
+PS&gt; ./samples/ch07_beekeeper/apply.ps1</code></pre>
+</div>
+
+<p class="small">
+  <code>main</code>·<code>master</code> 에서 실행하면 스크립트가 <b>거부한다.</b>
+  본체를 고치는 실습이라 되돌릴 수단(브랜치)이 먼저 있어야 한다.
+</p>
+
+<h3>③ 아키타입 — <code>code</code> 는 반드시 40</h3>
+
+<div class="filepath">masterdata/archetypes.json</div>
+<pre><code>    {
+      "id": "beekeeper",
+      "code": <span class="hl">40</span>,
+      "name_key": "npc.beekeeper",
+      "desc": "양봉가. 고지 초원과 농지의 벌통을 돌보며 꿀을 거둔다. …",
+      "allowed_actions": [ "Drink", "Eat", …, "Trade", "Wait", "Wander", "Withdraw" ],
+      "home_poi_type": "home",
+      "workplace_poi_type": <span class="hl2">"apiary"</span>,
+      "traits": { "diligence": 75, "sociability": 35, "courage": 40, "greed": 30 },
+      "initial_inventory": [
+        { "item": "bread", "count": 2 },
+        { "item": "water", "count": 1 },
+        { "item": "coin",  "count": 10 }
+      ],
+      "fallback_plan": "fb_beekeeper",
+      "combat_capable": false,
+      "population_weight": <span class="hl2">0.004</span>
+    }</code></pre>
+
+<div class="bad">
+  <span class="tag">code 를 중간에 끼우면 안 되는 이유</span>
+  <p>
+    <code>code</code> 는 <b>버킷 첨자의 최상위 자리</b>다. 41번째를 40이 아니라
+    가운데(예: 5)에 끼워 넣고 뒤를 밀면, 첨자 <code>((5×6+T)×4+R)×3+C</code> 가 가리키던
+    플랜이 전부 다른 직업의 것이 된다.
+  </p>
+  <p>
+    <b>미리 구워 둔 플랜 2,880개가 통째로 어긋난다.</b> 그리고 증상은 크래시가 아니라
+    <b>"대장장이가 밭을 간다"</b>다 — 오류 하나 없이 잘못된 세계가 돈다.
+    <b>추가는 언제나 뒤에만.</b>
+  </p>
+</div>
+
+<h3>⑤ 폴백 플랜 — 6장에서 배운 그대로</h3>
+
+<div class="filepath">masterdata/fallback_plans.json</div>
+<pre><code>{
+  "id": "fb_beekeeper",
+  "archetype": "beekeeper",
+  "goal": "harvest_and_sell_honey",
+  "steps": [
+    { "action": "MoveTo", "args": { "poi": <span class="hl2">"$nearest_field"</span> },          "timeout_s": 600 },
+    { "action": "Gather", "args": { "resource": "honey", "count": 5 },  "timeout_s": 900 },
+    { "action": "MoveTo", "args": { "poi": "$home" },                   "timeout_s": 600 },
+    { "action": "Store",  "args": { "item": "honey", "count": 5 },      "timeout_s": 300 },
+    { "action": "Eat",    "args": {},                                   "timeout_s": 300 },
+    { "action": "MoveTo", "args": { "poi": "$market" },                 "timeout_s": 600 },
+    { "action": "Trade",  "args": { "item": "honey", "amount": 5 },     "timeout_s": 600 },
+    { "action": "MoveTo", "args": { "poi": "$home" },                   "timeout_s": 600 },
+    { "action": "Sleep",  "args": { "until_time": "Morning" },          "timeout_s": 7200 }
+  ],
+  "on_step_fail": "skip",
+  "loop": true
+}</code></pre>
+
+<div class="warn">
+  <span class="tag">여기서 한 번 걸렸다 — <code>$workplace</code> vs <code>$nearest_field</code></span>
+  <p>
+    처음엔 첫 스텝을 <code>$workplace</code> 로 썼다. 양봉가의 일터는 양봉장이니 자연스러워 보인다.
+    그런데 검증기가 막았다.
+  </p>
+  <pre style="margin:8px 0"><code>V3.PRECONDITION_UNMET (스텝 1): Gather requires AtField but no preceding step grants it.
+State before this step: <span class="hl3">AtWorkplace</span>|HasFood|HasWater|HasCoin|IsDay|RegionPeaceful.</code></pre>
+  <p>
+    Coherence 단은 <b><code>$workplace</code> → <code>AtWorkplace</code></b>,
+    <b><code>$nearest_field</code> → <code>AtField</code></b> 로 모델링한다.
+    양봉장 POI 가 <code>AtField</code> 를 <code>grants</code> 하더라도, 검증기의 시뮬은
+    <b>심볼 종류</b>로 판정한다. 그래서 <code>$nearest_field</code> 로 바꿨다.
+  </p>
+  <p>
+    <b>검증기가 실제보다 보수적인 지점</b>이다. 이런 곳은 검증기를 고치는 게 아니라
+    <b>플랜을 검증기가 읽을 수 있게 쓰는 쪽</b>이 싸다 — LLM 도 같은 제약 아래서 쓴다.
+  </p>
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<div class="term">
+  <span class="cap">실측 — apply.ps1 의 마지막 부분</span>
+<pre><code>⑦ poi_distances.bin · npc_instances.json 재생성
+   poi_distances.bin: POI 245개 · 120,058 bytes (117.2 KB) · 최대 거리 5241.0m
+   npc_instances.json: NPC 5000마리, seed 20260725, 3296051 bytes
+     town_center            828 / 1247
+     …
+     highland_pasture       112 / 258
+
+⑧ 빌드
+   빌드했습니다.  <span class="hl">경고 0개 · 오류 0개</span>
+
+⑨ 검증
+     OK   액션 37 · 아이템 83 · 존 12 · POI 245 · 아키타입 <span class="hl">41</span> · 인터럽트 14
+     content_hash: 410ae1bd9a39626b…
+   <span class="hl">검증 통과 (V1~V11, 건너뜀 1건)</span>
+
+beekeeper 추가 완료. 아키타입이 41종이 됐다.</code></pre>
+</div>
+
+<div class="term">
+  <span class="cap">터미널 — 양봉가가 몇 명이고 어디 있나</span>
+<pre><code>PS&gt; python -c "import json; …"     <span class="cm"># npc_instances.json 을 읽어서</span>
+
+beekeeper 수: <span class="hl">20</span>
+첫 5명 첨자: [<span class="hl2">4980, 4981, 4982, 4983, 4984</span>]
+예시: { "id": 4981, "archetype": "beekeeper", "zone": "highland_pasture",
+        "home_poi": "house_002_12", "workplace_poi": "apiary_001_12", … }</code></pre>
+</div>
+
+<div class="bad">
+  <span class="tag">함정 — 첨자가 뒤쪽이다</span>
+  <p>
+    <code>gen_npcs</code> 는 <b>아키타입 code 순서로</b> NPC 를 배치한다.
+    양봉가는 code 40, 즉 <b>마지막</b>이라 첨자 4980~4999 를 받는다.
+  </p>
+  <p>
+    그래서 <code>--npcs 200</code> 으로 돌리면 <b>양봉가가 한 명도 안 뜬다.</b>
+    "새 직업을 넣었는데 안 보인다"의 가장 흔한 원인이 이것이다.
+    확인하려면 <code>--npcs 5000</code> 으로 돌리고 <code>/npc/4981</code> 을 본다.
+  </p>
+</div>
+
+<ul class="checks">
+  <li><code>validate</code> 가 <b>아키타입 41</b> 로 올라간다</li>
+  <li>빌드가 <b>경고 0 · 오류 0</b></li>
+  <li><code>npc_instances.json</code> 에 beekeeper <b>20명</b>, 첨자 4980~4999</li>
+  <li><code>--npcs 5000</code> 으로 돌리고 <code>/npc/4981</code> 이 <code>harvest_and_sell_honey</code> 를 돌린다</li>
+  <li>확인 3단 6항목 전부 OK · 틱 p99 여전히 예산 안</li>
+</ul>
+
+<h2 id="tests">치러야 할 진짜 대가 — 테스트 18개</h2>
+
+<p>
+  검증도 통과했고 세계도 돈다. 그런데 <code>dotnet test</code> 를 돌리면 이렇게 된다.
+</p>
+
+<div class="term">
+  <span class="cap">실측</span>
+<pre><code>PS&gt; dotnet test -c Release --no-build "--filter" "Category!=Golden&amp;Category!=Gate&amp;Category!=Load"
+
+  실패 Npc.Tests.Host.NpcMeterTests.Metrics_HaveCachePanel
+   Assert.Equal() Failure: Values differ
+   Expected: <span class="hl3">2880</span>
+   Actual:   <span class="hl3">2952</span>
+
+  실패 Npc.Tests.Host.PlanStoreWiringTests.Host_FallsBackWhenStoreIsMissing
+   Assert.Contains() Failure: Sub-string not found
+   Not found: "<span class="hl3">폴백 40</span>"
+
+<span class="hl3">실패!  - 실패: 18, 통과: 1033, 전체: 1051</span></code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>깨진 테스트 18개</th></tr></thead>
+<tbody>
+<tr><td><code>ArchetypeTableTests.ArchetypeTable_HasFortyArchetypes</code> · <code>_CodesAreZeroBasedAndContiguous</code> · <code>_IndexesByCode</code></td></tr>
+<tr><td><code>BucketKeyTests.BucketKey_TotalKeysIsTwentyEightEighty</code></td></tr>
+<tr><td><code>NpcMeterTests.Metrics_HaveCachePanel</code> · <code>DashboardTests.Dashboard_HasBucketHeatmap</code></td></tr>
+<tr><td><code>PlanStoreWiringTests.Host_FallsBackWhenStoreIsMissing</code> · <code>BucketReplanSourceTests.Bucket_IgnoresNeverQueriedBuckets</code></td></tr>
+<tr><td><code>PlanTableTests.Validator_AcceptsAllFallbacks</code> · <code>_AuthoringTimeIsLogged</code> · <code>MasterDataSetTests.MasterData_LoadsEveryTable</code></td></tr>
+<tr><td><code>Prebake.BulkRunnerTests.AllBuckets_Covers2880</code> · <code>DryRunStageTests</code> · <code>TargetSelectorTests</code></td></tr>
+<tr><td><code>SuffixBudgetTests.Suffix_CoversEveryBucket</code> · <code>NarrateTests.Lexicon_CoversEveryId</code> · <code>DryRunValidatorTests</code> · <code>Phase3GateTests</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">이것은 고장이 아니라 계산서다</span>
+  <p>
+    테스트들이 <b>40</b>·<b>2880</b>·<b>"폴백 40"</b> 을 하드코딩하고 있다.
+    <b>"테스트가 사양이다"</b> 라는 원칙의 뒷면이다 — 사양을 바꾸면 사양서도 같이 고쳐야 한다.
+  </p>
+  <p>
+    이름들을 보면 <b>아키타입 수가 어디까지 퍼져 있는지</b>가 한눈에 보인다:
+    마스터데이터 · 버킷 키 · 플랜 스토어 · 대시보드 히트맵 · 프리베이크 대상 선정 ·
+    프롬프트 서픽스 예산 · 서술 도구의 어휘집.
+    <b>이 목록이 곧 "아키타입 하나 추가"의 실제 범위다.</b>
+  </p>
+</div>
+
+<div class="note">
+  <span class="tag">그래서 실무에서는</span>
+  아키타입 추가는 <b>가벼운 콘텐츠 작업이 아니라 스키마 변경</b>이다.
+  40개 안에서 <b>desc·traits·allowed_actions·기본 goal 을 바꾸는 것</b>으로 해결되는지 먼저 본다.
+  기존 직업의 성격을 바꾸는 것은 JSON 한 파일이고 테스트가 하나도 안 깨진다.
+  <b>정말로 41번째가 필요할 때만</b> 이 장의 절차를 밟는다.
+</div>
+
+<h2 id="revert">되돌린다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch07_beekeeper/revert.ps1 -Yes
+
+되돌릴 파일 8개
+    M masterdata/archetypes.json
+    M masterdata/context_buckets.json
+    M masterdata/fallback_plans.json
+    M masterdata/items.json
+    M masterdata/npc_instances.json
+    M masterdata/poi_distances.bin
+    M masterdata/pois.json
+    M src/Npc.Core/Planning/BucketKey.cs
+
+파일 복원 완료. 이제 다시 빌드한다 (ArchetypeCount 가 40으로 돌아간다).
+   빌드했습니다.  경고 0개 · 오류 0개
+
+되돌리기 완료.
+
+PS&gt; git switch main
+PS&gt; git branch -D lab/ch07-beekeeper</code></pre>
+</div>
+
+<div class="warn">
+  <span class="tag">되돌리기를 반드시 하는 이유</span>
+  생성물 셋(<code>npc_instances.json</code> · <code>poi_distances.bin</code> · 빌드 산출물)은
+  <b>손으로 못 되돌린다.</b> <code>git restore</code> 로 파일을 되돌린 뒤 <b>반드시 다시 빌드</b>해야
+  바이너리의 <code>ArchetypeCount</code> 가 40으로 돌아간다.
+  <br>
+  빌드를 빼먹으면 "파일은 40인데 바이너리는 41"인 상태가 되고, 그건 <b>가장 찾기 어려운 종류</b>다.
+</div>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>버킷 키가 왜 이 네 축인가</td><td><a href="../book/ch09.html">코드 안내서 9장</a></td></tr>
+<tr><td>아키타입 40종의 전체 표</td><td><a href="../reference_masterdata.html">reference_masterdata.html</a></td></tr>
+<tr><td><code>gen_npcs</code> 의 배정 알고리즘</td><td><code>tools/gen_npcs.cs</code> 머리말</td></tr>
+<tr><td>바꾼 뒤 성능이 깎였는지 판정</td><td>이 책 19장</td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

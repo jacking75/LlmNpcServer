@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8장 · 반사신경을 넣는다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p2)">2부 · 세계를 바꾼다</p>
+  <h1>8장 · 반사신경을 넣는다 — 인터럽트</h1>
+  <p class="lead">
+    <b>LLM이 절대 손대지 않는 영역이다.</b> 반응 속도가 필요한 판정은 전부 결정론 규칙으로 짠다.
+    "폭풍이 오면 밭에 있던 사람은 즉시 집으로" 규칙을 하나 넣고,
+    시나리오로 폭풍을 때려 발동을 <b>숫자로</b> 확인한다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★☆</span>
+    <span class="chip">50분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">사본에서 한다</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면 — 규칙 하나로 발동이 375건 늘어난다</span>
+<pre><code><span class="cm">// 규칙 없이 (기준선)</span>
+ticks 1440 · … · interrupts <span class="hl2">200</span> · replan-q 200 · llm 0
+
+<span class="cm">// shelter_from_storm_in_field 를 넣고</span>
+ticks 1440 · … · interrupts <span class="hl">575</span> · replan-q 200 · llm 0</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  <b>인터럽트는 "먼저 도망치고, 새 계획은 나중에 받는다"의 구현이다.</b>
+  즉시 행동은 그 틱에 나가고, 재계획은 우선순위 큐에 점수로만 들어간다.
+  둘을 분리했기 때문에 <b>LLM 이 느려도 반응은 안 느려진다.</b>
+</div>
+
+<h2 id="why">왜 LLM 이 이걸 안 하나</h2>
+
+<div class="grid2">
+  <div class="card">
+    <h4>LLM 이 하는 일</h4>
+    <ul>
+      <li>하루 일과를 <b>미리</b> 짠다</li>
+      <li>느려도 된다 — 실측 요청당 <b>3.7~5.1초</b></li>
+      <li>비싸도 된다 — 수천 NPC 가 공유한다</li>
+      <li>틀려도 된다 — 4단 검증기가 거른다</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>인터럽트가 하는 일</h4>
+    <ul>
+      <li>지금 이 틱에 <b>반응</b>한다</li>
+      <li><b>0.1초 안</b>에 끝나야 한다</li>
+      <li>NPC 5,000마리에 매 틱 돈다</li>
+      <li>틀리면 그대로 화면에 나간다</li>
+    </ul>
+  </div>
+</div>
+
+<p>
+  그래서 인터럽트는 <b>마스터데이터에 사람이 쓰는 규칙</b>이고, 판정은 플래그 비트 연산이다.
+  <b>판단 기준: 반응 속도가 필요하면 규칙, 조합의 다양성이 필요하면 LLM.</b>
+</p>
+
+<h2 id="rule">규칙의 문법</h2>
+
+<div class="filepath">masterdata/interrupts.json — 기존 규칙 하나</div>
+<pre><code>{
+  "id": "flee_on_threat",
+  "priority": 100,
+  "when": {
+    "any_flag": ["ThreatNearby", "InCombat"],
+    "archetype_trait": { "courage": "&lt;40" }
+  },
+  "then":   { "action": "Flee", "params": { "poi": "$nearest_safe" } },
+  "replan": { "urgency": 100 }
+}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:150px">필드</th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><code>priority</code></td><td>여럿이 동시에 맞으면 높은 것이 이긴다. 같으면 <b>id 오름차순</b></td></tr>
+<tr><td><code>when.any_flag</code></td><td>하나라도 서 있으면 참</td></tr>
+<tr><td><code>when.all_flag</code></td><td>전부 서 있어야 참</td></tr>
+<tr><td><code>when.none_flag</code></td><td>하나도 서 있지 않아야 참</td></tr>
+<tr><td><code>when.event</code></td><td>이 종류의 이벤트를 받은 틱에만 참</td></tr>
+<tr><td><code>when.archetype_trait</code></td><td>성향 비교. <code>"&lt;40"</code> <code>"&gt;=40"</code> <code>"==50"</code></td></tr>
+<tr><td><code>when.combat_capable</code></td><td>아키타입이 싸울 수 있는가</td></tr>
+<tr><td><code>then</code></td><td><b>즉시 실행</b>할 액션 하나</td></tr>
+<tr><td><code>replan.urgency</code></td><td>재계획 큐에 들어갈 점수. <b>나중에</b> 새 플랜을 받는다</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="bad">
+  <span class="tag"><code>cooldown_s</code> 가 없는 이유</span>
+  <p>
+    "10초에 한 번만 발동" 같은 시간 기반 억제가 이 스키마에 <b>없다.</b> 넣으면 편할 텐데 안 넣었다.
+  </p>
+  <p>
+    시간 기반 억제는 <b>실행 시각</b>에 의존하고, 실행 시각은 리플레이마다 미세하게 다르다.
+    그러면 같은 입력으로 다른 결과가 나오고 <b>리플레이 100% 일치가 깨진다.</b>
+  </p>
+  <p>
+    대신 <b>엣지 트리거</b>다 — 조건이 <b>거짓 → 참</b>으로 넘어가는 순간에만 한 번 걸린다.
+    폭풍이 계속돼도 매 틱 재발동하지 않는다. <b>같은 효과를 시계 없이 얻는다.</b>
+  </p>
+</div>
+
+<h2 id="write">규칙을 하나 쓴다</h2>
+
+<p>
+  기존 <code>seek_shelter</code> 는 <code>WeatherHarsh</code> + <code>InWilderness</code> 만 본다.
+  <b>밭에서 일하던 NPC 는 비를 다 맞는다.</b> 그 틈을 메운다.
+</p>
+
+<div class="filepath">samples/ch08_interrupt/apply.ps1 이 넣는 규칙</div>
+<pre><code>{
+  "id": "shelter_from_storm_in_field",
+  "priority": <span class="hl2">42</span>,
+  "when": {
+    "all_flag": [<span class="hl">"WeatherHarsh", "AtField"</span>],
+    "none_flag": ["IsSleeping", "InCombat"]
+  },
+  "then":   { "action": "MoveTo", "params": { "poi": "$home" } },
+  "replan": { "urgency": 45 }
+}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>고른 값</th><th>왜</th></tr></thead>
+<tbody>
+<tr><td><code>priority 42</code></td><td><code>seek_shelter</code>(40)보다 높고 <code>rest_when_exhausted</code>(45)보다 낮다. <b>야생보다 밭이 급하고, 탈진보다는 덜 급하다</b></td></tr>
+<tr><td><code>all_flag</code></td><td>둘 <b>다</b> 참일 때만. 폭풍이어도 실내면 안 걸린다</td></tr>
+<tr><td><code>none_flag</code> 에 <code>InCombat</code></td><td>싸우는 중에 비 때문에 집에 가면 안 된다</td></tr>
+<tr><td><code>urgency 45</code></td><td>도망은 즉시, 새 하루 계획은 <b>큐에서 순서를 기다린다</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="scenario">폭풍을 때린다</h2>
+
+<div class="filepath">samples/ch08_interrupt/storm.jsonl</div>
+<pre><code>{"_comment": "--time-scale 600 기준. 1틱 = 게임 60초, 시작 06:00(Dawn)."}
+{"at_tick": 100, "event": "WeatherChanged", "zone": "farmlands",        "code": "Storm"}
+{"at_tick": 100, "event": "WeatherChanged", "zone": "highland_pasture", "code": "Storm"}
+{"at_tick": 400, "event": "WeatherChanged", "zone": "farmlands",        "code": "Fair"}
+{"at_tick": 400, "event": "WeatherChanged", "zone": "highland_pasture", "code": "Fair"}
+{"at_tick": 700, "event": "WeatherChanged", "zone": "farmlands",        "code": "Storm"}
+{"at_tick": 700, "event": "WeatherChanged", "zone": "highland_pasture", "code": "Storm"}</code></pre>
+
+<p>
+  <b>폭풍 → 갬 → 폭풍</b> 이다. 두 번 때리는 이유가 있다 —
+  <b>엣지 트리거가 정말로 두 번만 걸리는지</b> 보려면 조건이 한 번 내려갔다 올라와야 한다.
+</p>
+
+<div class="note">
+  <span class="tag">틱 좌표는 배속에 묶여 있다</span>
+  <code>--time-scale 600</code> 에서 1틱 = 게임 60초다. <code>at_tick 100</code> 은 게임 07:40 이다.
+  <b>배속을 바꾸면 대본의 시각이 통째로 달라진다</b> — 10장에서 환산표를 만든다.
+</div>
+
+<h2 id="verify">확인한다</h2>
+
+<div class="term">
+  <span class="cap">터미널 — 기준선과 나란히</span>
+<pre><code>PS&gt; ./samples/ch08_interrupt/apply.ps1 -Lab ch08_base -Baseline -Run -Npcs 200
+PS&gt; ./samples/ch08_interrupt/apply.ps1 -Lab ch08              -Run -Npcs 200</code></pre>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th class="num">규칙 없음</th><th class="num">규칙 있음</th><th>읽는 법</th></tr></thead>
+<tbody>
+<tr><td>인터럽트 규칙 수</td><td class="num">14</td><td class="num">15</td><td><code>validate</code> 가 찍는다</td></tr>
+<tr><td><code>interrupts</code></td><td class="num">200</td><td class="num"><b>575</b></td><td><b>+375건.</b> 이게 내 규칙이 한 일이다</td></tr>
+<tr><td><code>replan-q</code></td><td class="num">200</td><td class="num">200</td><td>큐 깊이는 그대로 — <code>--tier none</code> 이라 아무도 안 꺼내 간다</td></tr>
+<tr><td><code>events</code></td><td class="num">129,998</td><td class="num">130,170</td><td>세계가 조금 달라졌다</td></tr>
+<tr><td><code>commands</code></td><td class="num">108,581</td><td class="num">108,752</td><td>도망 명령이 더 나갔다</td></tr>
+<tr><td>틱 p99</td><td class="num">0.155 ms</td><td class="num">0.137 ms</td><td><b>안 느려졌다</b></td></tr>
+<tr><td><code>bytes/tick</code></td><td class="num">0</td><td class="num">0</td><td>규칙 판정은 <b>비트 연산</b>이라 할당이 없다</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>숫자 읽기</h3>
+
+<ol class="steps">
+<li>
+  <b>왜 375건인가 — 400건이 아니라</b>
+  <p>
+    기준선이 200이고 규칙을 넣으니 575다. <b>순증가분 375건이 내 규칙의 몫</b>이다.
+    <br>
+    NPC 200명 × 폭풍 2회 = 400 이 상한인데 375다. 차이 25는
+    <b>폭풍이 칠 때 밭에 없던 NPC</b>로 설명된다 — <code>all_flag: [WeatherHarsh, AtField]</code> 가
+    정확히 그 뜻이다. (정확한 내역까지 세려면 2장의 추적기로 개별 NPC 를 봐야 한다.)
+  </p>
+</li>
+<li>
+  <b>틱이 안 느려졌다</b> <span class="pill ok">0.155 → 0.137 ms</span>
+  <p>
+    규칙을 하나 더 봤는데 오히려 미세하게 빨라졌다(측정 잡음 범위다).
+    인터럽트 판정은 <b><code>WorldFlags</code> 64비트에 대한 AND/OR 몇 번</b>이라
+    규칙 수에 거의 영향을 안 받는다. <b>규칙을 아끼지 않아도 된다.</b>
+  </p>
+</li>
+<li>
+  <b>재계획 큐는 그대로다</b>
+  <p>
+    <code>replan.urgency 45</code> 로 큐에 넣었는데 깊이가 안 늘었다.
+    <code>--tier none</code> 이라 <b>꺼내 가는 워커가 없기 때문</b>이다.
+    16장에서 티어를 켜면 이 값이 움직이기 시작한다.
+  </p>
+</li>
+</ol>
+
+<ul class="checks">
+  <li><code>validate</code> 가 <b>인터럽트 15</b> 로 올라간다</li>
+  <li><code>interrupts</code> 가 <b>200 → 575</b></li>
+  <li><code>bytes/tick</code> 이 여전히 <b>0</b></li>
+  <li>틱 p99 가 예산(20ms) 안에서 사실상 안 변한다</li>
+</ul>
+
+<h2 id="break">부러뜨려 본다</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>바꿔 보기</th><th>예상</th><th>왜</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>all_flag</code> → <code>any_flag</code></td>
+  <td>발동이 폭증한다</td>
+  <td>폭풍이면 실내에 있어도, 밭에 있으면 맑아도 걸린다. <b>조건이 헐거우면 NPC 가 계속 집에 간다</b></td>
+</tr>
+<tr>
+  <td><code>none_flag</code> 에서 <code>InCombat</code> 제거</td>
+  <td>전투 중에 도망친다</td>
+  <td>우선순위 100짜리 전투 규칙과 42짜리 이 규칙이 부딪힌다. <b>priority 가 왜 있는지 여기서 보인다</b></td>
+</tr>
+<tr>
+  <td><code>priority</code> 를 <b>110</b> 으로</td>
+  <td>위협보다 비를 먼저 피한다</td>
+  <td><code>flee_on_threat</code>(100)를 이긴다. <b>우선순위는 세계관의 표현이다</b></td>
+</tr>
+<tr>
+  <td>없는 액션(<code>Fly</code>)을 <code>then</code> 에</td>
+  <td><code>FAIL V3</code></td>
+  <td><code>interrupts.json</code> 의 액션 참조도 카탈로그에 있어야 한다</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">시나리오가 안 먹는 것 같으면</span>
+  <p>
+    <b>① 존 이름을 확인한다.</b> <code>zone</code> 은 <code>zones.json</code> 의 id 여야 한다.
+    오타면 조용히 무시된다.
+  </p>
+  <p>
+    <b>② 배속을 확인한다.</b> <code>at_tick</code> 은 배속에 묶여 있다.
+    <code>--time-scale 60</code> 으로 돌리면 tick 100 이 게임 06:10 이라 아직 아무도 밭에 안 나가 있다.
+  </p>
+  <p>
+    <b>③ 플래그가 실제로 서는지 본다.</b> 2장의 추적기로 <code>+WeatherHarsh</code> 가 찍히는지 확인한다.
+    안 찍히면 이벤트가 그 NPC 의 존에 안 닿은 것이다.
+  </p>
+</div>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>인터럽트 판정과 엣지 트리거 구현</td><td><code>src/Npc.Runtime/InterruptMatcher.cs</code> · <a href="../book/ch07.html">코드 안내서 7장</a></td></tr>
+<tr><td>기존 규칙 14개 전문</td><td><code>masterdata/interrupts.json</code> · <a href="../reference_masterdata.html">reference_masterdata.html</a></td></tr>
+<tr><td>재계획 점수와 큐</td><td><a href="../book/ch06.html">코드 안내서 6장</a></td></tr>
+<tr><td>전투 반응을 어떻게 설계하나</td><td><a href="../FAQ.html">FAQ</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ko" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6장 · 하루 일과를 손으로 쓴다 — LLM NPC 서버 활용 실습서</title>
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="side" id="toc"></nav>
+<main>
+
+<div class="chead">
+  <p class="kicker" style="color:var(--p2)">2부 · 세계를 바꾼다</p>
+  <h1>6장 · 하루 일과를 손으로 쓴다 — 플랜 DSL</h1>
+  <p class="lead">
+    <b>LLM이 만드는 것과 똑같은 자료구조를 사람이 직접 쓴다.</b>
+    2장에서 따라다닌 그 목동의 하루를 6스텝에서 10스텝으로 다시 쓰고,
+    <b>일부러 네 가지로 틀리게 써서</b> 검증기 4단이 각각 어디서 잡는지 본다.
+  </p>
+  <div class="chips">
+    <span class="chip a">난이도 ★★★☆</span>
+    <span class="chip">60분</span>
+    <span class="chip">LLM 불필요</span>
+    <span class="chip">2장의 추적기 사용</span>
+  </div>
+</div>
+
+<h2 id="what">무엇을 만드나</h2>
+
+<div class="term">
+  <span class="cap">이 장이 끝나면 — 2장의 추적기가 <b>내가 쓴 스텝</b>을 찍는다</span>
+<pre><code>npc #7  shepherd
+  플랜 #17 [fallback]  goal=<span class="hl">graze_store_and_sell</span>  loop=True
+  스텝
+    0. MoveTo -&gt; NearestField   timeout 600s
+    1. Gather x5   timeout 900s
+    2. Gather x5   timeout 900s
+    3. MoveTo -&gt; Home   timeout 600s
+    4. Store x5   timeout 300s
+    5. Eat   timeout 300s
+    6. MoveTo -&gt; Market   timeout 600s
+    7. Trade x5   timeout 600s
+    8. MoveTo -&gt; Home   timeout 600s
+    9. Sleep   timeout 7200s</code></pre>
+</div>
+
+<div class="ok">
+  <span class="tag">이 장의 한 문장</span>
+  플랜은 <b>스텝 배열 하나</b>다. LLM 이 만드는 것도 이것이고, 사람이 쓰는 것도 이것이고,
+  캐시에 들어가는 것도 이것이다. <b>이 장을 하고 나면 8장 이후의 LLM 출력이 낯설지 않다.</b>
+</div>
+
+<h2 id="dsl">플랜의 문법</h2>
+
+<div class="filepath">samples/ch06_plan/fb_shepherd_v2.json</div>
+<pre><code>{
+  "id": "fb_shepherd",
+  "archetype": "shepherd",
+  "goal": "graze_store_and_sell",
+  "steps": [
+    { "action": "MoveTo", "args": { "poi": <span class="hl2">"$nearest_field"</span> },        "timeout_s": 600 },
+    { "action": "Gather", "args": { "resource": "wool", "count": 5 },  "timeout_s": 900 },
+    { "action": "Gather", "args": { "resource": "milk", "count": 5 },  "timeout_s": 900 },
+    { "action": "MoveTo", "args": { "poi": <span class="hl2">"$home"</span> },                "timeout_s": 600 },
+    { "action": "Store",  "args": { "item": "milk", "count": 5 },      "timeout_s": 300 },
+    { "action": "Eat",    "args": {},                                  "timeout_s": 300 },
+    { "action": "MoveTo", "args": { "poi": <span class="hl2">"$market"</span> },              "timeout_s": 600 },
+    { "action": "Trade",  "args": { "item": "wool", "amount": 5 },     "timeout_s": 600 },
+    { "action": "MoveTo", "args": { "poi": "$home" },                  "timeout_s": 600 },
+    { "action": "Sleep",  "args": { "until_time": "Morning" },         "timeout_s": 7200 }
+  ],
+  "on_step_fail": "skip",
+  "loop": true
+}</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:130px">필드</th><th>뜻</th><th>규칙</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>플랜 이름</td><td>아키타입의 <code>fallback_plan</code> 이 이 값을 가리킨다 (V7)</td></tr>
+<tr><td><code>goal</code></td><td>이 플랜이 무엇을 위한 것인가</td><td>추적기와 <code>Npc.Narrate</code> 가 그대로 보여 준다</td></tr>
+<tr><td><code>steps[].action</code></td><td>액션 카탈로그의 id</td><td>그 아키타입의 <code>allowed_actions</code> 안에 있어야 한다 (V8)</td></tr>
+<tr><td><code>steps[].args</code></td><td>액션의 <code>params</code> 대로</td><td><code>actions.json</code> 이 정한 이름·타입·범위</td></tr>
+<tr><td><code>steps[].timeout_s</code></td><td>응답이 없으면 이만큼 뒤에 실패로 친다</td><td><b>모든 스텝에 있다.</b> 명령은 유실되니까</td></tr>
+<tr><td><code>on_step_fail</code></td><td><code>skip</code> · <code>abort</code> · <code>retry</code></td><td>폴백은 <code>skip</code> 이다. 폴백에서 또 폴백으로 갈 곳이 없다</td></tr>
+<tr><td><code>loop</code></td><td>끝나면 처음으로 돌아가나</td><td>폴백은 <b>반드시 true</b> (V7)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>심볼 — 플랜 하나를 수백 명이 공유하는 장치</h3>
+
+<p>
+  플랜에 <code>house_002_12</code> 같은 구체적 이름이 없다. <code>$home</code> 뿐이다.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:150px">심볼</th><th>무엇으로 풀리나</th><th>도착하면 서는 플래그</th></tr></thead>
+<tbody>
+<tr><td><code>$home</code></td><td>NPC 인스턴스의 <code>home_poi</code></td><td><code>AtHome</code></td></tr>
+<tr><td><code>$workplace</code></td><td>NPC 인스턴스의 <code>workplace_poi</code></td><td><code>AtWorkplace</code></td></tr>
+<tr><td><code>$nearest_field</code></td><td>가장 가까운 <code>type: field</code> POI</td><td><code>AtField</code></td></tr>
+<tr><td><code>$market</code> · <code>$nearest_safe</code> · …</td><td>부류별 최근접</td><td>그 POI 의 <code>grants</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">이것이 캐시를 성립시킨다</span>
+  같은 플랜 하나를 목동 <b>125명</b>이 공유하고, 각자 자기 집·자기 목초지로 간다.
+  심볼이 없으면 NPC 마다 다른 플랜이 필요하고, 그러면 캐시가 성립하지 않는다.
+  <b>플랜 2,880개로 NPC 5,000마리를 돌리는 근거가 이 한 줄이다.</b>
+</div>
+
+<h2 id="apply">얹는다</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch06_plan/apply.ps1
+
+① 플랜 교체 — fb_shepherd_v2 (정상)
+   lab/ch06/masterdata/fallback_plans.json
+
+② 검증
+     OK   액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14
+   <span class="hl">검증 통과 (V1~V11, 건너뜀 1건)</span>
+
+검증 통과 — 이제 돌려서 눈으로 본다:
+   dotnet run -c Release --project src/Npc.Host -- `
+       --loopback --npcs 20 --time-scale 60 --days 1 --no-llm --port 5080 `
+       --masterdata C:\…\lab\ch06\masterdata
+   ./samples/ch02_watch/watch-npc.ps1 -Npc 7 -Seconds 60</code></pre>
+</div>
+
+<div class="warn">
+  <span class="tag">폴백을 보려면 버킷을 비워야 한다</span>
+  <code>planstore/plans/</code> 에 그 NPC 의 버킷 플랜이 있으면 <b>그쪽이 이긴다</b> —
+  폴백은 말 그대로 <b>최후 보루</b>라 캐시가 비었을 때만 나온다.
+  내가 쓴 폴백을 확인하려면 스토어를 비운 채로 돌린다.
+  <pre style="margin:8px 0 0"><code>--planstore ./nonexistent</code></pre>
+</div>
+
+<h2 id="run">돌려서 본다</h2>
+
+<div class="term">
+  <span class="cap">실측 — 2장의 추적기, 배속 60, 35초</span>
+<pre><code>npc #7  shepherd
+  플랜 #17 [fallback]  goal=graze_store_and_sell  loop=True
+  스텝
+    0. MoveTo -&gt; NearestField   timeout 600s
+    1. Gather x5   ·   2. Gather x5   ·   3. MoveTo -&gt; Home
+    4. Store x5    ·   5. Eat         ·   6. MoveTo -&gt; Market
+    7. Trade x5    ·   8. MoveTo -&gt; Home  ·  9. Sleep
+──────────────────────────────────────────────────────────────
+[t=   135] step 2 Gather -&gt; 3 MoveTo(Home)
+[t=   135] inv <span class="hl">milk +5 (=5)</span>
+[t=   171] step 3 MoveTo(Home) -&gt; <span class="hl2">6 MoveTo(Market)</span>
+[t=   171] where pasture_001_12 -&gt; house_002_12
+[t=   171] flags +AtHome -AtField
+[t=   270] step 6 MoveTo(Market) -&gt; <span class="hl2">8 MoveTo(Home)</span>
+[t=   270] inv wool +5 (=10)
+[t=   305] step 0 MoveTo(NearestField) -&gt; 1 Gather
+[t=   305] flags +AtField -AtHome
+[t=   362] step 1 Gather -&gt; 2 Gather
+[t=   362] inv wool +5 (=15)
+[t=   412] step 2 Gather -&gt; 3 MoveTo(Home)
+[t=   412] inv milk +5 (=15)
+[t=   440] step 3 MoveTo(Home) -&gt; <span class="hl2">5 Eat</span>
+[t=   447] step 5 Eat -&gt; 6 MoveTo(Market)</code></pre>
+</div>
+
+<h3>여기서 볼 것 셋</h3>
+
+<ol class="steps">
+<li>
+  <b>내가 쓴 그대로 돈다</b>
+  <p>
+    <code>goal</code> 이름도, 스텝 목록도, <code>timeout_s</code> 도 파일에 쓴 값 그대로다.
+    <b>런타임은 이 배열을 첨자로 읽어 실행할 뿐</b> 아무것도 해석하지 않는다.
+  </p>
+</li>
+<li>
+  <b>스텝을 건너뛴다</b> <span class="pill warn">3 → 6 · 3 → 5 · 6 → 8</span>
+  <p>
+    <code>on_step_fail: "skip"</code> 이기 때문이다. <code>Store</code> 나 <code>Trade</code> 가
+    실패하면 그 스텝을 버리고 다음으로 간다.
+    <br>
+    <b>왜 실패하나?</b> <code>Trade</code> 는 <code>HasProduct</code> 나 <code>HasCoin</code> 중 하나를 요구하는데
+    양털은 <code>raw</code> 라 <code>HasProduct</code> 를 안 세운다. 코인이 떨어지면 팔 수가 없다.
+    <b>이런 것이 플랜을 손으로 쓸 때 걸리는 함정이고, 그래서 돌려 봐야 한다.</b>
+  </p>
+</li>
+<li>
+  <b>인벤토리가 스텝 완료 직후에만 움직인다</b>
+  <p>
+    <code>Gather</code> 가 끝난 틱에 <code>milk +5</code>. 틱 중간에 슬금슬금 오르지 않는다.
+    <b>상태 변화는 전부 스텝 경계에서 원자적으로</b> 일어난다.
+  </p>
+</li>
+</ol>
+
+<h2 id="break">부러뜨려 본다 — 네 가지</h2>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code>PS&gt; ./samples/ch06_plan/apply.ps1 -Lab ch06_x -Variant forbidden
+PS&gt; ./samples/ch06_plan/apply.ps1 -Lab ch06_x -Variant loop
+PS&gt; ./samples/ch06_plan/apply.ps1 -Lab ch06_x -Variant toolong
+PS&gt; ./samples/ch06_plan/apply.ps1 -Lab ch06_x -Variant precondition</code></pre>
+</div>
+
+<div class="term">
+  <span class="cap">실측 — 네 개가 서로 다른 층에서 걸린다</span>
+<pre><code><span class="cm">// ① 허용 안 된 액션 — 마스터데이터 규칙</span>
+FAIL V8  fallback_plans.json: 'fb_shepherd' 이 shepherd 에게 허용되지 않은 액션 'Mine' 을 쓴다.
+
+<span class="cm">// ② 순환하지 않는 폴백 — 마스터데이터 규칙</span>
+FAIL V7  fallback_plans.json: 'fb_shepherd' 이 loop:true 가 아니다. 폴백은 무한히 지속 가능해야 한다.
+
+<span class="cm">// ③ 스텝이 11개 — 플랜 검증기 1단 (Schema)</span>
+FAIL LOAD  fallback_plans.json: 'fb_shepherd' 이 검증기 <span class="hl2">Schema</span> 단에서 걸렸다.
+           <span class="hl3">V1.STEP_COUNT</span> (스텝 -1): 스텝이 11개다. 3~10 이어야 한다.
+
+<span class="cm">// ④ 전제조건 불성립 — 플랜 검증기 3단 (Coherence)</span>
+FAIL LOAD  fallback_plans.json: 'fb_shepherd' 이 검증기 <span class="hl2">Coherence</span> 단에서 걸렸다.
+           <span class="hl3">V3.PRECONDITION_UNMET</span> (스텝 0): Gather requires AtField but no preceding step
+           grants it. <span class="hl">Insert a MoveTo step with poi $nearest_field before it.</span>
+           State before this step: HasFood|HasWater|HasTool|HasCoin|IsDay|RegionPeaceful.</code></pre>
+</div>
+
+<h3>플랜 검증기 4단</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th style="width:110px">단계</th><th>무엇을 보는가</th><th>대표 실패</th></tr></thead>
+<tbody>
+<tr><td><b>1 Schema</b></td><td>모양이 맞나 — 스텝 수, 필수 필드, 값 범위</td><td><code>V1.STEP_COUNT</code></td></tr>
+<tr><td><b>2 Vocabulary</b></td><td>쓴 이름이 실재하나 — 액션·아이템·POI 심볼</td><td><code>V2.UNKNOWN_ACTION</code></td></tr>
+<tr><td><b>3 Coherence</b></td><td><b>이 순서로 실제 가능한가</b> — GOAP 시뮬로 플래그를 굴려 본다</td><td><code>V3.PRECONDITION_UNMET</code></td></tr>
+<tr><td><b>4 DryRun</b></td><td>Sim 월드에서 실제로 완주하나</td><td>도달 불가 · 정원 초과</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="ok">
+  <span class="tag">④번 메시지를 다시 읽는다</span>
+  <b>"Insert a MoveTo step with poi $nearest_field before it."</b>
+  <br>
+  이건 사람에게만 하는 말이 아니다. <b>LLM 이 실패했을 때 재시도 프롬프트에 그대로 실리는 문장</b>이다.
+  검증기가 "틀렸다"가 아니라 "이렇게 고쳐라"까지 말하도록 만든 이유가 그것이다 —
+  <b>재시도 1회로 통과율을 끌어올리려면 피드백이 구체적이어야 한다.</b> 18장에서 다시 만난다.
+</div>
+
+<div class="note">
+  <span class="tag">스텝 3~10 이라는 상한</span>
+  <p>
+    11스텝 플랜을 쓰면 <b>Schema 단에서 거절된다.</b> 왜 10인가 —
+    스텝이 길수록 LLM 출력이 길어지고(비용), 중간에 하나만 실패해도 뒤가 다 무너지고(견고성),
+    상황이 바뀌면 통째로 버려진다(재계획 낭비).
+  </p>
+  <p>
+    하루를 다 담고 싶으면 스텝을 늘리는 게 아니라 <b><code>loop: true</code> 로 반복</b>시키고
+    <b>시간대별로 다른 버킷 플랜</b>을 쓰는 것이 이 설계의 답이다.
+    아침 플랜과 저녁 플랜은 애초에 다른 캐시 키다.
+  </p>
+</div>
+
+<h2 id="narrate">사람 말로 읽어 본다</h2>
+
+<p>
+  플랜이 <b>의도대로 읽히는지</b>는 JSON 을 노려봐서는 알기 어렵다.
+  <code>Npc.Narrate</code> 가 기록을 사람 말로 풀어 준다.
+</p>
+
+<div class="term">
+  <span class="cap">터미널</span>
+<pre><code><span class="cm"># ① 링크를 기록하며 돌린다</span>
+PS&gt; dotnet run -c Release --project src/Npc.Host -- `
+      --link record --trace ./lab/ch06/day1.jsonl `
+      --npcs 20 --time-scale 60 --days 1 --no-llm --max-speed --no-dashboard `
+      --planstore ./nonexistent --masterdata C:\…\lab\ch06\masterdata
+
+<span class="cm"># ② 사람 말로 푼다</span>
+PS&gt; dotnet run -c Release --project tools/Npc.Narrate -- `
+      --trace ./lab/ch06/day1.jsonl --npc 7 --time-scale 60 --population 20</code></pre>
+</div>
+
+<p>
+  <b>읽어서 말이 되면 성공이다.</b> 이 도구가 "플랜을 사람이 검수할 수 있다"의 실물이고,
+  18장에서 LLM 이 만든 플랜을 검수할 때 같은 도구를 쓴다.
+</p>
+
+<h2 id="verify">확인한다</h2>
+
+<ul class="checks">
+  <li><code>apply.ps1</code> (변형 없이) 이 <b>검증 통과</b> 로 끝난다</li>
+  <li>추적기 머리말의 스텝 목록이 <b>내가 쓴 그대로</b>다</li>
+  <li><code>goal</code> 이 <code>graze_store_and_sell</code> 로 보인다</li>
+  <li>변형 4종이 각각 <b>V8 · V7 · Schema · Coherence</b> 에서 걸린다</li>
+  <li>Coherence 메시지가 <b>고치는 방법까지</b> 알려 준다</li>
+</ul>
+
+<h2 id="next">더 볼 것</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>무엇이 궁금하면</th><th>어디로</th></tr></thead>
+<tbody>
+<tr><td>플랜 DSL 전체 문법과 4단 검증기</td><td><a href="../book/ch04.html">코드 안내서 4장</a></td></tr>
+<tr><td>액션 37개의 <code>params</code>·<code>requires</code>·<code>grants</code></td><td><code>masterdata/actions.json</code> · <a href="../reference_masterdata.html">reference_masterdata.html</a></td></tr>
+<tr><td>스텝이 실행되는 상태기계</td><td><a href="../book/ch07.html">코드 안내서 7장</a></td></tr>
+<tr><td>LLM 이 이 형식을 어떻게 배우나</td><td>이 책 16~17장 · <a href="../book/ch08.html">코드 안내서 8장</a></td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+</div>
+<script src="tutorial.js"></script>
+</body>
+</html>
