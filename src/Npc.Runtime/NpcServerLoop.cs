@@ -110,6 +110,15 @@ public sealed class NpcServerLoop
     /// <summary>한 틱에 통로로 옮길 상한. 0 이면 <see cref="ReplanHandoff.DefaultPumpPerTick"/>.</summary>
     public int PumpPerTick { get; init; }
 
+    /// <summary>
+    /// 생존 신호 수신자 (A-03). 없으면 계측하지 않는다.
+    ///
+    /// <b>이벤트 대기에서 깨어날 때마다</b> 한 번 친다 — 틱마다가 아니다. 게임서버가
+    /// <c>TickSync</c> 를 멈추면 틱은 안 돌지만 루프는 살아 있고, 그 구별이 liveness 와
+    /// readiness 를 가르는 지점이다 (전자는 200, 후자는 503).
+    /// </summary>
+    public ILoopProbe? Probe { get; set; }
+
     /// <summary>처리한 틱 수.</summary>
     public long TicksProcessed { get; private set; }
 
@@ -142,8 +151,14 @@ public sealed class NpcServerLoop
     /// </summary>
     public async Task RunAsync(CancellationToken ct)
     {
+        // 대기에 들어가기 전에 한 번 친다. 이벤트가 영영 오지 않는 회차에서도
+        // "루프 스레드는 떴다" 가 참이어야 startup 프로브가 통과한다.
+        Probe?.Beat();
+
         while (await _link.Events.WaitToReadAsync(ct).ConfigureAwait(false))
         {
+            Probe?.Beat();
+
             // ── 1. 이벤트 배수 (멱등, N7) ────────────────────────────
             int drained = DrainEvents();
 

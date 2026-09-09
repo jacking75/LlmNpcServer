@@ -69,6 +69,10 @@ public readonly record struct NpcPanel(
 /// <param name="EventsDrained">배수한 이벤트.</param>
 /// <param name="EventGaps">시퀀스 갭 (N6).</param>
 /// <param name="EventBacklogs">한 틱 상한에 걸려 다음 틱으로 넘긴 횟수.</param>
+/// <param name="State">
+/// 링크 접속 상태 (A-03). <b>대시보드가 이것을 보기 전에는 Faulted 를 알 길이 없었다</b> —
+/// 통계는 전부 0 으로 멈추지만 그것은 "조용한 회차" 와 구별되지 않는다.
+/// </param>
 public readonly record struct LinkPanel(
     long CommandsEnqueued,
     long CommandsFlushed,
@@ -76,7 +80,8 @@ public readonly record struct LinkPanel(
     int PendingCommands,
     long EventsDrained,
     long EventGaps,
-    long EventBacklogs);
+    long EventBacklogs,
+    string State);
 
 /// <summary>티어 하나의 처리율. docs/14 §8 재계획 패널.</summary>
 /// <param name="Tier">티어 이름.</param>
@@ -674,7 +679,8 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         PendingCommands: stats.PendingCommands,
         EventsDrained: _loop.EventsDrained,
         EventGaps: _loop.EventGaps,
-        EventBacklogs: _loop.EventBacklogs);
+        EventBacklogs: _loop.EventBacklogs,
+        State: _link.State.ToString());
 
     /// <summary>
     /// 비용 패널. docs/14 §8 (T4-20).

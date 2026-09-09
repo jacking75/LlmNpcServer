@@ -63,11 +63,31 @@ Console.CancelKeyPress += (_, e) =>
 
 await using var host = NpcHost.Create(options, Console.Out);
 
-if (options.NoDashboard)
+// ── 링크 결함 감시 (A-03) ────────────────────────────────────────
+// Faulted 는 사람이 고쳐야 하는 상태다. 그대로 두면 소켓 태스크는 끝나고 틱 루프는 이벤트를
+// 기다리며 영원히 블록되는데, 프로세스는 살아 있어 오케스트레이터가 재시작하지 않는다.
+int exitCode = 0;
+
+using var faultPolicy = new LinkFaultPolicy(
+    options.OnLinkFault,
+    options.FaultGraceSeconds,
+    () => host.LinkRejectReason,
+    (code, reason) =>
+    {
+        exitCode = code;
+        Console.Error.WriteLine($"link-fault: {reason} (exit {code})");
+        lifetime.Cancel();
+    });
+
+faultPolicy.Attach(host.Link);
+
+host.Link.StateChanged += state => Console.Out.WriteLine($"link: {state}");
+
+if (options.NoDashboard && options.HealthPort is null)
 {
     await host.RunAsync(lifetime.Token);
     host.Report(Console.Out);
-    return 0;
+    return exitCode;
 }
 
 // ContentRoot 기본값은 <b>작업 폴더</b>다. 그러면 wwwroot/dashboard.html 을 찾는 자리가
@@ -79,10 +99,46 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationO
     ContentRootPath = AppContext.BaseDirectory,
 });
 
-builder.WebHost.UseUrls($"http://localhost:{options.Port}");
+// --health-port 를 주면 프로브 전용 리스너를 하나 더 연다 (A-03).
+// 대시보드·질의는 인증 뒤로 가고(A-06) 프로브만 무인증으로 남아야 하므로 포트를 가를 수 있다.
+var bindings = new List<string>(2);
+
+if (!options.NoDashboard)
+{
+    bindings.Add($"http://localhost:{options.Port}");
+}
+
+if (options.HealthPort is { } healthPort && healthPort != options.Port)
+{
+    bindings.Add($"http://localhost:{healthPort}");
+}
+else if (options.NoDashboard)
+{
+    bindings.Add($"http://localhost:{options.HealthPort ?? options.Port}");
+}
+
+builder.WebHost.UseUrls([.. bindings]);
 builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 WebApplication app = builder.Build();
+
+// ── 헬스체크 (A-03) ─────────────────────────────────────────────
+// --no-dashboard 여도 --health-port 를 주면 이 세 라우트만 뜬다.
+app.MapGet(HealthEndpoints.LiveRoute, () => Probe(host.Live()));
+app.MapGet(HealthEndpoints.ReadyRoute, () => Probe(host.Ready()));
+app.MapGet(HealthEndpoints.StartupRoute, () => Probe(host.Startup()));
+
+if (options.NoDashboard)
+{
+    await app.StartAsync(CancellationToken.None);
+    Console.Out.WriteLine($"health: http://localhost:{options.HealthPort}{HealthEndpoints.LiveRoute}");
+
+    await host.RunAsync(lifetime.Token);
+    host.Report(Console.Out);
+
+    await app.StopAsync(CancellationToken.None);
+    return exitCode;
+}
 
 app.MapGet("/", () => Results.Redirect("/dashboard"));
 app.MapGet("/status", () => host.Snapshot());
@@ -138,7 +194,12 @@ await host.RunAsync(lifetime.Token);
 host.Report(Console.Out);
 
 await app.StopAsync(CancellationToken.None);
-return 0;
+return exitCode;
+
+// 프로브 응답. fail 만 503 이고 나머지는 200 이다 — degraded 에 503 을 주면
+// 오케스트레이터가 "돌고는 있지만 완전하지 않은" 인스턴스를 로테이션에서 빼 버린다.
+static IResult Probe(HealthReport report) =>
+    Results.Json(report, statusCode: HealthEndpoints.StatusCode(report));
 
 /// <summary>
 /// 조립된 NPC 서버 한 벌. docs/11 §11.
@@ -269,6 +330,55 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>게임 시계.</summary>
     public GameClock Clock => _clock;
+
+    /// <summary>
+    /// 틱 루프 생존 계측 (A-03). 헬스 엔드포인트가 읽는다.
+    ///
+    /// 조립 시점에 루프에 붙이므로 프로세스 수명 내내 같은 인스턴스다.
+    /// </summary>
+    public HealthProbe Probe { get; } = new();
+
+    /// <summary>
+    /// 링크가 <c>Connected</c> 여야 하는 회차인가 (A-03).
+    ///
+    /// 루프백·널·재생은 소켓이 없으므로 readiness 에서 링크를 보지 않는다 —
+    /// 그 회차에서 링크를 요구하면 프로브가 영원히 503 이다.
+    /// </summary>
+    public bool LinkRequired => _tcp is not null;
+
+    /// <summary>핸드셰이크 거절 사유. 없으면 null. <c>/healthz/ready</c> 본문에 실린다.</summary>
+    public string? LinkRejectReason =>
+        _tcp is { RejectCode: not LinkRejectCode.None } tcp ? tcp.RejectCode.ToString() : null;
+
+    /// <summary>
+    /// 로드가 끝났는가. 조립이 끝난 시점에 참이다 — <see cref="Create"/> 가 마스터데이터와
+    /// 플랜 스토어를 동기로 읽고 나서야 인스턴스를 돌려주기 때문이다.
+    /// </summary>
+    public bool Loaded => true;
+
+    /// <summary>스냅샷 복원 판정 (A-01). 아직 스냅샷이 없으므로 "복원 대상 없음" 으로 끝난다.</summary>
+    public string RestoreDetail { get; internal set; } = "복원 대상 없음 (시드로 기동)";
+
+    /// <summary>liveness 판정.</summary>
+    public HealthReport Live() =>
+        HealthEndpoints.Live(Probe, _options.LiveStallSeconds * 1_000L);
+
+    /// <summary>readiness 판정. 틱 진행 관측을 겸한다.</summary>
+    public HealthReport Ready()
+    {
+        Probe.Observe(_clock.Current.Value);
+
+        return HealthEndpoints.Ready(
+            Probe,
+            Loaded,
+            _link.State,
+            LinkRequired,
+            _options.ReadyTickStallSeconds * 1_000L,
+            LinkRejectReason);
+    }
+
+    /// <summary>startup 판정.</summary>
+    public HealthReport Startup() => HealthEndpoints.Startup(Loaded, restoreDecided: true, RestoreDetail);
 
     /// <summary>
     /// TCP 링크를 만든다. docs/20 §10.3.
@@ -518,14 +628,19 @@ internal sealed class NpcHost : IAsyncDisposable
 
         loop.Observer = killSwitches;
 
+        var host = new NpcHost(
+            options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
+            meter, driver, nullLink, tcp, totalTicks, roster, tiers, switches);
+
+        // 생존 신호는 루프가 조립된 뒤에 붙인다 (A-03). Volatile 쓰기 하나라 틱 예산에 영향이 없다.
+        loop.Probe = host.Probe;
+
         log.WriteLine(
             $"npcs {npcs} · link {options.Link} · time-scale {options.TimeScale} · "
             + $"days {options.Days} ({(totalTicks == 0 ? "무제한" : totalTicks + " ticks")}) · "
             + $"버킷 {plans.FilledBuckets}/{BucketKey.TotalKeys} · {tiers.Describe()}");
 
-        return new NpcHost(
-            options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
-            meter, driver, nullLink, tcp, totalTicks, roster, tiers, switches);
+        return host;
     }
 
     /// <summary>
@@ -626,6 +741,8 @@ internal sealed class NpcHost : IAsyncDisposable
         ReplanQueued: _replanQueue.Count,
         EventBacklogs: _loop.EventBacklogs,
         LlmCalls: _tiers.Stats?.Calls ?? 0,
+        LinkState: _link.State.ToString(),
+        LinkReject: LinkRejectReason,
         Link: _link.Stats);
 
     /// <summary>종료 요약. 게이트 러너가 이 숫자를 본다.</summary>
@@ -853,6 +970,8 @@ internal sealed class NpcHost : IAsyncDisposable
 /// <param name="ReplanQueued">재계획 큐 깊이.</param>
 /// <param name="EventBacklogs">한 틱 상한에 걸려 다음 틱으로 넘긴 횟수.</param>
 /// <param name="LlmCalls">LLM 호출 수. P1 에서는 항상 0 이다.</param>
+/// <param name="LinkState">링크 접속 상태 (A-03). <c>/status</c> 가 링크와 무관하게 200 이던 결손을 메운다.</param>
+/// <param name="LinkReject">핸드셰이크 거절 사유. 없으면 null.</param>
 /// <param name="Link">링크 통계.</param>
 internal readonly record struct HostSnapshot(
     long Tick,
@@ -871,6 +990,8 @@ internal readonly record struct HostSnapshot(
     int ReplanQueued,
     long EventBacklogs,
     long LlmCalls,
+    string LinkState,
+    string? LinkReject,
     LinkStats Link);
 
 /// <summary>게임서버 대역 한 벌. Sim 하위 시뮬을 조립하고 틱마다 민다.</summary>

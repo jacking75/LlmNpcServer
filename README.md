@@ -170,6 +170,11 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--weights A\|B\|C\|D` | 재계획 점수 가중치 세트 (기본 B. A/B 결과는 `reference_metrics.html` §11) |
 | `--scan-cap N` | 인지 스캔 틱당 상한. 0=해제. **측정 전용** |
 | `--dev-control` | `POST /control/killswitch` 를 연다 (기본 꺼짐. 데모용) |
+| `--on-link-fault exit\|wait` | 링크가 `Faulted` 로 가면 어떻게 할까 (기본 `exit` → 종료 코드 3) |
+| `--fault-grace-s N` | `Faulted` 진입 후 종료까지 유예 초 (기본 5) |
+| `--live-stall-s N` | `/healthz/live` 가 허용하는 루프 정지 초 (기본 30) |
+| `--ready-tick-stall-s N` | `/healthz/ready` 가 허용하는 틱 정지 초 (기본 10) |
+| `--health-port N` | 프로브 전용 포트. `--no-dashboard` 와 함께 쓰면 프로브 세 라우트만 뜬다 |
 
 ---
 
@@ -242,6 +247,7 @@ docs/               설계 사양 (아래)
 | [`docs/testbed_guide.html`](docs/testbed_guide.html) | **게임서버 연동 테스트 안내서.** 아키텍처 그림 · 핸드셰이크·틱 루프 애니메이션 · 무엇을 바꾸며 테스트하나 · 코드 분석 순서 |
 | [`testbed/README.md`](testbed/README.md) | **데모 띄우는 법** — 한 줄 실행 · 포트 · 화면 보는 법 · 알려진 한계 |
 | [`LLM_NPC_Server_Plan.md`](LLM_NPC_Server_Plan.md) | 상위 계획 · 타당성 판단 · 아키텍처 · 비용 분석 · 리스크 대장 |
+| [`PRODUCTION_ROADMAP.md`](PRODUCTION_ROADMAP.md) | **상용 투입 로드맵.** 상용 결손 진단 · 태스크 50건(체크리스트) · 구현 방법 · LLM 온보딩 · NPC 정의 툴 |
 | [`docs/measurements/`](docs/measurements/) | 실측 **원자료** (jsonl · csv). 보고서는 `reference_metrics.html` 로 옮겼다 |
 
 코드를 고친다면 [`CLAUDE.md`](CLAUDE.md)(규칙)와 [`CODEMAP.md`](CODEMAP.md)(무엇을 하려면 어디를 여는가)를 먼저 읽는다.

@@ -36,6 +36,39 @@ public sealed class HostOptionsTests
         Assert.Equal(8, options.T2Workers);
         Assert.Null(options.T1Engine);
         Assert.Null(options.T2Engine);
+
+        // A-03 — 프로브·결함 정책의 기본값.
+        Assert.Equal(LinkFaultAction.Exit, options.OnLinkFault);
+        Assert.Equal(5, options.FaultGraceSeconds);
+        Assert.Equal(30, options.LiveStallSeconds);
+        Assert.Equal(10, options.ReadyTickStallSeconds);
+        Assert.Null(options.HealthPort);
+    }
+
+    [Fact]
+    public void HealthOptions_Parse()
+    {
+        HostOptions options = Parse(
+            "--on-link-fault", "wait",
+            "--fault-grace-s", "12",
+            "--live-stall-s", "45",
+            "--ready-tick-stall-s", "7",
+            "--health-port", "5099");
+
+        Assert.Equal(LinkFaultAction.Wait, options.OnLinkFault);
+        Assert.Equal(12, options.FaultGraceSeconds);
+        Assert.Equal(45, options.LiveStallSeconds);
+        Assert.Equal(7, options.ReadyTickStallSeconds);
+        Assert.Equal(5099, options.HealthPort);
+    }
+
+    [Fact]
+    public void OnLinkFault_RejectsUnknownValue()
+    {
+        Assert.False(
+            HostOptions.TryParse(["--on-link-fault", "restart"], out _, out string? error));
+
+        Assert.Contains("--on-link-fault", error!, StringComparison.Ordinal);
     }
 
     /// <summary>T4-15 — 티어 축을 인자만으로 가른다 (docs/14 §6).</summary>

@@ -89,6 +89,8 @@
 | **CLI 옵션 추가** | `src/Npc.Host/HostOptions.cs` (643줄) → `tests/Npc.Tests/Host/HostOptionsTests.cs` |
 | **메트릭 · `/metrics` 대시보드** | `src/Npc.Host/Metrics/NpcMeter.cs` (722줄) |
 | **NPC 하나를 추적하고 싶다** | `src/Npc.Host/Api/NpcTraceEndpoint.cs` |
+| **헬스체크 · 죽었는지 살았는지** | `src/Npc.Host/Api/HealthEndpoints.cs` (`/healthz/live`·`ready`·`startup`) · 루프 하트비트는 `src/Npc.Runtime/ILoopProbe.cs` |
+| **링크가 `Faulted` 인데 프로세스가 안 죽는다** | `src/Npc.Host/LinkFaultPolicy.cs` (`--on-link-fault`) |
 | **시나리오 주입 · 킬스위치** | `src/Npc.Sim/ScenarioRunner.cs` · `src/Npc.Core/KillSwitch.cs` · `src/Npc.Host/KillSwitchSchedule.cs` · `scenarios/*.jsonl` |
 
 ### 시뮬 · 테스트 베드

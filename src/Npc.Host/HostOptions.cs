@@ -188,6 +188,32 @@ public sealed record HostOptions
     /// </summary>
     public bool DevControl { get; init; }
 
+    /// <summary>
+    /// 링크가 <c>Faulted</c> 로 갔을 때 무엇을 할까 (A-03). 기본 <c>exit</c>.
+    ///
+    /// <b>기본이 종료인 이유.</b> 핸드셰이크 거절은 사람이 고쳐야 하는 상태이고, 프로세스가
+    /// 살아 있으면 오케스트레이터가 재시작하지 않는다 — 좀비로 남는다.
+    /// </summary>
+    public LinkFaultAction OnLinkFault { get; init; } = LinkFaultAction.Exit;
+
+    /// <summary><c>Faulted</c> 진입 후 종료까지의 유예(초). 기본 5.</summary>
+    public int FaultGraceSeconds { get; init; } = 5;
+
+    /// <summary>liveness 가 허용하는 루프 정지(초). 기본 30.</summary>
+    public int LiveStallSeconds { get; init; } = 30;
+
+    /// <summary>readiness 가 허용하는 틱 정지(초). 기본 10.</summary>
+    public int ReadyTickStallSeconds { get; init; } = 10;
+
+    /// <summary>
+    /// 프로브 전용 포트 (A-03). null 이면 <see cref="Port"/> 하나로 같이 낸다.
+    ///
+    /// <b><c>--no-dashboard</c> 와 함께 주면 프로브 세 라우트만 뜬다.</b> 대시보드·질의 API 는
+    /// 토큰 뒤로 가고(A-06) 프로브만 무인증으로 남아야 해서 포트를 가를 수 있게 둔다.
+    /// 주지 않으면 포트를 물지 않는다 — 헤드리스 스모크가 병렬로 도는 회차를 깨지 않는다.
+    /// </summary>
+    public int? HealthPort { get; init; }
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -224,7 +250,12 @@ public sealed record HostOptions
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
-          --no-dashboard          웹 호스트를 띄우지 않는다
+          --no-dashboard          웹 호스트를 띄우지 않는다 (헬스 라우트는 계속 뜬다)
+          --on-link-fault exit|wait  링크 Faulted 정책 (기본 exit → 종료 코드 3)
+          --fault-grace-s N       Faulted 후 종료까지 유예 초 (기본 5)
+          --live-stall-s N        /healthz/live 가 허용하는 루프 정지 초 (기본 30)
+          --ready-tick-stall-s N  /healthz/ready 가 허용하는 틱 정지 초 (기본 10)
+          --health-port N         프로브 전용 포트. --no-dashboard 와 함께 쓰면 프로브만 뜬다
           -h, --help              이 도움말
         """;
 
@@ -541,6 +572,58 @@ public sealed record HostOptions
 
                 case "--dev-control":
                     result = result with { DevControl = true };
+                    break;
+
+                case "--on-link-fault":
+                    if (!TryValue(args, ref i, arg, out string? fault, out error)
+                        || !Enum.TryParse(fault, ignoreCase: true, out LinkFaultAction faultAction))
+                    {
+                        error ??= $"--on-link-fault 값이 잘못됐다: '{fault}'. exit|wait 중 하나다.";
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { OnLinkFault = faultAction };
+                    break;
+
+                case "--fault-grace-s":
+                    if (!TryInt(args, ref i, arg, 0, 3_600, out int faultGrace, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { FaultGraceSeconds = faultGrace };
+                    break;
+
+                case "--live-stall-s":
+                    if (!TryInt(args, ref i, arg, 1, 86_400, out int liveStall, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { LiveStallSeconds = liveStall };
+                    break;
+
+                case "--health-port":
+                    if (!TryInt(args, ref i, arg, 1, 65_535, out int healthPort, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { HealthPort = healthPort };
+                    break;
+
+                case "--ready-tick-stall-s":
+                    if (!TryInt(args, ref i, arg, 1, 86_400, out int readyStall, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { ReadyTickStallSeconds = readyStall };
                     break;
 
                 case "--gs-host":

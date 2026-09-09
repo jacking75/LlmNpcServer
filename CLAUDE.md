@@ -30,6 +30,7 @@
 | `docs/startup_flow.html` | 기동 흐름 |
 | `docs/testbed_guide.html` | 테스트 베드 · 게임서버 연동 시험 |
 | `docs/FAQ.html` | 도입·행동 플랜·전투 반응·대화 확장 |
+| **`PRODUCTION_ROADMAP.md`** | **상용 투입 로드맵 — 결손 태스크 50건(체크리스트)·구현 방법·LLM 온보딩·NPC 정의 툴. 유일한 작업 지시서** |
 
 ★ **`reference_link.html` · `reference_masterdata.html` 을 읽지 않고 계약·마스터데이터를 건드리지
 않는다.** 타입 이름·ID 체계·스키마가 전부 여기 있다.

@@ -1,5 +1,33 @@
 # 작업 로그
 
+## 2026-09-10 01:31 KST · A-03 헬스체크 · `LinkState` 노출 · `Faulted` 좀비 제거
+
+오케스트레이터가 재시작시킬 근거를 만들었다. 지금까지는 핸드셰이크가 거절되면 소켓 태스크가 조용히
+끝나고 틱 루프는 이벤트를 기다리며 영원히 블록됐는데 `/status` 는 200 이었다.
+
+- **신규** `src/Npc.Runtime/ILoopProbe.cs`(루프 하트비트 · `Volatile.Write` 하나) ·
+  `src/Npc.Host/Api/HealthEndpoints.cs`(`/healthz/live`·`ready`·`startup`) ·
+  `src/Npc.Host/LinkFaultPolicy.cs`(`Faulted` → 유예 뒤 종료 코드 3).
+- `NpcServerLoop` 이 이벤트 대기에서 깨어날 때마다 `Probe.Beat()`. 벽시계 환산은 호스트가 한다.
+- `/status` 에 `linkState`·`linkReject`, `/metrics` 의 링크 패널에 `state` 를 실었다.
+- 옵션 5개 — `--on-link-fault exit|wait` · `--fault-grace-s` · `--live-stall-s` ·
+  `--ready-tick-stall-s` · `--health-port`(`--no-dashboard` 와 함께 쓰면 프로브만 뜬다).
+- 테스트 15건 추가. 전체 1,064건 통과 · 경고 0.
+
+## 2026-09-10 00:06 KST · 상용 투입 로드맵 문서 작성 — `PRODUCTION_ROADMAP.md`
+
+상용 온라인 게임 서버 투입 관점에서 저장소 전체를 조사해 결손을 진단하고 태스크 50건을 정의했다.
+
+- **신규** `PRODUCTION_ROADMAP.md`(2,052줄) — 상단 체크리스트(트랙 A 운영 · B 계약 · C LLM 운영 · D 대화·기억 ·
+  E LLM 온보딩 · F NPC 정의 툴 · G 품질·판정), 마일스톤·의존 그래프, 영역별 현재 상태 진단(근거 `파일:줄`),
+  태스크별 상세(왜 → 현재 → 설계 → 구현 절차 → 문서 변경 → 테스트 → 완료 조건 → 절대 규칙 충돌 확인 → 크기·의존).
+- 진단 요지 — 게임 로직·LLM 통합은 테스트로 눌려 있으나 **운영 층(영속성·SIGTERM·헬스체크·인증/TLS·핫 리로드·
+  샤딩·배포)**, **LLM 운영 배관(제공사 페일오버·알람·프롬프트 버저닝·평가 파이프라인)**, **오써링 도구(GUI·스키마·
+  code 할당·파생물 감지·검수)** 가 통째로 없다.
+- LLM 이 이 서버를 잘 쓰게 하는 방법(§8): `docs/llm/` 온보딩 팩 · JSON Schema 발행 · MCP 서버 · 기계가 읽는 검증 출력 ·
+  요청 템플릿 5종 · 에이전트 벤치마크. NPC 정의 툴(§9): `npc` CLI · NPC Studio · 설명 생성기(카드) · 편집 안전장치 · 검수 v2.
+- `CLAUDE.md` 문서 지도와 `README.md` 문서 표에 링크를 추가했다. 코드 변경 없음.
+
 ## 2026-08-07 00:36 KST · 활용 실습서 완성 — 3~6부(10~20장) · 부록 · 예제 11종
 
 남은 전부를 썼다. 예제를 실제로 만들어 돌리고 그 출력을 실었다.
