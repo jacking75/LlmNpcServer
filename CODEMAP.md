@@ -86,7 +86,8 @@
 | 하려는 일 | 여는 곳 |
 |---|---|
 | **기동 순서 · 무엇이 어디에 꽂히나** | `src/Npc.Host/Program.cs` (905줄 — **조립의 유일한 자리**) · 그림은 `docs/startup_flow.html` |
-| **CLI 옵션 추가** | `src/Npc.Host/HostOptions.cs` (643줄) → `tests/Npc.Tests/Host/HostOptionsTests.cs` |
+| **CLI 옵션 추가** | `src/Npc.Host/HostOptions.cs` → `src/Npc.Host/Config/HostOptionsSource.cs` 의 옵션 표에도 한 줄 (환경변수·설정 파일이 그것을 본다) → `tests/Npc.Tests/Host/HostOptionsTests.cs` |
+| **환경변수·설정 파일로 옵션을 주고 싶다** | `src/Npc.Host/Config/HostOptionsSource.cs` (CLI > 환경변수 > 파일) · 탐색 기준은 `Config/ConfigPaths.cs` |
 | **메트릭 · `/metrics` 대시보드** | `src/Npc.Host/Metrics/NpcMeter.cs` (722줄) |
 | **NPC 하나를 추적하고 싶다** | `src/Npc.Host/Api/NpcTraceEndpoint.cs` |
 | **헬스체크 · 죽었는지 살았는지** | `src/Npc.Host/Api/HealthEndpoints.cs` (`/healthz/live`·`ready`·`startup`) · 루프 하트비트는 `src/Npc.Runtime/ILoopProbe.cs` |

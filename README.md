@@ -162,6 +162,9 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--masterdata <dir>` | 마스터데이터 디렉터리 (기본 `./masterdata`) |
 | `--seed N` | Sim 시드 (기본 20260725) |
 | `--port N` | 대시보드·메트릭 포트 (기본 5080) |
+| `--bind <addr>` | 웹 호스트 바인드 주소 (기본 `127.0.0.1`). `0.0.0.0` 은 `NPC_ADMIN_TOKEN` 이 있을 때만 |
+| `--config <path>` | 설정 파일. 안 주면 `npc.settings.json` 을 실행 파일·작업 폴더에서 찾는다 |
+| `--profile dev\|service` | 실행 프로파일. `service` 는 `--days 0` 을 강제한다 |
 | `--max-speed` | 10Hz 페이싱 없이 최대 속도로. 부하·게이트 측정용 |
 | `--no-dashboard` | 웹 호스트를 띄우지 않는다 |
 | `--gs-host <host>` / `--gs-port N` | 게임서버 주소 (기본 `127.0.0.1:7010`). `--link tcp` 전용 |
@@ -175,6 +178,24 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--live-stall-s N` | `/healthz/live` 가 허용하는 루프 정지 초 (기본 30) |
 | `--ready-tick-stall-s N` | `/healthz/ready` 가 허용하는 틱 정지 초 (기본 10) |
 | `--health-port N` | 프로브 전용 포트. `--no-dashboard` 와 함께 쓰면 프로브 세 라우트만 뜬다 |
+
+**설정 소스는 세 겹이다** (A-04). 우선순위 **CLI > 환경변수 > 설정 파일 > 기본값**.
+
+- 환경변수 이름은 옵션 이름에서 도출한다 — `--gs-host` 는 `NPC_GS_HOST`, `--time-scale` 은 `NPC_TIME_SCALE`.
+  스위치는 `1`·`true`·`yes`·`on` 이면 켜진다.
+- 설정 파일은 평면 JSON 이고 키는 옵션 이름에서 앞의 `--` 를 뺀 것이다.
+  `profiles.<이름>` 절을 두면 `--profile` 로 고른 절이 최상위를 덮는다.
+  **모르는 키는 기동 실패다** — 오타 난 키를 조용히 무시하면 "설정했는데 안 먹는다" 가 된다.
+
+```json
+{
+  "npcs": 500,
+  "time-scale": 60,
+  "profiles": {
+    "service": { "link": "tcp", "npcs": 5000, "bind": "0.0.0.0", "health-port": 5081 }
+  }
+}
+```
 
 ---
 

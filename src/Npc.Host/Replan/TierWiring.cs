@@ -2,6 +2,7 @@ using Microsoft.Extensions.AI;
 using Npc.Contracts;
 using Npc.Core;
 using Npc.Core.Plan;
+using Npc.Host.Config;
 using Npc.Llm;
 using Npc.MasterData;
 using Npc.Planning;
@@ -85,16 +86,28 @@ internal sealed class TierWiring : IAsyncDisposable
             return new TierWiring(TierMode.None);
         }
 
+        // 탐색 기준은 ConfigPaths 한 곳이다 (A-04). 예전에는 작업 폴더 기준이라
+        // 같은 빌드가 실행 방식에 따라 다른 파일을 읽었고, 로그에는 무엇을 읽었는지 없었다.
+        string? llmPath = ConfigPaths.Resolve(LlmOptions.FileName);
+
+        if (llmPath is null)
+        {
+            log.WriteLine($"warn: {LlmOptions.FileName} 을 찾지 못해 --tier {options.Tier} 를 끈다.");
+            return new TierWiring(TierMode.None);
+        }
+
         LlmOptions llm;
         try
         {
-            llm = LlmOptions.LoadDefault(Directory.GetCurrentDirectory());
+            llm = LlmOptions.Load(llmPath);
         }
         catch (FileNotFoundException)
         {
             log.WriteLine($"warn: {LlmOptions.FileName} 을 찾지 못해 --tier {options.Tier} 를 끈다.");
             return new TierWiring(TierMode.None);
         }
+
+        log.WriteLine($"llm-config: {llmPath}");
 
         var stats = new CompileStatsCollector();
         var budget = new ReplanBudget(

@@ -1,5 +1,20 @@
 # 작업 로그
 
+## 2026-09-10 01:52 KST · A-04 설정 소스 통합 · 바인드 주소 · 프로파일
+
+옵션 30개를 배포 시스템(환경변수·ConfigMap·시크릿)으로 넘길 길이 없었다.
+`localhost` 고정 바인드는 컨테이너에서 외부 도달이 안 됐다.
+
+- **신규** `src/Npc.Host/Config/HostOptionsSource.cs`(옵션 표 · 환경변수·파일 → 합성 argv) ·
+  `Config/ConfigPaths.cs`(탐색 기준 통일).
+- 우선순위 **CLI > 환경변수(`NPC_*`) > 설정 파일(`npc.settings.json`) > 기본값**.
+  파서는 하나 그대로다 — 합성 argv 를 앞에 붙이는 방식이라 "뒤가 이긴다" 만으로 성립한다.
+- `--bind`(기본 `127.0.0.1`) · `--config` · `--profile dev|service`. 와일드카드 바인드는
+  `NPC_ADMIN_TOKEN` 이 있을 때만 열린다. `service` 는 `--days 0` 을 강제한다.
+- 설정 파일의 모르는 키는 기동 실패. `profiles.<이름>` 절이 최상위를 덮는다.
+- `appsettings.Llm.json` 탐색을 `ConfigPaths` 로 옮기고 읽은 경로를 기동 로그에 적는다.
+- 테스트 11건 추가. 전체 1,075건 통과 · 경고 0.
+
 ## 2026-09-10 01:31 KST · A-03 헬스체크 · `LinkState` 노출 · `Faulted` 좀비 제거
 
 오케스트레이터가 재시작시킬 근거를 만들었다. 지금까지는 핸드셰이크가 거절되면 소켓 태스크가 조용히

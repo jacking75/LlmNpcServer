@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using Npc.Host.Config;
 
 namespace Npc.Host;
 
@@ -45,6 +46,25 @@ public enum TierMode
 
     /// <summary>T0 + T1 + T2 — 전부.</summary>
     All = 3,
+}
+
+/// <summary>
+/// 실행 프로파일 (A-04 · A-02).
+///
+/// 옵션 30개를 매번 정확히 주는 것은 사람의 일이 아니다. 프로파일은 "운영에서 반드시 이래야
+/// 하는 값" 을 묶어 강제한다 — 특히 <c>--days</c> 기본값 1 이 운영 프로세스를 24분 뒤
+/// exit 0 으로 조용히 사라지게 하는 함정을 막는다.
+/// </summary>
+public enum HostProfile
+{
+    /// <summary>개발 (기본). 지금까지의 동작 그대로다.</summary>
+    Dev,
+
+    /// <summary>
+    /// 서비스. <c>--days 0</c>(무제한)을 강제하고 스냅샷·복원을 켠다.
+    /// 대시보드는 끄지 않는다 — 헬스 프로브가 필요하다 (A-03).
+    /// </summary>
+    Service,
 }
 
 /// <summary>
@@ -214,6 +234,27 @@ public sealed record HostOptions
     /// </summary>
     public int? HealthPort { get; init; }
 
+    /// <summary>
+    /// 웹 호스트 바인드 주소 (A-04). 기본 <c>127.0.0.1</c>.
+    ///
+    /// <b><c>0.0.0.0</c> 은 관리 토큰(<c>NPC_ADMIN_TOKEN</c>)이 있을 때만 허용한다</b> —
+    /// 상태를 바꾸는 HTTP 를 무인증으로 외부에 여는 것은 사고이지 설정이 아니다.
+    /// 검사는 <see cref="TryValidateBind"/> 가 한다.
+    /// </summary>
+    public string Bind { get; init; } = "127.0.0.1";
+
+    /// <summary>실행 프로파일 (A-04). <c>service</c> 는 운영 필수값을 강제한다.</summary>
+    public HostProfile Profile { get; init; } = HostProfile.Dev;
+
+    /// <summary>설정 파일 경로. null 이면 <c>npc.settings.json</c> 을 실행 파일·작업 폴더에서 찾는다.</summary>
+    public string? ConfigPath { get; init; }
+
+    /// <summary><c>--days</c> 를 명시했는가. 프로파일 경고가 이 값으로 갈린다 (A-02).</summary>
+    public bool DaysSpecified { get; init; }
+
+    /// <summary>읽은 설정 파일 경로. 없으면 null. 기동 로그에 적는다.</summary>
+    public string? LoadedConfigPath { get; init; }
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -247,6 +288,10 @@ public sealed record HostOptions
           --planstore <dir>       프리베이크된 플랜 스토어 (기본 ./planstore). 없으면 폴백만
           --seed N                Sim 시드 (기본 20260725)
           --port N                대시보드·메트릭 포트 (기본 5080)
+          --bind <addr>           웹 호스트 바인드 주소 (기본 127.0.0.1).
+                                  0.0.0.0 은 NPC_ADMIN_TOKEN 이 있을 때만 허용한다
+          --config <path>         설정 파일 (기본 npc.settings.json 을 자동 탐색)
+          --profile dev|service   실행 프로파일. service 는 --days 0 을 강제한다
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
@@ -728,7 +773,7 @@ public sealed record HostOptions
                         return false;
                     }
 
-                    result = result with { Days = days };
+                    result = result with { Days = days, DaysSpecified = true };
                     break;
 
                 case "--player-bots":
@@ -749,6 +794,38 @@ public sealed record HostOptions
                     }
 
                     result = result with { Port = port };
+                    break;
+
+                case "--bind":
+                    if (!TryValue(args, ref i, arg, out string? bind, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { Bind = bind! };
+                    break;
+
+                case "--config":
+                    if (!TryValue(args, ref i, arg, out string? config, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { ConfigPath = config };
+                    break;
+
+                case "--profile":
+                    if (!TryValue(args, ref i, arg, out string? profile, out error)
+                        || !Enum.TryParse(profile, ignoreCase: true, out HostProfile hostProfile))
+                    {
+                        error ??= $"--profile 값이 잘못됐다: '{profile}'. dev|service 중 하나다.";
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { Profile = hostProfile };
                     break;
 
                 case "--weights":
@@ -815,7 +892,105 @@ public sealed record HostOptions
             return false;
         }
 
+        // 서비스 프로파일은 무제한 실행을 강제한다 (A-04). --days 1 기본값을 그대로 두면
+        // 배속 60 에서 실시간 24분 뒤 exit 0 으로 조용히 사라진다.
+        if (result.Profile == HostProfile.Service)
+        {
+            result = result with { Days = 0 };
+        }
+
         options = result;
+        return true;
+    }
+
+    /// <summary>
+    /// 세 소스를 합쳐 파싱한다 (A-04). 우선순위 <b>CLI &gt; 환경변수 &gt; 설정 파일 &gt; 기본값</b>.
+    ///
+    /// 합성 argv 를 앞에 붙이는 방식이다 — 파서는 하나뿐이고, 뒤에 온 값이 앞의 값을 덮는
+    /// 성질만으로 우선순위가 성립한다.
+    /// </summary>
+    /// <param name="args">실제 명령줄 인자.</param>
+    /// <param name="env">환경변수. null 이면 현재 프로세스의 것을 읽는다.</param>
+    /// <param name="options">파싱 결과.</param>
+    /// <param name="error">실패 사유.</param>
+    public static bool TryParseLayered(
+        string[] args,
+        IReadOnlyDictionary<string, string?>? env,
+        out HostOptions options,
+        out string? error)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        options = new HostOptions();
+        env ??= HostOptionsSource.CurrentEnvironment();
+
+        // 파일 경로와 프로파일은 CLI·환경변수로만 정한다. 설정 파일이 자기 경로를 정하는
+        // 순환은 만들지 않는다.
+        string[] envArgs = HostOptionsSource.FromEnv(env);
+
+        if (!TryParse([.. envArgs, .. args], out HostOptions bootstrap, out error))
+        {
+            return false;
+        }
+
+        if (bootstrap.Help)
+        {
+            options = bootstrap;
+            return true;
+        }
+
+        string? path = HostOptionsSource.Locate(
+            bootstrap.ConfigPath, HostOptionsSource.DefaultFileName);
+
+        if (bootstrap.ConfigPath is not null && path is null)
+        {
+            error = $"설정 파일을 찾지 못했다: {bootstrap.ConfigPath}";
+            return false;
+        }
+
+        string[] fileArgs = [];
+
+        if (path is not null && !HostOptionsSource.TryFromFile(
+                path,
+                bootstrap.Profile.ToString().ToLowerInvariant(),
+                out fileArgs,
+                out error))
+        {
+            return false;
+        }
+
+        if (!TryParse([.. fileArgs, .. envArgs, .. args], out options, out error))
+        {
+            return false;
+        }
+
+        options = options with { LoadedConfigPath = path };
+        return true;
+    }
+
+    /// <summary>
+    /// 바인드 주소가 허용되는지 본다 (A-04).
+    ///
+    /// 와일드카드 바인드는 관리 토큰이 있을 때만 연다. 토큰 없이 <c>0.0.0.0</c> 을 허용하면
+    /// 킬스위치·리로드를 누구나 부를 수 있는 포트가 열린다.
+    /// </summary>
+    /// <param name="adminToken">관리 토큰. 없으면 null.</param>
+    /// <param name="error">실패 사유.</param>
+    public bool TryValidateBind(string? adminToken, out string? error)
+    {
+        error = null;
+
+        bool wildcard = Bind is "0.0.0.0" or "*" or "[::]" or "::";
+
+        if (wildcard && string.IsNullOrEmpty(adminToken))
+        {
+            error =
+                $"--bind {Bind} 는 NPC_ADMIN_TOKEN 없이는 열지 않는다. "
+                + "토큰을 주거나 --bind 127.0.0.1 로 둔다.";
+
+            return false;
+        }
+
         return true;
     }
 

@@ -29,7 +29,9 @@ if (args.Length > 0 && args[0] == ValidateCommand.Name)
     return ValidateCommand.Run(args[1..], Console.Out);
 }
 
-if (!HostOptions.TryParse(args, out HostOptions options, out string? parseError))
+// 설정은 세 겹이다 (A-04): CLI > 환경변수(NPC_*) > 설정 파일(npc.settings.json) > 기본값.
+// 배포 시스템이 ConfigMap·시크릿으로 넘길 길이 없으면 옵션 30개가 전부 손으로 친 명령줄이 된다.
+if (!HostOptions.TryParseLayered(args, env: null, out HostOptions options, out string? parseError))
 {
     Console.Error.WriteLine(parseError);
     Console.Error.WriteLine();
@@ -52,6 +54,19 @@ if (!options.TryResolvePaths(out HostOptions resolved, out string? pathError))
 }
 
 options = resolved;
+
+// 와일드카드 바인드는 관리 토큰이 있을 때만 연다 (A-04). 토큰 없이 0.0.0.0 을 열면
+// 킬스위치·리로드를 누구나 부를 수 있는 포트가 생긴다.
+if (!options.TryValidateBind(Environment.GetEnvironmentVariable("NPC_ADMIN_TOKEN"), out string? bindError))
+{
+    Console.Error.WriteLine(bindError);
+    return 2;
+}
+
+if (options.LoadedConfigPath is { } configPath)
+{
+    Console.Out.WriteLine($"config: {configPath} (profile {options.Profile.ToString().ToLowerInvariant()})");
+}
 
 using var lifetime = new CancellationTokenSource();
 
@@ -105,16 +120,16 @@ var bindings = new List<string>(2);
 
 if (!options.NoDashboard)
 {
-    bindings.Add($"http://localhost:{options.Port}");
+    bindings.Add($"http://{options.Bind}:{options.Port}");
 }
 
 if (options.HealthPort is { } healthPort && healthPort != options.Port)
 {
-    bindings.Add($"http://localhost:{healthPort}");
+    bindings.Add($"http://{options.Bind}:{healthPort}");
 }
 else if (options.NoDashboard)
 {
-    bindings.Add($"http://localhost:{options.HealthPort ?? options.Port}");
+    bindings.Add($"http://{options.Bind}:{options.HealthPort ?? options.Port}");
 }
 
 builder.WebHost.UseUrls([.. bindings]);
@@ -131,7 +146,7 @@ app.MapGet(HealthEndpoints.StartupRoute, () => Probe(host.Startup()));
 if (options.NoDashboard)
 {
     await app.StartAsync(CancellationToken.None);
-    Console.Out.WriteLine($"health: http://localhost:{options.HealthPort}{HealthEndpoints.LiveRoute}");
+    Console.Out.WriteLine($"health: http://{options.Bind}:{options.HealthPort}{HealthEndpoints.LiveRoute}");
 
     await host.RunAsync(lifetime.Token);
     host.Report(Console.Out);
@@ -188,7 +203,7 @@ if (options.DevControl)
 }
 
 await app.StartAsync(CancellationToken.None);
-Console.Out.WriteLine($"dashboard: http://localhost:{options.Port}/dashboard");
+Console.Out.WriteLine($"dashboard: http://{options.Bind}:{options.Port}/dashboard");
 
 await host.RunAsync(lifetime.Token);
 host.Report(Console.Out);
