@@ -28,7 +28,7 @@ public sealed class SnapshotHostTests : IDisposable
         HostOptions options = Options();
 
         long snapshotTick;
-        ulong atSnapshot;
+        long finalTick;
 
         // 무제한으로 돌리다가 도중에 한 장 뜬다. --days 1 회차는 --max-speed 에서 1초도 안 걸려
         // 주기 스냅샷이 뜰 창이 없다 — "동작 중에" 뜨는 것이 이 기능의 전부이므로 그 창을 만든다.
@@ -50,7 +50,6 @@ public sealed class SnapshotHostTests : IDisposable
             Assert.True(written.Bytes > 0);
 
             snapshotTick = written.Tick;
-            atSnapshot = 0;
 
             await run.CancelAsync();
 
@@ -62,18 +61,21 @@ public sealed class SnapshotHostTests : IDisposable
             {
                 // 취소로 끝난다. 정상이다.
             }
+
+            // 정상 종료 시퀀스가 마지막 한 장을 더 쓴다 (A-02 2단계) — 그것이 최신이다.
+            finalTick = first.Snapshots.LastTick;
         }
 
         Assert.True(snapshotTick > 0, "스냅샷 틱이 0 이다");
-        _ = atSnapshot;
+        Assert.True(finalTick >= snapshotTick, $"종료 스냅샷 {finalTick} 이 중간 스냅샷 {snapshotTick} 보다 오래됐다");
 
         await using NpcHost second = NpcHost.Create(options with { Days = 0 }, TextWriter.Null);
 
         Assert.True(second.Restore.Restored, second.RestoreDetail);
-        Assert.Equal(snapshotTick, second.Restore.Tick);
+        Assert.Equal(finalTick, second.Restore.Tick);
 
         // 시계까지 이어진다 — 재기동해도 게임 시각이 새벽 6시로 돌아가지 않는다.
-        Assert.Equal(snapshotTick, second.Clock.Current.Value);
+        Assert.Equal(finalTick, second.Clock.Current.Value);
 
         // 진행 중이던 스텝은 재발행 대기로 돌아간다 (N7 — MoveTo 재발행은 멱등이다).
         Assert.DoesNotContain(

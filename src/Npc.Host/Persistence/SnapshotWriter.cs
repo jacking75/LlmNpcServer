@@ -30,6 +30,18 @@ public sealed class SnapshotWriter : IAsyncDisposable
     private readonly Action<SnapshotWriteResult> _report;
     private readonly TimeSpan _interval;
     private readonly CancellationTokenSource _stop = new();
+
+    /// <summary>
+    /// 복사·쓰기를 한 번에 하나만 돌게 한다.
+    ///
+    /// <b>통로는 단일 생산자·단일 소비자로 설계됐다</b>(<see cref="SnapshotPort"/>). 주기 루프와
+    /// 즉시 요청(<c>POST /admin/snapshot</c>·정상 종료)이 동시에 들어오면 소비자가 둘이 되어,
+    /// 한쪽이 <c>Release</c> 한 사본을 다른 쪽이 쓰려다 틱 0 짜리 빈 파일을 남긴다.
+    ///
+    /// 틱 루프가 아니라 쓰기 스레드 쪽이므로 락을 써도 된다 (CLAUDE.md §2.1 은 틱 루프 규칙이다).
+    /// </summary>
+    private readonly SemaphoreSlim _writing = new(1, 1);
+
     private Task? _loop;
 
     /// <summary>쓰기를 조립한다. 기동 시 1회.</summary>
@@ -90,25 +102,60 @@ public sealed class SnapshotWriter : IAsyncDisposable
     {
         Directory.CreateDirectory(_dir);
 
-        _port.Request();
+        await _writing.WaitAsync(CancellationToken.None).ConfigureAwait(false);
 
-        long deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
-
-        while (_port.ReadyTick == 0)
+        try
         {
-            if (Environment.TickCount64 > deadline || ct.IsCancellationRequested)
-            {
-                var timedOut = new SnapshotWriteResult(0, 0, 0, "틱 루프가 사본을 만들지 않았다 (타임아웃)");
+            _port.Request();
 
-                Failures++;
-                _report(timedOut);
-                return timedOut;
+            long deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+
+            while (_port.ReadyTick == 0)
+            {
+                if (Environment.TickCount64 > deadline || ct.IsCancellationRequested)
+                {
+                    var timedOut = new SnapshotWriteResult(0, 0, 0, "틱 루프가 사본을 만들지 않았다 (타임아웃)");
+
+                    Failures++;
+                    _report(timedOut);
+                    return timedOut;
+                }
+
+                await Task.Delay(20, CancellationToken.None).ConfigureAwait(false);
             }
 
-            await Task.Delay(20, CancellationToken.None).ConfigureAwait(false);
+            return WriteReady();
         }
+        finally
+        {
+            _writing.Release();
+        }
+    }
 
-        return WriteReady();
+    /// <summary>
+    /// 마지막 한 장을 쓴다 (A-02 정상 종료 2단계).
+    ///
+    /// <b>틱 루프가 멈춘 뒤에 부른다.</b> 그 시점에는 아무도 상태를 만지지 않으므로 여기서
+    /// 직접 복사한다 — <see cref="CaptureNowAsync"/> 는 틱 루프가 복사해 주기를 기다리므로
+    /// 이미 멈춘 회차에서는 타임아웃만 난다.
+    /// </summary>
+    public SnapshotWriteResult WriteFinal(long tick, long syncedTick)
+    {
+        Directory.CreateDirectory(_dir);
+
+        _writing.Wait();
+
+        try
+        {
+            _port.Release();
+            _port.ForceCapture(tick, syncedTick);
+
+            return WriteReady();
+        }
+        finally
+        {
+            _writing.Release();
+        }
     }
 
     /// <inheritdoc />
@@ -129,6 +176,7 @@ public sealed class SnapshotWriter : IAsyncDisposable
         }
 
         _stop.Dispose();
+        _writing.Dispose();
     }
 
     private async Task RunAsync(CancellationToken ct)

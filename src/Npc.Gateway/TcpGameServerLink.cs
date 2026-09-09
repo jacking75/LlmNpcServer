@@ -627,9 +627,49 @@ public sealed class TcpGameServerLink : IGameServerLink
         }
     }
 
+    /// <summary>
+    /// 정상 종료를 알린다 (A-02). <c>Connected</c> 일 때만 실제로 보낸다.
+    ///
+    /// <b>보내지 않으면 게임서버는 우리가 왜 사라졌는지 모른다.</b> 하트비트 타임아웃으로만
+    /// 알게 되므로 3초 동안 "죽은 건지 느린 건지" 를 구별하지 못한다.
+    ///
+    /// 실패해도 던지지 않는다 — 이미 닫힌 소켓에 쓰는 것은 종료 경로에서 정상적인 사건이다.
+    /// </summary>
+    /// <returns>실제로 보냈으면 true.</returns>
+    public async Task<bool> SendByeAsync(LinkByeCode code, TimeSpan timeout, CancellationToken ct)
+    {
+        if (_state != LinkState.Connected || _stream is not { } stream)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+            deadline.CancelAfter(timeout);
+
+            await WriteFrameAsync(stream, LinkMessageKind.Bye, ByePayload(code), deadline.Token)
+                .ConfigureAwait(false);
+
+            return true;
+        }
+        catch (Exception e) when (e is IOException or ObjectDisposedException or OperationCanceledException
+                                       or System.Net.Sockets.SocketException or InvalidOperationException)
+        {
+            // 이미 닫힌 스트림에 쓰는 것은 종료 경로에서 정상적인 사건이다.
+            // InvalidOperationException 은 파이프가 완료된 경우다(인메모리 이중 스트림).
+            return false;
+        }
+    }
+
     /// <summary>소켓을 닫고 상태를 <see cref="LinkState.Disconnected"/> 로 되돌린다.</summary>
     public async ValueTask DisposeAsync()
     {
+        // 정상 종료를 먼저 알린다 (A-02). 상태가 Connected 가 아니면 아무것도 하지 않는다.
+        await SendByeAsync(LinkByeCode.Shutdown, TimeSpan.FromSeconds(1), CancellationToken.None)
+            .ConfigureAwait(false);
+
         _events.Writer.TryComplete();
 
         if (_stream is { } stream)

@@ -181,6 +181,27 @@ public sealed class SnapshotPort
     public void Release() => Volatile.Write(ref _readyTick, 0);
 
     /// <summary>
+    /// 지금 당장 복사한다 (A-02 정상 종료).
+    ///
+    /// <b>틱 루프가 멈춘 뒤에만 부른다.</b> 요청 플래그도 소비 상태도 보지 않고 덮어쓰므로,
+    /// 루프가 돌고 있으면 쓰기 스레드가 읽는 중인 버퍼를 뭉갠다. 종료 시퀀스는 틱 루프를
+    /// 먼저 세우고 나서 이것을 부르기 때문에 안전하다 — 그 순서가 <see cref="HostShutdown"/> 의 규약이다.
+    /// </summary>
+    public void ForceCapture(long tick, long syncedTick)
+    {
+        Store.CopyTo(Buffer);
+        Zones.CopyTo(Buffer.ZoneRegion, Buffer.ZoneClimate);
+
+        Buffer.Tick = tick;
+        Buffer.SyncedTick = syncedTick;
+        Buffer.NextCorrelation = Correlations.NextId;
+
+        Copies++;
+        Volatile.Write(ref _requested, 0);
+        Volatile.Write(ref _readyTick, tick == 0 ? 1 : tick);
+    }
+
+    /// <summary>
     /// 틱 경계에서 부른다. 요청이 서 있고 직전 사본이 소비됐으면 복사한다.
     /// <b>할당 0</b> — 그림자 버퍼는 기동 시 잡혀 있고 <see cref="Array.Copy(Array, Array, int)"/> 만 쓴다.
     /// </summary>

@@ -71,11 +71,24 @@ if (options.LoadedConfigPath is { } configPath)
 
 using var lifetime = new CancellationTokenSource();
 
+// SIGTERM·SIGINT·SIGQUIT 을 한 취소로 모은다 (A-02).
+// docker stop · k8s 종료 · Windows 서비스 정지는 전부 SIGTERM 이다 — 예전에는 SIGINT 만
+// 처리해 컨테이너에서 드레인 없이 즉사했다.
+using IDisposable signals = HostShutdown.RegisterSignals(lifetime, Console.Out);
+
 Console.CancelKeyPress += (_, e) =>
 {
     e.Cancel = true;
     lifetime.Cancel();
 };
+
+// --days 기본값 1 은 실험용이다. 배속 60 이면 실시간 24분 뒤 exit 0 으로 조용히 사라진다 (A-02).
+if (options.Profile == HostProfile.Dev && !options.DaysSpecified && options.Days > 0)
+{
+    Console.Out.WriteLine(
+        $"warn: --days {options.Days} 는 실험용 기본값이다. "
+        + "서비스로 띄울 때는 --profile service (--days 0 강제) 를 쓴다.");
+}
 
 await using var host = NpcHost.Create(options, Console.Out);
 
@@ -101,9 +114,10 @@ host.Link.StateChanged += state => Console.Out.WriteLine($"link: {state}");
 
 if (options.NoDashboard && options.HealthPort is null)
 {
-    await host.RunAsync(lifetime.Token);
+    int headless = await host.RunAsync(lifetime.Token, stopWeb: null, Console.Out);
+
     host.Report(Console.Out);
-    return exitCode;
+    return exitCode != 0 ? exitCode : headless;
 }
 
 // ContentRoot 기본값은 <b>작업 폴더</b>다. 그러면 wwwroot/dashboard.html 을 찾는 자리가
@@ -149,11 +163,10 @@ if (options.NoDashboard)
     await app.StartAsync(CancellationToken.None);
     Console.Out.WriteLine($"health: http://{options.Bind}:{options.HealthPort}{HealthEndpoints.LiveRoute}");
 
-    await host.RunAsync(lifetime.Token);
-    host.Report(Console.Out);
+    int probeOnly = await host.RunAsync(lifetime.Token, StopWeb, Console.Out);
 
-    await app.StopAsync(CancellationToken.None);
-    return exitCode;
+    host.Report(Console.Out);
+    return exitCode != 0 ? exitCode : probeOnly;
 }
 
 app.MapGet("/", () => Results.Redirect("/dashboard"));
@@ -206,11 +219,20 @@ if (options.DevControl)
 await app.StartAsync(CancellationToken.None);
 Console.Out.WriteLine($"dashboard: http://{options.Bind}:{options.Port}/dashboard");
 
-await host.RunAsync(lifetime.Token);
+int shutdownCode = await host.RunAsync(lifetime.Token, StopWeb, Console.Out);
+
 host.Report(Console.Out);
 
-await app.StopAsync(CancellationToken.None);
-return exitCode;
+return exitCode != 0 ? exitCode : shutdownCode;
+
+// 종료 시퀀스 5단계 — 웹 호스트를 세운다 (A-02).
+async Task<string> StopWeb(TimeSpan budget)
+{
+    using var deadline = new CancellationTokenSource(budget);
+
+    await app.StopAsync(deadline.Token);
+    return "웹 호스트 정지";
+}
 
 // 프로브 응답. fail 만 503 이고 나머지는 200 이다 — degraded 에 503 을 주면
 // 오케스트레이터가 "돌고는 있지만 완전하지 않은" 인스턴스를 로테이션에서 빼 버린다.
@@ -383,6 +405,9 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>주기 스냅샷 쓰기 (A-01). 꺼져 있으면 null.</summary>
     public SnapshotWriter? Snapshots => _snapshots;
+
+    /// <summary>마지막 종료 시퀀스 (A-02). 테스트가 단계 순서를 읽는다.</summary>
+    public HostShutdown? LastShutdown { get; private set; }
 
     /// <summary>liveness 판정.</summary>
     public HealthReport Live() =>
@@ -741,11 +766,23 @@ internal sealed class NpcHost : IAsyncDisposable
     }
 
     /// <summary>
-    /// 드라이버와 틱 루프를 함께 돌린다. 둘 중 하나가 끝나면 정리한다.
+    /// 드라이버와 틱 루프를 함께 돌린다. 둘 중 하나가 끝나면 <see cref="HostShutdown"/> 시퀀스를 돈다.
     /// 재계획 워커는 <b>루프 밖</b>에서 같이 돈다 (CLAUDE.md §2.1).
     /// </summary>
-    public async Task RunAsync(CancellationToken ct)
+    /// <returns>종료 코드. 정상 0, 종료 타임아웃 초과 2 (A-02).</returns>
+    public Task<int> RunAsync(CancellationToken ct) => RunAsync(ct, stopWeb: null, log: null);
+
+    /// <summary>
+    /// 위와 같되 웹 호스트 정지를 시퀀스 5단계로 끼운다 (A-02).
+    /// </summary>
+    /// <param name="ct">취소 토큰. 신호가 여기로 온다.</param>
+    /// <param name="stopWeb">웹 호스트 정지. 없으면 건너뛴다.</param>
+    /// <param name="log">종료 시퀀스 로그.</param>
+    public async Task<int> RunAsync(
+        CancellationToken ct, Func<TimeSpan, Task<string>>? stopWeb, TextWriter? log)
     {
+        log ??= TextWriter.Null;
+
         using var workers = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
         await _tiers.StartAsync(workers.Token).ConfigureAwait(false);
@@ -768,24 +805,69 @@ internal sealed class NpcHost : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            // Ctrl-C. 정상 종료다.
+            // 신호로 끝났다. 정상 종료 경로다.
         }
-        finally
-        {
-            // 틱 루프가 멈춘 뒤 워커를 세운다 — 순서가 반대면 마지막 스왑이 유실된다.
-            await workers.CancelAsync().ConfigureAwait(false);
-            await _tiers.StopAsync().ConfigureAwait(false);
 
-            try
+        // ── 정상 종료 시퀀스 (A-02) ─────────────────────────────
+        // 순서가 규약이다. 워커를 먼저 세우면 마지막 스왑이 유실되고,
+        // 스냅샷을 나중에 쓰면 틱 루프가 이미 멈춰 사본을 만들 수 없다.
+        var shutdown = new HostShutdown();
+
+        LastShutdown = shutdown;
+
+        return await shutdown.RunAsync(
+            TimeSpan.FromSeconds(_options.ShutdownTimeoutSeconds),
+            stopTickLoop: _ => Task.FromResult(
+                $"틱 {_loop.TicksProcessed} 처리 · 마지막 틱 {_clock.Current.Value}"),
+            writeSnapshot: _snapshots is null
+                ? null
+                : (Func<TimeSpan, Task<string>>)(_ =>
+                {
+                    SnapshotWriteResult result = _snapshots.WriteFinal(
+                        _clock.Current.Value, _clock.SyncedTick);
+
+                    return Task.FromResult(result.Error is { } error
+                        ? $"실패: {error}"
+                        : $"tick {result.Tick} · {result.Bytes}B · {result.ElapsedMs:0}ms");
+                }),
+            stopWorkers: async _ =>
             {
-                await socket.ConfigureAwait(false);
-            }
-            catch (Exception)
+                await workers.CancelAsync().ConfigureAwait(false);
+                await _tiers.StopAsync().ConfigureAwait(false);
+
+                return "재계획 워커 정지 (진행 중인 LLM 결과는 버린다)";
+            },
+            closeLink: async budget =>
             {
-                // 취소·소켓 종료로 끝난다.
-            }
-        }
+                string bye = "링크 없음";
+
+                if (_tcp is { } tcp)
+                {
+                    await tcp.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+
+                    bool sent = await tcp
+                        .SendByeAsync(LinkByeCode.Shutdown, Min(budget, TimeSpan.FromSeconds(2)), CancellationToken.None)
+                        .ConfigureAwait(false);
+
+                    bye = sent ? "Bye(Shutdown) 송신" : "Bye 미송신 (이미 끊김)";
+                }
+
+                try
+                {
+                    await socket.ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // 취소·소켓 종료로 끝난다. 종료 경로에서는 예외가 정상이다.
+                }
+
+                return bye;
+            },
+            stopWeb: stopWeb ?? (_ => Task.FromResult("웹 호스트 없음")),
+            log).ConfigureAwait(false);
     }
+
+    private static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
 
     /// <summary>
     /// NPC 한 마리의 추적 스냅샷 (T4-21). <b>틱 루프를 막지 않는다</b> — 읽기와 값 복사뿐이다.

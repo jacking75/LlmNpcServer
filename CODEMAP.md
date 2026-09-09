@@ -90,6 +90,7 @@
 | **환경변수·설정 파일로 옵션을 주고 싶다** | `src/Npc.Host/Config/HostOptionsSource.cs` (CLI > 환경변수 > 파일) · 탐색 기준은 `Config/ConfigPaths.cs` |
 | **메트릭 · `/metrics` 대시보드** | `src/Npc.Host/Metrics/NpcMeter.cs` (722줄) |
 | **NPC 하나를 추적하고 싶다** | `src/Npc.Host/Api/NpcTraceEndpoint.cs` |
+| **종료가 지저분하다 · SIGTERM 을 안 받는다** | `src/Npc.Host/HostShutdown.cs` (신호 등록 · 6단계 시퀀스) · `Bye` 송신은 `src/Npc.Gateway/TcpGameServerLink.cs`(`SendByeAsync`) |
 | **상태를 저장·복구한다** | `src/Npc.Host/Persistence/` — `SnapshotFile`(형식·CRC) · `SnapshotWriter`(주기 쓰기) · `SnapshotRestorer`(조건 판정) · 틱 루프 쪽 통로는 `src/Npc.Runtime/NpcStoreSnapshot.cs` |
 | **헬스체크 · 죽었는지 살았는지** | `src/Npc.Host/Api/HealthEndpoints.cs` (`/healthz/live`·`ready`·`startup`) · 루프 하트비트는 `src/Npc.Runtime/ILoopProbe.cs` |
 | **링크가 `Faulted` 인데 프로세스가 안 죽는다** | `src/Npc.Host/LinkFaultPolicy.cs` (`--on-link-fault`) |

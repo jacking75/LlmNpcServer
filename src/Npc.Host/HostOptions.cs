@@ -291,6 +291,13 @@ public sealed record HostOptions
     /// </summary>
     public bool SnapshotEnabled { get; init; }
 
+    /// <summary>
+    /// 정상 종료 예산(초). 기본 15 (A-02).
+    ///
+    /// 넘기면 종료 코드 2 다 — 오케스트레이터가 "정상 종료" 와 "드레인 실패" 를 구별한다.
+    /// </summary>
+    public int ShutdownTimeoutSeconds { get; init; } = 15;
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -332,6 +339,7 @@ public sealed record HostOptions
           --snapshot-interval-s N 스냅샷 주기 초. 0=끔 (기본: service 60 · dev 꺼짐)
           --snapshot-keep N       보존할 스냅샷 수 (기본 3)
           --restore auto|none|<path>  복원 정책 (기본 auto). 조건이 안 맞으면 시드로 기동한다
+          --shutdown-timeout-s N  정상 종료 예산 초 (기본 15). 넘기면 종료 코드 2
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
@@ -912,6 +920,16 @@ public sealed record HostOptions
                         "none" => result with { Restore = RestoreMode.None, RestorePath = null },
                         _ => result with { Restore = RestoreMode.File, RestorePath = restore },
                     };
+                    break;
+
+                case "--shutdown-timeout-s":
+                    if (!TryInt(args, ref i, arg, 1, 3_600, out int shutdownTimeout, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { ShutdownTimeoutSeconds = shutdownTimeout };
                     break;
 
                 case "--profile":

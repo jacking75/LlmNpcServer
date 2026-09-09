@@ -169,6 +169,7 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--snapshot-interval-s N` | 스냅샷 주기 초. `0`=끔. **이 값이 상태 손실 창의 상한이다** |
 | `--snapshot-keep N` | 보존할 스냅샷 수 (기본 3). 최신 것이 깨졌을 때 물러날 자리다 |
 | `--restore auto\|none\|<path>` | 복원 정책 (기본 `auto`). 해시가 안 맞으면 시드로 기동한다 |
+| `--shutdown-timeout-s N` | 정상 종료 예산 초 (기본 15). 넘기면 **종료 코드 2** |
 | `--max-speed` | 10Hz 페이싱 없이 최대 속도로. 부하·게이트 측정용 |
 | `--no-dashboard` | 웹 호스트를 띄우지 않는다 |
 | `--gs-host <host>` / `--gs-port N` | 게임서버 주소 (기본 `127.0.0.1:7010`). `--link tcp` 전용 |

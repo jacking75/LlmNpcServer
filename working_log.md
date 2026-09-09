@@ -1,5 +1,20 @@
 # 작업 로그
 
+## 2026-09-10 02:28 KST · A-02 SIGTERM · 정상 종료 · `Bye(Shutdown)` · 서비스 프로파일
+
+`docker stop`·k8s 종료·Windows 서비스 정지는 전부 SIGTERM 인데 SIGINT 만 처리해 컨테이너에서
+드레인 없이 즉사했다. 게임서버는 NPC 서버가 왜 사라졌는지 몰랐다.
+
+- **신규** `src/Npc.Host/HostShutdown.cs` — 신호 등록(SIGTERM·SIGINT·SIGQUIT)과 6단계 시퀀스.
+  틱 루프 → 마지막 스냅샷 → 워커 → Flush·`Bye(Shutdown)`·소켓 → 웹 호스트 → 종료 코드.
+- `TcpGameServerLink.SendByeAsync` 추가. `DisposeAsync` 가 `Connected` 면 먼저 보낸다.
+  게임서버 대역은 사유(`LastByeCode`)를 기록한다 — 하트비트 타임아웃과 구별된다.
+- `SnapshotWriter.WriteFinal` — 틱 루프가 멈춘 뒤 직접 복사해 마지막 한 장을 쓴다.
+  주기 루프와 즉시 요청이 겹치지 않게 세마포어로 직렬화했다(빈 파일을 남기던 경합).
+- `--shutdown-timeout-s`(기본 15). 넘기면 종료 코드 2 — "정상 종료" 와 "드레인 실패" 를 가른다.
+- `--days` 를 명시하지 않고 dev 프로파일로 띄우면 기동 첫 줄에 경고를 낸다.
+- 테스트 6건 추가. 전체 1,100건 통과 · 경고 0.
+
 ## 2026-09-10 02:08 KST · A-01 NPC 상태 스냅샷 · 복구
 
 재기동·크래시·롤아웃마다 NPC 5,000 이 집 좌표로 돌아가 폴백 플랜을 처음부터 돌던 것을 없앴다.

@@ -73,6 +73,7 @@ public static class HostOptionsSource
         new("--snapshot-interval-s", true),
         new("--snapshot-keep", true),
         new("--restore", true),
+        new("--shutdown-timeout-s", true),
         new("--weights", true),
         new("--scan-cap", true),
         new("--max-speed", false),

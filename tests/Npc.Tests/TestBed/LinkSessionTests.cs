@@ -43,6 +43,25 @@ public sealed class LinkSessionTests
         Assert.Equal(1, bed.Listener.SessionsAccepted);
     }
 
+    /// <summary>A-02 — 정상 종료는 <c>Bye(Shutdown)</c> 을 보낸다. 게임서버가 사유를 안다.</summary>
+    [Fact]
+    public async Task LinkSession_ReceivesByeShutdownOnDispose()
+    {
+        await using var bed = await Bed.StartAsync(npcs: 8);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        Assert.Null(session.LastByeCode);
+
+        // NPC 서버가 정상 종료한다.
+        await bed.Link.DisposeAsync();
+
+        await bed.WaitUntilAsync(() => session.ByesReceived > 0);
+
+        // 하트비트 타임아웃이 아니라 <b>사유가 실린 종료</b>로 보인다.
+        Assert.Equal(LinkByeCode.Shutdown, session.LastByeCode);
+    }
+
     /// <summary>완료 조건 — 두 번째 접속은 <c>Bye</c> 를 받고 끊긴다.</summary>
     [Fact]
     public async Task LinkSession_RejectsSecondSession()

@@ -298,7 +298,12 @@ public sealed class LinkSession : IAsyncDisposable
                 return;
 
             case LinkMessageKind.Bye:
-                // NPC 서버가 정상 종료했다. 자리를 비워 다음 접속을 받는다.
+                // NPC 서버가 종료를 알렸다. 자리를 비워 다음 접속을 받는다 (A-02).
+                //
+                // <b>사유를 기록한다.</b> Shutdown 과 ProtocolViolation 은 운영에서 전혀 다른
+                // 사건인데, 예전에는 둘 다 "연결이 끊겼다" 로만 보였다.
+                LastByeCode = ReadByeCode(in payload);
+                ByesReceived++;
                 Volatile.Write(ref _active, 0);
                 return;
 
@@ -523,6 +528,12 @@ public sealed class LinkSession : IAsyncDisposable
         FramesSent++;
     }
 
+    /// <summary>마지막으로 받은 <c>Bye</c> 사유. 아직 없으면 null (A-02).</summary>
+    public LinkByeCode? LastByeCode { get; private set; }
+
+    /// <summary>받은 <c>Bye</c> 수. 테스트가 읽는다.</summary>
+    public long ByesReceived { get; private set; }
+
     /// <summary><c>Bye</c> 를 보내고 세션을 닫는다. 실패해도 조용히 넘긴다 — 이미 끊긴 소켓일 수 있다.</summary>
     public async Task CloseAsync(LinkByeCode code, CancellationToken ct)
     {
@@ -550,6 +561,21 @@ public sealed class LinkSession : IAsyncDisposable
     }
 
     // ---------------------------------------------------------------- 프레임 입출력
+
+    /// <summary><c>Bye</c> 페이로드에서 사유를 읽는다. 깨졌으면 null.</summary>
+    private static LinkByeCode? ReadByeCode(in System.Buffers.ReadOnlySequence<byte> payload)
+    {
+        try
+        {
+            WireBye bye = MemoryPackSerializer.Deserialize<WireBye>(payload);
+
+            return Enum.IsDefined((LinkByeCode)bye.Code) ? (LinkByeCode)bye.Code : null;
+        }
+        catch (MemoryPackSerializationException)
+        {
+            return null;
+        }
+    }
 
     /// <summary><c>Bye</c> 한 장. 세션을 만들기 전에도 보낼 수 있어야 해서 정적이다 (두 번째 접속 거절).</summary>
     public static Task SendByeAsync(Stream stream, LinkByeCode code, CancellationToken ct) =>
