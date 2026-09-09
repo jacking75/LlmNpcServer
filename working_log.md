@@ -1,5 +1,22 @@
 # 작업 로그
 
+## 2026-09-10 02:08 KST · A-01 NPC 상태 스냅샷 · 복구
+
+재기동·크래시·롤아웃마다 NPC 5,000 이 집 좌표로 돌아가 폴백 플랜을 처음부터 돌던 것을 없앴다.
+게임 시계도 새벽 6시로 되감기지 않는다.
+
+- **신규** `src/Npc.Runtime/NpcStoreSnapshot.cs`(`ShadowBuffer`·`SnapshotPort`) ·
+  `src/Npc.Host/Persistence/{Crc32,SnapshotFile,SnapshotWriter,SnapshotRestorer}.cs`.
+- 틱 루프는 틱 끝에서 `Array.Copy` 만 한다 — 복사 틱의 할당 0(테스트로 강제). 파일은 별도 스레드가 쓴다.
+- 형식은 자체 이진 + CRC32 꼬리. `.tmp` → 원자 교체. 파일에 벽시계를 넣지 않는다.
+- 복원 조건은 형식 버전·마스터데이터 해시·로스터 해시·NPC 수·인벤토리 칸 수 전부 일치.
+  CRC 가 깨지면 이전 스냅샷으로 물러난다. 프리픽스가 다르면 개별 플랜만 버린다.
+- `Waiting` 스텝은 `Ready` 로 되돌려 재발행하고, 상관 ID 는 65,536 만큼 건너뛴다.
+- 옵션 4개 — `--snapshot-dir` · `--snapshot-interval-s` · `--snapshot-keep` · `--restore`.
+  개발 기본은 꺼짐, `--profile service` 는 60초 주기로 켠다.
+- `/status` 에 `lastSnapshotTick`·`restoredFromTick`·`snapshotFailures`, 계측기 `npc.snapshot.*` 4종.
+- 테스트 20건 추가(왕복·복원 조건·결정론 연속성·할당 0·재기동 종단). 전체 1,094건 통과.
+
 ## 2026-09-10 01:52 KST · A-04 설정 소스 통합 · 바인드 주소 · 프로파일
 
 옵션 30개를 배포 시스템(환경변수·ConfigMap·시크릿)으로 넘길 길이 없었다.

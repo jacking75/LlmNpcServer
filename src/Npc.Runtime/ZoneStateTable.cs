@@ -82,4 +82,32 @@ public sealed class ZoneStateTable
         Changes++;
         return true;
     }
+
+    /// <summary>스냅샷용 복사 (A-01). 틱 경계에서 부른다 — 할당 0.</summary>
+    public void CopyTo(Span<byte> region, Span<byte> climate)
+    {
+        for (int i = 0; i < _region.Length && i < region.Length; i++)
+        {
+            region[i] = (byte)_region[i];
+        }
+
+        for (int i = 0; i < _climate.Length && i < climate.Length; i++)
+        {
+            climate[i] = (byte)_climate[i];
+        }
+    }
+
+    /// <summary>스냅샷 복원 (A-01). 기동 중에만 부른다.</summary>
+    public void LoadFrom(ReadOnlySpan<byte> region, ReadOnlySpan<byte> climate)
+    {
+        for (int i = 0; i < _region.Length && i < region.Length; i++)
+        {
+            _region[i] = (RegionState)region[i];
+        }
+
+        for (int i = 0; i < _climate.Length && i < climate.Length; i++)
+        {
+            _climate[i] = (Climate)climate[i];
+        }
+    }
 }

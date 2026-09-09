@@ -79,6 +79,24 @@ public sealed class GameClock
         }
     }
 
+    /// <summary>게임서버가 알려준 마지막 틱. 스냅샷이 담는다 (A-01).</summary>
+    public long SyncedTick => _syncedTick;
+
+    /// <summary>
+    /// 스냅샷에서 시계를 되돌린다 (A-01). <b>기동 중에만 부른다.</b>
+    ///
+    /// 게임 시각은 <see cref="GameSeconds"/> 가 틱에서 유도하므로 틱만 되돌리면 따라온다.
+    /// 시간대는 되돌린 시각으로 다시 계산한다 — 그러지 않으면 첫 틱에 시간대 전환이
+    /// 한꺼번에 터진다.
+    /// </summary>
+    public void RestoreTo(Tick tick, long syncedTick)
+    {
+        Current = tick;
+        _syncedTick = Math.Max(syncedTick, tick.Value);
+        TimeOfDay = _buckets.TimeOfDayAt(GameHour);
+        TimeOfDayChanged = false;
+    }
+
     /// <summary>
     /// 동기화된 틱까지 한 틱 진행한다. docs/11 §5 의 틱 루프가 이걸 본다.
     /// 진행할 것이 없으면 false — 루프는 다음 이벤트를 기다린다.

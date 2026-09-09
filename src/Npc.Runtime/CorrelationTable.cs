@@ -58,6 +58,25 @@ public sealed class CorrelationTable
     /// <summary>이 응답이 낡은 것인가 (기다리는 명령이 없거나 다른 명령의 응답).</summary>
     public bool IsStale(int npc, CorrelationId id) => !IsCurrent(npc, id);
 
+    /// <summary>다음에 발급할 ID 원값. 스냅샷이 담는다 (A-01).</summary>
+    public uint NextId => _next;
+
+    /// <summary>
+    /// 다음 ID 를 앞으로 건너뛴다 (A-01 복원).
+    ///
+    /// <b>크래시 전에 나가 있던 명령과 겹치지 않게 한다.</b> 스냅샷 이후 크래시까지 발급된 ID 는
+    /// 스냅샷에 없지만 게임서버에는 남아 있다. 같은 번호를 다시 쓰면 낡은 응답이
+    /// 새 명령의 완료로 읽힌다 — 여유분만큼 건너뛰면 그 창이 닫힌다.
+    /// </summary>
+    /// <param name="from">스냅샷이 담은 다음 ID.</param>
+    /// <param name="gap">건너뛸 폭. 기본 65,536.</param>
+    public void JumpTo(uint from, uint gap = 65_536)
+    {
+        uint next = from + gap;
+
+        _next = next == 0 ? 1 : next;
+    }
+
     /// <summary>전부 초기화. 리플레이 시작 시에만 쓴다.</summary>
     public void Reset()
     {

@@ -205,6 +205,115 @@ public sealed class NpcStore
         }
     }
 
+    /// <summary>
+    /// 상태를 그림자 버퍼로 복사한다 (A-01). <b>틱 경계에서 부른다.</b>
+    ///
+    /// <see cref="Array.Copy(Array, Array, int)"/> 만 쓴다 — 할당 0. 복사 대상은
+    /// <see cref="StateHash"/> 가 세는 집합에 <c>Recent</c>·바인딩 값·재계획 보조값을 더한 것이다.
+    ///
+    /// <b>담지 않는 것</b>: <c>PendingPlanId</c>(워커가 다시 건다) · LOD 밴드 멤버십
+    /// (<see cref="Lod"/> 값으로 재구성한다) · 재계획 큐(인지 스캔이 재구성한다).
+    /// </summary>
+    public void CopyTo(ShadowBuffer buffer)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+
+        if (buffer.Count != Count || buffer.InventoryStride != InventoryStride)
+        {
+            throw new ArgumentException(
+                $"그림자 버퍼 모양이 다르다: {buffer.Count}×{buffer.InventoryStride} "
+                + $"vs {Count}×{InventoryStride}",
+                nameof(buffer));
+        }
+
+        Array.Copy(Flags, buffer.Flags, Count);
+        Array.Copy(PlanId, buffer.PlanId, Count);
+        Array.Copy(StepIndex, buffer.StepIndex, Count);
+        Array.Copy(StepStatus, buffer.StepStatus, Count);
+        Array.Copy(StepIssuedTick, buffer.StepIssuedTick, Count);
+        Array.Copy(Lod, buffer.Lod, Count);
+        Array.Copy(Pos, buffer.Pos, Count);
+        Array.Copy(Hp, buffer.Hp, Count);
+        Array.Copy(Stamina, buffer.Stamina, Count);
+        Array.Copy(ZoneCode, buffer.ZoneCode, Count);
+        Array.Copy(ArchetypeCode, buffer.ArchetypeCode, Count);
+        Array.Copy(CurrentPoi, buffer.CurrentPoi, Count);
+        Array.Copy(HomePoi, buffer.HomePoi, Count);
+        Array.Copy(WorkPoi, buffer.WorkPoi, Count);
+        Array.Copy(Inventory, buffer.Inventory, Count * InventoryStride);
+        Array.Copy(Recent, buffer.Recent, Count);
+        Array.Copy(PlanAssignedTick, buffer.PlanAssignedTick, Count);
+        Array.Copy(PendingUrgency, buffer.PendingUrgency, Count);
+        Array.Copy(LastEventSequence, buffer.LastEventSequence, Count);
+        Array.Copy(LastFailReason, buffer.LastFailReason, Count);
+        Array.Copy(StepRetries, buffer.StepRetries, Count);
+    }
+
+    /// <summary>
+    /// 그림자 버퍼에서 상태를 되돌린다 (A-01). <b>기동 중에만 부른다</b> — 틱 루프가 돌기 전이다.
+    ///
+    /// <c>Waiting</c> 이던 스텝은 <c>Ready</c> 로 되돌린다. 크래시 시점에 나가 있던 명령의
+    /// 응답 이벤트는 영영 오지 않으므로 그대로 두면 <c>timeout_s</c> 를 다 기다린 뒤에야 움직인다.
+    /// 재발행은 게임서버 관점에서 멱등이다 (N7).
+    /// </summary>
+    public void LoadFrom(ShadowBuffer buffer)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+
+        if (buffer.Count != Count || buffer.InventoryStride != InventoryStride)
+        {
+            throw new ArgumentException(
+                $"그림자 버퍼 모양이 다르다: {buffer.Count}×{buffer.InventoryStride} "
+                + $"vs {Count}×{InventoryStride}",
+                nameof(buffer));
+        }
+
+        Array.Copy(buffer.Flags, Flags, Count);
+        Array.Copy(buffer.PlanId, PlanId, Count);
+        Array.Copy(buffer.StepIndex, StepIndex, Count);
+        Array.Copy(buffer.StepStatus, StepStatus, Count);
+        Array.Copy(buffer.StepIssuedTick, StepIssuedTick, Count);
+        Array.Copy(buffer.Lod, Lod, Count);
+        Array.Copy(buffer.Pos, Pos, Count);
+        Array.Copy(buffer.Hp, Hp, Count);
+        Array.Copy(buffer.Stamina, Stamina, Count);
+        Array.Copy(buffer.ZoneCode, ZoneCode, Count);
+        Array.Copy(buffer.ArchetypeCode, ArchetypeCode, Count);
+        Array.Copy(buffer.CurrentPoi, CurrentPoi, Count);
+        Array.Copy(buffer.HomePoi, HomePoi, Count);
+        Array.Copy(buffer.WorkPoi, WorkPoi, Count);
+        Array.Copy(buffer.Inventory, Inventory, Count * InventoryStride);
+        Array.Copy(buffer.Recent, Recent, Count);
+        Array.Copy(buffer.PlanAssignedTick, PlanAssignedTick, Count);
+        Array.Copy(buffer.PendingUrgency, PendingUrgency, Count);
+        Array.Copy(buffer.LastEventSequence, LastEventSequence, Count);
+        Array.Copy(buffer.LastFailReason, LastFailReason, Count);
+        Array.Copy(buffer.StepRetries, StepRetries, Count);
+
+        Array.Clear(PendingPlanId);
+    }
+
+    /// <summary>
+    /// 진행 중이던 스텝을 재발행 대기로 되돌린다 (A-01 복원 5단계).
+    /// </summary>
+    /// <returns>되돌린 수.</returns>
+    public int ReissueWaitingSteps()
+    {
+        int reissued = 0;
+
+        for (int i = 0; i < Count; i++)
+        {
+            if (StepStatus[i] == (byte)Runtime.StepStatus.Waiting)
+            {
+                StepStatus[i] = (byte)Runtime.StepStatus.Ready;
+                StepIssuedTick[i] = 0;
+                reissued++;
+            }
+        }
+
+        return reissued;
+    }
+
     /// <summary>한 NPC 의 인벤토리. 할당 0.</summary>
     public Span<int> InventoryOf(int npc) =>
         Inventory.AsSpan(npc * InventoryStride, InventoryStride);

@@ -119,6 +119,14 @@ public sealed class NpcServerLoop
     /// </summary>
     public ILoopProbe? Probe { get; set; }
 
+    /// <summary>
+    /// 스냅샷 통로 (A-01). 없으면 스냅샷을 뜨지 않는다.
+    ///
+    /// 틱 <b>끝</b>에서만 복사한다 — 스텝 경계이자 스왑이 끝난 뒤라 "이 틱이 끝난 상태" 가
+    /// 그대로 담긴다. 복사 자체는 <c>Array.Copy</c> 뿐이라 할당 0 이다.
+    /// </summary>
+    public SnapshotPort? Snapshots { get; set; }
+
     /// <summary>처리한 틱 수.</summary>
     public long TicksProcessed { get; private set; }
 
@@ -208,6 +216,10 @@ public sealed class NpcServerLoop
         _swapper.ApplyPendingSwaps(_executor);
 
         TicksProcessed++;
+
+        // 스냅샷 복사는 맨 끝이다 (A-01).
+        Snapshots?.TryCapture(tick.Value, _clock.SyncedTick);
+
         Observer?.OnTickEnd(tick, _cognition.LastScanned, drained);
     }
 

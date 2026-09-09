@@ -3,6 +3,7 @@ using System.Diagnostics.Metrics;
 using Npc.Contracts;
 using Npc.Core;
 using Npc.Core.Plan;
+using Npc.Host.Persistence;
 using Npc.Host.Replan;
 using Npc.Llm;
 using Npc.MasterData;
@@ -455,6 +456,43 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
             "npc.llm.unique_prefix_hashes",
             () => _compile?.UniquePrefixHashes ?? 0,
             description: "관측된 프리픽스 SHA 종류 수. 1 이 아니면 경보");
+
+        // ── 스냅샷 (A-01) ──
+        //
+        // 상태 손실 창의 계기다. last_tick 이 현재 틱에서 주기 이상 벌어지면 창이 커진 것이고,
+        // failures 가 0 이 아니면 그 창이 얼마인지 아무도 모른다.
+        _meter.CreateObservableGauge(
+            "npc.snapshot.last_tick", () => Snapshots?.LastTick ?? 0, description: "마지막 스냅샷의 게임 틱");
+        _meter.CreateObservableGauge(
+            "npc.snapshot.write_ms", () => LastSnapshotWriteMs, description: "마지막 스냅샷 쓰기 시간(ms)");
+        _meter.CreateObservableGauge(
+            "npc.snapshot.bytes", () => LastSnapshotBytes, description: "마지막 스냅샷 크기(B)");
+        _meter.CreateObservableCounter(
+            "npc.snapshot.failures", () => Snapshots?.Failures ?? 0, description: "스냅샷 실패 누계");
+    }
+
+    /// <summary>
+    /// 스냅샷 쓰기 (A-01). 조립 순서상 계측기가 먼저 생기므로 init 이 아니다.
+    /// 꺼져 있으면 null 이고 계측기는 0 을 낸다.
+    /// </summary>
+    public SnapshotWriter? Snapshots { get; set; }
+
+    /// <summary>마지막 스냅샷 쓰기에 걸린 밀리초.</summary>
+    public double LastSnapshotWriteMs { get; private set; }
+
+    /// <summary>마지막 스냅샷 파일 크기.</summary>
+    public long LastSnapshotBytes { get; private set; }
+
+    /// <summary>스냅샷 쓰기 결과를 받는다. <see cref="SnapshotWriter"/> 가 부른다.</summary>
+    public void OnSnapshotWritten(SnapshotWriteResult result)
+    {
+        if (result.Error is not null)
+        {
+            return;
+        }
+
+        LastSnapshotWriteMs = result.ElapsedMs;
+        LastSnapshotBytes = result.Bytes;
     }
 
     /// <summary>예산을 넘긴 틱 수.</summary>

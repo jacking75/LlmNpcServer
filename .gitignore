@@ -442,3 +442,6 @@ replays/
 spike/out/raw/
 # 활용 실습서의 실습장. masterdata/ 사본이라 재현 가능하다 (samples/lab.ps1)
 lab/
+
+# NPC 상태 스냅샷 (A-01). 생성물이고 회차마다 다르다 — 커밋하지 않는다.
+state/

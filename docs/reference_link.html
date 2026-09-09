@@ -554,6 +554,7 @@ public enum LinkByeCode : byte
           <tr><td>끊긴 동안 쌓인 명령</td><td><strong>버린다.</strong> 상관 ID는 이미 타임아웃으로 정리됐고, 뒤늦게 도착한 명령은 NPC를 과거로 되돌린다. <code>CommandsDropped</code>에 계상한다</td></tr>
           <tr><td>백오프</td><td>250ms → 500 → 1s → 2s → 4s 상한. 지터 없음(벽시계 영역이라 결정론이 필요 없다)</td></tr>
           <tr><td>하트비트</td><td>양방향 1초(10틱)마다. <strong>3초</strong> 무수신이면 <code>Degraded</code> → 소켓을 닫고 재접속</td></tr>
+          <tr><td>복원 후 재동기화</td><td>NPC 서버가 스냅샷에서 복원해 뜬 경우에도 위 재동기화가 그대로 돈다. <strong>충돌 정책: 위치·존은 게임서버가 권위, 플랜 진행·플래그·인벤토리는 NPC 서버가 권위다.</strong> 복원된 <code>Pos</code>는 재발행된 <code>NpcSpawned</code>가 덮고(N7 멱등), 진행 중이던 스텝은 NPC 서버가 <code>Ready</code>로 되돌려 재발행한다 — <code>MoveTo</code> 재발행은 게임서버 관점에서 멱등이다</td></tr>
         </tbody>
       </table></div>
     </section>

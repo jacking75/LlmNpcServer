@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using Npc.Host.Config;
+using Npc.Host.Persistence;
 
 namespace Npc.Host;
 
@@ -252,8 +253,43 @@ public sealed record HostOptions
     /// <summary><c>--days</c> 를 명시했는가. 프로파일 경고가 이 값으로 갈린다 (A-02).</summary>
     public bool DaysSpecified { get; init; }
 
+    /// <summary><c>--snapshot-interval-s</c> 를 명시했는가. 프로파일이 이 값을 존중한다.</summary>
+    public bool SnapshotSpecified { get; init; }
+
     /// <summary>읽은 설정 파일 경로. 없으면 null. 기동 로그에 적는다.</summary>
     public string? LoadedConfigPath { get; init; }
+
+    /// <summary>
+    /// 스냅샷 디렉터리 (A-01). 기본 <c>./state</c>.
+    ///
+    /// 재기동·크래시·롤아웃마다 NPC 전원이 집으로 돌아가고 하던 일을 잊는 것을 막는다.
+    /// </summary>
+    public string SnapshotDir { get; init; } = "./state";
+
+    /// <summary>
+    /// 스냅샷 주기(초). 기본 60.
+    ///
+    /// <b>이 값이 상태 손실 창의 상한이다</b> — 마지막 스냅샷과 크래시 사이가 통째로 날아간다.
+    /// G-05 의 수용 기준(≤ 60초)이 이 값을 본다.
+    /// </summary>
+    public int SnapshotIntervalSeconds { get; init; } = 60;
+
+    /// <summary>보존할 스냅샷 수. 기본 3. 최신 것이 깨졌을 때 물러날 자리다.</summary>
+    public int SnapshotKeep { get; init; } = 3;
+
+    /// <summary>복원 정책 (A-01). 기본 <c>auto</c>.</summary>
+    public RestoreMode Restore { get; init; } = RestoreMode.Auto;
+
+    /// <summary><c>--restore</c> 에 경로를 줬으면 그 경로. 아니면 null.</summary>
+    public string? RestorePath { get; init; }
+
+    /// <summary>
+    /// 스냅샷을 쓰는가. 서비스 프로파일이면 켜지고, <c>--snapshot-interval-s 0</c> 이면 꺼진다.
+    ///
+    /// <b>개발 기본은 꺼져 있다.</b> 매 회차가 <c>./state</c> 에 파일을 남기면 실습장이 지저분해지고,
+    /// 무엇보다 앞 회차의 상태가 다음 회차에 되살아나 "왜 이 NPC 는 이미 밥을 먹었지" 가 된다.
+    /// </summary>
+    public bool SnapshotEnabled { get; init; }
 
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
@@ -291,7 +327,11 @@ public sealed record HostOptions
           --bind <addr>           웹 호스트 바인드 주소 (기본 127.0.0.1).
                                   0.0.0.0 은 NPC_ADMIN_TOKEN 이 있을 때만 허용한다
           --config <path>         설정 파일 (기본 npc.settings.json 을 자동 탐색)
-          --profile dev|service   실행 프로파일. service 는 --days 0 을 강제한다
+          --profile dev|service   실행 프로파일. service 는 --days 0 과 스냅샷을 강제한다
+          --snapshot-dir <dir>    NPC 상태 스냅샷 디렉터리 (기본 ./state)
+          --snapshot-interval-s N 스냅샷 주기 초. 0=끔 (기본: service 60 · dev 꺼짐)
+          --snapshot-keep N       보존할 스냅샷 수 (기본 3)
+          --restore auto|none|<path>  복원 정책 (기본 auto). 조건이 안 맞으면 시드로 기동한다
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
@@ -342,6 +382,14 @@ public sealed record HostOptions
 
         throw new DirectoryNotFoundException($"마스터데이터 폴더를 찾지 못했다: {MasterData}");
     }
+
+    /// <summary>
+    /// 스냅샷 폴더를 절대경로로 푼다 (A-01). 없으면 만들지 않는다 — 쓰기 시점에 만든다.
+    ///
+    /// <c>--masterdata</c> 와 달리 위로 올라가며 찾지 않는다. 스냅샷은 <b>이번 회차가 만드는 것</b>
+    /// 이고, 상위 폴더의 남의 스냅샷을 주워 복원하면 그것이야말로 사고다.
+    /// </summary>
+    public string ResolveSnapshotDir() => Path.GetFullPath(SnapshotDir);
 
     /// <summary>
     /// 플랜 스토어 폴더를 실제 경로로 푼다.
@@ -816,6 +864,56 @@ public sealed record HostOptions
                     result = result with { ConfigPath = config };
                     break;
 
+                case "--snapshot-dir":
+                    if (!TryValue(args, ref i, arg, out string? snapshotDir, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { SnapshotDir = snapshotDir! };
+                    break;
+
+                case "--snapshot-interval-s":
+                    if (!TryInt(args, ref i, arg, 0, 86_400, out int snapshotInterval, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with
+                    {
+                        SnapshotIntervalSeconds = Math.Max(snapshotInterval, 1),
+                        SnapshotEnabled = snapshotInterval > 0,
+                        SnapshotSpecified = true,
+                    };
+                    break;
+
+                case "--snapshot-keep":
+                    if (!TryInt(args, ref i, arg, 1, 1_000, out int snapshotKeep, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { SnapshotKeep = snapshotKeep };
+                    break;
+
+                case "--restore":
+                    if (!TryValue(args, ref i, arg, out string? restore, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = restore switch
+                    {
+                        "auto" => result with { Restore = RestoreMode.Auto, RestorePath = null },
+                        "none" => result with { Restore = RestoreMode.None, RestorePath = null },
+                        _ => result with { Restore = RestoreMode.File, RestorePath = restore },
+                    };
+                    break;
+
                 case "--profile":
                     if (!TryValue(args, ref i, arg, out string? profile, out error)
                         || !Enum.TryParse(profile, ignoreCase: true, out HostProfile hostProfile))
@@ -896,7 +994,11 @@ public sealed record HostOptions
         // 배속 60 에서 실시간 24분 뒤 exit 0 으로 조용히 사라진다.
         if (result.Profile == HostProfile.Service)
         {
-            result = result with { Days = 0 };
+            result = result with
+            {
+                Days = 0,
+                SnapshotEnabled = result.SnapshotSpecified ? result.SnapshotEnabled : true,
+            };
         }
 
         options = result;

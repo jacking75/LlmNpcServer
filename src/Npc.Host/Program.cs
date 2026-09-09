@@ -8,6 +8,7 @@ using Npc.Host;
 using Npc.Host.Api;
 using Npc.Host.Commands;
 using Npc.Host.Metrics;
+using Npc.Host.Persistence;
 using Npc.Host.Replan;
 using Npc.Llm;
 using Npc.MasterData;
@@ -256,6 +257,7 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly TierWiring _tiers;
     private readonly KillSwitchState _switches;
     private readonly long _totalTicks;
+    private readonly SnapshotWriter? _snapshots;
 
     private NpcHost(
         HostOptions options,
@@ -276,7 +278,8 @@ internal sealed class NpcHost : IAsyncDisposable
         long totalTicks,
         NpcRoster roster,
         TierWiring tiers,
-        KillSwitchState switches)
+        KillSwitchState switches,
+        SnapshotWriter? snapshots)
     {
         _options = options;
         _link = link;
@@ -296,6 +299,7 @@ internal sealed class NpcHost : IAsyncDisposable
         _totalTicks = totalTicks;
         _tiers = tiers;
         _switches = switches;
+        _snapshots = snapshots;
         Roster = roster;
     }
 
@@ -371,8 +375,14 @@ internal sealed class NpcHost : IAsyncDisposable
     /// </summary>
     public bool Loaded => true;
 
-    /// <summary>스냅샷 복원 판정 (A-01). 아직 스냅샷이 없으므로 "복원 대상 없음" 으로 끝난다.</summary>
-    public string RestoreDetail { get; internal set; } = "복원 대상 없음 (시드로 기동)";
+    /// <summary>스냅샷 복원 판정 (A-01). 기동 중에 채워진다.</summary>
+    public RestoreResult Restore { get; init; }
+
+    /// <summary>스냅샷 복원 판정을 사람 말로.</summary>
+    public string RestoreDetail => Restore.Detail.Length == 0 ? "복원 대상 없음 (시드로 기동)" : Restore.Detail;
+
+    /// <summary>주기 스냅샷 쓰기 (A-01). 꺼져 있으면 null.</summary>
+    public SnapshotWriter? Snapshots => _snapshots;
 
     /// <summary>liveness 판정.</summary>
     public HealthReport Live() =>
@@ -533,6 +543,9 @@ internal sealed class NpcHost : IAsyncDisposable
         var interrupts = new InterruptMatcher(data, store) { Snapshots = snapshots };
 
         // ── 인구 배치 ─────────────────────────────────────────────
+        // <b>먼저 시드한다.</b> 복원이 그 위에 덮는 형태여야 복원 대상이 아닌 값(집·일터 같은
+        // 인스턴스 정의)이 항상 채워진다 — 스냅샷은 그것들도 담지만, 스냅샷이 없는 회차와
+        // 코드 경로를 갈라 두면 "복원했을 때만 나는 버그" 가 생긴다.
         for (int i = 0; i < npcs; i++)
         {
             NpcInstanceDef def = roster.Npcs[i];
@@ -541,6 +554,20 @@ internal sealed class NpcHost : IAsyncDisposable
             store.StepStatus[i] = (byte)StepStatus.Ready;
             executor.AssignPlan(i, new PlanId(fallbackOf[def.Archetype.Value]));
         }
+
+        // ── 스냅샷 복원 (A-01) ────────────────────────────────────
+        // 조건(형식 버전·마스터데이터 해시·로스터 해시·NPC 수)이 전부 맞을 때만 덮는다.
+        var restorer = new SnapshotRestorer(store, clock, zoneStates, correlations, individualPool, data);
+
+        RestoreResult restore = restorer.TryRestore(
+            options.Restore,
+            options.Restore == RestoreMode.File ? options.RestorePath! : options.ResolveSnapshotDir(),
+            data.ContentHash,
+            roster.Hash,
+            PromptPrefix.Build(data, masterDataDir).Sha256,
+            log);
+
+        log.WriteLine($"restore: {restore.Detail}");
 
         bands.Rebalance();
 
@@ -643,9 +670,64 @@ internal sealed class NpcHost : IAsyncDisposable
 
         loop.Observer = killSwitches;
 
+        // ── 스냅샷 쓰기 (A-01) ───────────────────────────────────
+        // 틱 루프는 그림자 버퍼로 복사만 한다. 파일은 별도 스레드가 쓴다.
+        SnapshotWriter? snapshotWriter = null;
+
+        if (options.SnapshotEnabled)
+        {
+            var port = new SnapshotPort
+            {
+                Buffer = new ShadowBuffer(npcs, store.InventoryStride, zoneStates.Capacity),
+                Store = store,
+                Zones = zoneStates,
+                Correlations = correlations,
+            };
+
+            loop.Snapshots = port;
+
+            string prefixHash = PromptPrefix.Build(data, masterDataDir).Sha256;
+            string snapshotDir = options.ResolveSnapshotDir();
+
+            snapshotWriter = new SnapshotWriter(
+                port,
+                snapshotDir,
+                options.SnapshotIntervalSeconds,
+                options.SnapshotKeep,
+                () => new SnapshotHeader(
+                    SnapshotFile.FormatVersion,
+                    port.Buffer.Tick,
+                    port.Buffer.SyncedTick,
+                    npcs,
+                    store.InventoryStride,
+                    zoneStates.Capacity,
+                    port.Buffer.NextCorrelation,
+                    data.ContentHash,
+                    roster.Hash,
+                    prefixHash),
+                () => IndividualPlanCapture.From(store, individualPool, port.Buffer.Tick),
+                result =>
+                {
+                    meter.OnSnapshotWritten(result);
+
+                    if (result.Error is { } error)
+                    {
+                        log.WriteLine($"alarm: 스냅샷 실패 — {error}");
+                    }
+                });
+
+            meter.Snapshots = snapshotWriter;
+
+            log.WriteLine(
+                $"snapshot: {snapshotDir} · 주기 {options.SnapshotIntervalSeconds}s · 보존 {options.SnapshotKeep}");
+        }
+
         var host = new NpcHost(
             options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
-            meter, driver, nullLink, tcp, totalTicks, roster, tiers, switches);
+            meter, driver, nullLink, tcp, totalTicks, roster, tiers, switches, snapshotWriter)
+        {
+            Restore = restore,
+        };
 
         // 생존 신호는 루프가 조립된 뒤에 붙인다 (A-03). Volatile 쓰기 하나라 틱 예산에 영향이 없다.
         loop.Probe = host.Probe;
@@ -667,6 +749,8 @@ internal sealed class NpcHost : IAsyncDisposable
         using var workers = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
         await _tiers.StartAsync(workers.Token).ConfigureAwait(false);
+
+        _snapshots?.Start();
 
         // 소켓 링크는 스스로 붙지 않는다 — 접속·재접속 루프를 누군가 돌려야 한다.
         // <b>WhenAll 에 넣지 않는다</b>: 이 루프는 취소될 때까지 끝나지 않으므로
@@ -758,6 +842,9 @@ internal sealed class NpcHost : IAsyncDisposable
         LlmCalls: _tiers.Stats?.Calls ?? 0,
         LinkState: _link.State.ToString(),
         LinkReject: LinkRejectReason,
+        LastSnapshotTick: _snapshots?.LastTick ?? 0,
+        SnapshotFailures: _snapshots?.Failures ?? 0,
+        RestoredFromTick: Restore.Tick,
         Link: _link.Stats);
 
     /// <summary>종료 요약. 게이트 러너가 이 숫자를 본다.</summary>
@@ -788,6 +875,11 @@ internal sealed class NpcHost : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _meter.Dispose();
+
+        if (_snapshots is { } snapshots)
+        {
+            await snapshots.DisposeAsync().ConfigureAwait(false);
+        }
 
         await _tiers.DisposeAsync().ConfigureAwait(false);
         await _link.DisposeAsync().ConfigureAwait(false);
@@ -987,6 +1079,9 @@ internal sealed class NpcHost : IAsyncDisposable
 /// <param name="LlmCalls">LLM 호출 수. P1 에서는 항상 0 이다.</param>
 /// <param name="LinkState">링크 접속 상태 (A-03). <c>/status</c> 가 링크와 무관하게 200 이던 결손을 메운다.</param>
 /// <param name="LinkReject">핸드셰이크 거절 사유. 없으면 null.</param>
+/// <param name="LastSnapshotTick">마지막으로 쓴 스냅샷의 틱 (A-01). 상태 손실 창의 하한이다.</param>
+/// <param name="SnapshotFailures">스냅샷 실패 누계. 0 이 아니면 손실 창이 주기보다 크다.</param>
+/// <param name="RestoredFromTick">복원한 스냅샷의 틱. 복원 안 했으면 0.</param>
 /// <param name="Link">링크 통계.</param>
 internal readonly record struct HostSnapshot(
     long Tick,
@@ -1007,6 +1102,9 @@ internal readonly record struct HostSnapshot(
     long LlmCalls,
     string LinkState,
     string? LinkReject,
+    long LastSnapshotTick,
+    long SnapshotFailures,
+    long RestoredFromTick,
     LinkStats Link);
 
 /// <summary>게임서버 대역 한 벌. Sim 하위 시뮬을 조립하고 틱마다 민다.</summary>
