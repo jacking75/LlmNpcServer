@@ -19,7 +19,7 @@
 
   <ItemGroup>
     <!-- CLAUDE.md §2.1 — 로깅은 소스 생성 로거([LoggerMessage])만 쓴다. -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
 </Project>

@@ -6,7 +6,7 @@
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>preview</LangVersion>
+    <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -25,6 +25,20 @@
   <PropertyGroup>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
+  </PropertyGroup>
+
+  <!--
+    릴리스 버전 (A-09). MAJOR.MINOR.PATCH 하나로 관리한다.
+
+    CI 가 태그에서 덮어쓴다: dotnet build -p:VersionPrefix=1.2.3 -p:SourceRevisionId=(짧은 커밋 해시).
+    빌드 메타(계약 버전·프리픽스 해시)는 실행 시 /status.version 이 합쳐 낸다 —
+    프리픽스 해시는 마스터데이터에서 나오는 값이라 컴파일 시점에 알 수 없다.
+  -->
+  <PropertyGroup>
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <Product>LLM NPC Server</Product>
+    <Company>LLM NPC Server</Company>
+    <Deterministic>true</Deterministic>
   </PropertyGroup>
 
 </Project>

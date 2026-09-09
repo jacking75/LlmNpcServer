@@ -23,18 +23,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.AI" Version="10.8.1" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
     <!-- OpenAI 호환 엔드포인트 하나로 로컬(dotLLM · llama.cpp)과 외부를 같이 부른다 (T2-08). -->
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.8.1" />
-    <PackageReference Include="OpenAI" Version="2.12.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <PackageReference Include="OpenAI" />
     <!--
       프리픽스 하한 4,096 토큰(docs/01 §10.1 V9)과 서픽스 상한 300 토큰을 재려면 토크나이저가 있어야 한다.
       오프라인 vocab 이 패키지에 포함되어 네트워크를 타지 않는다.
     -->
-    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
-    <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" />
     <!-- Tokenizers 2.0.0 이 끌고 오는 Bcl.Memory 9.0.4 에 GHSA-73j8-2gch-69rq 취약점이 있다. 상향 고정. -->
-    <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Bcl.Memory" />
   </ItemGroup>
 
 </Project>
