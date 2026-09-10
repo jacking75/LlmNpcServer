@@ -89,7 +89,7 @@ public sealed class LlmPlanCompilerGoldenTests
 
         for (int i = 0; i < SampleSize; i++)
         {
-            BucketKey bucket = BucketKey.FromIndex(i * Stride % BucketKey.TotalKeys);
+            BucketKey bucket = BucketKey.FromIndex(i * Stride % TestPaths.TotalKeys);
 
             PlanCompileResult result = await compiler.CompileAsync(
                 new PlanRequest(bucket, LlmPlanCompilerTests.Data.InitialFlags(bucket)), cancellationToken);

@@ -47,7 +47,8 @@ public readonly record struct StepFlags(
 ///
 /// <b>32바이트 이하 값 타입으로 유지한다</b> — 5,000 NPC × 최대 10스텝이 캐시에 들어가야 한다.
 /// 플래그 4~5종(각 8바이트)은 여기 넣지 않고 <see cref="CompiledPlan.StepFlagSets"/> 로 뺐다.
-/// 실제 크기는 14바이트다 (<c>CompiledStep_SizeIsBounded</c> 가 강제).
+/// 실제 크기는 16바이트다 (<c>CompiledStep_SizeIsBounded</c> 가 강제).
+/// <see cref="NpcRef"/> 를 12비트 payload 로 넓히며 14 → 16 이 됐다 (F-05).
 /// </summary>
 /// <param name="Action">액션 code. ActionCatalog 의 첨자.</param>
 /// <param name="Poi">POI 심볼. 실행 시점에 개체 바인딩한다.</param>
@@ -64,7 +65,7 @@ public readonly record struct CompiledStep(
     ushort Count,
     ushort TimeoutSeconds,
     byte ArgFlags,
-    byte NpcRef,
+    ushort NpcRef,
     ushort FlagSetIndex);
 
 /// <summary>npc_ref 심볼의 인코딩. docs/01 §2.3 — 인스턴스 ID 직접 지정은 금지다.</summary>
@@ -83,28 +84,51 @@ public enum NpcRefKind : byte
     PoiOwner = 3,
 }
 
-/// <summary>npc_ref 를 1바이트에 담는다. 상위 2비트 = 종류, 하위 6비트 = 아키타입 code 또는 POI 심볼.</summary>
+/// <summary>
+/// npc_ref 를 2바이트에 담는다. 상위 4비트 = 종류, 하위 12비트 = 아키타입 code 또는 POI 심볼.
+///
+/// <b>6비트(64종)였다</b> (F-05). 아키타입 수가 코드 상수를 벗어나면서 64 가 조용한 상한이
+/// 되어 버렸다 — 65번째 아키타입은 <see cref="NearestArchetype"/> 에서 code 를 잃고
+/// 엉뚱한 NPC 를 가리켰을 것이고, 그런 오류는 런타임에 티가 나지 않는다.
+/// </summary>
 public static class NpcRefCodes
 {
+    /// <summary>payload 비트 수.</summary>
+    public const int PayloadBits = 12;
+
+    /// <summary>payload 상한. 아키타입 code · POI 심볼이 이 값을 넘을 수 없다.</summary>
+    public const int MaxPayload = (1 << PayloadBits) - 1;
+
+    private const int PayloadMask = MaxPayload;
+
     /// <summary>인자 없음.</summary>
-    public const byte None = 0;
+    public const ushort None = 0;
 
     /// <summary>자기 자신.</summary>
-    public static byte Self() => (byte)((int)NpcRefKind.Self << 6);
+    public static ushort Self() => (ushort)((int)NpcRefKind.Self << PayloadBits);
 
-    /// <summary>가장 가까운 해당 아키타입. code 는 0..39.</summary>
-    public static byte NearestArchetype(int archetypeCode) =>
-        (byte)(((int)NpcRefKind.NearestArchetype << 6) | (archetypeCode & 0x3F));
+    /// <summary>
+    /// 가장 가까운 해당 아키타입.
+    /// <b>code 가 <see cref="MaxPayload"/> 를 넘으면 던진다</b> — 조용히 자르면
+    /// 다른 아키타입을 가리키는 플랜이 검증을 통과한다.
+    /// </summary>
+    public static ushort NearestArchetype(int archetypeCode)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(archetypeCode);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(archetypeCode, MaxPayload);
+
+        return (ushort)(((int)NpcRefKind.NearestArchetype << PayloadBits) | archetypeCode);
+    }
 
     /// <summary>그 POI 의 주인.</summary>
-    public static byte PoiOwner(PoiSymbol symbol) =>
-        (byte)(((int)NpcRefKind.PoiOwner << 6) | ((int)symbol & 0x3F));
+    public static ushort PoiOwner(PoiSymbol symbol) =>
+        (ushort)(((int)NpcRefKind.PoiOwner << PayloadBits) | ((int)symbol & PayloadMask));
 
     /// <summary>종류.</summary>
-    public static NpcRefKind KindOf(byte value) => (NpcRefKind)(value >> 6);
+    public static NpcRefKind KindOf(ushort value) => (NpcRefKind)(value >> PayloadBits);
 
-    /// <summary>하위 6비트 (아키타입 code 또는 POI 심볼).</summary>
-    public static int PayloadOf(byte value) => value & 0x3F;
+    /// <summary>하위 12비트 (아키타입 code 또는 POI 심볼).</summary>
+    public static int PayloadOf(ushort value) => value & PayloadMask;
 }
 
 /// <summary>
@@ -170,7 +194,7 @@ public sealed record CompiledPlan
 /// <summary>
 /// 컴파일된 스텝의 인자 슬롯. <see cref="IPlanVocabulary"/> 가 액션별 파라미터를 여기로 옮긴다.
 /// </summary>
-public readonly record struct PackedArgs(PoiSymbol Poi, ItemId Item, ushort Count, byte ArgFlags, byte NpcRef);
+public readonly record struct PackedArgs(PoiSymbol Poi, ItemId Item, ushort Count, byte ArgFlags, ushort NpcRef);
 
 /// <summary>
 /// 플랜 컴파일에 필요한 어휘. docs/03 §5.

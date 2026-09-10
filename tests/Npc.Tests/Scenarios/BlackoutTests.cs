@@ -129,7 +129,7 @@ public sealed class BlackoutTests
             CachePanel cut = await CacheAfterAsync(store, DaysAfterStoreCut);
 
             // 스토어가 살아 있는 동안에는 2,880 버킷이 전부 채워져 있으므로 미스가 날 수 없다.
-            Assert.Equal(BucketKey.TotalKeys, alive.FilledBuckets);
+            Assert.Equal(TestPaths.TotalKeys, alive.FilledBuckets);
             Assert.Equal(0, alive.ColdBuckets);
             Assert.True(alive.Hits > 0, "차단 전에 버킷 히트가 하나도 없다 — 씨앗이 잘못됐다.");
             Assert.Equal(0, alive.Misses);
@@ -141,7 +141,7 @@ public sealed class BlackoutTests
             Assert.True(cut.Hits >= alive.Hits, Rate(alive, cut));
 
             // 버킷은 그대로 채워져 있다 — 지운 것이 아니라 보지 않는 것이다.
-            Assert.Equal(BucketKey.TotalKeys, cut.FilledBuckets);
+            Assert.Equal(TestPaths.TotalKeys, cut.FilledBuckets);
         }
         finally
         {
@@ -170,7 +170,7 @@ public sealed class BlackoutTests
 
         Directory.CreateDirectory(dir);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             BucketKey bucket = BucketKey.FromIndex(index);
 

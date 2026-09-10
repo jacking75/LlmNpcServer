@@ -63,12 +63,12 @@ public sealed class TargetSelectorTests
             Options(), s_data, existing: null, InvalidationScope.Full);
 
         Assert.Equal(TargetMode.Full, selection.Mode);
-        Assert.Equal(BucketKey.TotalKeys, selection.Count);
-        Assert.Equal(BucketKey.TotalKeys, selection.Buckets.Distinct().Count());
+        Assert.Equal(TestPaths.TotalKeys, selection.Count);
+        Assert.Equal(TestPaths.TotalKeys, selection.Buckets.Distinct().Count());
 
         // 이미 채워진 스토어가 있어도 Full 은 전량이다 — 프롬프트가 바뀌면 다 다시 만들어야 한다.
         Assert.Equal(
-            BucketKey.TotalKeys,
+            TestPaths.TotalKeys,
             TargetSelector.Select(Options(), s_data, StoreWith(2_000), InvalidationScope.Full).Count);
     }
 
@@ -93,7 +93,7 @@ public sealed class TargetSelectorTests
             Options(), s_data, store, InvalidationScope.Partial);
 
         Assert.Equal(TargetMode.Partial, selection.Mode);
-        Assert.Equal(500 + (BucketKey.TotalKeys - 1_500), selection.Count);
+        Assert.Equal(500 + (TestPaths.TotalKeys - 1_500), selection.Count);
 
         // 정상 생성된 1,000 개는 대상이 아니다.
         Assert.DoesNotContain(BucketKey.FromIndex(0), selection.Buckets);
@@ -118,13 +118,13 @@ public sealed class TargetSelectorTests
             Options("--resume"), s_data, store, InvalidationScope.Full);
 
         Assert.Equal(TargetMode.Resume, selection.Mode);
-        Assert.Equal(BucketKey.TotalKeys - 1_500, selection.Count);
+        Assert.Equal(TestPaths.TotalKeys - 1_500, selection.Count);
         Assert.DoesNotContain(BucketKey.FromIndex(1_200), selection.Buckets);   // 폴백도 "있는 것"
         Assert.Contains(BucketKey.FromIndex(1_500), selection.Buckets);
 
         // 스토어가 아예 없으면 resume 도 전량이다.
         Assert.Equal(
-            BucketKey.TotalKeys,
+            TestPaths.TotalKeys,
             TargetSelector.Select(Options("--resume"), s_data, null, InvalidationScope.Full).Count);
     }
 
@@ -144,7 +144,7 @@ public sealed class TargetSelectorTests
         TargetSelection dawnPeace = TargetSelector.Select(
             Options("--only", "*@Dawn.Peace.*"), s_data, null, InvalidationScope.None);
 
-        Assert.Equal(BucketKey.ArchetypeCount * BucketKey.ClimateCount, dawnPeace.Count);
+        Assert.Equal(TestPaths.ArchetypeCount * BucketKey.ClimateCount, dawnPeace.Count);
         Assert.All(dawnPeace.Buckets, b =>
         {
             Assert.Equal(TimeOfDay.Dawn, b.T);
@@ -160,7 +160,7 @@ public sealed class TargetSelectorTests
     public void Target_NoneSelectsNothing()
     {
         TargetSelection selection = TargetSelector.Select(
-            Options(), s_data, StoreWith(BucketKey.TotalKeys), InvalidationScope.None);
+            Options(), s_data, StoreWith(TestPaths.TotalKeys), InvalidationScope.None);
 
         Assert.Equal(TargetMode.None, selection.Mode);
         Assert.Equal(0, selection.Count);
@@ -186,7 +186,7 @@ public sealed class TargetSelectorTests
             TargetSelection selection = TargetSelector.Select(options, s_data, store, scope);
 
             Assert.Equal(skipped, selection.SkippedPinned);
-            Assert.Equal(BucketKey.TotalKeys - 10, selection.Count);
+            Assert.Equal(TestPaths.TotalKeys - 10, selection.Count);
 
             for (int index = 0; index < 10; index++)
             {
@@ -229,9 +229,9 @@ public sealed class TargetSelectorTests
         ImmutableArray<BucketKey> sorted =
             TargetSelector.Select(Options(), s_data, null, InvalidationScope.Full).Buckets;
 
-        Assert.Equal(BucketKey.TotalKeys, sorted.Length);
+        Assert.Equal(TestPaths.TotalKeys, sorted.Length);
 
-        int quarter = BucketKey.TotalKeys / 4;
+        int quarter = TestPaths.TotalKeys / 4;
 
         for (int i = 0; i < quarter; i++)
         {

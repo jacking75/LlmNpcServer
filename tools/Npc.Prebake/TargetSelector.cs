@@ -57,12 +57,14 @@ public readonly record struct TargetSelection(
 /// </summary>
 public static class TargetSelector
 {
-    /// <summary>전 버킷 2,880개. 인덱스 순서.</summary>
-    public static ImmutableArray<BucketKey> All()
+    /// <summary>전 버킷. 인덱스 순서. 개수는 masterdata 가 정한다 (F-05).</summary>
+    public static ImmutableArray<BucketKey> All(BucketSpace space)
     {
-        var builder = ImmutableArray.CreateBuilder<BucketKey>(BucketKey.TotalKeys);
+        ArgumentNullException.ThrowIfNull(space);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        var builder = ImmutableArray.CreateBuilder<BucketKey>(space.TotalKeys);
+
+        for (int index = 0; index < space.TotalKeys; index++)
         {
             builder.Add(BucketKey.FromIndex(index));
         }
@@ -94,12 +96,12 @@ public static class TargetSelector
         IEnumerable<BucketKey> candidates = mode switch
         {
             TargetMode.None => [],
-            TargetMode.Resume => Missing(existing),
-            TargetMode.Partial => Changed(existing),
-            _ => All(),   // Full · Only
+            TargetMode.Resume => Missing(data.Buckets, existing),
+            TargetMode.Partial => Changed(data.Buckets, existing),
+            _ => All(data.Buckets),   // Full · Only
         };
 
-        var chosen = new List<BucketKey>(BucketKey.TotalKeys);
+        var chosen = new List<BucketKey>(data.Buckets.TotalKeys);
         int skippedPinned = 0;
 
         foreach (BucketKey bucket in candidates)
@@ -119,7 +121,7 @@ public static class TargetSelector
         }
 
         // 측정 회차용 축소. 전량 회차에서는 셋 다 기본값이라 아무 일도 하지 않는다.
-        chosen = Narrow(chosen, options);
+        chosen = Narrow(data.Buckets, chosen, options);
 
         return new TargetSelection(SortByPriority(chosen, data), mode, scope, skippedPinned);
     }
@@ -174,9 +176,9 @@ public static class TargetSelector
     }
 
     /// <summary>스토어에 없는 버킷. <c>--resume</c> 이 쓴다.</summary>
-    private static IEnumerable<BucketKey> Missing(PlanStore? existing)
+    private static IEnumerable<BucketKey> Missing(BucketSpace space, PlanStore? existing)
     {
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < space.TotalKeys; index++)
         {
             var bucket = BucketKey.FromIndex(index);
 
@@ -191,9 +193,9 @@ public static class TargetSelector
     /// 미생성 + 폴백·재사용으로 메운 버킷. Partial 이 쓴다.
     /// <c>Prebaked</c>·<c>Pinned</c> 는 Partial 의 정의상 유효하므로 다시 만들지 않는다.
     /// </summary>
-    private static IEnumerable<BucketKey> Changed(PlanStore? existing)
+    private static IEnumerable<BucketKey> Changed(BucketSpace space, PlanStore? existing)
     {
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < space.TotalKeys; index++)
         {
             var bucket = BucketKey.FromIndex(index);
 
@@ -211,27 +213,26 @@ public static class TargetSelector
     }
 
     /// <summary>측정 회차용 축소(<c>--stride</c>·<c>--archetypes</c>·<c>--limit</c>).</summary>
-    private static List<BucketKey> Narrow(List<BucketKey> buckets, PrebakeOptions options)
+    private static List<BucketKey> Narrow(BucketSpace space, List<BucketKey> buckets, PrebakeOptions options)
     {
         if (options.Archetypes > 0)
         {
             // 연속 슬라이스. 인접 버킷 재사용을 실제로 태우려면 같은 아키타입이 연속이어야 한다.
-            int limit = options.Archetypes
-                * BucketKey.TimeOfDayCount * BucketKey.RegionStateCount * BucketKey.ClimateCount;
+            int limit = options.Archetypes * BucketKey.PerArchetype;
 
             buckets = [.. buckets.Where(b => b.ToIndex() < limit)];
         }
         else if (options.Stride > 1)
         {
-            // 2,880 과 서로소인 stride 를 주면 순서가 전 아키타입을 훑는다. 난수를 쓰지 않는다.
+            // 전체 키 수와 서로소인 stride 를 주면 순서가 전 아키타입을 훑는다. 난수를 쓰지 않는다.
             // 걸러내는 것이 아니라 <b>순서를 바꾸는</b> 것이다 — 뒤의 --limit 이 앞에서 자르면
             // 그 표본이 흩어져 있게 된다.
             var present = new HashSet<int>(buckets.Select(b => b.ToIndex()));
             var reordered = new List<BucketKey>(buckets.Count);
 
-            for (int i = 0; i < BucketKey.TotalKeys && reordered.Count < buckets.Count; i++)
+            for (int i = 0; i < space.TotalKeys && reordered.Count < buckets.Count; i++)
             {
-                int index = i * options.Stride % BucketKey.TotalKeys;
+                int index = i * options.Stride % space.TotalKeys;
 
                 if (present.Remove(index))
                 {

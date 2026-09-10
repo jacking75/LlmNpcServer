@@ -28,6 +28,10 @@ public sealed class CompiledPlanTests
         Assert.True(
             Unsafe.SizeOf<CompiledStep>() <= 32,
             $"CompiledStep 이 {Unsafe.SizeOf<CompiledStep>()} 바이트다. 32 이하여야 한다.");
+
+        // 크기를 동결한다 (F-05). 상한만 보면 필드가 하나씩 늘어 32 에 닿을 때까지 아무도
+        // 모른다 — 5,000 NPC × 10스텝이 L2 에 들어가야 한다는 것이 이 상한의 이유다.
+        Assert.Equal(16, Unsafe.SizeOf<CompiledStep>());
     }
 
     [Fact]
@@ -212,9 +216,11 @@ public sealed class CompiledPlanTests
         Assert.Equal(NpcRefKind.None, NpcRefCodes.KindOf(NpcRefCodes.None));
         Assert.Equal(NpcRefKind.Self, NpcRefCodes.KindOf(NpcRefCodes.Self()));
 
-        for (int code = 0; code < 40; code++)
+        // payload 전 구간을 본다 (F-05). 6비트였을 때 65번째 아키타입은 code 를 잃고
+        // 엉뚱한 NPC 를 가리켰고, 그 오류는 런타임에 티가 나지 않았다.
+        for (int code = 0; code <= NpcRefCodes.MaxPayload; code++)
         {
-            byte packed = NpcRefCodes.NearestArchetype(code);
+            ushort packed = NpcRefCodes.NearestArchetype(code);
 
             Assert.Equal(NpcRefKind.NearestArchetype, NpcRefCodes.KindOf(packed));
             Assert.Equal(code, NpcRefCodes.PayloadOf(packed));
@@ -222,11 +228,15 @@ public sealed class CompiledPlanTests
 
         foreach (PoiSymbol symbol in Enum.GetValues<PoiSymbol>())
         {
-            byte packed = NpcRefCodes.PoiOwner(symbol);
+            ushort packed = NpcRefCodes.PoiOwner(symbol);
 
             Assert.Equal(NpcRefKind.PoiOwner, NpcRefCodes.KindOf(packed));
             Assert.Equal((int)symbol, NpcRefCodes.PayloadOf(packed));
         }
+
+        // 상한 밖은 조용히 자르지 않고 던진다.
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => NpcRefCodes.NearestArchetype(NpcRefCodes.MaxPayload + 1));
     }
 
     [Fact]

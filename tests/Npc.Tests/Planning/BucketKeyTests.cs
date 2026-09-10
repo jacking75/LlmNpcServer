@@ -1,10 +1,11 @@
 using System.Text.Json;
 using Npc.Contracts;
 using Npc.Core;
+using Npc.MasterData;
 
 namespace Npc.Tests.Planning;
 
-/// <summary>docs/01 §6. 버킷 인덱스가 0..2879 전단사여야 플랜 스토어가 고정 배열로 성립한다.</summary>
+/// <summary>docs/01 §6. 버킷 인덱스가 전단사여야 플랜 스토어가 고정 배열로 성립한다.</summary>
 public sealed class BucketKeyTests
 {
     private static readonly JsonDocument s_buckets = JsonDocument.Parse(
@@ -13,9 +14,9 @@ public sealed class BucketKeyTests
     [Fact]
     public void BucketKey_IndexIsBijective()
     {
-        var seen = new bool[BucketKey.TotalKeys];
+        var seen = new bool[TestPaths.TotalKeys];
 
-        for (int a = 0; a < BucketKey.ArchetypeCount; a++)
+        for (int a = 0; a < TestPaths.ArchetypeCount; a++)
         {
             for (int t = 0; t < BucketKey.TimeOfDayCount; t++)
             {
@@ -27,7 +28,7 @@ public sealed class BucketKeyTests
                             new ArchetypeId((ushort)a), (TimeOfDay)t, (RegionState)r, (Climate)c);
                         int index = key.ToIndex();
 
-                        Assert.InRange(index, 0, BucketKey.TotalKeys - 1);
+                        Assert.InRange(index, 0, TestPaths.TotalKeys - 1);
                         Assert.False(seen[index], $"인덱스 {index} 가 두 번 나왔다 ({key}).");
                         seen[index] = true;
 
@@ -40,11 +41,34 @@ public sealed class BucketKeyTests
         Assert.DoesNotContain(false, seen);
     }
 
+    /// <summary>
+    /// F-05 — 키 공간의 크기는 masterdata 가 정한다.
+    ///
+    /// <b>여기에 2,880 을 적지 않는다.</b> 적는 순간 아키타입 하나 추가에 테스트가 깨지고,
+    /// 그것이 F-05 가 코드에서 없앤 바로 그 결손이다 — 상수를 테스트로 옮긴 것에 지나지 않는다.
+    /// </summary>
     [Fact]
-    public void BucketKey_TotalKeysIsTwentyEightEighty()
+    public void BucketSpace_SizeComesFromMasterData()
     {
-        Assert.Equal(2880, BucketKey.TotalKeys);
-        Assert.Equal(2880, s_buckets.RootElement.GetProperty("total_keys").GetInt32());
+        MasterDataSet data = MasterDataLoader.Load(TestPaths.MasterData);
+
+        Assert.Equal(data.Archetypes.Count, data.Buckets.ArchetypeCount);
+        Assert.Equal(data.Archetypes.Count * BucketKey.PerArchetype, data.Buckets.TotalKeys);
+
+        // 선언값은 사람이 읽는 기록이다. 코드는 읽지 않지만 V6 이 대조하므로 여기서도 본다.
+        Assert.Equal(data.Buckets.TotalKeys, data.Buckets.DeclaredTotalKeys);
+        Assert.Equal(
+            data.Buckets.TotalKeys, s_buckets.RootElement.GetProperty("total_keys").GetInt32());
+    }
+
+    /// <summary>아키타입 수가 권장·하드 상한 안인가.</summary>
+    [Fact]
+    public void BucketSpace_ArchetypeCountIsWithinLimits()
+    {
+        Assert.InRange(TestPaths.ArchetypeCount, 1, BucketSpace.RecommendedMaxArchetypes);
+
+        // 하드 상한은 npc_ref 의 payload 다 — 넘으면 nearest:<archetype> 을 인코딩할 수 없다.
+        Assert.True(BucketSpace.MaxArchetypes > BucketSpace.RecommendedMaxArchetypes);
     }
 
     /// <summary>V6 — context_buckets.json 의 total_keys 가 실제 조합 수와 같아야 한다.</summary>
@@ -64,7 +88,7 @@ public sealed class BucketKeyTests
         Assert.Equal(BucketKey.TimeOfDayCount, time);
         Assert.Equal(BucketKey.RegionStateCount, region);
         Assert.Equal(BucketKey.ClimateCount, climate);
-        Assert.Equal(BucketKey.ArchetypeCount, archetypeCount);
+        Assert.Equal(TestPaths.ArchetypeCount, archetypeCount);
         Assert.Equal(
             s_buckets.RootElement.GetProperty("total_keys").GetInt32(),
             archetypeCount * time * region * climate);
@@ -133,8 +157,19 @@ public sealed class BucketKeyTests
     [Fact]
     public void BucketKey_FromIndexRejectsOutOfRange()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => BucketKey.FromIndex(BucketKey.TotalKeys));
+        // BucketKey 는 아키타입 수를 모른다 (F-05). ArchetypeId 가 넘치는 것만 막는다.
         Assert.Throws<ArgumentOutOfRangeException>(() => BucketKey.FromIndex(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => BucketKey.FromIndex(((ushort.MaxValue + 1) * BucketKey.PerArchetype) + 1));
+
+        // 로스터 상한을 아는 것은 BucketSpace 다.
+        BucketSpace space = MasterDataLoader.Load(TestPaths.MasterData).Buckets;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => space.FromIndex(space.TotalKeys));
+        Assert.Throws<ArgumentOutOfRangeException>(() => space.FromIndex(-1));
+        Assert.Equal(BucketKey.FromIndex(7), space.FromIndex(7));
+        Assert.False(space.Contains(space.TotalKeys));
+        Assert.True(space.Contains(BucketKey.FromIndex(space.TotalKeys - 1)));
     }
 
     [Fact]

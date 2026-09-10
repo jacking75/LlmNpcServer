@@ -13,13 +13,12 @@ public sealed class PlanTableTests
     private static PlanTable Table => s_data.Fallbacks
         ?? throw new InvalidOperationException("fallback_plans.json 이 로드되지 않았다.");
 
-    /// <summary>T1-54 완료 조건 — 40개 전부 검증기 1~3단 통과 (Validator_AcceptsAllFallbacks).</summary>
+    /// <summary>T1-54 완료 조건 — 아키타입 전부 검증기 1~3단 통과 (Validator_AcceptsAllFallbacks).</summary>
     [Fact]
     public void Validator_AcceptsAllFallbacks()
     {
         // PlanTable.Load 가 1~3단을 통과시키지 못하면 예외를 던진다.
-        // 여기까지 왔다는 것은 40개가 전부 통과했다는 뜻이다.
-        Assert.Equal(40, Table.Count);
+        // 여기까지 왔다는 것은 전부 통과했다는 뜻이다.
         Assert.Equal(s_data.Archetypes.Count, Table.Count);
 
         foreach (ArchetypeDef archetype in s_data.Archetypes.Archetypes)

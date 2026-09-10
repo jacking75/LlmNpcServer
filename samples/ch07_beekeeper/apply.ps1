@@ -4,12 +4,13 @@
     7장 — 새 직업 beekeeper 를 추가한다. JSON 만으로는 안 끝나는 첫 실습.
 
 .DESCRIPTION
-    <b>이 스크립트는 실습장 사본이 아니라 저장소 본체를 고친다.</b> 이유가 있다.
+    <b>이 스크립트는 실습장 사본이 아니라 저장소 본체를 고친다.</b> 마스터데이터가 단일
+    원천이고 파생물(poi_distances.bin · npc_instances.json)이 그것을 따라가야 하기 때문이다.
 
-      BucketKey.ArchetypeCount 는 <b>컴파일 상수</b>다. 플랜 스토어 배열 길이,
-      캐시 통계 배열, 히트맵 열 수가 전부 이 값에서 나온다. 사본에만 아키타입을 넣으면
-      바이너리는 여전히 40으로 컴파일돼 있어서 41번째가 첨자 밖으로 나간다.
-      그래서 마스터데이터와 코드를 <b>같이</b> 고쳐야 한다.
+      <b>코드는 고치지 않는다</b> (F-05). 예전에는 BucketKey.ArchetypeCount 라는 컴파일
+      상수가 있어서 아키타입을 하나 넣을 때마다 C# 을 고치고 다시 빌드해야 했다. 지금은
+      아키타입 수를 archetypes.json 이 정하고 BucketSpace 가 들고 있다 — 플랜 스토어 배열
+      길이 · 캐시 통계 배열 · 히트맵 열 수가 전부 거기서 나온다.
 
     고치는 곳 다섯 (+ 생성기 한 번)
 
@@ -18,8 +19,7 @@
       ③ archetypes.json      beekeeper(code 40) · 가중치 재배분
       ④ context_buckets.json total_keys 2880 → 2952
       ⑤ fallback_plans.json  fb_beekeeper
-      ⑥ BucketKey.cs         ArchetypeCount 40 → 41
-      ⑦ gen_npcs 재실행      npc_instances.json 을 다시 만든다
+      ⑥ gen_npcs 재실행      npc_instances.json 을 다시 만든다
 
     되돌리려면 revert.ps1 이다. 반드시 <b>전용 브랜치</b>에서 한다.
 
@@ -230,33 +230,26 @@ try {
     Edit-File -Path 'masterdata/fallback_plans.json' -From $fbFrom -To $fbTo `
         -Label 'fb_beekeeper (9스텝, loop:true)'
 
-    # ── ⑥ BucketKey.cs ───────────────────────────────────────────────────
-    Write-Host ""
-    Write-Host "⑥ src/Npc.Core/Planning/BucketKey.cs — 여기서부터가 코드다" -ForegroundColor Cyan
-    Edit-File -Path 'src/Npc.Core/Planning/BucketKey.cs' -Label 'ArchetypeCount 40 → 41' `
-        -From "    /// <summary>아키타입 수. archetypes.json 의 40 과 맞아야 한다 (V6).</summary>`n    public const int ArchetypeCount = 40;" `
-        -To   "    /// <summary>아키타입 수. archetypes.json 의 41 과 맞아야 한다 (V6).</summary>`n    public const int ArchetypeCount = 41;"
-
     if ($EditOnly) {
         Write-Host ""
         Write-Host "파일만 고쳤다. 나머지는 손으로 돌린다." -ForegroundColor Yellow
         exit 0
     }
 
-    # ── ⑦ 생성기 · 빌드 · 검증 ───────────────────────────────────────────
+    # ── ⑥ 생성기 · 빌드 · 검증 ───────────────────────────────────────────
     Write-Host ""
-    Write-Host "⑦ poi_distances.bin · npc_instances.json 재생성" -ForegroundColor Cyan
+    Write-Host "⑥ poi_distances.bin · npc_instances.json 재생성" -ForegroundColor Cyan
     $prev = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     & dotnet run tools/gen_poi_distances.cs 2>&1 | ForEach-Object { Write-Host "   $($_.ToString())" -ForegroundColor DarkGray }
     & dotnet run tools/gen_npcs.cs           2>&1 | ForEach-Object { Write-Host "   $($_.ToString())" -ForegroundColor DarkGray }
 
     Write-Host ""
-    Write-Host "⑧ 빌드" -ForegroundColor Cyan
+    Write-Host "⑦ 빌드" -ForegroundColor Cyan
     & dotnet build -c Release 2>&1 | Select-Object -Last 4 | ForEach-Object { Write-Host "   $($_.ToString())" -ForegroundColor DarkGray }
 
     Write-Host ""
-    Write-Host "⑨ 검증" -ForegroundColor Cyan
+    Write-Host "⑧ 검증" -ForegroundColor Cyan
     & dotnet run -c Release --no-build --no-launch-profile --project src/Npc.Host -- `
         validate --masterdata (Join-Path $root 'masterdata') 2>&1 | ForEach-Object { Write-Host "   $($_.ToString())" }
     $code = $LASTEXITCODE

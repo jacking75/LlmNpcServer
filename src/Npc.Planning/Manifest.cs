@@ -186,7 +186,7 @@ public sealed record Manifest
             GeneratedBy = generatedBy,
             GeneratedAt = generatedAt ?? string.Empty,
             FileHashes = data.FileHashes,
-            Counts = new ManifestCounts(Total: Npc.Core.BucketKey.TotalKeys, 0, 0, 0),
+            Counts = new ManifestCounts(Total: data.Buckets.TotalKeys, 0, 0, 0),
         };
     }
 

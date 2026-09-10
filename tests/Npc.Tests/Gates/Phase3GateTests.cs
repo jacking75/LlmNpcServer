@@ -98,18 +98,18 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
         Phase3Fixture.RegisterFallbacks(store, s_data);
 
         // 우선순위 순으로 95% 만 채운다 — 남는 5% 는 Disaster 쪽 꼬리다.
-        ImmutableArray<BucketKey> order = TargetSelector.SortByPriority(TargetSelector.All(), s_data);
-        int filled = (int)(BucketKey.TotalKeys * FixtureFillRate);
+        ImmutableArray<BucketKey> order = TargetSelector.SortByPriority(TargetSelector.All(s_data.Buckets), s_data);
+        int filled = (int)(TestPaths.TotalKeys * FixtureFillRate);
 
         for (int i = 0; i < filled; i++)
         {
             store.SetBucket(order[i], Phase3Fixture.PlanFor(order[i], s_data));
         }
 
-        Assert.True(store.FilledBuckets >= BucketKey.TotalKeys * FixtureFillRate);
+        Assert.True(store.FilledBuckets >= TestPaths.TotalKeys * FixtureFillRate);
 
         // 전 버킷이 유효한 플랜을 받는다. 미생성분은 폴백이다.
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             var bucket = BucketKey.FromIndex(index);
             CompiledPlan plan = store.Resolve(bucket, out PlanOrigin origin);
@@ -229,7 +229,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
 
         try
         {
-            Phase3Fixture.WriteStore(store, s_data, count: (int)(BucketKey.TotalKeys * FixtureFillRate), writeManifest: true);
+            Phase3Fixture.WriteStore(store, s_data, count: (int)(TestPaths.TotalKeys * FixtureFillRate), writeManifest: true);
 
             await using NpcHost host = NpcHost.Create(
                 Options(
@@ -296,7 +296,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
 
             Assert.True(reloaded.IsPinned(pinned));
 
-            for (int index = 0; index < BucketKey.TotalKeys; index++)
+            for (int index = 0; index < TestPaths.TotalKeys; index++)
             {
                 var bucket = BucketKey.FromIndex(index);
 
@@ -359,7 +359,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
         // 전량 채워진 스토어에서 Partial 대상은 0 이다 — 기존 플랜이 유효하므로 다시 만들지 않는다.
         PlanStore full = PlanStore.CreateIdleOnly(s_data);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             full.SetBucket(BucketKey.FromIndex(index), Phase3Fixture.PlanFor(BucketKey.FromIndex(index), s_data));
         }
@@ -374,7 +374,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
         // 폴백으로 메운 버킷이 있으면 그것만 다시 던진다 — 전량이 아니다.
         PlanStore partial = PlanStore.CreateIdleOnly(s_data);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             var bucket = BucketKey.FromIndex(index);
 
@@ -387,7 +387,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
         TargetSelection retry = TargetSelector.Select(options, s_data, partial, scope);
 
         Assert.Equal(100, retry.Count);
-        Assert.True(retry.Count < BucketKey.TotalKeys, "Partial 이 전량 재생성으로 번졌다.");
+        Assert.True(retry.Count < TestPaths.TotalKeys, "Partial 이 전량 재생성으로 번졌다.");
     }
 
     // ── 8. --budget-usd 초과 시 중단 + --resume 재개 ───────────────
@@ -407,7 +407,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
 
         Assert.False(guard.TryReserve(2));
         Assert.True(guard.Exhausted);
-        Assert.Contains("--resume", guard.StopMessage(4, BucketKey.TotalKeys), StringComparison.Ordinal);
+        Assert.Contains("--resume", guard.StopMessage(4, TestPaths.TotalKeys), StringComparison.Ordinal);
 
         // 중단된 회차의 manifest 는 부분 상태다.
         var stopped = new BulkRunReport([], 12.0, 0, 8, 0, 8, StoppedByBudget: true, Attempted: 0);
@@ -437,7 +437,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
         TargetSelection resume = TargetSelector.Select(options, s_data, half, InvalidationScope.Full);
 
         Assert.Equal(TargetMode.Resume, resume.Mode);
-        Assert.Equal(BucketKey.TotalKeys - 1_000, resume.Count);
+        Assert.Equal(TestPaths.TotalKeys - 1_000, resume.Count);
     }
 
     // ── 9. 검수 40건 채택률 ≥ 80% ─────────────────────────────────
@@ -636,7 +636,7 @@ public static class Phase3Fixture
 
     /// <summary>2,880 버킷을 전부 채운 스토어를 쓴다.</summary>
     public static void WriteFullStore(string directory, MasterDataSet data) =>
-        WriteStore(directory, data, BucketKey.TotalKeys, writeManifest: true);
+        WriteStore(directory, data, TestPaths.TotalKeys, writeManifest: true);
 
     /// <summary>
     /// 우선순위 순으로 <paramref name="count"/> 개를 채운 스토어를 쓴다.
@@ -648,7 +648,7 @@ public static class Phase3Fixture
         ArgumentNullException.ThrowIfNull(data);
 
         PlanStore store = PlanStore.CreateIdleOnly(data);
-        ImmutableArray<BucketKey> order = TargetSelector.SortByPriority(TargetSelector.All(), data);
+        ImmutableArray<BucketKey> order = TargetSelector.SortByPriority(TargetSelector.All(data.Buckets), data);
 
         for (int i = 0; i < Math.Min(count, order.Length); i++)
         {
@@ -667,7 +667,7 @@ public static class Phase3Fixture
         Manifest manifest = Manifest.For(
             data, prefix.Sha256, new ManifestGeneratedBy("T2", "fixture", 0.4, 8, 8, 0), string.Empty) with
         {
-            Counts = new ManifestCounts(BucketKey.TotalKeys, store.FilledBuckets, 0, 0),
+            Counts = new ManifestCounts(TestPaths.TotalKeys, store.FilledBuckets, 0, 0),
             Validation = new ManifestValidation(store.FilledBuckets, 0, 0, 0, 0),
             CacheHitRate = 0.96,
             WallClockSeconds = 180,

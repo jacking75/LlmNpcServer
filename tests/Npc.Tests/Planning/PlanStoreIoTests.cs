@@ -46,34 +46,34 @@ public sealed class PlanStoreIoTests : IDisposable
     {
         PlanStore saved = PlanStore.CreateIdleOnly(s_data);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             var bucket = BucketKey.FromIndex(index);
 
             saved.SetBucket(bucket, Plan(bucket, "goal_" + index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         }
 
-        Assert.Equal(BucketKey.TotalKeys, PlanStoreIo.SaveAll(_directory, saved, s_data));
+        Assert.Equal(TestPaths.TotalKeys, PlanStoreIo.SaveAll(_directory, saved, s_data));
 
         // 저장이 히트율 카운터를 건드리지 않는다 — 건드리면 게이트 측정이 오염된다.
         Assert.Equal(0, saved.Hits);
         Assert.Equal(0, saved.Misses);
 
         Assert.Equal(
-            BucketKey.TotalKeys,
+            TestPaths.TotalKeys,
             Directory.GetFiles(Path.Combine(_directory, "plans"), "*.json").Length);
 
         PlanStore loaded = PlanStore.CreateIdleOnly(s_data);
         PlanStoreLoadReport report = PlanStoreIo.LoadAll(_directory, loaded, s_data);
 
-        Assert.Equal(BucketKey.TotalKeys, report.Loaded);
+        Assert.Equal(TestPaths.TotalKeys, report.Loaded);
         Assert.Equal(0, report.Pinned);
         Assert.Equal(0, report.Skipped);
         Assert.Equal(0, report.Failed);
         Assert.Empty(report.Errors);
-        Assert.Equal(BucketKey.TotalKeys, loaded.FilledBuckets);
+        Assert.Equal(TestPaths.TotalKeys, loaded.FilledBuckets);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             var bucket = BucketKey.FromIndex(index);
 
@@ -152,7 +152,7 @@ public sealed class PlanStoreIoTests : IDisposable
         Assert.Equal(bucket, parsed);
 
         // 전 버킷이 왕복한다.
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             var each = BucketKey.FromIndex(index);
             string name = each.Format(s_data.Archetypes[each.A].Id);

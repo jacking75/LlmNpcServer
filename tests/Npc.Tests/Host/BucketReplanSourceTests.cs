@@ -186,7 +186,7 @@ public sealed class BucketReplanSourceTests
 
         Assert.Equal(0, source.Depth);
         Assert.False(source.TryTake(new Tick(0), out _));
-        Assert.Equal(2_880, plans.ColdBuckets);
+        Assert.Equal(TestPaths.TotalKeys, plans.ColdBuckets);
     }
 
     /// <summary>

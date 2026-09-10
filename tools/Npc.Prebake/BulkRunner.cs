@@ -173,18 +173,8 @@ public sealed class BulkRunner
     /// <summary>생성된 플랜들. 인접 버킷 재사용이 여기를 본다.</summary>
     public PlanStore Store => _store;
 
-    /// <summary>전 버킷 2,880개. docs/01 §6.</summary>
-    public static ImmutableArray<BucketKey> AllBuckets()
-    {
-        var builder = ImmutableArray.CreateBuilder<BucketKey>(BucketKey.TotalKeys);
-
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
-        {
-            builder.Add(BucketKey.FromIndex(index));
-        }
-
-        return builder.ToImmutable();
-    }
+    /// <summary>전 버킷. docs/01 §6. 개수는 masterdata 가 정한다 (F-05).</summary>
+    public static ImmutableArray<BucketKey> AllBuckets(BucketSpace space) => TargetSelector.All(space);
 
     /// <summary>
     /// 버킷들을 순서대로 생성한다.

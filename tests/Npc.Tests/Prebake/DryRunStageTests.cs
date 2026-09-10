@@ -28,7 +28,7 @@ public sealed class DryRunStageTests(Xunit.Abstractions.ITestOutputHelper output
 
         Assert.NotNull(s_data.Fallbacks);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             var bucket = BucketKey.FromIndex(index);
 
@@ -49,7 +49,7 @@ public sealed class DryRunStageTests(Xunit.Abstractions.ITestOutputHelper output
     {
         PlanStore store = FullStore();
 
-        Assert.Equal(BucketKey.TotalKeys, store.FilledBuckets);
+        Assert.Equal(TestPaths.TotalKeys, store.FilledBuckets);
 
         DryRunReport first = DryRunStage.Run(store, s_data);
 
@@ -61,7 +61,7 @@ public sealed class DryRunStageTests(Xunit.Abstractions.ITestOutputHelper output
         output.WriteLine(
             $"직렬(병렬 1)   : {serial.WallClockSeconds:F2}s · {serial.MsPerPlan:F2}ms/건");
 
-        Assert.Equal(BucketKey.TotalKeys, first.Checked);
+        Assert.Equal(TestPaths.TotalKeys, first.Checked);
         Assert.Equal(0, first.Skipped);
         Assert.True(
             first.WallClockSeconds <= 60,
@@ -143,14 +143,14 @@ public sealed class DryRunStageTests(Xunit.Abstractions.ITestOutputHelper output
     public void DryRun_SampleSelectionIsDeterministic()
     {
         ImmutableArray<int> half =
-            [.. Enumerable.Range(0, BucketKey.TotalKeys).Where(i => DryRunStage.InSample(i, 0.5))];
+            [.. Enumerable.Range(0, TestPaths.TotalKeys).Where(i => DryRunStage.InSample(i, 0.5))];
         ImmutableArray<int> again =
-            [.. Enumerable.Range(0, BucketKey.TotalKeys).Where(i => DryRunStage.InSample(i, 0.5))];
+            [.. Enumerable.Range(0, TestPaths.TotalKeys).Where(i => DryRunStage.InSample(i, 0.5))];
 
         Assert.Equal(half.ToArray(), again.ToArray());
 
         // 대략 절반이다. 해시라 정확히 절반은 아니다.
-        Assert.InRange(half.Length, BucketKey.TotalKeys * 45 / 100, BucketKey.TotalKeys * 55 / 100);
+        Assert.InRange(half.Length, TestPaths.TotalKeys * 45 / 100, TestPaths.TotalKeys * 55 / 100);
 
         // 1.0 은 전수, 0 은 전무.
         Assert.All(Enumerable.Range(0, 100), i => Assert.True(DryRunStage.InSample(i, 1.0)));
@@ -159,8 +159,8 @@ public sealed class DryRunStageTests(Xunit.Abstractions.ITestOutputHelper output
         // 표본이 작으면 Skipped 가 그만큼 잡힌다.
         DryRunReport report = DryRunStage.Run(FullStore(), s_data, sample: 0.1);
 
-        Assert.Equal(BucketKey.TotalKeys, report.Checked + report.Skipped);
-        Assert.InRange(report.Checked, BucketKey.TotalKeys / 20, BucketKey.TotalKeys / 5);
+        Assert.Equal(TestPaths.TotalKeys, report.Checked + report.Skipped);
+        Assert.InRange(report.Checked, TestPaths.TotalKeys / 20, TestPaths.TotalKeys / 5);
     }
 
     /// <summary>빈 스토어는 볼 것이 없다.</summary>

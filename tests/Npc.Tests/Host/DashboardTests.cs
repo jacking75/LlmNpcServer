@@ -121,10 +121,10 @@ public sealed class DashboardTests
 
         BucketHeatmap heatmap = host.Metrics.Snapshot().Heatmap;
 
-        Assert.Equal(40, heatmap.Archetypes);
+        Assert.Equal(TestPaths.ArchetypeCount, heatmap.Archetypes);
         Assert.Equal(72, heatmap.Columns);
-        Assert.Equal(2_880, heatmap.Cells.Length);
-        Assert.Equal(40, heatmap.ArchetypeNames.Length);
+        Assert.Equal(TestPaths.TotalKeys, heatmap.Cells.Length);
+        Assert.Equal(TestPaths.ArchetypeCount, heatmap.ArchetypeNames.Length);
         Assert.All(heatmap.ArchetypeNames, n => Assert.NotEmpty(n));
 
         // 하루를 돌았으면 조회된 버킷이 있어야 하고, 대부분은 비어 있어야 한다 —

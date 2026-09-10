@@ -121,7 +121,7 @@ public sealed class ManifestWriterTests : IDisposable
             s_data, s_prefix, Engine, "T2", report, dryRun, store, "2026-07-26T09:00:00Z");
 
         // counts
-        Assert.Equal(BucketKey.TotalKeys, manifest.Counts.Total);
+        Assert.Equal(TestPaths.TotalKeys, manifest.Counts.Total);
         Assert.Equal(10, manifest.Counts.Generated);
         Assert.Equal(2, manifest.Counts.Pinned);
         Assert.Equal(3, manifest.Counts.Fallback);

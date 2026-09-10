@@ -432,7 +432,7 @@ public sealed class AssertionEvaluatorTests
         PlanTable fallbacks = s_data.Fallbacks!;
         AssertionEvaluator evaluator = AssertionEvaluator.Create(s_data);
 
-        Assert.Equal(BucketKey.ArchetypeCount, fallbacks.Count);
+        Assert.Equal(TestPaths.ArchetypeCount, fallbacks.Count);
 
         var failures = new StringBuilder();
 

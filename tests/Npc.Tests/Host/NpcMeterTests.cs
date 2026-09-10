@@ -127,13 +127,13 @@ public sealed class NpcMeterTests
 
         // (1) 히트율 (2) 콜드 버킷 수 (3) 미스 상위 버킷 (4) 개별 풀 회전율
         Assert.InRange(m.Cache.HitRate, 0, 1);
-        Assert.Equal(2_880, m.Cache.ColdBuckets + m.Cache.FilledBuckets);
+        Assert.Equal(TestPaths.TotalKeys, m.Cache.ColdBuckets + m.Cache.FilledBuckets);
         Assert.NotNull(m.Cache.TopMisses);
         Assert.True(m.Cache.TopMisses.Length <= 10);
         Assert.Equal(0, m.Cache.IndividualTurnover);   // 개별 풀은 P4 에서 결선한다
 
         // 프리베이크 전이므로 전 버킷이 비어 있고 조회는 전부 폴백으로 해소된다.
-        Assert.Equal(2_880, m.Cache.ColdBuckets);
+        Assert.Equal(TestPaths.TotalKeys, m.Cache.ColdBuckets);
         Assert.Equal(0, m.Cache.PinnedBuckets);
         Assert.Equal(0, m.Cache.Hits);
         Assert.True(m.Cache.Misses > 0, "버킷 전환이 한 번도 안 일어났다 — 미스조차 세지 못했다.");

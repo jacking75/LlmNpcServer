@@ -61,7 +61,7 @@ public sealed class CompilerFallbackTests
             new FakeChatClient(AlwaysFails),
         })
         {
-            for (int archetype = 0; archetype < BucketKey.ArchetypeCount; archetype++)
+            for (int archetype = 0; archetype < TestPaths.ArchetypeCount; archetype++)
             {
                 var bucket = new BucketKey(
                     new ArchetypeId((ushort)archetype), TimeOfDay.Morning, RegionState.Peace, Climate.Fair);

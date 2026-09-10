@@ -36,8 +36,8 @@ internal sealed class BucketReplanSource : IReplanSource
 
     private readonly PlanStore _plans;
     private readonly BucketSpace _buckets;
-    private readonly int[] _claim = new int[BucketKey.TotalKeys];
-    private readonly long[] _cooldownUntil = new long[BucketKey.TotalKeys];
+    private readonly int[] _claim;
+    private readonly long[] _cooldownUntil;
 
     private long _filled;
     private long _skipped;
@@ -50,6 +50,10 @@ internal sealed class BucketReplanSource : IReplanSource
 
         _plans = plans;
         _buckets = data.Buckets;
+
+        // 길이는 masterdata 가 정한다 (F-05). 기동 시 한 번 잡는다.
+        _claim = new int[_buckets.TotalKeys];
+        _cooldownUntil = new long[_buckets.TotalKeys];
 
         Array.Fill(_cooldownUntil, long.MinValue);
     }
@@ -157,7 +161,7 @@ internal sealed class BucketReplanSource : IReplanSource
         int best = -1;
         long bestMisses = 0;
 
-        for (int i = 0; i < BucketKey.TotalKeys; i++)
+        for (int i = 0; i < _claim.Length; i++)
         {
             if (Volatile.Read(ref _claim[i]) != Idle || Volatile.Read(ref _cooldownUntil[i]) > now.Value)
             {
@@ -186,7 +190,7 @@ internal sealed class BucketReplanSource : IReplanSource
     {
         int count = 0;
 
-        for (int i = 0; i < BucketKey.TotalKeys; i++)
+        for (int i = 0; i < _claim.Length; i++)
         {
             BucketKey key = BucketKey.FromIndex(i);
 

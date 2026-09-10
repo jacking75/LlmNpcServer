@@ -1,5 +1,27 @@
 # 작업 로그
 
+## 2026-09-10 13:41 KST · F-05 `ArchetypeCount` 컴파일 상수 제거
+
+아키타입 하나 추가에 C# 상수 수정과 재빌드가 따라왔다. **파일이 41 인데 바이너리가 40 이면
+41번째의 버킷 72칸이 조용히 사라진다** — 런타임에 티가 나지 않는 종류의 오류다.
+
+- `BucketKey.ArchetypeCount`·`TotalKeys` 를 없앴다. 남은 것은 열거형이 정하는
+  `PerArchetype`(72) 뿐이다. **`ToIndex()` 식에는 원래 아키타입 수가 없었다** —
+  그래서 뒤에 추가해도 기존 첨자가 그대로고 프리베이크 플랜이 첨자 때문에 깨지지 않는다.
+- 이미 있던 `BucketSpace`(`MasterDataSet.Buckets`)가 `ArchetypeCount`·`TotalKeys`·
+  `FromIndex`·`Contains` 를 갖는다. 새 타입을 만들지 않았다.
+- 배열을 기동 시 잡는다: `PlanStore`(4종 + 폴백) · `CacheMetrics` · `NpcMeter` 히트맵·
+  행 이름 · `BucketReplanSource`. 틱 루프는 첨자로만 읽으므로 조회 비용은 그대로다.
+- **`NpcRef` 를 6비트 → 12비트로 넓혔다.** 64종이 조용한 상한이었다 — 65번째 아키타입은
+  `nearest:` 에서 code 를 잃고 엉뚱한 NPC 를 가리켰을 것이다. `CompiledStep` 14 → 16B,
+  크기를 정확히 16 으로 동결했다. 상한 밖 code 는 자르지 않고 어휘 검증에서 떨어뜨린다.
+- 테스트는 개수를 `TestPaths.ArchetypeCount` 로 읽는다. **신규**
+  `BucketSpaceGrowthTests` — masterdata 를 복사해 41번째를 넣고 코드를 한 줄도 고치지 않은
+  채 로드·검증·플랜 스토어·계측이 따라오는지, 기존 40개의 첨자와 code 가 불변인지 본다.
+- 7장 실습에서 코드 수정 단계를 뺐다(⑥ 삭제). 남은 대가는 **프리픽스 해시 변경 →
+  플랜 스토어 전량 무효**다 — 그쪽은 F-05 가 없앤 문제가 아니라 그대로 남는다.
+- 전체 1,284건 통과 · 경고 0.
+
 ## 2026-09-10 13:02 KST · 할당 0 측정의 계층 JIT 잡음 제거
 
 `RingBuffer8_AddDoesNotAllocate` 와 `Lod_UpdateDoesNotAllocate` 가 병렬 회차에서 간헐적으로

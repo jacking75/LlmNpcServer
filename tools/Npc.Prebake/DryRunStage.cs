@@ -91,10 +91,10 @@ public static class DryRunStage
         var validator = new DryRunValidator(data);
 
         // 판정 대상을 먼저 고른다 — 병렬 구간에서 표본 판정까지 하면 읽기가 두 번 된다.
-        var targets = new List<(int Index, CompiledPlan Plan)>(BucketKey.TotalKeys);
+        var targets = new List<(int Index, CompiledPlan Plan)>(store.Space.TotalKeys);
         int skipped = 0;
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < store.Space.TotalKeys; index++)
         {
             if (store.PeekBucket(BucketKey.FromIndex(index)) is not { } plan)
             {
@@ -110,7 +110,7 @@ public static class DryRunStage
             targets.Add((index, plan));
         }
 
-        var failures = new ValidationResult?[BucketKey.TotalKeys];
+        var failures = new ValidationResult?[store.Space.TotalKeys];
         long started = Stopwatch.GetTimestamp();
 
         Parallel.ForEach(

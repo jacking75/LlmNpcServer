@@ -208,7 +208,6 @@
 <tr><td>실습장 하나</td><td><code>./samples/lab.ps1 -Drop &lt;이름&gt;</code></td></tr>
 <tr><td>실습장 전부</td><td><code>Remove-Item lab -Recurse -Force</code> — <code>.gitignore</code> 라 흔적이 없다</td></tr>
 <tr><td>본체를 고친 실습 (7·9·12장)</td><td><b>전용 브랜치에서 한다.</b> <code>revert.ps1 -Yes</code> → <code>git switch main</code></td></tr>
-<tr><td><code>ArchetypeCount</code> 를 되돌렸는데 이상하다</td><td><b>다시 빌드한다.</b> 파일은 40인데 바이너리가 41이면 가장 찾기 어렵다</td></tr>
 <tr><td>생성물 (<code>npc_instances.json</code> · <code>poi_distances.bin</code>)</td><td>손으로 못 되돌린다. <code>git restore masterdata</code></td></tr>
 <tr><td>플랜 스토어</td><td><code>planstore/plans/</code> 는 지워도 된다 — 재생성 가능.<br><b><code>pinned/</code> 는 지우지 않는다</b></td></tr>
 <tr><td>측정 원자료를 덮어썼다</td><td><code>git restore docs/measurements</code></td></tr>

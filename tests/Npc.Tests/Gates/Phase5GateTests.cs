@@ -165,7 +165,7 @@ public sealed class Phase5GateTests
         plans.Switches = switches;
         switches.Fire(KillSwitchTarget.PlanStore);
 
-        for (int i = 0; i < BucketKey.TotalKeys; i += 97)
+        for (int i = 0; i < TestPaths.TotalKeys; i += 97)
         {
             Assert.NotNull(plans.Resolve(BucketKey.FromIndex(i)));
         }

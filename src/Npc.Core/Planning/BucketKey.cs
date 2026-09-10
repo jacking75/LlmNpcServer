@@ -42,14 +42,18 @@ public enum Climate : byte
 
 /// <summary>
 /// 플랜 캐시 키. (아키타입 × 시간대 × 지역상태 × 기후). docs/01 §6.
-/// 플랜 스토어는 <c>CompiledPlan[2880]</c> 고정 배열이면 충분하다 —
+/// 플랜 스토어는 아키타입 수 × 72 짜리 고정 배열이면 충분하다 —
 /// 조회는 <see cref="ToIndex"/> 한 번이고 해시맵이 필요 없다.
+///
+/// <para>
+/// <b>아키타입 수는 이 타입이 모른다</b> (F-05). masterdata 가 정하고
+/// <c>MasterDataSet.Buckets</c>(<c>BucketSpace</c>)가 들고 있다 — 코드 상수로 두면
+/// 아키타입 하나 추가에 C# 수정과 빌드가 따라오고, 파일이 41 인데 바이너리가 40 이면
+/// 가장 찾기 어려운 종류의 오류가 난다.
+/// </para>
 /// </summary>
 public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState R, Climate C)
 {
-    /// <summary>아키타입 수. archetypes.json 의 40 과 맞아야 한다 (V6).</summary>
-    public const int ArchetypeCount = 40;
-
     /// <summary>시간대 수.</summary>
     public const int TimeOfDayCount = 6;
 
@@ -59,18 +63,36 @@ public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState 
     /// <summary>기후 수.</summary>
     public const int ClimateCount = 3;
 
-    /// <summary>전체 키 수. 40 × 6 × 4 × 3.</summary>
-    public const int TotalKeys = ArchetypeCount * TimeOfDayCount * RegionStateCount * ClimateCount;
+    /// <summary>
+    /// 한 아키타입이 갖는 버킷 수. 6 × 4 × 3 = 72.
+    /// <b>아키타입 수와 무관하다</b> — 열거형 세 개가 정한다.
+    /// </summary>
+    public const int PerArchetype = TimeOfDayCount * RegionStateCount * ClimateCount;
 
-    /// <summary>0..2879. 전단사다.</summary>
+    /// <summary>
+    /// 첨자. 전단사다.
+    ///
+    /// <b>이 식에 아키타입 수가 들어가지 않는다</b> — 아키타입은 가장 바깥 차원이라
+    /// 뒤에 추가해도 기존 인덱스가 그대로다. 프리베이크 플랜 2,880개가 아키타입 추가로
+    /// 깨지지 않는 이유가 이것이다 (CLAUDE.md §2.4).
+    /// </summary>
     public int ToIndex() => ((((A.Value * TimeOfDayCount) + (int)T) * RegionStateCount) + (int)R) * ClimateCount + (int)C;
 
-    /// <summary><see cref="ToIndex"/> 의 역함수.</summary>
+    /// <summary>
+    /// <see cref="ToIndex"/> 의 역함수.
+    ///
+    /// <b>아키타입 수 상한은 보지 않는다</b> — 그것을 아는 것은 <c>BucketSpace</c> 다.
+    /// 로스터 안인지까지 확인해야 하면 <c>BucketSpace.FromIndex</c> 를 쓴다.
+    /// </summary>
     public static BucketKey FromIndex(int index)
     {
-        if ((uint)index >= TotalKeys)
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+
+        // ushort 로 좁히므로 넘치는 첨자는 조용히 다른 아키타입이 된다. 그것만 막는다.
+        if (index >= (ushort.MaxValue + 1) * PerArchetype)
         {
-            throw new ArgumentOutOfRangeException(nameof(index), $"버킷 인덱스는 0..{TotalKeys - 1} 이다: {index}");
+            throw new ArgumentOutOfRangeException(
+                nameof(index), $"버킷 인덱스가 ArchetypeId 범위를 넘는다: {index}");
         }
 
         int c = index % ClimateCount;

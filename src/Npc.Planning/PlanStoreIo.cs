@@ -161,7 +161,7 @@ public static class PlanStoreIo
 
         int written = 0;
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < store.Space.TotalKeys; index++)
         {
             var bucket = BucketKey.FromIndex(index);
 

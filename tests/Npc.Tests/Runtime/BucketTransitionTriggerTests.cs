@@ -106,7 +106,7 @@ public sealed class BucketTransitionTriggerTests
     {
         CompiledPlan template = plans[PlanStore.IdlePlanId];
 
-        for (int i = 0; i < BucketKey.TotalKeys; i++)
+        for (int i = 0; i < TestPaths.TotalKeys; i++)
         {
             BucketKey key = BucketKey.FromIndex(i);
 

@@ -184,9 +184,29 @@ public sealed class PoiTable
 /// <summary>
 /// context_buckets.json 의 읽기 전용 인덱스. docs/01 §6.
 /// 버킷이 함의하는 초기 <see cref="WorldFlags"/> 를 준다 — 검증기 3단의 <c>ctx.InitialFlags</c> 다.
+///
+/// <para>
+/// <b>버킷 키 공간의 크기도 여기가 정한다</b> (F-05). <c>BucketKey.ArchetypeCount</c> 라는
+/// C# 상수였는데, 그러면 아키타입 하나 추가에 코드 수정과 빌드가 따라오고 파일이 41 인데
+/// 바이너리가 40 이면 가장 찾기 어려운 종류의 오류가 난다. 배열은 기동 시
+/// <see cref="TotalKeys"/> 로 한 번 잡는다 — 틱 루프 밖이다 (CLAUDE.md §2.1).
+/// </para>
 /// </summary>
 public sealed class BucketSpace
 {
+    /// <summary>
+    /// 아키타입 수 권장 상한. 하드 상한은 <see cref="MaxArchetypes"/> 지만,
+    /// 아키타입은 프롬프트 프리픽스의 카탈로그에 전부 실리므로 실질 제약은 토큰 비용이다
+    /// (실측 프리픽스 11,967 토큰 · 아키타입 40).
+    /// </summary>
+    public const int RecommendedMaxArchetypes = 128;
+
+    /// <summary>
+    /// 아키타입 수 하드 상한. <c>NpcRefCodes</c> 의 payload 가 정한다 —
+    /// <c>nearest:&lt;archetype&gt;</c> 를 인코딩할 수 없으면 플랜이 엉뚱한 NPC 를 가리킨다.
+    /// </summary>
+    public const int MaxArchetypes = NpcRefCodes.MaxPayload + 1;
+
     private readonly WorldFlags[] _timeFlags;
     private readonly WorldFlags[] _regionFlags;
     private readonly WorldFlags[] _climateFlags;
@@ -199,18 +219,57 @@ public sealed class BucketSpace
         WorldFlags[] climateFlags,
         (int From, int To)[] gameHours,
         int declaredTotalKeys,
-        int[] prebakePriority)
+        int[] prebakePriority,
+        int archetypeCount)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(archetypeCount);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(archetypeCount, MaxArchetypes);
+
         _timeFlags = timeFlags;
         _regionFlags = regionFlags;
         _climateFlags = climateFlags;
         _gameHours = gameHours;
         _prebakePriority = prebakePriority;
         DeclaredTotalKeys = declaredTotalKeys;
+        ArchetypeCount = archetypeCount;
     }
 
     /// <summary>context_buckets.json 이 선언한 total_keys. V6 이 실제 조합 수와 대조한다.</summary>
     public int DeclaredTotalKeys { get; }
+
+    /// <summary>
+    /// 아키타입 수. archetypes.json 이 정한다.
+    /// <b>코드는 이 값만 읽고 <see cref="DeclaredTotalKeys"/> 는 읽지 않는다</b> —
+    /// 선언값은 V6 이 대조하는 사람용 기록이다.
+    /// </summary>
+    public int ArchetypeCount { get; }
+
+    /// <summary>한 아키타입이 갖는 버킷 수. 6 × 4 × 3 = 72.</summary>
+    public static int PerArchetype => BucketKey.PerArchetype;
+
+    /// <summary>전체 버킷 키 수. 아키타입 수 × 72.</summary>
+    public int TotalKeys => ArchetypeCount * BucketKey.PerArchetype;
+
+    /// <summary>이 키가 로스터 안인가.</summary>
+    public bool Contains(BucketKey key) => key.A.Value < ArchetypeCount;
+
+    /// <summary>이 첨자가 이 공간 안인가.</summary>
+    public bool Contains(int index) => (uint)index < (uint)TotalKeys;
+
+    /// <summary>
+    /// 첨자를 키로. <b><see cref="BucketKey.FromIndex"/> 와 달리 로스터 상한까지 본다</b> —
+    /// 범위 밖 첨자는 존재하지 않는 아키타입의 플랜을 가리킨다.
+    /// </summary>
+    public BucketKey FromIndex(int index)
+    {
+        if (!Contains(index))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(index), $"버킷 인덱스는 0..{TotalKeys - 1} 이다: {index}");
+        }
+
+        return BucketKey.FromIndex(index);
+    }
 
     /// <summary>이 버킷이 함의하는 초기 상태. 검증기 3단이 여기서 시작한다.</summary>
     public WorldFlags InitialFlags(BucketKey key) =>
@@ -473,7 +532,7 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
         ItemId item = default;
         ushort count = 0;
         byte argFlags = 0;
-        byte npcRef = NpcRefCodes.None;
+        ushort npcRef = NpcRefCodes.None;
 
         foreach (ParamDef param in def.Params)
         {
@@ -936,7 +995,7 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
             ValidationStage.Vocabulary, "V2.TYPE_MISMATCH", stepIndex,
             $"{def.Id}.{param.Name} 은 {expected} 여야 한다. 받은 값: {value}");
 
-    private bool TryPackNpcRef(JsonElement value, out byte code)
+    private bool TryPackNpcRef(JsonElement value, out ushort code)
     {
         code = NpcRefCodes.None;
 
@@ -968,14 +1027,22 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
 
         return false;
 
-        static bool SetNearest(ArchetypeDef archetype, out byte code)
+        // payload 밖의 code 는 인코딩할 수 없다 — 조용히 잘라 다른 아키타입을 가리키게 두지
+        // 않고 어휘 검증(2단)에서 떨어뜨린다. 상한은 BucketSpace.MaxArchetypes 와 같은 근거다.
+        static bool SetNearest(ArchetypeDef archetype, out ushort code)
         {
+            if (archetype.Code.Value > NpcRefCodes.MaxPayload)
+            {
+                code = NpcRefCodes.None;
+                return false;
+            }
+
             code = NpcRefCodes.NearestArchetype(archetype.Code.Value);
-            return archetype.Code.Value < 64;
+            return true;
         }
     }
 
-    private string UnpackNpcRef(byte code) => NpcRefCodes.KindOf(code) switch
+    private string UnpackNpcRef(ushort code) => NpcRefCodes.KindOf(code) switch
     {
         NpcRefKind.Self => "self",
         NpcRefKind.NearestArchetype =>

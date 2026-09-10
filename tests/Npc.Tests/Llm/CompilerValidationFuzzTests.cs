@@ -58,7 +58,7 @@ public sealed class CompilerValidationFuzzTests
         int compiled = 0;
 
         // 전 아키타입 × 전 변형. 아키타입마다 allowed_actions 가 달라 걸리는 코드도 달라진다.
-        for (int archetype = 0; archetype < BucketKey.ArchetypeCount; archetype++)
+        for (int archetype = 0; archetype < TestPaths.ArchetypeCount; archetype++)
         {
             var bucket = new BucketKey(
                 new ArchetypeId((ushort)archetype),
@@ -104,7 +104,7 @@ public sealed class CompilerValidationFuzzTests
         Assert.True(compiled > 0, "통과한 조합이 하나도 없다. 시드 플랜이 이미 깨져 있다.");
 
         // 모든 호출이 기록됐다. 통과한 건은 1회, 실패한 건은 재시도까지 2회다 (docs/12 §6).
-        int total = BucketKey.ArchetypeCount * s_mutations.Length;
+        int total = TestPaths.ArchetypeCount * s_mutations.Length;
         Assert.Equal((total * 2) - compiled, collector.Calls);
         Assert.Equal(compiled, collector.Passed);
         Assert.Equal(1, collector.UniquePrefixHashes);

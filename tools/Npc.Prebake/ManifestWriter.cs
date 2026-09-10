@@ -70,7 +70,7 @@ public static class ManifestWriter
             generatedAt) with
         {
             Counts = new ManifestCounts(
-                Total: Npc.Core.BucketKey.TotalKeys,
+                Total: data.Buckets.TotalKeys,
                 Generated: Math.Max(0, filled - pinned),
                 Pinned: pinned,
                 Fallback: report.FellBack,

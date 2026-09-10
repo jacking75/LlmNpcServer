@@ -41,14 +41,18 @@ public sealed class PlanStore
     /// <summary>레지스트리 상한. 넘으면 <see cref="Register"/> 가 던진다.</summary>
     public const int MaxPlans = MaxChunks * ChunkSize;
 
-    // ── [1] 버킷 → PlanId. 2,880 고정 배열. 해시맵 불필요 — BucketKey.ToIndex() 가 O(1) ──
-    private readonly int[] _byBucket = new int[BucketKey.TotalKeys];          // 0 = 미생성
+    // ── [1] 버킷 → PlanId. 고정 배열. 해시맵 불필요 — BucketKey.ToIndex() 가 O(1) ──
+    //
+    // 길이는 masterdata 가 정한다 (F-05). 기동 시 한 번 잡고 이후 바뀌지 않는다 —
+    // 틱 루프는 이 배열을 첨자로만 읽는다 (CLAUDE.md §2.1).
+    private readonly BucketSpace _space;
+    private readonly int[] _byBucket;          // 0 = 미생성
 
     // PlanOrigin 을 그대로 담지 않는 이유는 Volatile.Write 에 enum 오버로드가 없기 때문이다.
-    private readonly int[] _origin = new int[BucketKey.TotalKeys];
-    private readonly long[] _hits = new long[BucketKey.TotalKeys];
-    private readonly long[] _misses = new long[BucketKey.TotalKeys];
-    private readonly int[] _byArchetype = new int[BucketKey.ArchetypeCount];  // 아키타입 폴백의 PlanId
+    private readonly int[] _origin;
+    private readonly long[] _hits;
+    private readonly long[] _misses;
+    private readonly int[] _byArchetype;       // 아키타입 폴백의 PlanId
 
     // ── [2] PlanId → 플랜. 런타임의 조회 경로. 첨자 두 번, 할당 0 ──
     //
@@ -60,13 +64,23 @@ public sealed class PlanStore
     private long _individualHits;
     private long _individualLost;
 
-    private PlanStore(CompiledPlan idle)
+    private PlanStore(CompiledPlan idle, BucketSpace space)
     {
+        _space = space;
+        _byBucket = new int[space.TotalKeys];
+        _origin = new int[space.TotalKeys];
+        _hits = new long[space.TotalKeys];
+        _misses = new long[space.TotalKeys];
+        _byArchetype = new int[space.ArchetypeCount];
+
         _idle = idle with { Id = new PlanId(IdlePlanId) };
         _chunks[0] = new CompiledPlan[ChunkSize];
         _chunks[0]![IdlePlanId] = _idle;
         _count = 1;
     }
+
+    /// <summary>이 스토어가 다루는 버킷 키 공간. 배열 길이의 근거다 (F-05).</summary>
+    public BucketSpace Space => _space;
 
     /// <summary>등록된 플랜 수 (최후 플랜 포함).</summary>
     public int Count => Volatile.Read(ref _count);
@@ -91,7 +105,7 @@ public sealed class PlanStore
     }
 
     /// <summary>미생성 버킷 수. docs/13 §6 의 <c>cold_buckets</c>.</summary>
-    public int ColdBuckets => BucketKey.TotalKeys - FilledBuckets;
+    public int ColdBuckets => _byBucket.Length - FilledBuckets;
 
     /// <summary>아키타입 폴백 중 채워진 수.</summary>
     public int FilledFallbacks
@@ -138,7 +152,7 @@ public sealed class PlanStore
     {
         ArgumentNullException.ThrowIfNull(data);
 
-        return new PlanStore(BuildIdlePlan(data));
+        return new PlanStore(BuildIdlePlan(data), data.Buckets);
     }
 
     /// <summary>플랜을 등록하고 id 를 돌려준다. 여러 워커가 동시에 불러도 된다.</summary>
@@ -360,9 +374,9 @@ public sealed class PlanStore
         hits.Clear();
         misses.Clear();
 
-        for (int i = 0; i < BucketKey.TotalKeys; i++)
+        for (int i = 0; i < _hits.Length; i++)
         {
-            int archetype = i / (BucketKey.TimeOfDayCount * BucketKey.RegionStateCount * BucketKey.ClimateCount);
+            int archetype = i / BucketKey.PerArchetype;
 
             if ((uint)archetype >= (uint)hits.Length)
             {

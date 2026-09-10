@@ -27,7 +27,7 @@ public sealed class SuffixBudgetTests
     {
         var worst = new Dictionary<string, (int Tokens, string Where)>(StringComparer.Ordinal);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             BucketKey bucket = BucketKey.FromIndex(index);
 
@@ -55,7 +55,7 @@ public sealed class SuffixBudgetTests
         // 예산을 맞추려고 덜어내는 것은 개체 부가정보(recent · outcome · inventory)와,
         // 최후에 성향·목표뿐이다. 상황·플래그·허용 액션은 유효성을 결정하므로 언제나 남는다.
         foreach ((string name, PlanRequest request) in
-            StressCases(BucketKey.FromIndex(16 * 72)).Concat(StressCases(BucketKey.FromIndex(39 * 72))))
+            StressCases(BucketKey.FromIndex(16 * BucketKey.PerArchetype)).Concat(StressCases(BucketKey.FromIndex((TestPaths.ArchetypeCount - 1) * BucketKey.PerArchetype))))
         {
             string suffix = PlanRequestSuffix.Build(request, s_data);
 
@@ -98,9 +98,9 @@ public sealed class SuffixBudgetTests
     [Fact]
     public void Suffix_CoversEveryBucket()
     {
-        // 2,880 = 40 × 6 × 4 × 3. 표본이 아니라 전수다.
-        Assert.Equal(2_880, BucketKey.TotalKeys);
-        Assert.Equal(BucketKey.ArchetypeCount, s_data.Archetypes.Count);
+        // 표본이 아니라 전수다. 개수는 masterdata 가 정한다 (F-05).
+        Assert.Equal(s_data.Archetypes.Count * BucketKey.PerArchetype, s_data.Buckets.TotalKeys);
+        Assert.Equal(TestPaths.TotalKeys, s_data.Buckets.TotalKeys);
     }
 
     /// <summary>버킷 하나에 대한 스트레스 스냅샷들. 전부 최악값으로 채운다.</summary>

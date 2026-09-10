@@ -52,7 +52,7 @@ public sealed class PlanStoreTests
     {
         PlanStore store = PlanStore.CreateIdleOnly(s_data);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             CompiledPlan plan = store.Resolve(BucketKey.FromIndex(index));
 
@@ -215,7 +215,7 @@ public sealed class PlanStoreTests
 
                 while (!stop.Token.IsCancellationRequested)
                 {
-                    BucketKey bucket = BucketKey.FromIndex(index++ % BucketKey.TotalKeys);
+                    BucketKey bucket = BucketKey.FromIndex(index++ % TestPaths.TotalKeys);
 
                     store.SetBucket(bucket, SamplePlan("blacksmith") with { Goal = "hot_swap" });
                 }
@@ -235,7 +235,7 @@ public sealed class PlanStoreTests
             {
                 for (int i = 0; i < ReadsPerReader; i++)
                 {
-                    BucketKey bucket = BucketKey.FromIndex((i + (worker * 7)) % BucketKey.TotalKeys);
+                    BucketKey bucket = BucketKey.FromIndex((i + (worker * 7)) % TestPaths.TotalKeys);
 
                     CompiledPlan plan = store.Resolve(bucket, out PlanOrigin origin);
 
@@ -275,12 +275,12 @@ public sealed class PlanStoreTests
         PlanStore empty = PlanStore.CreateIdleOnly(s_data);
         PlanStore full = PlanStore.CreateIdleOnly(s_data);
 
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             full.SetBucket(BucketKey.FromIndex(index), SamplePlan("blacksmith"));
         }
 
-        Assert.Equal(BucketKey.TotalKeys, full.FilledBuckets);
+        Assert.Equal(TestPaths.TotalKeys, full.FilledBuckets);
         Assert.Equal(0, full.ColdBuckets);
 
         // 워밍업 — JIT 티어 승격을 두 쪽 다 끝낸다.
@@ -314,7 +314,7 @@ public sealed class PlanStoreTests
 
             for (int i = 0; i < iterations; i++)
             {
-                _ = store.Resolve(BucketKey.FromIndex(i % BucketKey.TotalKeys));
+                _ = store.Resolve(BucketKey.FromIndex(i % TestPaths.TotalKeys));
             }
 
             return System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
@@ -351,8 +351,8 @@ public sealed class PlanStoreTests
 
         Assert.Equal(cold, Assert.Single(store.TopMisses(10)).Bucket);
 
-        Span<long> hits = new long[BucketKey.ArchetypeCount];
-        Span<long> misses = new long[BucketKey.ArchetypeCount];
+        Span<long> hits = new long[TestPaths.ArchetypeCount];
+        Span<long> misses = new long[TestPaths.ArchetypeCount];
         store.HitsByArchetype(hits, misses);
 
         Assert.Equal(10, hits[smith.Code.Value]);

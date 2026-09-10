@@ -107,16 +107,16 @@ public sealed class Phase4GateTests(Xunit.Abstractions.ITestOutputHelper output)
         await host.RunAsync(CancellationToken.None);
 
         CachePanel cache = host.Metrics.Snapshot().Cache;
-        int filled = BucketKey.TotalKeys - cache.ColdBuckets;
+        int filled = TestPaths.TotalKeys - cache.ColdBuckets;
 
         output.WriteLine(
             $"2. 히트율 {cache.HitRate:P2} (히트 {cache.Hits} · 미스 {cache.Misses}) · "
-            + $"채워진 버킷 {filled}/{BucketKey.TotalKeys} · 콜드 {cache.ColdBuckets}");
+            + $"채워진 버킷 {filled}/{TestPaths.TotalKeys} · 콜드 {cache.ColdBuckets}");
 
         Assert.True(
             cache.HitRate >= MinCacheHitRate,
             $"히트율 {cache.HitRate:P2} · 하한 {MinCacheHitRate:P0}. "
-            + $"채워진 버킷이 {filled}/{BucketKey.TotalKeys} 뿐이다 — "
+            + $"채워진 버킷이 {filled}/{TestPaths.TotalKeys} 뿐이다 — "
             + "전량 프리베이크(`Npc.Prebake`)를 돌려야 판정할 수 있다.");
     }
 

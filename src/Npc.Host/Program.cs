@@ -987,7 +987,7 @@ internal sealed class NpcHost : IAsyncDisposable
         log.WriteLine(
             $"npcs {npcs} · link {options.Link} · time-scale {options.TimeScale} · "
             + $"days {options.Days} ({(totalTicks == 0 ? "무제한" : totalTicks + " ticks")}) · "
-            + $"버킷 {plans.FilledBuckets}/{BucketKey.TotalKeys} · {tiers.Describe()}");
+            + $"버킷 {plans.FilledBuckets}/{data.Buckets.TotalKeys} · {tiers.Describe()}");
 
         return host;
     }
@@ -1144,11 +1144,11 @@ internal sealed class NpcHost : IAsyncDisposable
     /// </summary>
     public string HeatmapCsv()
     {
-        var csv = new System.Text.StringBuilder(BucketKey.TotalKeys * 40);
+        var csv = new System.Text.StringBuilder(_data.Buckets.TotalKeys * 40);
 
         csv.AppendLine("archetype,time_of_day,region_state,climate,queries,filled");
 
-        for (int i = 0; i < BucketKey.TotalKeys; i++)
+        for (int i = 0; i < _data.Buckets.TotalKeys; i++)
         {
             BucketKey key = BucketKey.FromIndex(i);
             long queries = _plans.HitsOf(key) + _plans.MissesOf(key);
@@ -1285,7 +1285,7 @@ internal sealed class NpcHost : IAsyncDisposable
         double elapsed = Stopwatch.GetElapsedTime(started).TotalSeconds;
 
         log.WriteLine(
-            $"planstore {storeDir} · 버킷 {report.Total}/{BucketKey.TotalKeys} "
+            $"planstore {storeDir} · 버킷 {report.Total}/{data.Buckets.TotalKeys} "
             + $"(pinned {report.Pinned}) · 폴백 {plans.FilledFallbacks} · {elapsed:0.###}s");
 
         if (report.Skipped + report.Failed > 0)

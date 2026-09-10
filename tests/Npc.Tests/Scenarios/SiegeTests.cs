@@ -337,7 +337,7 @@ public sealed class SiegeTests
         Assert.True(wanted > 0, "미스 버킷이 하나도 없다 — 표본이 이상하다.");
 
         // 전량(2,880)이 아니라 실제 조회된 미스만이다.
-        Assert.True(wanted < BucketKey.TotalKeys, $"미스 버킷이 {wanted} 건 — 전량 재생성과 다를 바 없다.");
+        Assert.True(wanted < TestPaths.TotalKeys, $"미스 버킷이 {wanted} 건 — 전량 재생성과 다를 바 없다.");
 
         // 집어 온 일감은 전부 미생성 버킷이다.
         var taken = new List<BucketKey>();

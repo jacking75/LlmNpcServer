@@ -447,14 +447,16 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
   },
   "key_format":  "{archetype}@{time_of_day}.{region_state}.{climate}",
   "key_example": "blacksmith@Evening.War.Cold",
-  "total_keys":  2880       // 40 × 6 × 4 × 3 — 검증기가 계산해 대조한다
+  "total_keys":  2880       // 아키타입 수 × 6 × 4 × 3 — V6 이 계산해 대조한다 (코드는 안 읽는다)
 }</code></pre>
 <pre><code>// Npc.Core/Planning/BucketKey.cs
 public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState R, Climate C)
 {
-    public int ToIndex() =&gt; ((A.Value * 6 + (int)T) * 4 + (int)R) * 3 + (int)C;   // 0..2879
+    public const int PerArchetype = 6 * 4 * 3;                                     // 72
+    public int ToIndex() =&gt; ((A.Value * 6 + (int)T) * 4 + (int)R) * 3 + (int)C;   // 아키타입 수와 무관
 }</code></pre>
-      <p>플랜 스토어는 <code>Plan[2880]</code> 고정 배열이면 충분하다. 조회는 인덱스 계산 한 번 — 해시맵도 필요 없다.</p>
+      <p>플랜 스토어는 <code>Plan[total_keys]</code> 고정 배열이면 충분하다. 조회는 인덱스 계산 한 번 — 해시맵도 필요 없다.</p>
+      <div class="callout"><strong>아키타입 수는 코드가 모른다</strong><p><code>BucketKey.ArchetypeCount = 40</code> 이라는 컴파일 상수였다(F-05 에서 제거). 지금은 <code>archetypes.json</code> 의 배열 길이가 정하고 <code>MasterDataSet.Buckets</code>(<code>BucketSpace</code>)가 <code>ArchetypeCount</code>·<code>TotalKeys</code> 로 들고 있다 — 플랜 스토어 배열 길이, 캐시 통계 배열, 히트맵 열 수가 전부 거기서 나온다. 배열은 기동 시 한 번 잡으므로 틱 루프의 조회 비용은 그대로다.</p><p><strong>기존 첨자는 변하지 않는다.</strong> <code>ToIndex()</code> 식에 아키타입 수가 들어가지 않고 아키타입이 가장 바깥 차원이라, 뒤에 추가한 아키타입은 뒤에만 자리를 만든다. 프리베이크된 플랜이 첨자 때문에 어긋나지 않는 이유다. 다만 아키타입 카탈로그는 <strong>프롬프트 프리픽스에 실리므로</strong> 추가하면 프리픽스 해시가 바뀌고, 그때는 플랜 스토어가 전량 무효다.</p><p><code>total_keys</code> 는 <strong>사람이 읽는 기록</strong>으로 남긴다. V6 이 실제 조합 수와 대조하지만 코드는 이 값을 읽지 않는다.</p><p>권장 상한 <strong>128</strong>, 하드 상한 <strong>4,096</strong>(<code>npc_ref</code> payload 12비트). 실질 제약은 둘 다 아니고 프리픽스 토큰 비용이다.</p></div>
       <div class="callout"><strong>2,880을 다 채울 필요는 없다</strong><p>실측에서 실제로 도달한 버킷은 <strong>264개(9.2%)</strong>였다. 나머지는 조합상 존재하지만 시나리오에서 안 나온다. 프리베이크 우선순위를 <code>region_state</code> 가중치(Peace 10 : Alert 3 : War 2 : Disaster 1)로 두는 이유다.</p></div>
     </section>
 
@@ -591,7 +593,7 @@ HARD RULES
           <tr><td class="rule">V3</td><td>모든 poi·item·zone·action 참조가 대상 파일에 존재한다</td></tr>
           <tr><td class="rule">V4</td><td><code>archetypes[].allowed_actions</code>가 전부 카탈로그에 있다</td></tr>
           <tr><td class="rule">V5</td><td><code>population_weight</code> 합 = 1.0 (±0.001)</td></tr>
-          <tr><td class="rule">V6</td><td><code>context_buckets.total_keys</code> == 실제 조합 수 (2,880)</td></tr>
+          <tr><td class="rule">V6</td><td><code>context_buckets.total_keys</code> == 실제 조합 수 (아키타입 수 × 72)</td></tr>
           <tr><td class="rule">V7</td><td>모든 아키타입에 <code>fallback_plan</code>이 존재하고, 그 플랜이 검증기 4단을 통과한다</td></tr>
           <tr><td class="rule">V8</td><td>모든 아키타입의 <code>allowed_actions</code>만으로 폴백 플랜이 구성 가능하다</td></tr>
           <tr><td class="rule">V9</td><td>프롬프트 프리픽스 토큰 수 ≥ 4,096</td></tr>

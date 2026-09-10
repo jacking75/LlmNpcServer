@@ -258,7 +258,7 @@ public sealed class SnapshotRoundTripTests : IDisposable
             store.Hp[i] = (short)(h % 100);
             store.Stamina[i] = (short)((h / 2) % 100);
             store.ZoneCode[i] = (ushort)(h % Zones);
-            store.ArchetypeCode[i] = (ushort)(h % 40);
+            store.ArchetypeCode[i] = (ushort)(h % TestPaths.ArchetypeCount);
             store.CurrentPoi[i] = (ushort)(h % 500);
             store.HomePoi[i] = (ushort)(h % 300);
             store.WorkPoi[i] = (ushort)(h % 200);

@@ -24,7 +24,7 @@ public sealed class BucketNeighborsTests
     {
         // 전 버킷 2,880개. 아키타입이 바뀌는 후보가 하나라도 있으면 안 된다 —
         // 대장장이 플랜을 농부에게 주면 허용 액션 목록부터 어긋난다.
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             BucketKey key = BucketKey.FromIndex(index);
 
@@ -39,7 +39,7 @@ public sealed class BucketNeighborsTests
     [Fact]
     public void Neighbors_AreDistinctAndBounded()
     {
-        for (int index = 0; index < BucketKey.TotalKeys; index++)
+        for (int index = 0; index < TestPaths.TotalKeys; index++)
         {
             ImmutableArray<BucketKey> neighbors = BucketNeighbors.Of(BucketKey.FromIndex(index));
 

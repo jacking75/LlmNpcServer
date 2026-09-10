@@ -335,8 +335,11 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
     /// <summary>점수 히스토그램 칸. 마지막 칸이 인터럽트(1000+)다 (docs/14 §8).</summary>
     private readonly int[] _scoreBuckets = new int[ScoreBuckets];
 
-    /// <summary>히트맵 행 이름. 기동 시 1회 만든다 — 스냅샷마다 문자열을 다시 뽑을 이유가 없다.</summary>
-    private readonly string[] _archetypeNames = new string[BucketKey.ArchetypeCount];
+    /// <summary>
+    /// 히트맵 행 이름. 기동 시 1회 만든다 — 스냅샷마다 문자열을 다시 뽑을 이유가 없다.
+    /// 길이는 masterdata 가 정한다 (F-05).
+    /// </summary>
+    private readonly string[] _archetypeNames;
 
     private readonly double[] _samples = new double[Window];
     private readonly double[] _sorted = new double[Window];
@@ -404,12 +407,11 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         // 카운터는 PlanStore·IndividualPlanPool 이 들고 있다. 계측기만 여기서 만든다 (docs/13 §6).
         _cache = cache ?? new CacheMetrics(plans);
         _byAction = new int[data.Actions.MaxCode + 1];
+        _archetypeNames = new string[data.Buckets.ArchetypeCount];
 
         for (int code = 0; code < _archetypeNames.Length; code++)
         {
-            _archetypeNames[code] = code < data.Archetypes.Count
-                ? data.Archetypes[new ArchetypeId((ushort)code)].Id
-                : string.Empty;
+            _archetypeNames[code] = data.Archetypes[new ArchetypeId((ushort)code)].Id;
         }
 
         _meter = new Meter(MeterName);
@@ -801,12 +803,12 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
     /// <summary>
     /// 버킷 히트맵. docs/14 §8 (T4-22).
     ///
-    /// 2,880칸을 매 스냅샷마다 새로 만든다. 폴링 간격이 1초라 비용이 문제되지 않고,
-    /// <b>이 배열이 그대로 W12 보고서의 원자료</b>라 자르지 않는다 (T5-18 이 읽는다).
+    /// 전체 칸(아키타입 수 × 72)을 매 스냅샷마다 새로 만든다. 폴링 간격이 1초라 비용이
+    /// 문제되지 않고, <b>이 배열이 그대로 W12 보고서의 원자료</b>라 자르지 않는다 (T5-18 이 읽는다).
     /// </summary>
     private BucketHeatmap HeatmapOf()
     {
-        var cells = new long[BucketKey.TotalKeys];
+        var cells = new long[_data.Buckets.TotalKeys];
         int used = 0;
         long peak = 0;
 
@@ -828,12 +830,12 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
         }
 
         return new BucketHeatmap(
-            Archetypes: BucketKey.ArchetypeCount,
-            Columns: BucketKey.TotalKeys / BucketKey.ArchetypeCount,
+            Archetypes: _data.Buckets.ArchetypeCount,
+            Columns: BucketKey.PerArchetype,
             Cells: cells,
             Filled: _plans.FilledBuckets,
             Used: used,
-            UsedRatio: Math.Round((double)used / BucketKey.TotalKeys, 4),
+            UsedRatio: cells.Length == 0 ? 0 : Math.Round((double)used / cells.Length, 4),
             Peak: peak,
             ArchetypeNames: _archetypeNames);
     }

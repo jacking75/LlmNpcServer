@@ -84,7 +84,7 @@ public sealed class BudgetGuardTests
             resumeOptions, LlmPlanCompilerTests.Data, first.Store, InvalidationScope.Full);
 
         // 첫 회차가 채운 만큼은 빠져 있다.
-        Assert.Equal(BucketKey.TotalKeys - madeFirst, resumeTargets.Count);
+        Assert.Equal(TestPaths.TotalKeys - madeFirst, resumeTargets.Count);
 
         ImmutableArray<BucketKey> remaining =
             [.. all.Where(b => !first.Store.HasBucket(b))];

@@ -15,8 +15,9 @@
   <p class="kicker" style="color:var(--p2)">2부 · 세계를 바꾼다</p>
   <h1>7장 · 새 직업을 만든다 — JSON만으로 안 되는 첫 사례</h1>
   <p class="lead">
-    5장의 양봉장에서 일할 <b>양봉가</b>를 만든다. 그런데 아키타입을 하나 늘리면
-    <b>JSON 네 개 + 코드 한 줄 + 생성기 두 번 + 테스트 18개</b>가 따라온다.
+    5장의 양봉장에서 일할 <b>양봉가</b>를 만든다. 코드는 한 줄도 고치지 않는다 —
+    아키타입 수는 <code>archetypes.json</code> 이 정한다(F-05). 그래도
+    <b>JSON 네 개 + 생성기 두 번 + 프리베이크 전량</b>이 따라온다.
     왜 그런지, 그리고 그 대가를 치를 만한지 판단하는 법을 배운다.
   </p>
   <div class="chips">
@@ -30,8 +31,9 @@
 <div class="bad">
   <span class="tag">먼저 읽는다</span>
   <b>이 장은 <code>lab/</code> 사본으로 못 한다.</b>
-  <code>BucketKey.ArchetypeCount</code> 는 <b>컴파일 상수</b>라 사본에만 아키타입을 넣으면
-  바이너리는 여전히 40으로 컴파일돼 있다. 그러면 41번째 직업이 배열 첨자 밖으로 나간다.
+  마스터데이터가 단일 원천이고 파생물 둘(<code>poi_distances.bin</code> ·
+  <code>npc_instances.json</code>)이 그것을 따라가야 한다. 사본에만 아키타입을 넣으면
+  서버가 읽는 <code>masterdata/</code> 와 어긋난다.
   <br><br>
   <b>반드시 전용 브랜치에서 한다.</b>
   <pre style="margin:8px 0 0"><code>PS&gt; git switch -c lab/ch07-beekeeper</code></pre>
@@ -60,7 +62,7 @@ planGoal  : <span class="hl">harvest_and_sell_honey</span>
   8. Sleep</code></pre>
 </div>
 
-<h2 id="why">왜 코드를 건드리게 되는가</h2>
+<h2 id="why">아키타입 수는 어디서 오나</h2>
 
 <p>
   플랜 캐시의 키는 <b>(아키타입 × 시간대 × 지역상태 × 기후)</b> 네 축이다.
@@ -68,28 +70,53 @@ planGoal  : <span class="hl">harvest_and_sell_honey</span>
 </p>
 
 <div class="filepath">src/Npc.Core/Planning/BucketKey.cs</div>
-<pre><code>public const int ArchetypeCount = 40;
-public const int TimeOfDayCount = 6;
+<pre><code>public const int TimeOfDayCount = 6;
 public const int RegionStateCount = 4;
 public const int ClimateCount = 3;
 
-<span class="cm">/// 전체 키 수. 40 × 6 × 4 × 3.</span>
-public const int TotalKeys = ArchetypeCount * TimeOfDayCount * RegionStateCount * ClimateCount;
+<span class="cm">/// 한 아키타입이 갖는 버킷 수. 6 × 4 × 3 = 72. 아키타입 수와 무관하다.</span>
+public const int PerArchetype = TimeOfDayCount * RegionStateCount * ClimateCount;
 
-<span class="cm">/// 0..2879. 전단사다.</span>
+<span class="cm">/// 첨자. 전단사다. 이 식에 아키타입 수가 들어가지 않는다.</span>
 public int ToIndex() =&gt; ((((A.Value * 6) + (int)T) * 4) + (int)R) * 3 + (int)C;</code></pre>
+
+<div class="filepath">src/Npc.MasterData/MasterDataSet.cs — BucketSpace</div>
+<pre><code><span class="cm">/// 아키타입 수. archetypes.json 이 정한다.</span>
+public int ArchetypeCount { get; }
+
+<span class="cm">/// 전체 버킷 키 수. 아키타입 수 × 72.</span>
+public int TotalKeys =&gt; ArchetypeCount * BucketKey.PerArchetype;</code></pre>
 
 <div class="why">
   <span class="tag">이 한 줄이 성능의 근거다</span>
-  <code>PlanStore</code> 는 <code>CompiledPlan[2880]</code> 고정 배열이면 충분하다.
+  <code>PlanStore</code> 는 <code>CompiledPlan[TotalKeys]</code> 고정 배열이면 충분하다.
   틱 루프에서 플랜을 찾는 비용이 <b>곱셈 세 번과 덧셈 세 번</b>이고, 해시도 락도 할당도 없다.
   1장에서 본 <b>틱당 할당 0바이트</b>의 일부가 여기서 나온다.
   <br><br>
-  대가는 <b>아키타입 수가 컴파일 타임에 고정된다</b>는 것이다. 늘리려면 다시 컴파일해야 한다.
-  <b>이것이 이 설계가 명시적으로 치른 값</b>이고, 7장은 그 값을 실제로 치러 보는 장이다.
+  배열 길이는 <b>기동 시 한 번</b> 잡는다. 틱 루프는 첨자로만 읽으므로,
+  길이가 데이터에서 오더라도 조회 비용은 그대로다.
 </div>
 
-<h2 id="code">고치는 곳 여섯 + 생성기 둘</h2>
+<div class="ok">
+  <span class="tag">예전에는 코드를 고쳐야 했다</span>
+  <p>
+    <code>BucketKey.ArchetypeCount = 40</code> 이라는 <b>컴파일 상수</b>였다. 아키타입 하나를
+    넣으려면 C# 을 고치고 다시 빌드해야 했고, <b>파일은 41 인데 바이너리가 40</b> 인 상태가
+    되면 41번째 직업의 버킷 72칸이 조용히 사라졌다 — 가장 찾기 어려운 종류의 오류다.
+  </p>
+  <p>
+    F-05 에서 상수를 없앴다. <b>기존 첨자는 변하지 않는다</b> — 아키타입이 가장 바깥 차원이라
+    뒤에 붙는 것은 뒤에만 자리를 만든다. 그래서 프리베이크된 플랜 2,880개가
+    <b>첨자 때문에</b> 깨지는 일은 없다.
+  </p>
+  <p class="small">
+    권장 상한은 <b>128</b>, 하드 상한은 <code>npc_ref</code> payload 12비트가 정하는 <b>4,096</b> 이다.
+    실질 제약은 둘 다 아니고 <b>프롬프트 프리픽스의 토큰 비용</b>이다 — 아키타입 카탈로그가
+    프리픽스에 전부 실린다(실측 11,967 토큰 · 아키타입 40).
+  </p>
+</div>
+
+<h2 id="code">고치는 곳 다섯 + 생성기 둘</h2>
 
 <div class="tablewrap">
 <table>
@@ -100,8 +127,7 @@ public int ToIndex() =&gt; ((((A.Value * 6) + (int)T) * 4) + (int)R) * 3 + (int)
 <tr><td><b>③</b></td><td><code>archetypes.json</code></td><td><code>beekeeper</code> (code <b>40</b>) · 목동 가중치 0.025 → 0.021</td><td>가중치 합은 <b>정확히 1.0</b> (V5)</td></tr>
 <tr><td><b>④</b></td><td><code>context_buckets.json</code></td><td><code>total_keys</code> 2880 → <b>2952</b></td><td>41 × 6 × 4 × 3 (V6)</td></tr>
 <tr><td><b>⑤</b></td><td><code>fallback_plans.json</code></td><td><code>fb_beekeeper</code> (9스텝)</td><td>폴백 없는 아키타입은 없다 (V7)</td></tr>
-<tr><td><b>⑥</b></td><td><code>BucketKey.cs</code></td><td><code>ArchetypeCount</code> 40 → <b>41</b></td><td><b>여기부터 코드다</b></td></tr>
-<tr><td><b>⑦</b></td><td colspan="2"><code>gen_poi_distances</code> · <code>gen_npcs</code> 재실행</td><td>POI 와 인구가 바뀌었으니 생성물도 바뀐다</td></tr>
+<tr><td><b>⑥</b></td><td colspan="2"><code>gen_poi_distances</code> · <code>gen_npcs</code> 재실행</td><td>POI 와 인구가 바뀌었으니 생성물도 바뀐다</td></tr>
 </tbody>
 </table>
 </div>
@@ -248,62 +274,54 @@ beekeeper 수: <span class="hl">20</span>
   <li>확인 3단 6항목 전부 OK · 틱 p99 여전히 예산 안</li>
 </ul>
 
-<h2 id="tests">치러야 할 진짜 대가 — 테스트 18개</h2>
+<h2 id="tests">치러야 할 진짜 대가 — 프리베이크 전량</h2>
 
 <p>
-  검증도 통과했고 세계도 돈다. 그런데 <code>dotnet test</code> 를 돌리면 이렇게 된다.
+  검증도 통과했고 세계도 돈다. 테스트도 안 깨진다 — 코드를 고치지 않았고,
+  테스트가 아키타입 수를 <code>TestPaths.ArchetypeCount</code> 로 읽기 때문이다.
 </p>
 
 <div class="term">
   <span class="cap">실측</span>
 <pre><code>PS&gt; dotnet test -c Release --no-build "--filter" "Category!=Golden&amp;Category!=Gate&amp;Category!=Load"
 
-  실패 Npc.Tests.Host.NpcMeterTests.Metrics_HaveCachePanel
-   Assert.Equal() Failure: Values differ
-   Expected: <span class="hl3">2880</span>
-   Actual:   <span class="hl3">2952</span>
+<span class="hl">통과!  - 실패: 0, 통과: 1284, 전체: 1284</span></code></pre>
+</div>
 
-  실패 Npc.Tests.Host.PlanStoreWiringTests.Host_FallsBackWhenStoreIsMissing
-   Assert.Contains() Failure: Sub-string not found
-   Not found: "<span class="hl3">폴백 40</span>"
-
-<span class="hl3">실패!  - 실패: 18, 통과: 1033, 전체: 1051</span></code></pre>
+<div class="bad">
+  <span class="tag">그런데 플랜 스토어는 전량 무효다</span>
+  <p>
+    아키타입 카탈로그는 <b>프롬프트 프리픽스에 실린다.</b> 양봉가를 넣으면 프리픽스가
+    바뀌고, 프리픽스 SHA-256 이 바뀌면 <b>프리베이크된 플랜 2,880개가 전부 무효</b>다 —
+    다른 어휘로 만들어진 플랜이기 때문이다.
+  </p>
+  <p>
+    첨자가 아니라 <b>내용</b>의 문제다. F-05 가 없앤 것은 첨자 파손이고,
+    프리픽스 무효화는 <b>여전히 남는 대가</b>다.
+  </p>
+  <pre style="margin:8px 0 0"><code>프리픽스   변경 (+81 tok, SHA 56a0c601→…) → 플랜 스토어 전량 무효
+프리베이크 2,952건 · 추정 $5.25 · 약 3분 (도달집합만 하면 $0.38)</code></pre>
 </div>
 
 <div class="tablewrap">
 <table>
-<thead><tr><th>깨진 테스트 18개</th></tr></thead>
+<thead><tr><th>따라오는 것</th><th>왜</th><th>비용</th></tr></thead>
 <tbody>
-<tr><td><code>ArchetypeTableTests.ArchetypeTable_HasFortyArchetypes</code> · <code>_CodesAreZeroBasedAndContiguous</code> · <code>_IndexesByCode</code></td></tr>
-<tr><td><code>BucketKeyTests.BucketKey_TotalKeysIsTwentyEightEighty</code></td></tr>
-<tr><td><code>NpcMeterTests.Metrics_HaveCachePanel</code> · <code>DashboardTests.Dashboard_HasBucketHeatmap</code></td></tr>
-<tr><td><code>PlanStoreWiringTests.Host_FallsBackWhenStoreIsMissing</code> · <code>BucketReplanSourceTests.Bucket_IgnoresNeverQueriedBuckets</code></td></tr>
-<tr><td><code>PlanTableTests.Validator_AcceptsAllFallbacks</code> · <code>_AuthoringTimeIsLogged</code> · <code>MasterDataSetTests.MasterData_LoadsEveryTable</code></td></tr>
-<tr><td><code>Prebake.BulkRunnerTests.AllBuckets_Covers2880</code> · <code>DryRunStageTests</code> · <code>TargetSelectorTests</code></td></tr>
-<tr><td><code>SuffixBudgetTests.Suffix_CoversEveryBucket</code> · <code>NarrateTests.Lexicon_CoversEveryId</code> · <code>DryRunValidatorTests</code> · <code>Phase3GateTests</code></td></tr>
+<tr><td><code>poi_distances.bin</code> 재생성</td><td>POI 둘이 늘었다</td><td>수 초</td></tr>
+<tr><td><code>npc_instances.json</code> 재생성</td><td>인구 분포가 바뀌었다</td><td>수 초</td></tr>
+<tr><td>프리베이크</td><td><b>프리픽스 해시 변경</b> → 전량 무효</td><td>2,952건 · 약 $5.25</td></tr>
+<tr><td>게임서버 재배포</td><td>구조 해시 변경 → 핸드셰이크 거절</td><td>배포 1회</td></tr>
+<tr><td>코드 수정</td><td>—</td><td><b>없다</b> (F-05)</td></tr>
 </tbody>
 </table>
 </div>
 
-<div class="ok">
-  <span class="tag">이것은 고장이 아니라 계산서다</span>
-  <p>
-    테스트들이 <b>40</b>·<b>2880</b>·<b>"폴백 40"</b> 을 하드코딩하고 있다.
-    <b>"테스트가 사양이다"</b> 라는 원칙의 뒷면이다 — 사양을 바꾸면 사양서도 같이 고쳐야 한다.
-  </p>
-  <p>
-    이름들을 보면 <b>아키타입 수가 어디까지 퍼져 있는지</b>가 한눈에 보인다:
-    마스터데이터 · 버킷 키 · 플랜 스토어 · 대시보드 히트맵 · 프리베이크 대상 선정 ·
-    프롬프트 서픽스 예산 · 서술 도구의 어휘집.
-    <b>이 목록이 곧 "아키타입 하나 추가"의 실제 범위다.</b>
-  </p>
-</div>
-
 <div class="note">
   <span class="tag">그래서 실무에서는</span>
-  아키타입 추가는 <b>가벼운 콘텐츠 작업이 아니라 스키마 변경</b>이다.
-  40개 안에서 <b>desc·traits·allowed_actions·기본 goal 을 바꾸는 것</b>으로 해결되는지 먼저 본다.
-  기존 직업의 성격을 바꾸는 것은 JSON 한 파일이고 테스트가 하나도 안 깨진다.
+  아키타입 추가는 <b>가벼운 콘텐츠 작업이 아니라 재배포 + 재생성 작업</b>이다.
+  기존 40개 안에서 <b>desc · traits · allowed_actions · 기본 goal 을 바꾸는 것</b>으로
+  해결되는지 먼저 본다 — 그쪽도 프리픽스를 건드리면 같은 대가를 치르지만,
+  <code>desc</code> 만 고치는 것과 카탈로그에 항목을 더하는 것은 토큰 증가폭이 다르다.
   <b>정말로 41번째가 필요할 때만</b> 이 장의 절차를 밟는다.
 </div>
 
@@ -313,7 +331,7 @@ beekeeper 수: <span class="hl">20</span>
   <span class="cap">터미널</span>
 <pre><code>PS&gt; ./samples/ch07_beekeeper/revert.ps1 -Yes
 
-되돌릴 파일 8개
+되돌릴 파일 7개
     M masterdata/archetypes.json
     M masterdata/context_buckets.json
     M masterdata/fallback_plans.json
@@ -321,10 +339,8 @@ beekeeper 수: <span class="hl">20</span>
     M masterdata/npc_instances.json
     M masterdata/poi_distances.bin
     M masterdata/pois.json
-    M src/Npc.Core/Planning/BucketKey.cs
 
-파일 복원 완료. 이제 다시 빌드한다 (ArchetypeCount 가 40으로 돌아간다).
-   빌드했습니다.  경고 0개 · 오류 0개
+파일 복원 완료. 아키타입 수는 archetypes.json 이 정하므로 코드 되돌림은 없다.
 
 되돌리기 완료.
 
@@ -334,11 +350,13 @@ PS&gt; git branch -D lab/ch07-beekeeper</code></pre>
 
 <div class="warn">
   <span class="tag">되돌리기를 반드시 하는 이유</span>
-  생성물 셋(<code>npc_instances.json</code> · <code>poi_distances.bin</code> · 빌드 산출물)은
-  <b>손으로 못 되돌린다.</b> <code>git restore</code> 로 파일을 되돌린 뒤 <b>반드시 다시 빌드</b>해야
-  바이너리의 <code>ArchetypeCount</code> 가 40으로 돌아간다.
+  생성물 둘(<code>npc_instances.json</code> · <code>poi_distances.bin</code>)은
+  <b>손으로 못 되돌린다.</b> <code>git restore masterdata</code> 로 되돌린다.
   <br>
-  빌드를 빼먹으면 "파일은 40인데 바이너리는 41"인 상태가 되고, 그건 <b>가장 찾기 어려운 종류</b>다.
+  <b>플랜 스토어는 따로 본다.</b> 이 실습에서 프리베이크를 돌렸다면
+  <code>planstore/plans/</code> 는 양봉가가 있는 프리픽스로 만들어진 것이라 되돌린 뒤에는
+  프리픽스 해시가 안 맞는다 — 지우거나 다시 만든다.
+  <code>planstore/pinned/</code> 는 지우지 않는다.
 </div>
 
 <h2 id="next">더 볼 것</h2>

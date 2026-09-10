@@ -47,7 +47,7 @@ try {
 
     & git restore masterdata src
     Write-Host ""
-    Write-Host "파일 복원 완료. 이제 다시 빌드한다 (ArchetypeCount 가 40으로 돌아간다)." -ForegroundColor Green
+    Write-Host "파일 복원 완료. 아키타입 수는 archetypes.json 이 정하므로 코드 되돌림은 없다." -ForegroundColor Green
 
     $prev = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'

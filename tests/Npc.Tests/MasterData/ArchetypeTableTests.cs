@@ -16,17 +16,27 @@ public sealed class ArchetypeTableTests
     private static readonly ArchetypeTable s_table =
         ArchetypeTable.Load(Path.Combine(TestPaths.MasterData, "archetypes.json"), s_actions, s_items);
 
-    /// <summary>docs/01 §5 의 그룹 구성안. 합이 40 이다.</summary>
+    /// <summary>
+    /// docs/01 §5 의 그룹 구성안. 합이 40 이다 — <b>당시의 계획이고 하한이다.</b>
+    /// 아키타입은 뒤에 추가할 수 있으므로(F-05) 정확히 40 을 요구하지 않는다.
+    /// </summary>
     private static readonly (string Group, int Count)[] s_groups =
     [
         ("생산", 10), ("채집", 7), ("상업", 5), ("치안", 5), ("종교/학문", 4), ("주민", 6), ("특수", 3),
     ];
 
     [Fact]
-    public void ArchetypeTable_HasFortyArchetypes()
+    public void ArchetypeTable_CoversTheOriginalGroupingPlan()
     {
-        Assert.Equal(40, s_table.Count);
         Assert.Equal(40, s_groups.Sum(g => g.Count));
+
+        // 늘어난 것은 받고 줄어든 것은 막는다 — 지우면 code 가 재배치되고
+        // 프리베이크 플랜이 통째로 어긋난다 (CLAUDE.md §2.4).
+        Assert.True(
+            s_table.Count >= s_groups.Sum(g => g.Count),
+            $"아키타입이 {s_table.Count} 개다. docs/01 §5 구성안의 40 개보다 적다 — 지운 것이 있다.");
+
+        Assert.Equal(TestPaths.ArchetypeCount, s_table.Count);
     }
 
     /// <summary>V5 — population_weight 합 = 1.0 (±0.001).</summary>
@@ -37,15 +47,15 @@ public sealed class ArchetypeTableTests
     }
 
     /// <summary>
-    /// code 는 0..39 여야 한다. 버킷 키 인덱스 ((A*6+T)*4+R)*3+C 가 0..2879 전단사이려면
-    /// 아키타입 첨자가 0 부터 시작해야 한다 (docs/01 §6).
+    /// code 는 0 부터 빈틈없이 이어져야 한다. 버킷 키 인덱스 ((A*6+T)*4+R)*3+C 가
+    /// 전단사이려면 아키타입 첨자가 0 부터 시작해야 한다 (docs/01 §6).
     /// </summary>
     [Fact]
     public void ArchetypeTable_CodesAreZeroBasedAndContiguous()
     {
         int[] codes = s_table.Archetypes.Select(a => (int)a.Code.Value).Order().ToArray();
 
-        Assert.Equal(Enumerable.Range(0, 40).ToArray(), codes);
+        Assert.Equal(Enumerable.Range(0, s_table.Count).ToArray(), codes);
     }
 
     [Fact]
@@ -56,7 +66,7 @@ public sealed class ArchetypeTableTests
             Assert.Equal(def, s_table[def.Code]);
         }
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => s_table[new ArchetypeId(40)]);
+        Assert.Throws<ArgumentOutOfRangeException>(() => s_table[new ArchetypeId((ushort)s_table.Count)]);
     }
 
     /// <summary>V4 — allowed_actions 가 전부 카탈로그에 있다.</summary>

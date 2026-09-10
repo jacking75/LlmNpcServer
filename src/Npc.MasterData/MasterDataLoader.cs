@@ -46,7 +46,7 @@ public static class MasterDataLoader
         ArchetypeTable archetypes = ArchetypeTable.Load(Path_("archetypes.json"), actions, items);
         ZoneTable zones = LoadZones(Path_("zones.json"));
         PoiTable pois = LoadPois(Path_("pois.json"), Path_("poi_distances.bin"), zones, archetypes, items);
-        BucketSpace buckets = LoadBuckets(Path_("context_buckets.json"));
+        BucketSpace buckets = LoadBuckets(Path_("context_buckets.json"), archetypes.Count);
         InterruptRules interrupts = InterruptRules.Load(Path_("interrupts.json"), actions);
 
         ImmutableArray<FileHash> hashes = HashFiles(masterDataDirectory);
@@ -414,7 +414,7 @@ public static class MasterDataLoader
 
     // ---------------------------------------------------------------- context_buckets.json
 
-    private static BucketSpace LoadBuckets(string path)
+    private static BucketSpace LoadBuckets(string path, int archetypeCount)
     {
         using FileStream stream = File.OpenRead(path);
         BucketsFile? file = JsonSerializer.Deserialize(stream, WorldJsonContext.Default.BucketsFile);
@@ -463,7 +463,8 @@ public static class MasterDataLoader
             FlagsFor(climate, "climate"),
             gameHours,
             file.TotalKeys,
-            priority);
+            priority,
+            archetypeCount);
 
         static DimensionDto Dimension(BucketsFile file, string name) =>
             file.Dimensions.TryGetValue(name, out DimensionDto? d)

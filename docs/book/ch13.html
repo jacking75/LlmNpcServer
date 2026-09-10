@@ -121,7 +121,7 @@ dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata
 <h3>4.2 새 아키타입 추가</h3>
 
 <div class="card">
-<pre><code><span class="c">// ① archetypes.json 맨 뒤 (code 40 — 단, BucketKey.ArchetypeCount 가 40이라 상한이다)</span>
+<pre><code><span class="c">// ① archetypes.json 맨 뒤 (code 는 맨 뒤에만 붙인다 — 재배치 금지)</span>
 <span class="c">// ② 그 아키타입의 폴백 플랜을 fallback_plans.json 에 추가   ← V7 이 없으면 기동 실패</span>
 <span class="c">//    · loop: true · on_step_fail: skip · allowed_actions 만으로 구성 (V8)</span>
 <span class="c">// ③ population_weight 를 넣고 다른 것들을 줄여 합을 1.0 으로 (V5)</span>
@@ -129,10 +129,13 @@ dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata
 <span class="c">// ⑤ npc_instances.json 재생성</span>
 dotnet run tools/gen_npcs.cs
 <span class="c">// ⑥ 버킷이 72개 늘어난다 → 프리베이크</span></code></pre>
-  <div class="warn" style="margin-bottom:0">
-    <span class="tag">40을 넘기려면</span>
-    <code>BucketKey.ArchetypeCount</code>를 늘려야 하고, 그 순간 <b>버킷 인덱스 공식이 바뀌어
-    기존 플랜 2,880개가 전부 다른 곳을 가리킨다</b>. 전량 재생성이 강제된다.
+  <div class="note" style="margin-bottom:0">
+    <span class="tag">코드는 고치지 않는다</span>
+    아키타입 수는 <code>archetypes.json</code> 이 정하고 <code>BucketSpace</code> 가 들고 있다 (F-05).
+    <b>기존 버킷 인덱스는 변하지 않는다</b> — 아키타입이 가장 바깥 차원이라 뒤에 붙는 것은
+    뒤에만 자리를 만든다. 기존 플랜 2,880개는 그대로 쓰고, <b>새 아키타입의 72칸만</b>
+    프리베이크하면 된다. 권장 상한은 128 이고 하드 상한은 <code>npc_ref</code> payload 가
+    정하는 4,096 이다 — 실질 제약은 프롬프트 프리픽스의 토큰 비용이다.
   </div>
 </div>
 

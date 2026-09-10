@@ -56,16 +56,17 @@ public sealed class BulkRunnerTests
     }
 
     [Fact]
-    public void AllBuckets_Covers2880()
+    public void AllBuckets_CoversTheWholeSpace()
     {
-        ImmutableArray<BucketKey> all = BulkRunner.AllBuckets();
+        // 개수는 masterdata 가 정한다 (F-05) — 2,880 을 적으면 아키타입 추가에 이 테스트가 깨진다.
+        ImmutableArray<BucketKey> all = BulkRunner.AllBuckets(LlmPlanCompilerTests.Data.Buckets);
 
-        Assert.Equal(2_880, all.Length);
-        Assert.Equal(2_880, all.Distinct().Count());
+        Assert.Equal(TestPaths.TotalKeys, all.Length);
+        Assert.Equal(TestPaths.TotalKeys, all.Distinct().Count());
 
         // 순서는 버킷 인덱스 그대로 — 회차 간 diff 가 의미를 가져야 한다.
         Assert.Equal(BucketKey.FromIndex(0), all[0]);
-        Assert.Equal(BucketKey.FromIndex(2_879), all[^1]);
+        Assert.Equal(BucketKey.FromIndex(TestPaths.TotalKeys - 1), all[^1]);
     }
 
     [Fact]

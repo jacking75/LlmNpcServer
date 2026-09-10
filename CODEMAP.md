@@ -27,7 +27,7 @@
 | **새 액션 추가** | `masterdata/actions.json` → `src/Npc.MasterData/ActionCatalog.cs` → `src/Npc.Runtime/CommandEmitter.cs`(`emits.map` 해석) | **40개 상한**(현재 37). `code` 재배치 금지. 프리픽스가 바뀌므로 **플랜 스토어 전량 무효** |
 | **새 월드 플래그 추가** | `masterdata/world_flags.json` → `src/Npc.Core/Generators/WorldFlagsGenerator.cs`(소스 생성기가 enum 을 만든다. 손으로 쓰지 않는다) | **bit 재배치 금지.** 44~63 이 비어 있다 |
 | **새 아이템·레시피** | `masterdata/items.json` → `src/Npc.MasterData/ItemTable.cs` → `src/Npc.Runtime/EventApplier.cs`(`RecomputeItemFlags`) | `grants` 가 플래그를 만든다. 코드에 하드코딩 금지 |
-| **새 아키타입·POI·존** | `masterdata/*.json` → `ArchetypeTable.cs`·`MasterDataSet.cs` → `tools/gen_npcs.cs` 재실행 | `population_weight` 합 1.0(V5) · POI 정원(V10) |
+| **새 아키타입·POI·존** | `masterdata/*.json` → `tools/gen_npcs.cs` 재실행 → 프리베이크 | **코드 수정 없음**(F-05) · `population_weight` 합 1.0(V5) · POI 정원(V10) · 프리픽스 해시 변경 → 플랜 전량 무효 |
 | **인터럽트 규칙 추가·수정** | `masterdata/interrupts.json` → `src/Npc.MasterData/InterruptRules.cs`(파싱) → `src/Npc.Runtime/InterruptMatcher.cs`(판정·엣지 트리거) | **LLM 이 만들지 않는다.** `cooldown_s` 를 두지 않는다 — 결정론이 깨진다 |
 | **검증 규칙(V1~V15) 추가** | `src/Npc.MasterData/Validation/MasterDataValidator.cs` → **`Validation/FixHints.cs` 에 힌트도 같이** | 실패는 **기동 실패**다. 힌트를 빼먹으면 `FixHintTests` 가 깨진다 |
 | **검증 결과를 기계가 읽어야 한다** | `validate --format json` — `src/Npc.Host/Commands/ValidationJson.cs` · 사전 문서는 `hints --out` 이 생성한다 |
@@ -169,7 +169,7 @@ CognitionScheduler.Scan        이탈 판정 → ReplanQueue (ReplanScorer 점�
 | 프로젝트 | 무엇 | 진입 파일 |
 |---|---|---|
 | `Npc.Contracts` | 게임서버 경계. 316줄뿐이니 통째로 읽어도 된다 | `IGameServerLink.cs` |
-| `Npc.Core` | 순수 로직 — 플랜 표현·검증기 1~3단·버킷 키 | `Plan/CompiledPlan.cs` |
+| `Npc.Core` | 순수 로직 — 플랜 표현·검증기 1~3단·버킷 키(크기는 `BucketSpace` 가 안다) | `Plan/CompiledPlan.cs` |
 | `Npc.MasterData` | JSON 로딩·인덱싱·검증 | `MasterDataSet.cs` |
 | `Npc.Runtime` | **틱 루프.** 여기의 규칙이 제일 엄하다 | `NpcServerLoop.cs` |
 | `Npc.Planning` | 플랜 캐시·재계획 큐·예산 | `PlanStore.cs` |

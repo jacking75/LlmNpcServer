@@ -44,7 +44,7 @@ public sealed class CacheMetricsTests
         var pool = new IndividualPlanPool();
         var metrics = new CacheMetrics(store, pool);
 
-        Assert.Equal(BucketKey.TotalKeys, metrics.ColdBuckets);
+        Assert.Equal(TestPaths.TotalKeys, metrics.ColdBuckets);
         Assert.Equal(0, metrics.HitRate);
         Assert.Empty(metrics.TopMisses());
         Assert.Equal(0, metrics.IndividualTurnover);
@@ -67,7 +67,7 @@ public sealed class CacheMetricsTests
         Assert.Equal(1, metrics.Misses);
 
         // (2) 콜드 버킷 수
-        Assert.Equal(BucketKey.TotalKeys - 1, metrics.ColdBuckets);
+        Assert.Equal(TestPaths.TotalKeys - 1, metrics.ColdBuckets);
         Assert.Equal(1, metrics.FilledBuckets);
 
         // (3) 미스 상위 버킷
@@ -118,7 +118,7 @@ public sealed class CacheMetricsTests
         Assert.Equal(5, farmerStats.Misses);
         Assert.Equal(CacheMetrics.BucketsPerArchetype, farmerStats.ColdBuckets);
 
-        Assert.Equal(BucketKey.ArchetypeCount, metrics.ByArchetype().Length);
+        Assert.Equal(TestPaths.ArchetypeCount, metrics.ByArchetype().Length);
 
         // 최하위 목록 — 조회가 있었던 둘만 올라오고 농부가 앞이다.
         var worst = metrics.WorstArchetypes();
@@ -147,7 +147,7 @@ public sealed class CacheMetricsTests
         Assert.Equal(1, snapshot.Hits);
         Assert.Equal(1, snapshot.Misses);
         Assert.Equal(1, snapshot.FilledBuckets);
-        Assert.Equal(BucketKey.TotalKeys - 1, snapshot.ColdBuckets);
+        Assert.Equal(TestPaths.TotalKeys - 1, snapshot.ColdBuckets);
         Assert.Equal(1, snapshot.PinnedBuckets);
         Assert.Equal(0, snapshot.IndividualTurnover);
         Assert.Equal(0, snapshot.IndividualLive);

@@ -27,7 +27,7 @@
     { part: '2부 · 세계를 바꾼다', file: 'ch06.html', no: '6장', title: '하루 일과를 손으로 쓴다', status: 'done',
       desc: '플랜 DSL · 심볼 · 스텝 3~10 상한 · 검증기 4단' },
     { part: '2부 · 세계를 바꾼다', file: 'ch07.html', no: '7장', title: '새 직업을 만든다', status: 'done',
-      desc: 'beekeeper 추가 · ArchetypeCount 40→41 · 테스트 18개가 깨진다' },
+      desc: 'beekeeper 추가 · 마스터데이터만 고친다 (F-05) · 파생물 재생성' },
     { part: '2부 · 세계를 바꾼다', file: 'ch08.html', no: '8장', title: '반사신경 — 인터럽트', status: 'done',
       desc: '규칙 하나로 발동 +375건 · 엣지 트리거 · cooldown 이 없는 이유' },
     { part: '2부 · 세계를 바꾼다', file: 'ch09.html', no: '9장', title: '새 행동을 추가한다', status: 'done',

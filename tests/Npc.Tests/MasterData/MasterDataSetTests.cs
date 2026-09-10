@@ -14,12 +14,12 @@ public sealed class MasterDataSetTests
     public void MasterData_LoadsEveryTable()
     {
         Assert.Equal(37, s_data.Actions.Count);
-        Assert.Equal(40, s_data.Archetypes.Count);
+        Assert.Equal(TestPaths.ArchetypeCount, s_data.Archetypes.Count);
         Assert.Equal(12, s_data.Zones.Count);
         Assert.Equal(243, s_data.Pois.Count);
         Assert.True(s_data.Items.Items.Length >= 70);
         Assert.True(s_data.Interrupts.Count >= 12);
-        Assert.Equal(BucketKey.TotalKeys, s_data.Buckets.DeclaredTotalKeys);
+        Assert.Equal(TestPaths.TotalKeys, s_data.Buckets.DeclaredTotalKeys);
     }
 
     /// <summary>T1-19 완료 조건 — 동일 입력 → 동일 해시, 100회.</summary>

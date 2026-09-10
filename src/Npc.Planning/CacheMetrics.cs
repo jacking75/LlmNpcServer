@@ -61,13 +61,14 @@ public sealed class CacheMetrics
     public const int DefaultTop = 10;
 
     /// <summary>한 아키타입이 갖는 버킷 수. 6 × 4 × 3.</summary>
-    public const int BucketsPerArchetype =
-        BucketKey.TimeOfDayCount * BucketKey.RegionStateCount * BucketKey.ClimateCount;
+    public const int BucketsPerArchetype = BucketKey.PerArchetype;
 
     private readonly PlanStore _plans;
     private readonly IndividualPlanPool? _individual;
-    private readonly long[] _hits = new long[BucketKey.ArchetypeCount];
-    private readonly long[] _misses = new long[BucketKey.ArchetypeCount];
+
+    // 길이는 masterdata 가 정한다 (F-05). 스토어가 아는 값을 그대로 쓴다.
+    private readonly long[] _hits;
+    private readonly long[] _misses;
 
     /// <summary>계측을 건다. 기동 시 1회.</summary>
     /// <param name="plans">버킷 히트/미스 카운터를 들고 있는 스토어.</param>
@@ -78,6 +79,8 @@ public sealed class CacheMetrics
 
         _plans = plans;
         _individual = individual;
+        _hits = new long[plans.Space.ArchetypeCount];
+        _misses = new long[plans.Space.ArchetypeCount];
     }
 
     /// <summary>전체 히트율.</summary>
@@ -124,9 +127,9 @@ public sealed class CacheMetrics
     {
         _plans.HitsByArchetype(_hits, _misses);
 
-        var builder = ImmutableArray.CreateBuilder<ArchetypeCacheStats>(BucketKey.ArchetypeCount);
+        var builder = ImmutableArray.CreateBuilder<ArchetypeCacheStats>(_hits.Length);
 
-        for (int code = 0; code < BucketKey.ArchetypeCount; code++)
+        for (int code = 0; code < _hits.Length; code++)
         {
             var archetype = new ArchetypeId((ushort)code);
 
@@ -175,7 +178,7 @@ public sealed class CacheMetrics
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(take);
 
-        var used = new List<ArchetypeCacheStats>(BucketKey.ArchetypeCount);
+        var used = new List<ArchetypeCacheStats>(_hits.Length);
 
         foreach (ArchetypeCacheStats stats in ByArchetype())
         {

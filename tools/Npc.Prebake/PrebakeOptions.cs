@@ -348,7 +348,7 @@ public sealed record PrebakeOptions
                     break;
 
                 case "--archetypes":
-                    if (!TryInt(args, ref i, arg, 0, Npc.Core.BucketKey.ArchetypeCount, out int archetypes, out error))
+                    if (!TryInt(args, ref i, arg, 0, Npc.MasterData.BucketSpace.MaxArchetypes, out int archetypes, out error))
                     {
                         options = result;
                         return false;

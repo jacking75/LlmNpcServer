@@ -51,13 +51,13 @@ public sealed class PlanStoreWiringTests : IDisposable
 
             MetricsSnapshot metrics = host.Metrics.Snapshot();
 
-            Assert.Equal(BucketKey.TotalKeys, metrics.Cache.FilledBuckets);
+            Assert.Equal(TestPaths.TotalKeys, metrics.Cache.FilledBuckets);
             Assert.Equal(0, metrics.Cache.ColdBuckets);
         }
 
         string output = log.ToString();
 
-        Assert.Contains($"버킷 {BucketKey.TotalKeys}/{BucketKey.TotalKeys}", output, StringComparison.Ordinal);
+        Assert.Contains($"버킷 {TestPaths.TotalKeys}/{TestPaths.TotalKeys}", output, StringComparison.Ordinal);
 
         // 스토어가 지금 마스터데이터로 만들어진 것이면 경고가 없다.
         Assert.DoesNotContain("낡았다", output, StringComparison.Ordinal);
@@ -79,7 +79,7 @@ public sealed class PlanStoreWiringTests : IDisposable
         MetricsSnapshot metrics = host.Metrics.Snapshot();
 
         Assert.Equal(0, metrics.Cache.FilledBuckets);
-        Assert.Equal(BucketKey.TotalKeys, metrics.Cache.ColdBuckets);
+        Assert.Equal(TestPaths.TotalKeys, metrics.Cache.ColdBuckets);
 
         // 폴백 40개는 그대로 등록돼 있다 — 이것이 시나리오 C 가 통과하는 이유다.
         Assert.Contains("폴백 40", log.ToString(), StringComparison.Ordinal);
@@ -98,7 +98,7 @@ public sealed class PlanStoreWiringTests : IDisposable
             Options("--loopback", "--npcs", "50", "--days", "1", "--no-llm", "--no-dashboard"), log);
 
         Assert.Equal(100, host.Metrics.Snapshot().Cache.FilledBuckets);
-        Assert.Contains($"미생성 버킷 {BucketKey.TotalKeys - 100}건", log.ToString(), StringComparison.Ordinal);
+        Assert.Contains($"미생성 버킷 {TestPaths.TotalKeys - 100}건", log.ToString(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -127,7 +127,7 @@ public sealed class PlanStoreWiringTests : IDisposable
         Assert.Contains("prompt/", output, StringComparison.Ordinal);
 
         // 경고만 하고 스토어는 그대로 올린다.
-        Assert.Equal(BucketKey.TotalKeys, host.Metrics.Snapshot().Cache.FilledBuckets);
+        Assert.Equal(TestPaths.TotalKeys, host.Metrics.Snapshot().Cache.FilledBuckets);
     }
 
     /// <summary>manifest 가 없으면 그것도 경고한다 — 어느 마스터데이터로 만든 스토어인지 알 수 없다.</summary>
