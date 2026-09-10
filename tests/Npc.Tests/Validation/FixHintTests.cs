@@ -32,9 +32,17 @@ public sealed partial class FixHintTests
     [InlineData("Npc.Core", "Validation", "VocabularyValidator.cs")]
     [InlineData("Npc.Core", "Validation", "CoherenceValidator.cs")]
     [InlineData("Npc.Sim", "Validation", "DryRunValidator.cs")]
+
+    // 어휘 검증의 실체는 여기 있다 (IPlanValidationVocabulary 구현).
+    // 처음에는 이 파일을 안 봐서 V2 코드 다섯 개가 사전에서 빠져 있었다.
+    [InlineData("Npc.MasterData", "", "MasterDataSet.cs")]
     public void EveryPlanCode_HasAHint(string project, string folder, string file)
     {
-        foreach (string code in CodesIn(TestPaths.At("src", project, folder, file), PlanCodePattern()))
+        string path = folder.Length == 0
+            ? TestPaths.At("src", project, file)
+            : TestPaths.At("src", project, folder, file);
+
+        foreach (string code in CodesIn(path, PlanCodePattern()))
         {
             Assert.True(
                 FixHints.For(code) is not null,

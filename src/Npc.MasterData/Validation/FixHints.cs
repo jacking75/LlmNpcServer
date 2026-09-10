@@ -77,7 +77,7 @@ public static class FixHints
         Add(builder, "V5",
             "population_weight 합이 1.0 이 아니다. 한 아키타입에서 떼어 새 아키타입에 준다 — "
             + "`npc scaffold archetype <id> --from <id> --weight W` 가 재배분 3안을 제안한다.",
-            "docs/reference_masterdata.html#v5");
+            "docs/reference_masterdata.html#v5", "docs/llm/RECIPES/add-archetype.md");
 
         Add(builder, "V6",
             "context_buckets 의 total_keys 가 실제 차원의 곱과 다르다. "
@@ -87,12 +87,12 @@ public static class FixHints
         Add(builder, "V7",
             "아키타입에 폴백 플랜이 없다. fallback_plans.json 에 그 아키타입의 항목을 추가한다 — "
             + "폴백이 없으면 LLM 이 전면 차단됐을 때 그 아키타입만 멈춘다.",
-            "docs/reference_masterdata.html#v7");
+            "docs/reference_masterdata.html#v7", "docs/llm/RECIPES/write-fallback-plan.md");
 
         Add(builder, "V8",
             "인터럽트 규칙이 잘못됐다. when/then 의 액션·플래그가 실재하는지 보고, "
             + "cooldown_s 를 넣지 않았는지 확인한다 — 그것은 결정론을 깬다.",
-            "docs/reference_masterdata.html#v8");
+            "docs/reference_masterdata.html#v8", "docs/llm/RECIPES/add-interrupt.md");
 
         Add(builder, "V9",
             "존 그래프가 끊겼다. zones.json 의 adjacent 로 모든 존이 서로 도달 가능해야 한다.",
@@ -101,7 +101,7 @@ public static class FixHints
         Add(builder, "V10",
             "POI 정원이 인구보다 적다. 그 종류의 POI 를 늘리거나 capacity 를 올린다 — "
             + "정원이 모자라면 그 아키타입 일부가 일터를 못 얻는다.",
-            "docs/reference_masterdata.html#v10");
+            "docs/reference_masterdata.html#v10", "docs/llm/RECIPES/add-item-poi.md");
 
         Add(builder, "V11",
             "프롬프트 프리픽스가 토큰 하한(4,096)에 못 미친다. 카탈로그를 줄이지 않는다 — "
@@ -112,12 +112,12 @@ public static class FixHints
             "duty_hours 없이 Guard·Patrol 을 허용했다. duty_hours 를 주거나 그 액션을 뺀다 — "
             + "OnDuty 를 세우는 것은 duty_hours 뿐이라, 없으면 인지 스캔이 매 틱 이탈로 읽어 "
             + "재계획 큐가 포화한다.",
-            "CLAUDE.md#7", "docs/reference_masterdata.html#v12");
+            "CLAUDE.md#7", "docs/reference_masterdata.html#v12", "docs/llm/RECIPES/add-archetype.md");
 
         Add(builder, "V13",
             "npc_instances.json 의 참조·정원·순찰로가 어긋났다. 손편집은 npc_overrides.json 에 하고 "
             + "`npc regen` 으로 생성물을 다시 만든다.",
-            "docs/reference_masterdata.html#v13");
+            "docs/reference_masterdata.html#v13", "docs/llm/RECIPES/add-archetype.md");
 
         Add(builder, "V14",
             "대사 심볼이 dialogue_lines.json 에 없다. 그 파일에 code 를 **뒤에** 추가한다 — "
@@ -159,6 +159,33 @@ public static class FixHints
         Add(builder, "V2.UNKNOWN_POI",
             "모르는 POI 심볼이다. $home·$workplace·$market·$tavern 같은 심볼이나 "
             + "nearest:<종류> 형태만 쓴다 — 구체 POI id 를 직접 적지 않는다.");
+
+        Add(builder, "V2.UNKNOWN_ARG",
+            "액션이 모르는 인자다. actions.json 의 그 액션 params 에 있는 이름만 쓴다 — "
+            + "강제 디코딩은 문법을 지키면서 인자를 지어내므로 여기서 걸린다.",
+            "docs/reference_masterdata.html#act", "docs/llm/RECIPES/add-action.md");
+
+        Add(builder, "V2.MISSING_REQUIRED_ARG",
+            "required 인자가 빠졌다. actions.json 의 params 에서 required:true 인 것을 채운다.",
+            "docs/reference_masterdata.html#act");
+
+        Add(builder, "V2.TYPE_MISMATCH",
+            "인자 타입이 다르다. params 의 type(poi_ref·item_ref·npc_ref·zone_ref·enum·int·route)에 맞춘다.",
+            "docs/reference_masterdata.html#act");
+
+        Add(builder, "V2.RANGE",
+            "정수 인자가 범위 밖이다. params 의 min·max 안으로 넣는다 — "
+            + "범위는 게임서버가 감당할 수 있는 값에서 왔다.",
+            "docs/reference_masterdata.html#act");
+
+        Add(builder, "V2.UNKNOWN_ITEM",
+            "items.json 에 없는 아이템이다. `npc explain item <id>` 로 실재를 확인하거나 "
+            + "먼저 아이템을 추가한다.",
+            "docs/reference_masterdata.html#item", "docs/llm/RECIPES/add-item-poi.md");
+
+        Add(builder, "V2.UNKNOWN_RECIPE",
+            "items.json 의 recipes 에 없는 레시피다. 레시피 id 는 산출 아이템 id 와 같다.",
+            "docs/reference_masterdata.html#item", "docs/llm/RECIPES/add-item-poi.md");
 
         // ── 3단: 정합성 ────────────────────────────────────────
         Add(builder, "V3.PRECONDITION_UNMET",

@@ -30,7 +30,7 @@
 | `docs/startup_flow.html` | 기동 흐름 |
 | `docs/testbed_guide.html` | 테스트 베드 · 게임서버 연동 시험 |
 | `docs/FAQ.html` | 도입·행동 플랜·전투 반응·대화 확장 |
-| `docs/llm/VALIDATION.md` | **검증 오류 사전 — 코드 → 무엇을 하면 되는가.** 생성물이다 (`npc hints --out`) |
+| **`docs/llm/`** | **LLM 온보딩 팩 — `SKILL.md` · `CONTEXT.md`(3,000토큰 압축) · `RECIPES/`(작업별 절차 11) · `ANTIPATTERNS.md` · `GLOSSARY.md` · `PROMPTS.md` · `VALIDATION.md`(생성물)** |
 | **`PRODUCTION_ROADMAP.md`** | **상용 투입 로드맵 — 결손 태스크 50건(체크리스트)·구현 방법·LLM 온보딩·NPC 정의 툴. 유일한 작업 지시서** |
 
 ★ **`reference_link.html` · `reference_masterdata.html` 을 읽지 않고 계약·마스터데이터를 건드리지

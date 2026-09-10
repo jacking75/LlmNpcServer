@@ -442,6 +442,20 @@ Studio(F-02)와 MCP 서버(E-03)가 **같은 함수**를 부를 자리다.
 > `code`·`bit` 재배치, 프리베이크 실행(비용), `planstore/pinned/` 수정.
 > 도구가 그 셋을 **API 로 막아** 두었지만, 지시에도 적어 둔다.
 
+### 온보딩 팩 — `docs/llm/`
+
+에이전트에게 줄 것이 파일로 있다. 아래 시스템 프롬프트는 그 요약이다.
+
+| 파일 | 무엇 |
+|---|---|
+| `docs/llm/SKILL.md` | 에이전트 스킬 정의. `.claude/skills/npc-server/` 에도 링크돼 있다 |
+| `docs/llm/CONTEXT.md` | **3,000토큰 압축 컨텍스트.** 첫 메시지에 그대로 붙여 넣는다 |
+| `docs/llm/RECIPES/` | 작업별 절차 11종 (전제 → 순서 → **확인** → 되돌리기 → 파급) |
+| `docs/llm/ANTIPATTERNS.md` | 실수 30건 — 증상 · 확인 명령 · 올바른 방법 |
+| `docs/llm/GLOSSARY.md` | 용어 |
+| `docs/llm/PROMPTS.md` | 사람이 던지는 **요청 템플릿** 6종 + 나쁜 요청/좋은 요청 |
+| `docs/llm/VALIDATION.md` | 검증 코드 → 무엇을 하면 되는가 (생성물) |
+
 ### 그대로 써도 되는 시스템 프롬프트
 
 ```text
@@ -544,7 +558,6 @@ NPC 서버를 붙이는 쪽(게임서버)이 알아야 할 것은 **연동 계�
 | 없는 것 | 무엇을 대신 쓰나 | 로드맵 |
 |---|---|---|
 | MCP 서버 | `npc … --json` 을 셸로 부른다 | E-03 |
-| 온보딩 팩(SKILL·RECIPES·ANTIPATTERNS) | `CLAUDE.md` + 위 시스템 프롬프트 | E-01 |
 | 웹 편집기(Studio) | `npc scaffold` dry-run + 사람 리뷰 · VS Code 는 스키마·스니펫이 있다 | F-02 |
 | 대화 생성 | **없다.** 이 서버는 행동 플랜만 만든다 | D-01 |
 
