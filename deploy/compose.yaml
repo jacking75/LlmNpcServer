@@ -1,0 +1,89 @@
+# 데모 한 벌 (A-09). `run_demo.ps1` 의 컨테이너판.
+#
+#   docker compose -f deploy/compose.yaml up --build
+#
+# 게임서버 대역 → NPC 서버 → Prometheus → Grafana.
+# <b>대역은 우리가 만드는 게임서버가 아니다</b> — 상대방 역할을 하는 우리 쪽 가짜다 (CLAUDE.md §2.2).
+#
+# dotLLM 은 여기 없다. GPLv3 경계라 별도 배포이고(CLAUDE.md §2.7), 이 데모는 --tier none 으로 돈다.
+
+name: npc-server
+
+services:
+  gameserver:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.testgameserver
+    command:
+      - --npcs
+      - "500"
+      - --link-port
+      - "7010"
+      - --time-scale
+      - "60"
+    ports:
+      - "7010:7010"
+      - "7020:7020"
+    networks: [npc]
+
+  npc:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        VERSION: ${NPC_VERSION:-1.0.0}
+        REVISION: ${NPC_REVISION:-dev}
+    depends_on: [gameserver]
+    environment:
+      # 설정은 환경변수로 준다 (A-04). 옵션 이름에서 도출한다: --gs-host 는 NPC_GS_HOST.
+      NPC_PROFILE: service
+      NPC_LINK: tcp
+      NPC_GS_HOST: gameserver
+      NPC_GS_PORT: "7010"
+      NPC_NPCS: "500"
+      NPC_TIME_SCALE: "60"
+      NPC_BIND: 0.0.0.0
+      NPC_HEALTH_PORT: "5081"
+      NPC_SNAPSHOT_DIR: /opt/npc/state
+      NPC_SNAPSHOT_INTERVAL_S: "60"
+      # 0.0.0.0 바인드는 관리 토큰이 있을 때만 열린다 (A-04).
+      NPC_ADMIN_TOKEN: ${NPC_ADMIN_TOKEN:-demo-token-change-me}
+      NPC_HEALTH_PORT_FOR_HEALTHCHECK: "5081"
+    ports:
+      - "5080:5080"
+      - "5081:5081"
+    volumes:
+      - planstore:/opt/npc/planstore/plans
+      - state:/opt/npc/state
+    networks: [npc]
+    # SIGTERM 으로 종료 시퀀스를 돈다 (A-02). 예산 15초에 맞춰 여유를 준다.
+    stop_grace_period: 30s
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks: [npc]
+
+  grafana:
+    image: grafana/grafana:latest
+    depends_on: [prometheus]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./grafana:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks: [npc]
+
+networks:
+  npc:
+
+volumes:
+  planstore:
+  state:

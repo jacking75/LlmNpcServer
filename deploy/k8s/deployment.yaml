@@ -1,0 +1,117 @@
+# NPC 서버 Deployment (A-09).
+#
+# 프로브 세 종(A-03) · 시크릿(A-06) · 스냅샷 볼륨(A-01) · 종료 유예(A-02)가 여기서 만난다.
+#
+# <b>replicas 는 1 이다.</b> 한 프로세스 = 한 샤드 = 한 링크가 규약이고(A-08),
+# 여러 개를 띄우려면 샤드마다 별도 Deployment 로 --shard 를 다르게 준다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: npc-server
+  labels: { app: npc-server }
+spec:
+  replicas: 1
+  strategy:
+    # 상태를 가진 프로세스다. 두 개가 같은 샤드로 동시에 붙으면 게임서버가 두 번째를 거절한다.
+    type: Recreate
+  selector:
+    matchLabels: { app: npc-server }
+  template:
+    metadata:
+      labels: { app: npc-server }
+    spec:
+      # 종료 시퀀스(A-02) 15초 + 여유.
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: npc-server
+          image: npc-server:latest
+          args: ["--profile", "service"]
+          envFrom:
+            - configMapRef: { name: npc-server-config }
+          env:
+            - name: NPC_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef: { name: npc-server-secrets, key: admin-token }
+            - name: NPC_LINK_SECRET
+              valueFrom:
+                secretKeyRef: { name: npc-server-secrets, key: link-secret }
+          ports:
+            - { name: http, containerPort: 5080 }
+            - { name: health, containerPort: 5081 }
+          # 세 프로브가 다른 것을 본다 (A-03).
+          #   startup  로드·복원 판정이 끝났는가
+          #   liveness 틱 루프 스레드가 살아 있는가 (이벤트 대기 중도 살아 있음)
+          #   readiness 링크 Connected + 틱 진행 중
+          startupProbe:
+            httpGet: { path: /healthz/startup, port: health }
+            failureThreshold: 30
+            periodSeconds: 2
+          livenessProbe:
+            httpGet: { path: /healthz/live, port: health }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /healthz/ready, port: health }
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: { cpu: "1", memory: 1Gi }
+            limits: { cpu: "2", memory: 2Gi }
+          volumeMounts:
+            - { name: state, mountPath: /opt/npc/state }
+            - { name: planstore, mountPath: /opt/npc/planstore/plans }
+      volumes:
+        - name: state
+          persistentVolumeClaim: { claimName: npc-server-state }
+        - name: planstore
+          persistentVolumeClaim: { claimName: npc-server-planstore }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: npc-server
+spec:
+  selector: { app: npc-server }
+  ports:
+    - { name: http, port: 5080, targetPort: http }
+    - { name: health, port: 5081, targetPort: health }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: npc-server-config
+data:
+  # 옵션 이름에서 도출한 환경변수다 (A-04): --gs-host 는 NPC_GS_HOST.
+  NPC_LINK: tcp
+  NPC_GS_HOST: gameserver
+  NPC_GS_PORT: "7010"
+  NPC_NPCS: "5000"
+  NPC_TIME_SCALE: "1"
+  NPC_BIND: 0.0.0.0
+  NPC_HEALTH_PORT: "5081"
+  NPC_SNAPSHOT_DIR: /opt/npc/state
+  NPC_SNAPSHOT_INTERVAL_S: "60"
+  NPC_ON_LINK_FAULT: exit
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: npc-server-state
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: npc-server-planstore
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi

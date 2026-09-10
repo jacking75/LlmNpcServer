@@ -204,6 +204,44 @@ dotnet run -c Release --project src/Npc.Host -- \
 
 ---
 
+## 배포
+
+```bash
+# 데모 한 벌 (게임서버 대역 + NPC 서버 + Prometheus + Grafana)
+docker compose -f deploy/compose.yaml up --build
+# → http://localhost:5080/dashboard · http://localhost:3000 (Grafana)
+
+# 이미지만
+docker build -f deploy/Dockerfile -t npc-server:dev .
+
+# 쿠버네티스 (시크릿을 먼저 만든다)
+kubectl create secret generic npc-server-secrets \
+  --from-literal=admin-token="$(openssl rand -hex 32)" \
+  --from-literal=link-secret="$(openssl rand -hex 32)"
+kubectl apply -f deploy/k8s/deployment.yaml
+```
+
+| 파일 | 무엇 |
+|---|---|
+| `deploy/Dockerfile` | NPC 서버. 멀티스테이지 · 비루트 · `HEALTHCHECK` → `/healthz/live` |
+| `deploy/Dockerfile.testgameserver` | 게임서버 **대역**. 데모·적합성 시험용이지 운영 이미지가 아니다 |
+| `deploy/compose.yaml` | `run_demo.ps1` 의 컨테이너판 |
+| `deploy/k8s/` | Deployment(프로브 3종·시크릿·PVC) · Service · ConfigMap |
+| `deploy/prometheus.yml` · `deploy/grafana/` | 스크레이프 설정 · 대시보드 |
+| `.github/workflows/ci.yml` | PR·푸시 — 빌드 · 스타일 · 테스트(리눅스/윈도) · 마스터데이터 검증 · 이미지 |
+| `.github/workflows/nightly.yml` | 야간 — Load · FaultInjection · 실측 diff |
+| `.github/workflows/release.yml` | 태그 — 버전 주입 · 이미지 · SBOM · `planstore/pinned` 아티팩트 |
+
+**이미지에 넣는 것과 넣지 않는 것.** `masterdata/`·`planstore/pinned/`·`manifest.json` 은 들어간다.
+`planstore/plans/` 는 생성물이라 볼륨이고, `state/`(스냅샷)도 볼륨이다.
+**dotLLM 은 넣지 않는다** — GPLv3 경계라 별도 배포다 (CLAUDE.md §2.7).
+
+**버전.** `MAJOR.MINOR.PATCH` 는 태그가 정하고 CI 가 `-p:VersionPrefix` 로 주입한다.
+`/status.version` 은 거기에 마스터데이터 `content_hash` 앞 8자리를 붙인다 —
+같은 바이너리라도 다른 콘텐츠면 다른 버전이다.
+
+---
+
 ## 프로젝트 구조
 
 ```
@@ -229,7 +267,10 @@ tools/
   *.cs              파일 기반 .NET 앱 (gen_npcs · gen_poi_distances · report_scale · …)
   *.ps1             측정·검수 스크립트 (run_load · run_weight_ab · review · pin_plan)
 masterdata/         마스터데이터 11종  → docs/reference_masterdata.html
+deploy/             Dockerfile · compose · k8s · Prometheus/Grafana  → README §배포
+.github/workflows/  CI · 야간 · 릴리스
 planstore/          프리베이크 플랜 (plans/ 는 gitignore, pinned/ 는 버전관리)
+state/              NPC 상태 스냅샷 (gitignore. --snapshot-dir)
 scenarios/          시나리오 스크립트 (jsonl)
 tests/Npc.Tests/    단위 · 골든 · 부하 · 장애주입
 docs/               설계 사양 (아래)

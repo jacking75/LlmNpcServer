@@ -30,6 +30,12 @@ if (args.Length > 0 && args[0] == ValidateCommand.Name)
     return ValidateCommand.Run(args[1..], Console.Out);
 }
 
+// 컨테이너 HEALTHCHECK 진입점 (A-09). aspnet 이미지에 curl 이 없어서 .NET 으로 친다.
+if (args.Length > 0 && args[0] == HealthCheckCommand.Name)
+{
+    return HealthCheckCommand.Run(args[1..], Console.Out);
+}
+
 // 설정은 세 겹이다 (A-04): CLI > 환경변수(NPC_*) > 설정 파일(npc.settings.json) > 기본값.
 // 배포 시스템이 ConfigMap·시크릿으로 넘길 길이 없으면 옵션 30개가 전부 손으로 친 명령줄이 된다.
 if (!HostOptions.TryParseLayered(args, env: null, out HostOptions options, out string? parseError))
@@ -408,6 +414,18 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>마지막 종료 시퀀스 (A-02). 테스트가 단계 순서를 읽는다.</summary>
     public HostShutdown? LastShutdown { get; private set; }
+
+    /// <summary>
+    /// 릴리스 버전 (A-09). <c>MAJOR.MINOR.PATCH+메타</c>.
+    ///
+    /// 어셈블리 정보 버전은 빌드가 정하고(태그 → <c>VersionPrefix</c>), 마스터데이터
+    /// <c>content_hash</c> 앞 8자리를 메타로 붙인다 — <b>같은 바이너리라도 다른 콘텐츠면
+    /// 다른 버전이다</b>. 장애 대응에서 "어느 데이터로 떠 있나" 가 먼저 필요하다.
+    /// </summary>
+    public string Version =>
+        $"{HostVersion.Assembly}+md.{Head(_data.ContentHash)}";
+
+    private static string Head(string hash) => hash.Length <= 8 ? hash : hash[..8];
 
     /// <summary>liveness 판정.</summary>
     public HealthReport Live() =>
@@ -906,6 +924,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>대시보드·게이트가 읽는 현재 상태.</summary>
     public HostSnapshot Snapshot() => new(
+        Version: Version,
         Tick: _clock.Current.Value,
         GameDay: _clock.GameDay,
         GameHour: _clock.GameHour,
@@ -1143,6 +1162,7 @@ internal sealed class NpcHost : IAsyncDisposable
 }
 
 /// <summary>대시보드·게이트가 읽는 상태 한 장. docs/11 §10.</summary>
+/// <param name="Version">릴리스 버전 + 마스터데이터 해시 앞 8자리 (A-09).</param>
 /// <param name="Tick">현재 틱.</param>
 /// <param name="GameDay">게임 일수.</param>
 /// <param name="GameHour">게임 시각(0~23).</param>
@@ -1166,6 +1186,7 @@ internal sealed class NpcHost : IAsyncDisposable
 /// <param name="RestoredFromTick">복원한 스냅샷의 틱. 복원 안 했으면 0.</param>
 /// <param name="Link">링크 통계.</param>
 internal readonly record struct HostSnapshot(
+    string Version,
     long Tick,
     long GameDay,
     int GameHour,

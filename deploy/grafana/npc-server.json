@@ -1,0 +1,91 @@
+{
+  "title": "NPC Server",
+  "uid": "npc-server",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "틱 p99 (ms) — 예산 20",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(npc_tick_duration_ms_bucket[1m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 20 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "링크 상태 (0 끊김 · 2 연결 · 4 결함)",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "expr": "npc_link_state" }]
+    },
+    {
+      "type": "stat",
+      "title": "시퀀스 갭 (N6) — 0 이어야 한다",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "expr": "npc_link_event_gaps" }]
+    },
+    {
+      "type": "stat",
+      "title": "프리픽스 해시 종류 — 1 이 아니면 경보",
+      "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 },
+      "targets": [{ "expr": "npc_llm_unique_prefix_hashes" }]
+    },
+    {
+      "type": "stat",
+      "title": "스냅샷 실패 누계",
+      "gridPos": { "x": 18, "y": 4, "w": 6, "h": 4 },
+      "targets": [{ "expr": "npc_snapshot_failures" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "예산 소진율",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "npc_budget_tokens_used_ratio", "legendFormat": "토큰" },
+        { "expr": "npc_budget_usd_used_ratio", "legendFormat": "비용" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1, "min": 0 } }
+    },
+    {
+      "type": "timeseries",
+      "title": "재계획 큐 깊이 · 인지 스캔/틱",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "npc_replan_queue_depth", "legendFormat": "큐 깊이" },
+        { "expr": "npc_cognition_scan_per_tick", "legendFormat": "스캔/틱" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "플랜 캐시 히트율 — 게이트 0.98",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [{ "expr": "npc_plan_cache_hit_ratio" }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1, "min": 0 } }
+    },
+    {
+      "type": "timeseries",
+      "title": "스냅샷 — 마지막 틱 · 크기",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "npc_snapshot_last_tick", "legendFormat": "마지막 틱" },
+        { "expr": "npc_snapshot_bytes", "legendFormat": "크기(B)" }
+      ]
+    }
+  ]
+}

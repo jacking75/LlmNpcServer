@@ -1,5 +1,20 @@
 # 작업 로그
 
+## 2026-09-10 02:36 KST · A-09 배포 — Dockerfile · compose · k8s · CI 파이프라인
+
+테스트 1,119건을 자동으로 돌리는 곳이 없었다. 이미지·파이프라인·시크릿 주입·롤아웃이 전부 없었다.
+
+- **신규** `deploy/` — `Dockerfile`(멀티스테이지·비루트·`HEALTHCHECK`) ·
+  `Dockerfile.testgameserver` · `compose.yaml`(대역+서버+Prometheus+Grafana) ·
+  `k8s/deployment.yaml`(프로브 3종·시크릿·PVC·유예 30초) · `prometheus.yml` · `grafana/npc-server.json`.
+- **신규** `.github/workflows/` — `ci.yml`(리눅스·윈도 매트릭스 · 빌드·스타일·테스트·검증·이미지) ·
+  `nightly.yml`(Load·FaultInjection·실측 diff) · `release.yml`(태그 → 버전 주입·이미지·SBOM).
+- **신규** `Npc.Host healthcheck --url` 서브커맨드 — `aspnet` 이미지에 curl 이 없다.
+- `/status.version` = 어셈블리 버전 + 마스터데이터 해시 앞 8자리.
+- `tests/Npc.Tests/Deploy/DeployArtifactTests.cs` — compose·k8s 의 `NPC_*` 가 옵션 표에 있는지,
+  Dockerfile 이 생성물·dotLLM 을 굽지 않는지, CI 필터가 `build.ps1` 과 같은지 강제한다.
+- 테스트 19건 추가. 전체 1,119건 통과 · 경고 0.
+
 ## 2026-09-10 02:28 KST · A-02 SIGTERM · 정상 종료 · `Bye(Shutdown)` · 서비스 프로파일
 
 `docker stop`·k8s 종료·Windows 서비스 정지는 전부 SIGTERM 인데 SIGINT 만 처리해 컨테이너에서

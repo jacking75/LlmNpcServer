@@ -1,0 +1,32 @@
+# 게임서버 대역 이미지 (A-09).
+#
+# <b>이것은 우리가 만드는 게임서버가 아니다</b> — 상대방 역할을 하는 대역이다 (CLAUDE.md §2.2).
+# compose 데모와 적합성 시험에만 쓴다. 운영 이미지가 아니다.
+
+ARG DOTNET_VERSION=10.0
+
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} AS build
+WORKDIR /src
+
+COPY Directory.Build.props Directory.Packages.props ./
+COPY src/ ./src/
+COPY testbed/Npc.TestBed.Protocol/ ./testbed/Npc.TestBed.Protocol/
+COPY testbed/Npc.TestGameServer/ ./testbed/Npc.TestGameServer/
+COPY masterdata/ ./masterdata/
+
+RUN dotnet publish testbed/Npc.TestGameServer/Npc.TestGameServer.csproj -c Release -o /app
+
+FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION} AS runtime
+
+RUN useradd --system --uid 10002 --create-home gs
+
+WORKDIR /opt/gs
+COPY --from=build /app ./
+COPY masterdata/ ./masterdata/
+
+RUN chown -R gs:gs /opt/gs
+USER gs
+
+EXPOSE 7010 7020
+
+ENTRYPOINT ["dotnet", "/opt/gs/Npc.TestGameServer.dll"]

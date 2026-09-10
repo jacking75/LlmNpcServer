@@ -304,7 +304,7 @@ public sealed record HostOptions
     /// <summary>사용법.</summary>
     public static string Usage =>
         """
-        사용법: Npc.Host [validate ...] [옵션]
+        사용법: Npc.Host [validate ...] [healthcheck --url <url>] [옵션]
 
           --loopback              Npc.Sim 인프로세스 월드에 직결 (기본)
           --link null|record|replay|loopback|tcp

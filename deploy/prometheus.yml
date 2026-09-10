@@ -1,0 +1,16 @@
+# Prometheus 스크레이프 설정 (A-09).
+#
+# /metrics/prometheus 는 A-05 가 연다. 그 전까지는 대상이 뜨지 않은 상태로 남는다 —
+# 없는 것을 있는 것처럼 적지 않는다.
+
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: npc-server
+    metrics_path: /metrics/prometheus
+    static_configs:
+      - targets: ["npc:5080"]
+        labels:
+          service: npc-server
