@@ -54,7 +54,7 @@ public static class FixHints
         Add(builder, "V0",
             "필수 파일이 없다. masterdata/ 에 그 파일을 만든다 — 작업 순서는 "
             + "world_flags → items → actions → zones → pois → archetypes → context_buckets 다.",
-            "docs/reference_masterdata.html", "docs/llm/RECIPES/add-item-poi.md");
+            "docs/reference_masterdata.html");
 
         Add(builder, "V1",
             "JSON 스키마가 틀렸다. docs/schema/ 의 해당 스키마를 에디터에 물려 필드 이름·타입을 맞춘다.",
@@ -77,7 +77,7 @@ public static class FixHints
         Add(builder, "V5",
             "population_weight 합이 1.0 이 아니다. 한 아키타입에서 떼어 새 아키타입에 준다 — "
             + "`npc scaffold archetype <id> --from <id> --weight W` 가 재배분 3안을 제안한다.",
-            "docs/reference_masterdata.html#v5", "docs/llm/RECIPES/add-archetype.md");
+            "docs/reference_masterdata.html#v5");
 
         Add(builder, "V6",
             "context_buckets 의 total_keys 가 실제 차원의 곱과 다르다. "
@@ -87,12 +87,12 @@ public static class FixHints
         Add(builder, "V7",
             "아키타입에 폴백 플랜이 없다. fallback_plans.json 에 그 아키타입의 항목을 추가한다 — "
             + "폴백이 없으면 LLM 이 전면 차단됐을 때 그 아키타입만 멈춘다.",
-            "docs/reference_masterdata.html#v7", "docs/llm/RECIPES/write-fallback-plan.md");
+            "docs/reference_masterdata.html#v7");
 
         Add(builder, "V8",
             "인터럽트 규칙이 잘못됐다. when/then 의 액션·플래그가 실재하는지 보고, "
             + "cooldown_s 를 넣지 않았는지 확인한다 — 그것은 결정론을 깬다.",
-            "docs/reference_masterdata.html#v8", "docs/llm/RECIPES/add-interrupt.md");
+            "docs/reference_masterdata.html#v8");
 
         Add(builder, "V9",
             "존 그래프가 끊겼다. zones.json 의 adjacent 로 모든 존이 서로 도달 가능해야 한다.",
@@ -137,7 +137,7 @@ public static class FixHints
 
         Add(builder, "V1.SCHEMA",
             "플랜 스키마가 틀렸다. 필수 필드는 schema·goal·steps 이고 steps 는 3~10개다.",
-            "docs/llm/RECIPES/write-fallback-plan.md");
+            "docs/reference_masterdata.html#plan-schema");
 
         Add(builder, "V1.EXTRA_FIELD",
             "스키마에 없는 필드가 있다. 런타임이 읽지 않는 필드를 넣으면 조용히 무시되므로 "

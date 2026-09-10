@@ -421,7 +421,12 @@ public static class TimelineCommand
     }
 }
 
-/// <summary><c>npc hints</c> (F-01 · E-04). 검증 오류 사전.</summary>
+/// <summary>
+/// <c>npc hints [--out &lt;path&gt;]</c> (F-01 · E-04). 검증 오류 사전.
+///
+/// <b>사전은 마스터데이터를 읽지 않는다</b> — 코드가 원천이다.
+/// <c>--out</c> 은 markdown 문서를 <b>생성</b>한다. 두 벌 관리하면 반드시 어긋난다.
+/// </summary>
 public static class HintsCommand
 {
     /// <summary>돌린다.</summary>
@@ -429,7 +434,20 @@ public static class HintsCommand
     {
         ArgumentNullException.ThrowIfNull(ctx);
 
-        // 사전은 마스터데이터를 읽지 않는다 — 코드가 원천이다.
+        if (Program.Flag(ctx, "--out") is { Length: > 0 } outPath)
+        {
+            if (Path.GetDirectoryName(Path.GetFullPath(outPath)) is { Length: > 0 } directory)
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(outPath, FixHintDocument.Render());
+
+            ctx.Out.WriteLine($"{outPath} 에 검증 코드 {FixHints.Codes.Count()}건을 썼다.");
+
+            return Program.Ok;
+        }
+
         foreach (string code in FixHints.Codes.OrderBy(c => c, StringComparer.Ordinal))
         {
             FixHint hint = FixHints.For(code)!.Value;
@@ -438,7 +456,9 @@ public static class HintsCommand
         }
 
         ctx.Out.WriteLine();
-        ctx.Out.WriteLine($"검증 코드 {FixHints.Codes.Count()}건. markdown 문서는 docs/llm/VALIDATION.md 다.");
+        ctx.Out.WriteLine(
+            $"검증 코드 {FixHints.Codes.Count()}건. "
+            + $"markdown 문서는 `npc hints --out {FixHintDocument.Path}` 가 만든다.");
 
         return Program.Ok;
     }

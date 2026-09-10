@@ -50,13 +50,21 @@ public sealed record ValidationResultJson(
 /// </summary>
 public static class ValidationJson
 {
-    /// <summary>직렬화 옵션. 한글을 escape 하지 않는다 — 사람도 읽는다.</summary>
+    /// <summary>
+    /// 직렬화 옵션.
+    ///
+    /// <b>한글을 escape 하지 않는다</b> — LLM 도 사람도 같은 것을 읽는다.
+    ///
+    /// <b>필드는 snake_case 다.</b> 마스터데이터 JSON 이 전부 그렇고
+    /// (<c>population_weight</c>·<c>total_keys</c>·<c>home_poi_type</c>),
+    /// 검증 출력만 camelCase 면 LLM 이 두 표기를 오가게 된다.
+    /// </summary>
     public static JsonSerializerOptions Options { get; } = new()
     {
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
     };
 
     /// <summary>보고서를 JSON 문서로 만든다.</summary>

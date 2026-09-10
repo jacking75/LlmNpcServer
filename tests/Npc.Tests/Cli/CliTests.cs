@@ -40,8 +40,8 @@ public sealed class CliTests
         using JsonDocument document = JsonDocument.Parse(output);
 
         Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
-        Assert.NotEmpty(document.RootElement.GetProperty("contentHash").GetString()!);
-        Assert.NotEmpty(document.RootElement.GetProperty("structuralHash").GetString()!);
+        Assert.NotEmpty(document.RootElement.GetProperty("content_hash").GetString()!);
+        Assert.NotEmpty(document.RootElement.GetProperty("structural_hash").GetString()!);
 
         // 한글을 escape 하지 않는다 — LLM 도 사람도 읽는다.
         Assert.DoesNotContain("\\u", output, StringComparison.Ordinal);

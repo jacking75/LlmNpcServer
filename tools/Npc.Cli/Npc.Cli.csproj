@@ -14,6 +14,18 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>Npc.Cli</RootNamespace>
     <AssemblyName>npc</AssemblyName>
+
+    <!--
+      dotnet tool 로 설치할 수 있게 한다 (F-01).
+      `dotnet pack -c Release tools/Npc.Cli` 로 nupkg 를 만들고 전역 도구로 설치한다.
+      설치하면 `npc` 한 단어로 돈다 — 콘텐츠 담당자가 긴 `dotnet run` 줄을 칠 이유가 없다.
+      (XML 주석에 두 하이픈을 연달아 쓸 수 없어 설치 명령은 README 에 적었다.)
+    -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>npc</ToolCommandName>
+    <PackageId>Npc.Cli</PackageId>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\tool</PackageOutputPath>
+    <Description>LlmNpcServer 마스터데이터·플랜 도구</Description>
   </PropertyGroup>
 
   <ItemGroup>

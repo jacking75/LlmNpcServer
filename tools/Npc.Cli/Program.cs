@@ -36,7 +36,7 @@ public static class Program
           explain archetype|action|poi|item|flag|interrupt <id>
           card archetype <id> | npc <첨자> | roster <id>
           timeline archetype <id>        24시간 띠 (근무·폴백 스텝)
-          hints                          검증 오류 사전 (E-04)
+          hints [--out <path>]           검증 오류 사전. --out 은 markdown 을 생성한다
 
         편집
           next-code items|pois|actions|archetypes|zones|flags

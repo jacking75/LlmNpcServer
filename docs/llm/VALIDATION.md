@@ -1,17 +1,18 @@
 # 검증 오류 사전
 
 > **이 파일은 생성물이다.** 손으로 고치지 않는다 —
-> `dotnet run --project src/Npc.Host -- hints --out docs/llm/VALIDATION.md` 가 다시 만든다.
+> `npc hints --out docs/llm/VALIDATION.md` 가 다시 만든다
+> (`dotnet run --project src/Npc.Host -- hints --out …` 도 같은 것을 만든다).
 > 원천은 `src/Npc.MasterData/Validation/FixHints.cs` 다.
 
 검증이 실패하면 코드가 나온다. 그 코드로 여기를 찾아 **무엇을 하면 되는지**를 읽는다.
-`validate --format json` 은 같은 힌트를 `fix_hint` 필드에 실어 준다.
+`npc validate --json` 은 같은 힌트를 `fix_hint` 필드에 실어 준다.
 
 ## 마스터데이터 (V0~V15)
 
 | 코드 | 무엇을 하면 되는가 | 근거 |
 |---|---|---|
-| `V0` | 필수 파일이 없다. masterdata/ 에 그 파일을 만든다 — 작업 순서는 world_flags → items → actions → zones → pois → archetypes → context_buckets 다. | `docs/reference_masterdata.html` · `docs/llm/RECIPES/add-item-poi.md` |
+| `V0` | 필수 파일이 없다. masterdata/ 에 그 파일을 만든다 — 작업 순서는 world_flags → items → actions → zones → pois → archetypes → context_buckets 다. | `docs/reference_masterdata.html` |
 | `V1` | JSON 스키마가 틀렸다. docs/schema/ 의 해당 스키마를 에디터에 물려 필드 이름·타입을 맞춘다. | `docs/reference_masterdata.html#v1` |
 | `V10` | POI 정원이 인구보다 적다. 그 종류의 POI 를 늘리거나 capacity 를 올린다 — 정원이 모자라면 그 아키타입 일부가 일터를 못 얻는다. | `docs/reference_masterdata.html#v10` |
 | `V11` | 프롬프트 프리픽스가 토큰 하한(4,096)에 못 미친다. 카탈로그를 줄이지 않는다 — 그 하한은 제공사 프롬프트 캐시의 최소 임계다. | `docs/reference_masterdata.html#v11` · `CLAUDE.md#25` |
@@ -22,10 +23,10 @@
 | `V2` | 참조가 깨졌다. 가리키는 id 가 그 파일에 실제로 있는지 확인한다 — 오타이거나, 참조 대상을 아직 추가하지 않았다. | `docs/reference_masterdata.html#v2` |
 | `V3` | code 나 bit 가 겹치거나 비었다. 번호를 재배치하지 말고 **뒤에만** 추가한다 — 프리베이크된 플랜이 통째로 깨진다. 다음 번호는 `npc next-code <파일>` 이 알려 준다. | `docs/reference_masterdata.html#v3` · `CLAUDE.md#24` |
 | `V4` | 액션 파라미터가 카탈로그와 다르다. actions.json 의 params 정의와 이름·타입·필수 여부를 맞춘다. | `docs/reference_masterdata.html#v4` |
-| `V5` | population_weight 합이 1.0 이 아니다. 한 아키타입에서 떼어 새 아키타입에 준다 — `npc scaffold archetype <id> --from <id> --weight W` 가 재배분 3안을 제안한다. | `docs/reference_masterdata.html#v5` · `docs/llm/RECIPES/add-archetype.md` |
+| `V5` | population_weight 합이 1.0 이 아니다. 한 아키타입에서 떼어 새 아키타입에 준다 — `npc scaffold archetype <id> --from <id> --weight W` 가 재배분 3안을 제안한다. | `docs/reference_masterdata.html#v5` |
 | `V6` | context_buckets 의 total_keys 가 실제 차원의 곱과 다르다. 아키타입 수 × 시간대 × 지역상태 × 기후로 다시 센다. | `docs/reference_masterdata.html#v6` |
-| `V7` | 아키타입에 폴백 플랜이 없다. fallback_plans.json 에 그 아키타입의 항목을 추가한다 — 폴백이 없으면 LLM 이 전면 차단됐을 때 그 아키타입만 멈춘다. | `docs/reference_masterdata.html#v7` · `docs/llm/RECIPES/write-fallback-plan.md` |
-| `V8` | 인터럽트 규칙이 잘못됐다. when/then 의 액션·플래그가 실재하는지 보고, cooldown_s 를 넣지 않았는지 확인한다 — 그것은 결정론을 깬다. | `docs/reference_masterdata.html#v8` · `docs/llm/RECIPES/add-interrupt.md` |
+| `V7` | 아키타입에 폴백 플랜이 없다. fallback_plans.json 에 그 아키타입의 항목을 추가한다 — 폴백이 없으면 LLM 이 전면 차단됐을 때 그 아키타입만 멈춘다. | `docs/reference_masterdata.html#v7` |
+| `V8` | 인터럽트 규칙이 잘못됐다. when/then 의 액션·플래그가 실재하는지 보고, cooldown_s 를 넣지 않았는지 확인한다 — 그것은 결정론을 깬다. | `docs/reference_masterdata.html#v8` |
 | `V9` | 존 그래프가 끊겼다. zones.json 의 adjacent 로 모든 존이 서로 도달 가능해야 한다. | `docs/reference_masterdata.html#v9` |
 
 ## 플랜 검증 4단 (V1.~V4.)
@@ -34,7 +35,7 @@
 |---|---|---|
 | `V1.EXTRA_FIELD` | 스키마에 없는 필드가 있다. 런타임이 읽지 않는 필드를 넣으면 조용히 무시되므로 아예 거절한다 — 필드를 빼거나 스키마를 먼저 고친다. | — |
 | `V1.PARSE` | JSON 이 깨졌다. 모델이 코드 펜스나 설명을 같이 냈을 가능성이 높다 — 출력에서 JSON 객체만 남긴다. | `docs/reference_masterdata.html#plan-schema` |
-| `V1.SCHEMA` | 플랜 스키마가 틀렸다. 필수 필드는 schema·goal·steps 이고 steps 는 3~10개다. | `docs/llm/RECIPES/write-fallback-plan.md` |
+| `V1.SCHEMA` | 플랜 스키마가 틀렸다. 필수 필드는 schema·goal·steps 이고 steps 는 3~10개다. | `docs/reference_masterdata.html#plan-schema` |
 | `V1.STEP_COUNT` | 스텝 수가 3~10 밖이다. 하루를 다 채우려 하지 말고 한 사이클만 쓴다 — loop 가 반복한다. | — |
 | `V2.ACTION_NOT_ALLOWED` | 이 아키타입에 허용되지 않은 액션이다. 서픽스의 allowed_actions 안에서만 고른다 — 이것이 가장 흔한 실패였다. | `docs/reference_metrics.html#08` |
 | `V2.UNKNOWN_ACTION` | 카탈로그에 없는 액션이다. 프롬프트의 ACTIONS 표에 있는 이름만 쓴다. | `docs/reference_masterdata.html#actions` |

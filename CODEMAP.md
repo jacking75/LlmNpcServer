@@ -14,7 +14,7 @@
    무엇을 보장하는지가 거기 다 적혀 있고, 고친 뒤 깨지는 것도 거기다.
 2. **파일 이름이 곧 책임이다.** 이 저장소는 한 파일 한 관심사다. `LodUpdater` 는 LOD 등급만,
    `PoiBinder` 는 심볼 바인딩만 한다. 이름으로 못 찾으면 §2 의 추적 경로를 탄다.
-3. **계약을 먼저 본다.** 타입 이름이 헷갈리면 `Npc.Contracts`(4파일 316줄)를 통째로 읽는 게 제일 빠르다.
+3. **계약을 먼저 본다.** 타입 이름이 헷갈리면 `Npc.Contracts`(5파일 472줄)를 통째로 읽는 게 제일 빠르다.
 
 ---
 
@@ -177,7 +177,7 @@ CognitionScheduler.Scan        이탈 판정 → ReplanQueue (ReplanScorer 점�
 
 | 프로젝트 | 무엇 | 진입 파일 |
 |---|---|---|
-| `Npc.Contracts` | 게임서버 경계. 316줄뿐이니 통째로 읽어도 된다 | `IGameServerLink.cs` |
+| `Npc.Contracts` | 게임서버 경계. 472줄뿐이니 통째로 읽어도 된다 | `IGameServerLink.cs` |
 | `Npc.Core` | 순수 로직 — 플랜 표현·검증기 1~3단·버킷 키(크기는 `BucketSpace` 가 안다) | `Plan/CompiledPlan.cs` |
 | `Npc.MasterData` | JSON 로딩·인덱싱·검증 V1~V13 · `Authoring/`(편집 안전장치) | `MasterDataSet.cs` |
 | `Npc.Runtime` | **틱 루프.** 여기의 규칙이 제일 엄하다 | `NpcServerLoop.cs` |
@@ -185,7 +185,7 @@ CognitionScheduler.Scan        이탈 판정 → ReplanQueue (ReplanScorer 점�
 | `Npc.Narrative` | **정의 설명 카드** — 아키타입·플랜·인터럽트·인스턴스 → 한국어 markdown. LLM·시각·난수 없음 | `ArchetypeCard.cs` |
 | `Npc.Llm` | 프롬프트 조립·컴파일·티어링 | `TieredPlanCompiler.cs` |
 | `Npc.Wire` | 소켓 위의 표현 (MemoryPack) | `WireCommand.cs` |
-| `Npc.Gateway` | 링크 구현 6종 | `TcpGameServerLink.cs` |
+| `Npc.Gateway` | 링크 구현 5종 (Loopback·Null·Recording·Replay·Tcp) | `TcpGameServerLink.cs` |
 | `Npc.Sim` | 게임서버 대역 (인프로세스) | `SimWorld.cs` |
 | `Npc.Host` | 조립·CLI·메트릭 | `Program.cs` |
 | `testbed/` | 소켓 게임서버 + 뷰어. **아무도 참조하지 않는 잎** | `Npc.TestGameServer/GameServer.cs` |

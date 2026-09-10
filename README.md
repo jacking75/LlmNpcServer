@@ -90,6 +90,80 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 
 ---
 
+## 기능 목록
+
+**무엇이 실제로 도는가.** 미구현은 [`PRODUCTION_ROADMAP.md`](PRODUCTION_ROADMAP.md) 체크리스트에
+있고, 아래 표에는 **동작하고 테스트가 있는 것만** 적는다.
+
+### 런타임 — NPC 를 움직인다
+
+| 기능 | 내용 | 근거 |
+|---|---|---|
+| **틱 루프** | 10 Hz · NPC 5,000 · 단일 스레드 · **틱당 힙 할당 0 B** | p99 0.801 ms (예산 20 ms) |
+| **SoA 저장소** | `class Npc` 를 5,000개 만들지 않는다. 핫 배열 합계 ~100 KB → L2 상주 | `NpcStore` |
+| **플랜 실행기** | 스텝 상태 기계 · `timeout_s` 만료 시 `ActionFailed(Timeout)` **로컬 합성** | 명령 유실을 전제한다 |
+| **인지 스캔 LOD** | 4밴드 · 틱당 상한 150 · 밴드 이동 틱당 64 | 5,000마리를 매 틱 훑지 않는다 |
+| **인터럽트** | 14규칙 · **LLM 을 쓰지 않는다**. 우선순위 내림차순, 같으면 id 오름차순 | 반응 속도가 생명이다 |
+| **플랜 스왑** | 스텝 경계에서만 원자적. 인터럽트는 예외(즉시 스왑 + 상관 ID 로 진행 중 명령 무시) | `CorrelationId` 가 꼬이지 않는다 |
+| **결정론** | `DateTime`·`Stopwatch`·무시드 `Random` 금지. 지터는 `(npcId, tick)` 해시 | 루프백 리플레이 100 % 일치 |
+| **게임 시계** | 재기동 시 게임서버가 준 시각으로 복원 · 정지 감시(`TickSyncWatchdog`) | 새벽 6시로 되돌아가지 않는다 |
+
+### 플랜 — LLM 이 만들고 코드가 검증한다
+
+| 기능 | 내용 | 근거 |
+|---|---|---|
+| **버킷 캐시** | (아키타입 × 시간대 6 × 지역 4 × 기후 3). 조회는 **배열 첨자 하나** | 히트율 98.67 % |
+| **3-티어 라우팅** | T3 캐시 → T1 로컬(작은 모델) → T2 외부(고품질). 실패는 폴백으로 | 재사용 횟수에 비례해 품질에 투자 |
+| **4단 검증기** | 스키마 → 어휘 → 정합성(GOAP 상태 전이) → 드라이런 | **강제 디코딩을 신뢰하지 않는다** |
+| **폴백 보장** | `PlanStore.Resolve` 는 **절대 null 을 반환하지 않는다** | LLM 전면 차단(시나리오 C)에서도 NPC 가 산다 |
+| **프롬프트 캐시** | 고정 프리픽스 1회 조립 후 불변 · 서픽스 ≤ 300 토큰(테스트 강제) | prefill 85~88 % 감소 |
+| **예산 하드 캡** | 일일 토큰 캡 · 개체/버킷 **서브 쿼터** · 벽시계 USD 캡 | 초과 시 T2 → T1 강등 → 거절. **우회 경로 없음** |
+| **LLM 페일오버** | 엔진별 회로 차단기. 429·5xx·타임아웃은 다음 엔진, 400·스키마 오류는 즉시 실패 | 전송 실패와 요청 오류를 구별한다 |
+| **프롬프트 인젝션 방어** | **플레이어 작성 문자열을 프롬프트에 넣지 않는다.** 구조화 enum·내부 ID 만 | 리플렉션 테스트가 강제 |
+| **`reasoning` 정화** | 제어문자·URL·이메일 제거 · 금칙어면 통째로 비운다. **플랜은 건드리지 않는다** | 검증 지난 플랜을 고치면 "검증됨" 이 거짓이 된다 |
+
+### 게임서버 연동 — N1~N8
+
+| 기능 | 내용 |
+|---|---|
+| **아웃바운드 포트** | `IGameServerLink`. 명령은 fire-and-forget, 결과는 이벤트로만 |
+| **패킷 규약** | 전부 `readonly record struct` · **`string`·`DateTime` 금지** · 시간은 `Tick`(long) |
+| **순서·멱등** | 명령에 `CorrelationId`, 이벤트에 `Sequence`(갭 검출 → 경보). 2회 주입 → 상태 해시 동일 |
+| **링크 구현 5종** | `Loopback`(인프로세스 `Npc.Sim` 직결) · `Null` · `Recording` · `Replay` · `Tcp` |
+| **와이어** | MemoryPack DTO + 8바이트 프레임 헤더. 버전 범위 [1, 2] 협상 |
+| **상호 인증** | HMAC-SHA256 + 논스 재사용 캐시 · `FixedTimeEquals` · TLS/mTLS |
+| **해시 분할** | **구조 해시**는 완전 일치 요구(불일치 = 거절), **내용 해시**는 경고 후 수락 |
+| **장애 주입** | `--drop-rate` 로 명령 유실을 상시 시험 |
+
+### 운영 — 죽지 않는다
+
+| 기능 | 내용 |
+|---|---|
+| **상태 스냅샷** | 주기 저장 + 종료 시 1회 · CRC32 · 손상되면 이전 세대로 폴백 |
+| **복구 판정** | 포맷 버전 · 마스터데이터 해시 · 로스터 해시 · NPC 수가 맞아야 올린다 |
+| **우아한 종료** | SIGTERM/SIGINT/SIGQUIT → 틱 루프 → 스냅샷 → 워커 → 링크(`Bye`) → 웹. 단계별 예산 |
+| **헬스체크** | `/healthz/live` · `/ready` · `/startup`. 루프 하트비트가 근거 |
+| **설정 3겹** | CLI > 환경변수(`NPC_*`) > 파일(`npc.settings.json`). 모르는 키는 거절 |
+| **관측** | OpenTelemetry 메트릭·트레이스 · Prometheus(`/metrics/prometheus`) · OTLP · 구조화 로그 |
+| **경보** | 14종 · 쿨다운 · 웹훅(Slack/Teams). 예산 임계 80/95/100 % |
+| **관리 API** | 킬스위치 · 즉시 스냅샷. 토큰 인증 + 분당 실패 5회 제한 + **감사 로그**(`state/audit.jsonl`) |
+| **비밀 취급** | 환경변수로만. 인자(`ps` 에 보인다)·파일(이미지에 굽힌다) 금지. `--bind 0.0.0.0` 은 토큰 없으면 거절 |
+| **배포** | Dockerfile(비루트·`HEALTHCHECK`) · compose(데모 한 벌) · k8s(프로브 3종·시크릿) · Grafana |
+
+### 콘텐츠 — 마스터데이터가 단일 원천
+
+| 기능 | 내용 |
+|---|---|
+| **데이터 주도** | 액션·플래그·아키타입을 코드에 하드코딩하지 않는다. **아키타입 수도 코드가 모른다** |
+| **검증 V1~V13** | 실패는 **기동 실패**. 경고 후 진행 없음 |
+| **수정 힌트** | 검증 코드 41건 전부에 "무엇을 하면 되는가". `--json` 이 `fix_hint` 를 싣는다 |
+| **편집 안전장치** | 다음 `code`/`bit`(예약 구간 우선) · 가중치 재배분 3안 · **서식 보존 JSON 편집** |
+| **파생물 잠금** | `derived.lock.json`. 생성물이 낡으면 경고 — **기록이 없으면 낡은 것으로 본다** |
+| **파급 분석** | 변경 → 무효화 범위 · 프리픽스 변경 · 구조 해시 변경(재배포) · 재생성 목록 |
+| **설명 카드** | 아키타입·플랜·인터럽트·인스턴스를 한국어 markdown 한 장으로. **LLM·시각·난수 없음** |
+
+---
+
 ## 요구 환경
 
 | 항목 | 요구 |
@@ -279,6 +353,200 @@ dotnet run --project tools/Npc.Cli -- regen --check       # 파생물이 낡았�
 릴리스는 빌드 시 `-p:VersionPrefix=<태그>` 로 덮어쓴다.
 `/status.version` 은 거기에 마스터데이터 `content_hash` 앞 8자리를 붙인다 —
 같은 바이너리라도 다른 콘텐츠면 다른 버전이다.
+
+---
+
+## 도구
+
+전부 **잎**이다 — 서버가 도는 데 필요 없고, 사람과 LLM 이 쓴다.
+
+### `npc` — 마스터데이터·플랜 CLI
+
+```powershell
+# 저장소에서 바로
+dotnet run --project tools/Npc.Cli -- <명령>
+
+# 또는 전역 도구로 설치해 `npc` 한 단어로 (콘텐츠 담당자에게는 이쪽을 준다)
+dotnet pack -c Release tools/Npc.Cli
+dotnet tool install --global --add-source ./artifacts/tool Npc.Cli
+npc --help
+```
+
+| 명령 | 무엇 | `--json` |
+|---|---|---|
+| `validate` | V1~V13 + 로더 + 파생물 신선도. **로더까지 돌린다** — 규칙만 통과하고 참조가 깨진 상태를 통과로 내지 않는다 | ✓ |
+| `explain archetype\|action\|poi\|item\|flag\|interrupt <id>` | 정의 하나가 무엇인지. `flag` 는 **누가 세우고 누가 요구하는지**까지 | — |
+| `card archetype <id>` | 아키타입 카드 — 인구/정원(V10) · 근무 시간 · 성향 · 레시피 · 허용/미허용 액션 · **걸릴 인터럽트** · 폴백 하루 | — |
+| `card npc <첨자>` · `card roster <id>` | 개체 카드(집·일터·거리·근무 허가) · 아키타입별 인스턴스 구간 | — |
+| `timeline archetype <id>` | 24시간 띠. 근무 시간과 폴백 스텝을 **같은 축에** 놓는다 | — |
+| `hints [--out <path>]` | 검증 오류 사전 41건. `--out` 은 `docs/llm/VALIDATION.md` 를 **생성**한다 | — |
+| `next-code items\|pois\|actions\|archetypes\|zones\|flags` | 다음 번호. **비트는 예약 구간부터 채운다.** 재배치 API 는 없다 | ✓ |
+| `scaffold archetype <id> --from <id> --weight <w>` | 새 아키타입 초안 + **가중치 재배분 3안** + 파급표. 기본 dry-run, `--apply` 로 반영 | — |
+| `diff [--base <rev>]` | 바뀐 파일 → 사람 말 파급(무효화·프리픽스·구조 해시·재생성) | — |
+| `regen [--check]` | 낡은 파생물. `--check` 는 **낡았으면 비0** — 파이프라인에 건다 | — |
+| `plan validate <파일>` | 검증 4단 전부. 어느 단·어느 스텝·무슨 코드인지 + 수정 힌트 | — |
+| `plan explain <파일>` | 스텝마다 전제가 **앞 스텝의 `grants` 로 어떻게 충족되는지** 추적 + 인벤토리 수지 | — |
+| `buckets` · `pin <버킷>` | 플랜 스토어 상태 표 · 검수본을 `pinned/` 로 | — |
+
+> `plan validate` 는 **플랜 스토어 파일과 문서 둘 다** 받는다.
+> `npc plan validate planstore/plans/blacksmith@Dawn.Peace.Fair.json` 처럼 바로 준다.
+>
+> `repair`(C-05) · `review`(F-06) · `serve`(B-08) 는 아직 없다. 치면 **"아직 없다 — 어느
+> 태스크를 기다린다"** 고 답한다 — 오타와 미구현은 다른 말이다.
+
+### 그 밖
+
+| 도구 | 무엇 |
+|---|---|
+| `tools/Npc.Prebake` | 플랜 대량 생성. `--budget-usd` 로 비용 상한 · `--resume` 로 이어서 · 실패분은 `planstore/rejected/` 에 코드와 함께 보존 |
+| `tools/Npc.Narrate` | 명령 기록(`--link record`) → **사람이 읽는 하루 일지**. 틱 번호·상관 ID·플랜 id 를 남기지 않는다(블라인드 평가) |
+| `tools/gen_poi_distances.cs` · `gen_npcs.cs` | 파생물 생성기. 끝나면 `derived.lock.json` 을 갱신한다 |
+| `testbed/Npc.TestGameServer` | 소켓 게임서버 **대역**. 진짜 게임서버 없이 연동을 시험한다 |
+| `testbed/Npc.TestClient` | WinForms 뷰어. NPC 가 실제로 어떻게 움직이는지 눈으로 본다 |
+
+라이브러리로도 쓸 수 있다 — CLI 는 껍질이고 로직은 아래에 있다.
+Studio(F-02)와 MCP 서버(E-03)가 **같은 함수**를 부를 자리다.
+
+| 라이브러리 | 무엇 |
+|---|---|
+| `src/Npc.Narrative` | 설명 카드. `ArchetypeCard` · `PlanExplain` · `InterruptExplain` · `InstanceCard` |
+| `src/Npc.MasterData/Authoring` | `CodeAllocator` · `WeightRebalancer` · `JsonSurgeon` · `DerivedArtifacts` · `ImpactAnalyzer` |
+| `src/Npc.MasterData/Validation` | `MasterDataValidator`(V1~V13) · `FixHints` · `ValidationJson` |
+
+---
+
+## MMO 개발에 LLM 을 붙일 때 — 어떻게 지시하는가
+
+**이 서버를 쓰는 LLM 은 두 종류다.** 헷갈리면 잘못된 규칙을 주게 된다.
+
+| 누구 | 무엇을 하나 | 어디서 도나 |
+|---|---|---|
+| **① 런타임 LLM** | NPC 의 **행동 플랜**을 만든다. 서버가 프롬프트를 조립하고 부른다 | `Npc.Llm` (T1 로컬 · T2 외부) |
+| **② 개발 에이전트** | 사람 대신 **콘텐츠와 코드를 고친다**. 터미널에서 `npc` 를 부른다 | Claude Code · Copilot · 사내 에이전트 |
+
+①은 이미 배선되어 있다 — 프롬프트도 검증도 예산도 코드 안에 있고, 지시할 것이 없다.
+**아래는 ②에 대한 이야기다.**
+
+### 원칙 셋 — 이것만 지키면 나머지는 도구가 막는다
+
+> **1. 코드가 아니라 데이터를 고치게 한다.**
+> "대장장이가 밤에도 일하게 해줘" 는 `archetypes.json` 의 `duty_hours` 문제이지 C# 문제가 아니다.
+> 에이전트가 `src/` 를 열기 시작하면 대개 방향이 틀렸다.
+>
+> **2. 판정을 에이전트에게 맡기지 않는다.**
+> "이 플랜 괜찮아?" 를 LLM 에게 묻지 말고 `npc plan validate` 를 돌리게 한다.
+> 4단 검증기가 답이고, 에이전트의 의견은 답이 아니다.
+>
+> **3. 되돌릴 수 없는 것은 사람이 한다.**
+> `code`·`bit` 재배치, 프리베이크 실행(비용), `planstore/pinned/` 수정.
+> 도구가 그 셋을 **API 로 막아** 두었지만, 지시에도 적어 둔다.
+
+### 그대로 써도 되는 시스템 프롬프트
+
+```text
+너는 LlmNpcServer 저장소에서 MMO 의 NPC 콘텐츠를 만드는 개발 에이전트다.
+
+## 먼저 읽는다
+- CLAUDE.md          절대 규칙. 위반하면 리뷰 반려다
+- CODEMAP.md         무엇을 하려면 어디를 여는가 (src 를 통째로 훑지 않는다)
+- docs/reference_masterdata.html   스키마·검증 규칙 전문
+- docs/llm/VALIDATION.md           검증 코드 → 무엇을 하면 되는가
+
+## 작업 순서 — 이 순서를 지킨다
+1. `npc card archetype <id>` 로 지금 정의가 무엇인지 먼저 본다.
+   추측하지 않는다. 카드에 인구·정원·근무 시간·허용 액션·걸릴 인터럽트가 다 있다.
+2. 고칠 파일을 CODEMAP.md 에서 찾는다.
+3. 번호가 필요하면 `npc next-code <파일>` 에게 묻는다. 눈으로 세지 않는다.
+4. 고친다. JSON 서식(들여쓰기·키 순서)을 보존한다.
+5. `npc validate --json` 을 돌린다. 위반이 나오면 `fix_hint` 대로 고친다.
+6. `npc diff` 로 파급을 확인하고 **사람에게 보고한다**.
+7. `npc regen --check` 가 낡음을 보고하면 어떤 생성기를 돌려야 하는지 알려 준다.
+
+## 절대 하지 않는다
+- `code`·`bit` 번호 재배치 — 프리베이크된 플랜 2,880개가 통째로 깨진다. 추가는 뒤에만
+- 액션·플래그·아키타입을 C# 에 하드코딩 — masterdata/ 가 단일 원천이다
+- 플레이어가 쓴 문자열(캐릭터명·채팅·길드명)을 프롬프트에 넣기 — 인젝션이다
+- 일일 토큰 캡을 우회하는 코드 — 초과 시 T2 → T1 강등 → 거절이 정답이다
+- `#pragma warning disable` 로 경고 억제 — TreatWarningsAsErrors 다. 고친다
+- 검증을 건너뛴 플랜을 런타임에 올리기
+- 프리베이크 실행(비용 발생) · `planstore/pinned/` 수정 — 사람 승인 없이 하지 않는다
+
+## 판정은 도구가 한다
+"괜찮아 보인다" 라고 말하지 않는다. 종료 코드로 답한다:
+  npc validate            0 = 통과
+  npc plan validate <f>   0 = 4단 전부 통과
+  npc regen --check       0 = 파생물 최신
+  .\build.ps1             0 = 빌드·스타일·테스트·데이터 전부 통과
+
+## 모르면 멈춘다
+근거가 불충분하거나 문서와 코드가 어긋나면 임의로 코드에 맞추지 말고 멈추고 보고한다.
+```
+
+### 자주 시키는 일 — 지시문 예시
+
+| 시키는 일 | 이렇게 말한다 | 에이전트가 부를 것 |
+|---|---|---|
+| 새 직업 추가 | "양봉가를 추가한다. 목동을 베끼고 인구 비중 0.4 %. **dry-run 으로 파급부터 보여 달라**" | `npc scaffold archetype … ` → `npc validate` → `npc diff` |
+| 성격 조정 | "위병을 더 겁 많게. `courage` 를 낮추면 어느 인터럽트가 빠지는지 같이 알려 달라" | `npc card archetype town_guard` (걸릴 인터럽트 표) |
+| 플랜이 반려됐다 | "이 반려 플랜이 왜 떨어졌는지 스텝 단위로 설명하고 고쳐 달라" | `npc plan validate` → `npc plan explain` |
+| 근무 시간 문제 | "위병이 밤에 자는 것 같다. 근무 시간과 폴백이 맞는지 봐 달라" | `npc timeline archetype town_guard` |
+| 마스터데이터 리뷰 | "내 브랜치가 무엇을 무효화하는지, 재배포가 필요한지 알려 달라" | `npc diff --base main` |
+| 검증 실패 | "`V10` 이 떴다. 고쳐 달라" | `docs/llm/VALIDATION.md` + `npc validate --json` 의 `fix_hint` |
+
+### 기계가 읽는 출력 — 에이전트에게 이것만 주면 된다
+
+```powershell
+npc validate --json
+```
+
+```json
+{
+  "ok": false,
+  "master_data": "C:\game\LlmNpcServer\masterdata",
+  "content_hash": "f37c0292…",
+  "structural_hash": "a7dd5c98…",
+  "violations": [
+    {
+      "code": "V10",
+      "file": "pois.json",
+      "path": "/pois",
+      "message": "pois.json: 일터 'apiary' 정원 합이 12 인데 그 일터를 쓰는 아키타입 인구는 20 다.",
+      "fix_hint": "POI 정원이 인구보다 적다. 그 종류의 POI 를 늘리거나 capacity 를 올린다 — 정원이 모자라면 그 아키타입 일부가 일터를 못 얻는다.",
+      "related": ["docs/reference_masterdata.html#v10"]
+    }
+  ],
+  "skipped": [ { "code": "V9", "reason": "…" } ]
+}
+```
+
+**한글을 escape 하지 않는다.** LLM 도 사람도 같은 것을 읽는다.
+**필드는 `snake_case` 다** — 마스터데이터 JSON 이 전부 그래서, 검증 출력만 다르면
+에이전트가 두 표기를 오간다.
+`Npc.Host validate --format json` 도 **같은 형식**을 낸다 — 껍질이 둘이어도 답은 하나다.
+
+### 게임서버 팀에게 줄 것
+
+NPC 서버를 붙이는 쪽(게임서버)이 알아야 할 것은 **연동 계약 하나**다.
+
+| 주는 것 | 무엇 |
+|---|---|
+| [`docs/reference_link.html`](docs/reference_link.html) | N1~N8 · 패킷 · 와이어 · 핸드셰이크 · 인증. **읽지 않고 붙이지 않는다** |
+| `testbed/Npc.TestGameServer` | 우리 쪽 게임서버 **대역**. 자기 구현과 비교할 기준 |
+| 구조 해시 | 핸드셰이크에서 **완전 일치**를 요구한다. 불일치면 거절이다 |
+
+에이전트에게는 이렇게 말한다 — **"`Npc.Contracts` 는 5파일 472줄이다. 통째로 읽고 시작해라."**
+
+### 아직 없는 것 — 지시문에 넣지 않는다
+
+이것들을 전제로 지시하면 에이전트가 없는 도구를 부르다 헤맨다.
+
+| 없는 것 | 무엇을 대신 쓰나 | 로드맵 |
+|---|---|---|
+| MCP 서버 | `npc … --json` 을 셸로 부른다 | E-03 |
+| JSON Schema 발행 | `docs/reference_masterdata.html` 의 스키마 절 | E-02 |
+| 온보딩 팩(SKILL·RECIPES·ANTIPATTERNS) | `CLAUDE.md` + 위 시스템 프롬프트 | E-01 |
+| 웹 편집기(Studio) | `npc scaffold` dry-run + 사람 리뷰 | F-02 |
+| 대화 생성 | **없다.** 이 서버는 행동 플랜만 만든다 | D-01 |
 
 ---
 
