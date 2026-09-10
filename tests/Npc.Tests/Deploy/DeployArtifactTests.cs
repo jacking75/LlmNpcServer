@@ -25,9 +25,6 @@ public sealed class DeployArtifactTests
         "deploy/grafana/npc-server.json",
         "deploy/k8s/deployment.yaml",
         "deploy/k8s/secrets.example.yaml",
-        ".github/workflows/ci.yml",
-        ".github/workflows/nightly.yml",
-        ".github/workflows/release.yml",
         ".dockerignore",
         "Directory.Packages.props",
     ];
@@ -97,20 +94,21 @@ public sealed class DeployArtifactTests
     }
 
     [Fact]
-    public void CiWorkflow_RunsTheSameFilterAsBuildScript()
+    public void BuildScript_IsThePipeline()
     {
-        string ci = File.ReadAllText(Path.Combine(s_root, ".github/workflows/ci.yml"));
         string build = File.ReadAllText(Path.Combine(s_root, "build.ps1"));
 
+        // 워크플로 파일은 두지 않는다 (2026-09-10 결정). 제공자를 고르지 않았고,
+        // 고르지 않은 채 .github/workflows/*.yml 을 두면 "CI 가 있다" 는 거짓 신호가 된다.
+        // 그래서 파이프라인의 내용은 build.ps1 하나가 정의한다 — 어느 CI 든 이것을 부른다.
+        Assert.False(
+            Directory.Exists(Path.Combine(s_root, ".github")),
+            ".github/ 이 생겼다. 워크플로 파일을 두지 않기로 했다 — "
+            + "파이프라인은 build.ps1 · npc validate · npc regen --check 세 명령이다.");
+
         // 로컬과 CI 가 같은 것을 돌아야 "로컬은 되는데 CI 는 깨진다" 가 환경 차이로 좁혀진다.
-        const string filter = "Category!=Golden&Category!=Gate&Category!=Load";
-
-        Assert.Contains(filter, ci, StringComparison.Ordinal);
-        Assert.Contains(filter, build, StringComparison.Ordinal);
-
-        // 스타일 검사와 마스터데이터 검증도 CI 단계여야 한다.
-        Assert.Contains("--verify-no-changes", ci, StringComparison.Ordinal);
-        Assert.Contains("validate --masterdata", ci, StringComparison.Ordinal);
+        Assert.Contains("Category!=Golden&Category!=Gate&Category!=Load", build, StringComparison.Ordinal);
+        Assert.Contains("--verify-no-changes", build, StringComparison.Ordinal);
     }
 
     [Fact]
