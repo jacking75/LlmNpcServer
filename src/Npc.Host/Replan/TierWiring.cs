@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Microsoft.Extensions.AI;
 using Npc.Contracts;
 using Npc.Core;
@@ -138,10 +139,12 @@ internal sealed class TierWiring : IAsyncDisposable
         var reuse = new NeighborReuseSource(plans, data);
 
         IPlanCompiler? local = TryBuildCompiler(
-            llm, options.T1Engine ?? FirstLocalEngineId(llm), data, prefix, stats, dryRun, reuse, log, "T1");
+            llm, options.T1Engine ?? FirstLocalEngineId(llm), data, prefix, stats, dryRun, reuse,
+            log, "T1", () => clock.Current, sink);
 
         IPlanCompiler? external = TryBuildCompiler(
-            llm, options.T2Engine, data, prefix, stats, dryRun, reuse, log, "T2");
+            llm, options.T2Engine, data, prefix, stats, dryRun, reuse,
+            log, "T2", () => clock.Current, sink);
 
         // 요청한 티어의 엔진이 없으면 그 티어는 꺼진다. 라우터는 둘 다 필요하므로
         // 없는 쪽을 있는 쪽으로 대신 채운다 — 그러면 강등·페일오버가 같은 엔진으로 간다.
@@ -287,6 +290,12 @@ internal sealed class TierWiring : IAsyncDisposable
         return null;
     }
 
+    /// <summary>
+    /// 이 티어의 컴파일러를 만든다. <b>체인이 있으면 페일오버 클라이언트를 끼운다</b> (C-01).
+    ///
+    /// 체인의 첫 엔진이 단가·모델 태그의 기준이다 — 페일오버는 "같은 모델을 다른 경로로" 를
+    /// 전제하므로 체인 안에서 단가가 크게 달라지면 그것은 체인 구성이 잘못된 것이다.
+    /// </summary>
     private static IPlanCompiler? TryBuildCompiler(
         LlmOptions llm,
         string? engineId,
@@ -296,28 +305,64 @@ internal sealed class TierWiring : IAsyncDisposable
         DryRunValidator dryRun,
         IPlanReuseSource reuse,
         TextWriter log,
-        string label)
+        string label,
+        Func<Tick> now,
+        IAlarmSink alarms)
     {
-        LlmEngineOptions engine;
-        try
+        // --t1-engine·--t2-engine 은 체인의 첫 자리를 덮어쓰는 것으로 의미를 유지한다.
+        ImmutableArray<LlmEngineOptions> chain = llm.Chain(label.ToLowerInvariant(), engineId);
+
+        if (chain.Length == 0)
         {
-            engine = llm.Engine(engineId);
-        }
-        catch (InvalidDataException ex)
-        {
-            log.WriteLine($"warn: {label} 엔진을 못 찾았다 — {ex.Message}");
+            LlmEngineOptions probe;
+
+            try
+            {
+                probe = llm.Engine(engineId);
+            }
+            catch (InvalidDataException ex)
+            {
+                log.WriteLine($"warn: {label} 엔진을 못 찾았다 — {ex.Message}");
+                return null;
+            }
+
+            log.WriteLine($"warn: {label} 엔진 '{probe.Id}' 의 키({probe.ApiKeyEnv})가 없다. 이 티어를 끈다.");
             return null;
         }
 
-        if (!engine.IsConfigured)
+        LlmEngineOptions head = chain[0];
+
+        if (chain.Length == 1)
         {
-            log.WriteLine($"warn: {label} 엔진 '{engine.Id}' 의 키({engine.ApiKeyEnv})가 없다. 이 티어를 끈다.");
-            return null;
+            log.WriteLine($"{label}: {head.Id}");
+
+            return new LlmPlanCompiler(
+                data, prefix, head, ChatClientFactory.Create(head), stats, dryRun, reuse);
         }
 
-        IChatClient client = ChatClientFactory.Create(engine);
+        var engines = new List<FailoverEngine>(chain.Length);
 
-        return new LlmPlanCompiler(data, prefix, engine, client, stats, dryRun, reuse);
+        foreach (LlmEngineOptions engine in chain)
+        {
+            engines.Add(new FailoverEngine(
+                engine.Id, ChatClientFactory.Create(engine), new CircuitBreaker()));
+        }
+
+        var failover = new FailoverChatClient(
+            engines,
+            now,
+            e => alarms.Raise(new AlarmPayload(
+                AlarmKind.Failover,
+                e.To is null ? AlarmSeverity.Critical : AlarmSeverity.Warning,
+                e.From,
+                e.To is null
+                    ? $"{label} 체인이 전부 실패했다 ({e.From}: {e.Reason}). 티어 강등으로 간다"
+                    : $"{label} 페일오버 {e.From} → {e.To} ({e.Reason}). "
+                      + "프리픽스 캐시는 제공사별이라 미적중이 난다")));
+
+        log.WriteLine($"{label}: 체인 {string.Join(" → ", failover.EngineIds)}");
+
+        return new LlmPlanCompiler(data, prefix, head, failover, stats, dryRun, reuse);
     }
 }
 

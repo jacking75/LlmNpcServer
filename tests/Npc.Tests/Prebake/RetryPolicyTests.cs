@@ -1,4 +1,4 @@
-using Npc.Prebake;
+using Npc.Llm;
 
 namespace Npc.Tests.Prebake;
 

@@ -84,6 +84,8 @@ public static class HostOptionsSource
         new("--link-cert", true),
         new("--link-tls-host", true),
         new("--require-link-auth", false),
+        new("--billing-cap-usd", true),
+        new("--billing-reset-hour", true),
         new("--weights", true),
         new("--scan-cap", true),
         new("--max-speed", false),

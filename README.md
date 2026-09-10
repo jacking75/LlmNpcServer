@@ -180,6 +180,8 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--link-cert <pfx>` | 클라이언트 인증서. `mtls` 전용 |
 | `--link-tls-host <name>` | TLS SNI 이름 (기본 `--gs-host`) |
 | `--require-link-auth` | 게임서버가 인증을 지원하지 않으면 거절한다 |
+| `--billing-cap-usd <n>` | 벽시계 하루 비용 캡(USD). `0`=끔. 넘으면 T2 를 끊는다 |
+| `--billing-reset-hour N` | 청구일이 바뀌는 UTC 시각 0~23 (기본 0) |
 
 **시크릿은 환경변수로만 온다** (A-06). 인자는 `ps` 에 보이고 파일은 이미지에 굽힌다.
 

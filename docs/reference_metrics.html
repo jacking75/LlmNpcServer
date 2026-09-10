@@ -593,11 +593,11 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
       <div class="table-wrap"><table>
         <thead><tr><th>종류</th><th>심각도</th><th>언제</th></tr></thead>
         <tbody>
-          <tr><td><code>TokenBudget</code> · <code>CostBudget</code></td><td>Warning → Critical</td><td>일일 예산 80% · 95% · 100%. 각 임계는 하루에 한 번 (C-02)</td></tr>
+          <tr><td><code>TokenBudget</code> · <code>CostBudget</code></td><td>Warning → Critical</td><td>일일 예산 80% · 95% · 100%. 각 임계는 하루에 한 번 (C-02). <code>billing.cap</code>·<code>billing.rollover</code> 는 <strong>벽시계</strong> 캡이다 — <code>ReplanBudget</code> 의 틱 기준 하루는 배속 회차에서 실제 청구일 하루에 여러 번 리셋된다</td></tr>
           <tr><td><code>TierDowngraded</code></td><td>Warning</td><td>T2 → T1. 플랜 품질이 떨어진다</td></tr>
           <tr><td><code>ReplanRejected</code></td><td>Warning</td><td>예산 소진. NPC 는 기존 플랜을 계속 쓴다</td></tr>
           <tr><td><code>RateLimited</code></td><td>Info</td><td>초당 상한. <strong>예전에는 로그조차 없었다</strong></td></tr>
-          <tr><td><code>BreakerOpened</code> · <code>Failover</code></td><td>Warning</td><td>서킷 개방 · 제공사 페일오버 (C-01)</td></tr>
+          <tr><td><code>BreakerOpened</code> · <code>Failover</code></td><td>Warning → Critical</td><td>서킷 개방 · 제공사 페일오버 (C-01). <strong>체인이 전부 실패하면 Critical</strong> — 그때가 티어 강등으로 가는 순간이다</td></tr>
           <tr><td><code>LinkState</code></td><td>Info → Critical</td><td>상태 전이. <code>Faulted</code>·<code>Degraded</code> 는 Critical (A-03)</td></tr>
           <tr><td><code>EventGap</code></td><td>Critical</td><td>시퀀스 갭 (N6)</td></tr>
           <tr><td><code>TickAllocation</code> · <code>TickOverrun</code></td><td>Critical</td><td><code>bytesPerTick != 0</code> · p99 초과</td></tr>

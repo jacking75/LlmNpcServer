@@ -546,6 +546,9 @@ internal sealed class NpcHost : IAsyncDisposable
     /// <summary>경보 웹훅 (A-05). 없으면 null. 종료 시 큐를 비운다.</summary>
     internal WebhookAlarmSink? Webhook { get; init; }
 
+    /// <summary>벽시계 청구 캡 (C-02). 꺼져 있어도 인스턴스는 있다.</summary>
+    public BillingGuard Billing { get; init; } = null!;
+
     /// <summary>
     /// 릴리스 버전 (A-09). <c>MAJOR.MINOR.PATCH+메타</c>.
     ///
@@ -944,12 +947,25 @@ internal sealed class NpcHost : IAsyncDisposable
                 $"snapshot: {snapshotDir} · 주기 {options.SnapshotIntervalSeconds}s · 보존 {options.SnapshotKeep}");
         }
 
+        // 벽시계 청구 캡 (C-02). ReplanBudget 의 틱 기준 하루는 배속 회차에서
+        // 실제 청구일 하루에 여러 번 리셋된다 — 이것은 그것을 우회하지 않고 더한다.
+        var billing = new BillingGuard(
+            switches, alarms, options.BillingCapUsd, options.BillingResetHour);
+
+        if (billing.Enabled)
+        {
+            log.WriteLine(
+                $"billing-guard: 벽시계 하루 ${options.BillingCapUsd:0.##} "
+                + $"(리셋 UTC {options.BillingResetHour:00}시)");
+        }
+
         var host = new NpcHost(
             options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
             meter, driver, nullLink, tcp, totalTicks, roster, tiers, switches, snapshotWriter, alarms)
         {
             Restore = restore,
             Webhook = webhook,
+            Billing = billing,
         };
 
         meter.TickSync = host.TickSync;
@@ -993,6 +1009,12 @@ internal sealed class NpcHost : IAsyncDisposable
 
         _snapshots?.Start();
         _tickSync.Start();
+
+        // 벽시계 캡 감시 (C-02). 비용 누계는 워커가 올리므로 주기 폴링이면 충분하다 —
+        // 틱 루프에 넣을 이유가 없다.
+        Task billing = Billing.Enabled
+            ? Task.Run(() => WatchBillingAsync(workers.Token), CancellationToken.None)
+            : Task.CompletedTask;
 
         // 소켓 링크는 스스로 붙지 않는다 — 접속·재접속 루프를 누군가 돌려야 한다.
         // <b>WhenAll 에 넣지 않는다</b>: 이 루프는 취소될 때까지 끝나지 않으므로
@@ -1040,6 +1062,15 @@ internal sealed class NpcHost : IAsyncDisposable
                 await workers.CancelAsync().ConfigureAwait(false);
                 await _tiers.StopAsync().ConfigureAwait(false);
 
+                try
+                {
+                    await billing.ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // 취소로 끝난다.
+                }
+
                 return "재계획 워커 정지 (진행 중인 LLM 결과는 버린다)";
             },
             closeLink: async budget =>
@@ -1073,6 +1104,24 @@ internal sealed class NpcHost : IAsyncDisposable
     }
 
     private static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
+
+    /// <summary>벽시계 캡을 주기로 본다 (C-02). 워커 스레드 밖이다.</summary>
+    private async Task WatchBillingAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            Billing.Observe(_tiers.Stats?.CostUsd ?? 0);
+        }
+    }
 
     /// <summary>
     /// NPC 한 마리의 추적 스냅샷 (T4-21). <b>틱 루프를 막지 않는다</b> — 읽기와 값 복사뿐이다.

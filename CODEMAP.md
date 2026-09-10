@@ -68,6 +68,8 @@
 | **프리픽스가 안 고정된다 · 캐시 미적중** | `src/Npc.Llm/PromptPrefix.cs` | SHA 유니크 2개 이상이면 경보. 기동 시 1회 조립 |
 | **검증기를 고친다** | `src/Npc.Core/Validation/` — `SchemaValidator`(V1) → `VocabularyValidator`(V2) → `CoherenceValidator`(V3) → `src/Npc.Sim/Validation/DryRunValidator.cs`(V4) | 4단은 순서대로다. 건너뛴 플랜을 런타임에 올리지 않는다 |
 | **LLM 제공사 교체·추가** | `src/Npc.Llm/ChatClientFactory.cs` → `appsettings.Llm.json` | `IChatClient` 밖에서 제공사 SDK 를 부르지 않는다 |
+| **제공사 하나가 죽었다** | `src/Npc.Llm/FailoverChatClient.cs` · 체인은 `appsettings.Llm.json` 의 `chains` | 전송 실패만 넘어간다. 400·스키마 거절은 페일오버하지 않는다 |
+| **벽시계 기준으로 돈이 새고 있다** | `src/Npc.Host/Replan/BillingGuard.cs` (`--billing-cap-usd`) | `ReplanBudget` 의 틱 기준 하루와 별개다. 해제는 `/admin/killswitch` 로 손으로 |
 | **티어 강등 · 실패 시 폴백** | `src/Npc.Llm/TieredPlanCompiler.cs` → `CircuitBreaker.cs` → `src/Npc.Host/Replan/TierWiring.cs` | 재시도는 **1회만** |
 | **JSON 스키마 강제** | `src/Npc.Llm/SchemaProvider.cs` | 강제 디코딩을 신뢰하지 않는다. 4단 검증기를 항상 통과시킨다 |
 

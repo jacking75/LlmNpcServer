@@ -98,6 +98,61 @@ public sealed class LlmOptions
     /// </summary>
     public ImmutableArray<string> Preferred { get; init; } = [];
 
+    /// <summary>
+    /// 티어별 페일오버 체인 (C-01). 키는 <c>t1</c>·<c>t2</c>.
+    ///
+    /// <b><see cref="Preferred"/> 와 다르다.</b> 저것은 기동 시 하나를 고르는 것이고,
+    /// 이것은 <b>런타임에 순서대로 넘어가는 것</b>이다 — 제공사 하나가 죽어도 T2 처리율이 유지된다.
+    ///
+    /// 체인을 "같은 모델을 다른 경로로" 로 두면 프리픽스 캐시가 제공사별이라 미적중이 나도
+    /// 프롬프트 품질은 유지된다.
+    /// </summary>
+    public ImmutableDictionary<string, ImmutableArray<string>> Chains { get; init; } =
+        ImmutableDictionary<string, ImmutableArray<string>>.Empty;
+
+    /// <summary>
+    /// 이 티어의 체인. 없으면 <paramref name="fallbackId"/> 하나짜리 체인이다.
+    ///
+    /// <b>키가 없는 엔진은 뺀다</b> — 시도해 봐야 인증 오류로 실패하고, 그 실패가
+    /// 브레이커를 열어 뒤 엔진까지 늦춘다.
+    /// </summary>
+    /// <param name="tier"><c>t1</c> 또는 <c>t2</c>.</param>
+    /// <param name="fallbackId">체인이 없을 때 쓸 엔진 id. null 이면 <see cref="Default"/>.</param>
+    public ImmutableArray<LlmEngineOptions> Chain(string tier, string? fallbackId = null)
+    {
+        ArgumentNullException.ThrowIfNull(tier);
+
+        var chosen = ImmutableArray.CreateBuilder<LlmEngineOptions>();
+
+        if (Chains.TryGetValue(tier, out ImmutableArray<string> ids) && !ids.IsDefaultOrEmpty)
+        {
+            foreach (string id in ids)
+            {
+                foreach (LlmEngineOptions engine in Engines)
+                {
+                    if (string.Equals(engine.Id, id, StringComparison.Ordinal)
+                        && ChatClientFactory.IsAvailable(engine))
+                    {
+                        chosen.Add(engine);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (chosen.Count == 0)
+        {
+            LlmEngineOptions single = Engine(fallbackId);
+
+            if (ChatClientFactory.IsAvailable(single))
+            {
+                chosen.Add(single);
+            }
+        }
+
+        return chosen.ToImmutable();
+    }
+
     /// <summary>id 로 엔진을 고른다. null 이면 <see cref="Default"/>.</summary>
     public LlmEngineOptions Engine(string? id = null)
     {
@@ -155,6 +210,12 @@ public sealed class LlmOptions
         {
             Default = dto.Default,
             Preferred = dto.Preferred is null ? [] : [.. dto.Preferred],
+            Chains = dto.Chains is null
+                ? ImmutableDictionary<string, ImmutableArray<string>>.Empty
+                : dto.Chains.ToImmutableDictionary(
+                    pair => pair.Key,
+                    pair => ImmutableArray.Create(pair.Value),
+                    StringComparer.OrdinalIgnoreCase),
             Engines = [.. dto.Engines.Select(e => e.ToOptions())],
         };
     }
@@ -184,7 +245,11 @@ public sealed class LlmOptions
 
     // --- JSON DTO. 소스 생성기로 직렬화한다. ---
 
-    internal sealed record LlmOptionsDto(string Default, string[]? Preferred, LlmEngineDto[] Engines);
+    internal sealed record LlmOptionsDto(
+        string Default,
+        string[]? Preferred,
+        LlmEngineDto[] Engines,
+        Dictionary<string, string[]>? Chains = null);
 
     internal sealed record LlmEngineDto(
         string Id,

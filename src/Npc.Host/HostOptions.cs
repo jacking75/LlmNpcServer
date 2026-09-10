@@ -357,6 +357,17 @@ public sealed record HostOptions
     /// </summary>
     public bool RequireLinkAuth { get; init; }
 
+    /// <summary>
+    /// 벽시계 하루 비용 캡(USD). 0 이면 끈다 (C-02).
+    ///
+    /// <b><c>ReplanBudget</c> 의 캡을 우회하는 것이 아니라 더하는 것이다</b> (CLAUDE.md §2.7).
+    /// 그쪽 하루는 <c>Tick</c> 기준이라 배속 회차에서 실제 청구일 하루에 여러 번 리셋된다.
+    /// </summary>
+    public double BillingCapUsd { get; init; }
+
+    /// <summary>청구일이 바뀌는 UTC 시각(0~23). 제공사 청구 주기에 맞춘다.</summary>
+    public int BillingResetHour { get; init; }
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -410,6 +421,8 @@ public sealed record HostOptions
                                   (비밀번호는 NPC_LINK_CERT_PASSWORD 환경변수)
           --link-tls-host <name>  TLS SNI 이름 (기본: --gs-host)
           --require-link-auth     게임서버가 인증을 지원하지 않으면 거절한다
+          --billing-cap-usd <n>   벽시계 하루 비용 캡(USD). 0=끔. 넘으면 T2 를 끊는다
+          --billing-reset-hour N  청구일이 바뀌는 UTC 시각 0~23 (기본 0)
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
@@ -1082,6 +1095,29 @@ public sealed record HostOptions
                     }
 
                     result = result with { LinkTlsHost = tlsHost };
+                    break;
+
+                case "--billing-cap-usd":
+                    if (!TryValue(args, ref i, arg, out string? cap, out error)
+                        || !double.TryParse(cap, NumberStyles.Float, CultureInfo.InvariantCulture, out double capUsd)
+                        || capUsd < 0)
+                    {
+                        error ??= $"--billing-cap-usd 값이 잘못됐다: '{cap}'. 0 이상의 실수다.";
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { BillingCapUsd = capUsd };
+                    break;
+
+                case "--billing-reset-hour":
+                    if (!TryInt(args, ref i, arg, 0, 23, out int resetHour, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { BillingResetHour = resetHour };
                     break;
 
                 case "--require-link-auth":

@@ -1,6 +1,8 @@
 using Npc.Core.Plan;
 
-namespace Npc.Prebake;
+// C-01 에서 tools/Npc.Prebake 에서 옮겼다. 런타임 페일오버도 같은 백오프를 써야 하고,
+// 두 벌을 두면 한쪽만 고쳐지는 날이 온다.
+namespace Npc.Llm;
 
 /// <summary>
 /// 429 백오프. docs/13 §4.
@@ -10,7 +12,7 @@ namespace Npc.Prebake;
 ///
 /// <para>
 /// <b>지터는 결정론이다.</b> <c>Random</c> 을 쓰면 같은 입력이 같은 회차를 내지 못한다
-/// (<c>../CLAUDE.md §2.3</c>). <c>(bucketIndex, attempt)</c> 해시를 쓴다 —
+/// (CLAUDE.md §2.3). <c>(bucketIndex, attempt)</c> 해시를 쓴다 —
 /// 런타임의 버킷 전환 지터가 <c>(npcId, salt)</c> 해시를 쓰는 것과 같은 방법이다.
 /// </para>
 /// </summary>
