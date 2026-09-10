@@ -776,6 +776,10 @@ internal sealed class NpcHost : IAsyncDisposable
         loop.Probe = host.Probe;
 
         log.WriteLine(
+            $"contract {Npc.Contracts.ContractVersion.Text} · "
+            + $"wire [{FrameCodec.MinVersion}, {FrameCodec.MaxVersion}]");
+
+        log.WriteLine(
             $"npcs {npcs} · link {options.Link} · time-scale {options.TimeScale} · "
             + $"days {options.Days} ({(totalTicks == 0 ? "무제한" : totalTicks + " ticks")}) · "
             + $"버킷 {plans.FilledBuckets}/{BucketKey.TotalKeys} · {tiers.Describe()}");
@@ -943,6 +947,8 @@ internal sealed class NpcHost : IAsyncDisposable
         LlmCalls: _tiers.Stats?.Calls ?? 0,
         LinkState: _link.State.ToString(),
         LinkReject: LinkRejectReason,
+        LinkNegotiation: _tcp?.NegotiationDetail ?? "링크 없음",
+        ContractVersion: Npc.Contracts.ContractVersion.Text,
         LastSnapshotTick: _snapshots?.LastTick ?? 0,
         SnapshotFailures: _snapshots?.Failures ?? 0,
         RestoredFromTick: Restore.Tick,
@@ -1181,6 +1187,8 @@ internal sealed class NpcHost : IAsyncDisposable
 /// <param name="LlmCalls">LLM 호출 수. P1 에서는 항상 0 이다.</param>
 /// <param name="LinkState">링크 접속 상태 (A-03). <c>/status</c> 가 링크와 무관하게 200 이던 결손을 메운다.</param>
 /// <param name="LinkReject">핸드셰이크 거절 사유. 없으면 null.</param>
+/// <param name="LinkNegotiation">협상 결과 (B-01). 프로토콜·계약·기능 비트.</param>
+/// <param name="ContractVersion">이 프로세스가 구현한 계약 버전 (B-01).</param>
 /// <param name="LastSnapshotTick">마지막으로 쓴 스냅샷의 틱 (A-01). 상태 손실 창의 하한이다.</param>
 /// <param name="SnapshotFailures">스냅샷 실패 누계. 0 이 아니면 손실 창이 주기보다 크다.</param>
 /// <param name="RestoredFromTick">복원한 스냅샷의 틱. 복원 안 했으면 0.</param>
@@ -1205,6 +1213,8 @@ internal readonly record struct HostSnapshot(
     long LlmCalls,
     string LinkState,
     string? LinkReject,
+    string LinkNegotiation,
+    string ContractVersion,
     long LastSnapshotTick,
     long SnapshotFailures,
     long RestoredFromTick,

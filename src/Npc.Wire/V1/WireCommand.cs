@@ -1,6 +1,7 @@
 using MemoryPack;
 using Npc.Contracts;
 
+// v1 명령 DTO. <b>이 파일은 수정하지 않는다</b> (B-01). 새 필드는 V2/ 에만 넣는다.
 namespace Npc.Wire;
 
 /// <summary>

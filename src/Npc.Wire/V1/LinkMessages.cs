@@ -1,6 +1,11 @@
 using System.Globalization;
 using MemoryPack;
 
+// v1 링크 메시지. <b>이 파일은 수정하지 않는다</b> (B-01).
+//
+// 네임스페이스는 Npc.Wire 그대로다 — 폴더만 V1/ 로 옮겼다. 이름을 바꾸면 참조 1,000곳이
+// 흔들리는데, "동결" 은 폴더가 아니라 테스트(Wire_LayoutIsFrozen)가 강제한다.
+// 새 필드는 V2/ 에만 넣는다.
 namespace Npc.Wire;
 
 /// <summary>프레임 종류. docs/20 §5.2 의 표 그대로다.</summary>
@@ -45,6 +50,12 @@ public enum LinkRejectCode : byte
 
     /// <summary>타임스케일이 다르다.</summary>
     TimeScaleMismatch,
+
+    /// <summary>계약 주 버전이 다르다 (B-01). <b>추가는 뒤에만</b> — 번호를 재배치하지 않는다.</summary>
+    ContractMismatch,
+
+    /// <summary>인증에 실패했다 (A-06).</summary>
+    AuthFailed,
 }
 
 /// <summary>연결 종료 사유. docs/20 §5.4.</summary>

@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using MemoryPack;
 using Npc.Contracts;
 using Npc.Wire;
+using Npc.Wire.V2;
 
 namespace Npc.Gateway;
 
@@ -132,6 +133,39 @@ public sealed class TcpGameServerLink : IGameServerLink
 
     /// <summary>거절 사유. 수락됐거나 아직 핸드셰이크 전이면 <see cref="LinkRejectCode.None"/>.</summary>
     public LinkRejectCode RejectCode { get; private set; }
+
+    /// <summary>
+    /// 협상된 와이어 프로토콜 버전 (B-01). 핸드셰이크 전에는 0.
+    ///
+    /// <b><c>IGameServerLink</c> 에 넣지 않는다</b> — 계약은 <c>Enqueue</c>·<c>FlushAsync</c>·
+    /// <c>Events</c> 뿐이고(N1), 협상 결과는 진단용이다. <c>/status</c> 가 여기서 읽는다.
+    /// </summary>
+    public int NegotiatedVersion { get; private set; }
+
+    /// <summary>협상된 계약 부 버전 (B-01). 낮은 쪽이 이긴다.</summary>
+    public ushort NegotiatedContractMinor { get; private set; }
+
+    /// <summary>협상된 기능 비트 (B-01). 양쪽 교집합이다.</summary>
+    public ulong NegotiatedFeatures { get; private set; }
+
+    /// <summary>협상 결과를 사람 말로. 로그·<c>/status</c> 가 쓴다.</summary>
+    public string NegotiationDetail { get; private set; } = "핸드셰이크 전";
+
+    /// <summary>
+    /// 게임서버가 알려준 게임 시각 (하루의 몇 분째). v1 이면 <c>-1</c> (A-10).
+    /// </summary>
+    public int StartGameMinuteOfDay { get; private set; } = -1;
+
+    /// <summary>게임서버가 알려준 시작 틱. 핸드셰이크 전에는 0 (A-10).</summary>
+    public long StartTick { get; private set; }
+
+    /// <summary>세션 에포크 (G-02). 게임서버가 다시 뜨면 바뀐다.</summary>
+    public uint SessionEpoch { get; private set; }
+
+    /// <summary>
+    /// 내용 해시가 달라 경고로 수락했는가 (B-04). 구조 해시는 여전히 완전 일치를 요구한다.
+    /// </summary>
+    public bool ContentHashWarning { get; private set; }
 
     /// <summary>상태가 바뀔 때마다.</summary>
     public event Action<LinkState>? StateChanged;
@@ -343,7 +377,7 @@ public sealed class TcpGameServerLink : IGameServerLink
 
         timeout.CancelAfter(_options.HandshakeTimeout);
 
-        (LinkMessageKind kind, byte[] payload) =
+        (LinkMessageKind kind, byte[] payload, byte frameVersion) =
             await ReadFrameAsync(stream, timeout.Token).ConfigureAwait(false);
 
         if (kind != LinkMessageKind.Hello)
@@ -354,6 +388,16 @@ public sealed class TcpGameServerLink : IGameServerLink
             return false;
         }
 
+        return frameVersion >= 2
+            ? await HandshakeV2Async(stream, payload, ct).ConfigureAwait(false)
+            : await HandshakeV1Async(stream, payload, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// v1 핸드셰이크. 협상이 없다 — 네 값이 전부 같아야 한다 (docs/20 §5.5).
+    /// </summary>
+    private async Task<bool> HandshakeV1Async(Stream stream, byte[] payload, CancellationToken ct)
+    {
         WireHello hello = MemoryPackSerializer.Deserialize<WireHello>(payload);
         LinkRejectCode reject = Validate(in hello);
 
@@ -370,9 +414,124 @@ public sealed class TcpGameServerLink : IGameServerLink
         _stream ??= stream;
         RejectCode = LinkRejectCode.None;
 
+        NegotiatedVersion = 1;
+        NegotiatedContractMinor = 0;
+        NegotiatedFeatures = 0;
+        NegotiationDetail = "protocol 1 (v1 게임서버 — 협상 없음)";
+        StartTick = hello.StartTick;
+        StartGameMinuteOfDay = -1;
+        SessionEpoch = 0;
+        ContentHashWarning = false;
+
         SetState(LinkState.Connected);
 
         return true;
+    }
+
+    /// <summary>
+    /// v2 핸드셰이크 (B-01). <b>범위를 받아 교집합의 최댓값을 고른다.</b>
+    ///
+    /// 구조 해시는 완전 일치를 요구하고 내용 해시는 경고로 수락한다 (B-04) —
+    /// 게임서버·NPC 서버가 다른 파이프라인으로 배포되는 상용에서 밸런스 한쪽만 갱신되는 것은
+    /// 정상 운영의 일부이지 장애가 아니다.
+    /// </summary>
+    private async Task<bool> HandshakeV2Async(Stream stream, byte[] payload, CancellationToken ct)
+    {
+        WireHelloV2 hello = MemoryPackSerializer.Deserialize<WireHelloV2>(payload);
+
+        NegotiationResult negotiation = VersionNegotiation.Negotiate(
+            hello.ProtocolVersion,
+            hello.MinProtocolVersion,
+            hello.ContractMajor,
+            hello.ContractMinor,
+            hello.Features,
+            _options.RequireAuth);
+
+        if (!negotiation.Accepted)
+        {
+            NegotiationDetail = negotiation.Detail;
+
+            await RejectV2Async(stream, negotiation.Reject, ct).ConfigureAwait(false);
+            return false;
+        }
+
+        LinkRejectCode reject = ValidateV2(in hello, out bool contentWarning);
+
+        if (reject != LinkRejectCode.None)
+        {
+            NegotiationDetail = $"{negotiation.Detail} · 거절 {reject}";
+
+            await RejectV2Async(stream, reject, ct).ConfigureAwait(false);
+            return false;
+        }
+
+        NegotiatedVersion = negotiation.ProtocolVersion;
+        NegotiatedContractMinor = negotiation.ContractMinor;
+        NegotiatedFeatures = negotiation.Features;
+        NegotiationDetail = negotiation.Detail + (contentWarning ? " · 내용 해시 경고" : string.Empty);
+
+        StartTick = hello.StartTick;
+        StartGameMinuteOfDay = hello.StartGameMinuteOfDay;
+        SessionEpoch = hello.SessionEpoch;
+        ContentHashWarning = contentWarning;
+
+        await WriteFrameAsync(
+            stream,
+            LinkMessageKind.HelloAck,
+            AckV2Payload(accepted: true, LinkRejectCode.None, contentWarning),
+            ct,
+            (byte)negotiation.ProtocolVersion).ConfigureAwait(false);
+
+        _stream ??= stream;
+        RejectCode = LinkRejectCode.None;
+
+        SetState(LinkState.Connected);
+
+        return true;
+    }
+
+    /// <summary>
+    /// v2 핸드셰이크 값 검증 (B-01 · B-04).
+    /// </summary>
+    /// <param name="hello">게임서버가 보낸 것.</param>
+    /// <param name="contentWarning">내용 해시가 달라 경고로 수락했으면 true.</param>
+    public LinkRejectCode ValidateV2(in WireHelloV2 hello, out bool contentWarning)
+    {
+        contentWarning = false;
+
+        if (hello.TimeScale != _options.TimeScale)
+        {
+            return LinkRejectCode.TimeScaleMismatch;
+        }
+
+        // 구조 해시는 완전 일치다. 게임서버가 POI 좌표·id 를 다르게 알면 NPC 가 엉뚱한 곳으로 간다.
+        WireHash structural = _options.MasterDataStructural == default
+            ? _options.MasterData
+            : _options.MasterDataStructural;
+
+        if (hello.MasterDataStructural != structural)
+        {
+            return LinkRejectCode.MasterDataMismatch;
+        }
+
+        if (hello.Roster != _options.Roster)
+        {
+            return LinkRejectCode.RosterMismatch;
+        }
+
+        if (_options.StrictNpcCount && hello.NpcCount != _options.NpcCount)
+        {
+            return LinkRejectCode.RosterMismatch;
+        }
+
+        // 내용 해시는 경고다. 한쪽이 밸런스를 먼저 받은 상태는 정상 운영이다 (B-04).
+        WireHash content = _options.MasterDataContent == default
+            ? _options.MasterData
+            : _options.MasterDataContent;
+
+        contentWarning = hello.MasterDataContent != content;
+
+        return LinkRejectCode.None;
     }
 
     /// <summary>
@@ -712,15 +871,60 @@ public sealed class TcpGameServerLink : IGameServerLink
             RejectCode = (byte)reject,
         });
 
+    private byte[] AckV2Payload(bool accepted, LinkRejectCode reject, bool contentWarning) =>
+        MemoryPackSerializer.Serialize(new WireHelloAckV2
+        {
+            ProtocolVersion = NegotiatedVersion == 0 ? FrameCodec.MaxVersion : NegotiatedVersion,
+            ContractMajor = ContractVersion.Major,
+            ContractMinor = NegotiatedContractMinor,
+            Features = NegotiatedFeatures,
+            TimeScale = _options.TimeScale,
+            NpcCount = _options.NpcCount,
+            MasterDataStructural = _options.MasterDataStructural == default
+                ? _options.MasterData
+                : _options.MasterDataStructural,
+            MasterDataContent = _options.MasterDataContent == default
+                ? _options.MasterData
+                : _options.MasterDataContent,
+            Roster = _options.Roster,
+            Accepted = accepted ? (byte)1 : (byte)0,
+            RejectCode = (byte)reject,
+            ContentHashWarning = contentWarning ? (byte)1 : (byte)0,
+        });
+
+    /// <summary>v2 거절. 응답도 v2 배치로 보낸다 — 상대가 v2 로 말을 걸었기 때문이다.</summary>
+    private async Task RejectV2Async(Stream stream, LinkRejectCode reject, CancellationToken ct)
+    {
+        RejectCode = reject;
+
+        await WriteFrameAsync(
+            stream,
+            LinkMessageKind.HelloAck,
+            AckV2Payload(accepted: false, reject, contentWarning: false),
+            ct,
+            FrameCodec.MaxVersion).ConfigureAwait(false);
+
+        await WriteFrameAsync(
+            stream, LinkMessageKind.Bye, ByePayload(LinkByeCode.HandshakeRejected), ct)
+            .ConfigureAwait(false);
+
+        // 재시도하지 않는다. 사람이 고쳐야 하는 상태다 (docs/20 §6.3).
+        SetState(LinkState.Faulted);
+    }
+
     private static byte[] ByePayload(LinkByeCode code) =>
         MemoryPackSerializer.Serialize(new WireBye { Code = (byte)code });
 
+    private static Task WriteFrameAsync(
+        Stream stream, LinkMessageKind kind, byte[] payload, CancellationToken ct) =>
+        WriteFrameAsync(stream, kind, payload, ct, FrameCodec.Version);
+
     private static async Task WriteFrameAsync(
-        Stream stream, LinkMessageKind kind, byte[] payload, CancellationToken ct)
+        Stream stream, LinkMessageKind kind, byte[] payload, CancellationToken ct, byte version)
     {
         var writer = new ArrayBufferWriter<byte>(FrameCodec.HeaderSize + payload.Length);
 
-        FrameCodec.WriteHeader(writer, kind, payload.Length);
+        FrameCodec.WriteHeader(writer, kind, payload.Length, version);
         writer.Write(payload);
 
         await stream.WriteAsync(writer.WrittenMemory, ct).ConfigureAwait(false);
@@ -731,7 +935,7 @@ public sealed class TcpGameServerLink : IGameServerLink
     /// 프레임 하나를 읽는다. <b>핸드셰이크 전용</b>이라 단순 동기 읽기다 —
     /// 상시 수신은 <c>PipeReader</c> 로 간다 (T6-08 · docs/20 §6.1).
     /// </summary>
-    private static async Task<(LinkMessageKind Kind, byte[] Payload)> ReadFrameAsync(
+    private static async Task<(LinkMessageKind Kind, byte[] Payload, byte Version)> ReadFrameAsync(
         Stream stream, CancellationToken ct)
     {
         var header = new byte[FrameCodec.HeaderSize];
@@ -742,7 +946,7 @@ public sealed class TcpGameServerLink : IGameServerLink
         // 여기서 필요한 것은 그 검사가 도는 것이고, 어기면 InvalidDataException 이 나온다.
         var probe = new ReadOnlySequence<byte>(header);
 
-        FrameCodec.TryReadFrame(ref probe, out _, out _);
+        FrameCodec.TryReadFrame(ref probe, out _, out _, out byte version);
 
         int length = (int)BinaryPrimitives.ReadUInt32LittleEndian(header);
         var kind = (LinkMessageKind)header[4];
@@ -753,7 +957,7 @@ public sealed class TcpGameServerLink : IGameServerLink
             await stream.ReadExactlyAsync(payload, ct).ConfigureAwait(false);
         }
 
-        return (kind, payload);
+        return (kind, payload, version);
     }
 
     private void SetState(LinkState state)

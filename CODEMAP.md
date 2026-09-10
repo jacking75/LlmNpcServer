@@ -50,6 +50,7 @@
 
 | 하려는 일 | 여는 곳 | 주의 |
 |---|---|---|
+| **계약 버전 · 와이어 협상 · 기능 비트** | `src/Npc.Contracts/ContractVersion.cs` → `src/Npc.Wire/V2/VersionNegotiation.cs` · v2 핸드셰이크는 `src/Npc.Wire/V2/LinkMessagesV2.cs` · **`V1/` 은 수정하지 않는다** |
 | **패킷에 필드 추가 · 새 명령/이벤트 종류** | `src/Npc.Contracts/NpcCommand.cs`·`GameEvent.cs` → **반드시** `src/Npc.Wire/WireCommand.cs`·`WireEvent.cs` 도 같이 | `Wire_MirrorsContractMembers`·`Wire_LayoutIsFrozen` 가 먼저 깨진다. 56B·64B 고정 |
 | **실제 게임서버에 붙인다** | `docs/reference_link.html` 를 상대 팀에 전달 → `src/Npc.Gateway/TcpGameServerLink.cs`(661줄) | 이기종 런타임이면 `Npc.Wire` 한 곳만 고친다 |
 | **소켓이 끊긴다 · 재접속** | `src/Npc.Gateway/TcpGameServerLink.cs` → `TcpLinkOptions.cs` → `src/Npc.Wire/LinkMessages.cs`(핸드셰이크) | 시퀀스를 리셋하면 NPC 가 영원히 멈춘다 |

@@ -162,6 +162,16 @@ public sealed class GameWorld : IAsyncDisposable
     public Tick Now { get; private set; }
 
     /// <summary>
+    /// 게임 안 하루의 몇 분째인가 (0~1439). 핸드셰이크가 싣는다 (A-10).
+    ///
+    /// <b>대역도 새벽 6시에 시작한다</b> — NPC 서버의 <c>GameClock</c> 기본값과 같아야
+    /// 재기동 뒤 두 시계가 붙는다. 환산은 <c>GameClock</c> 과 같은 식이다:
+    /// 게임 초 = 틱 × TimeScale ÷ 틱레이트.
+    /// </summary>
+    public int GameMinuteOfDay =>
+        (int)((((6 * 3600L) + (Now.Value * _world.Options.TimeScale / TickRate)) / 60) % (24 * 60));
+
+    /// <summary>
     /// 이 틱이 시작돼야 하는 벽시계 시각(ms). 기동 시각 기준이다.
     ///
     /// <b>매 틱 100ms 를 더하지 않는다.</b> 그렇게 하면 처리 시간이 누적 오차가 되어

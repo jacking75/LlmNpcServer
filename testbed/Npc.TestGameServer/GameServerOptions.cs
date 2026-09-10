@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using Npc.Contracts;
 
 namespace Npc.TestGameServer;
 
@@ -79,6 +80,23 @@ public sealed record GameServerOptions
 
     /// <summary>콘솔 통계만 찍는다. <b>클라이언트 접속은 계속 받는다.</b></summary>
     public bool Headless { get; init; }
+
+    /// <summary>
+    /// 대역이 말할 프로토콜 버전 (B-01). 기본 2.
+    ///
+    /// <b>1 로 낮추면 v1 게임서버를 흉내낸다</b> — v1↔v2 호환을 실제로 재현하는 유일한 방법이다.
+    /// </summary>
+    public int ProtocolVersion { get; init; } = 2;
+
+    /// <summary>대역이 지원한다고 알릴 기능 비트 (B-01).</summary>
+    public ulong Features { get; init; } =
+        (ulong)(LinkFeatures.GlobalIds | LinkFeatures.ExtSlots | LinkFeatures.DynamicRoster
+                | LinkFeatures.Hostility | LinkFeatures.SessionEpoch);
+
+    /// <summary>
+    /// 세션 에포크 (G-02). 프로세스가 다시 뜨면 올린다 — 그것이 시퀀스 리셋을 알리는 신호다.
+    /// </summary>
+    public uint SessionEpoch { get; init; } = 1;
 
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }

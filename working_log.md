@@ -1,5 +1,23 @@
 # 작업 로그
 
+## 2026-09-10 10:50 KST · B-01 계약 버전 · 와이어 버전 협상 · 기능 비트
+
+계약(의미)에 버전이 없었고 와이어의 `Ver` 1바이트는 협상 없이 즉시 절단이었다.
+`NpcCommandKind` 에 항목 하나를 추가해도 알릴 방법이 없어 롤링 배포가 구조적으로 막혀 있었다.
+
+- **신규** `src/Npc.Contracts/ContractVersion.cs` — Major/Minor 규칙과 `LinkFeatures` 6비트.
+- **신규** `src/Npc.Wire/V2/` — `LinkMessagesV2.cs`(v2 핸드셰이크) · `VersionNegotiation.cs`.
+  기존 와이어 DTO 는 `V1/` 폴더로 옮기고 "수정하지 않는다" 를 파일 머리에 못 박았다.
+  네임스페이스는 그대로다 — 동결은 폴더가 아니라 `Wire_LayoutIsFrozen` 이 강제한다.
+- `FrameCodec` 이 버전 <b>범위</b> `[1, 2]` 를 받는다. 프레임 버전으로 v1/v2 핸드셰이크를 가른다.
+- 협상: 교집합의 **최댓값**. Major 불일치는 `ContractMismatch`, Minor 는 낮은 쪽 기준.
+  기능 비트는 교집합. v1 게임서버는 그대로 protocol 1 로 붙는다.
+- v2 `WireHello` 에 A-06(nonce·auth) · A-08(shard·zoneMask) · A-10(게임 시각) ·
+  B-04(구조/내용 해시) · G-02(세션 에포크) 자리를 미리 뚫었다. 레이아웃을 다섯 번 동결하지 않는다.
+- `ContractVersionTests` 가 열거형 멤버 수 스냅샷을 들고 있다 — 늘었는데 Minor 를 안 올리면 깨진다.
+- `docs/reference_link.html` §08·§09 에 협상·호환성 매트릭스·기능 비트 표를 넣었다.
+- 테스트 18건 추가. 전체 1,137건 통과 · 경고 0.
+
 ## 2026-09-10 02:36 KST · A-09 배포 — Dockerfile · compose · k8s · CI 파이프라인
 
 테스트 1,119건을 자동으로 돌리는 곳이 없었다. 이미지·파이프라인·시크릿 주입·롤아웃이 전부 없었다.

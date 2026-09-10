@@ -7,6 +7,7 @@ using Npc.Contracts;
 using Npc.MasterData;
 using Npc.Sim;
 using Npc.Wire;
+using Npc.Wire.V2;
 
 namespace Npc.TestGameServer.Link;
 
@@ -182,20 +183,45 @@ public sealed class LinkSession : IAsyncDisposable
     /// <returns>수락되면 true.</returns>
     public async Task<bool> HandshakeAsync(CancellationToken ct)
     {
-        byte[] hello = MemoryPackSerializer.Serialize(new WireHello
-        {
-            ProtocolVersion = FrameCodec.Version,
-            TickRate = GameWorld.TickRate,
-            TimeScale = _options.TimeScale,
-            NpcCount = _world.Roster.Count,
-            StartTick = _world.Now.Value,
-            MasterData = WireHash.FromHex(_data.ContentHash),
-            Roster = WireHash.FromHex(_world.Roster.Hash),
-        });
+        // v2 로 말을 건다 (B-01). 범위 [1, 2] 를 보내므로 v1 NPC 서버와도 붙는다 —
+        // 상대가 v1 이면 v1 배치의 HelloAck 가 돌아오고, 그것을 프레임 버전으로 가른다.
+        byte[] hello = _options.ProtocolVersion >= 2
+            ? MemoryPackSerializer.Serialize(new WireHelloV2
+            {
+                ProtocolVersion = FrameCodec.MaxVersion,
+                MinProtocolVersion = FrameCodec.MinVersion,
+                ContractMajor = ContractVersion.Major,
+                ContractMinor = ContractVersion.Minor,
+                Features = _options.Features,
+                TickRate = GameWorld.TickRate,
+                TimeScale = _options.TimeScale,
+                NpcCount = _world.Roster.Count,
+                StartTick = _world.Now.Value,
+                StartGameMinuteOfDay = (ushort)_world.GameMinuteOfDay,
+                ShardId = 0,
+                ZoneMask = 0,
+                SessionEpoch = _options.SessionEpoch,
+                MasterDataStructural = WireHash.FromHex(_data.ContentHash),
+                MasterDataContent = WireHash.FromHex(_data.ContentHash),
+                Roster = WireHash.FromHex(_world.Roster.Hash),
+            })
+            : MemoryPackSerializer.Serialize(new WireHello
+            {
+                ProtocolVersion = FrameCodec.Version,
+                TickRate = GameWorld.TickRate,
+                TimeScale = _options.TimeScale,
+                NpcCount = _world.Roster.Count,
+                StartTick = _world.Now.Value,
+                MasterData = WireHash.FromHex(_data.ContentHash),
+                Roster = WireHash.FromHex(_world.Roster.Hash),
+            });
 
-        await WriteFrameAsync(_stream, LinkMessageKind.Hello, hello, ct).ConfigureAwait(false);
+        byte helloVersion = _options.ProtocolVersion >= 2 ? FrameCodec.MaxVersion : FrameCodec.Version;
 
-        (LinkMessageKind kind, byte[] payload) = await ReadFrameAsync(_stream, ct).ConfigureAwait(false);
+        await WriteFrameAsync(_stream, LinkMessageKind.Hello, hello, ct, helloVersion).ConfigureAwait(false);
+
+        (LinkMessageKind kind, byte[] payload, byte ackVersion) =
+            await ReadFrameWithVersionAsync(_stream, ct).ConfigureAwait(false);
 
         if (kind != LinkMessageKind.HelloAck)
         {
@@ -206,11 +232,33 @@ public sealed class LinkSession : IAsyncDisposable
             return false;
         }
 
-        WireHelloAck ack = MemoryPackSerializer.Deserialize<WireHelloAck>(payload);
+        byte accepted;
+        byte rejectCode;
 
-        if (ack.Accepted != 1)
+        if (ackVersion >= 2)
         {
-            RejectCode = (LinkRejectCode)ack.RejectCode;
+            WireHelloAckV2 ack = MemoryPackSerializer.Deserialize<WireHelloAckV2>(payload);
+
+            accepted = ack.Accepted;
+            rejectCode = ack.RejectCode;
+            NegotiatedVersion = ack.ProtocolVersion;
+            NegotiatedFeatures = ack.Features;
+            ContentHashWarning = ack.ContentHashWarning == 1;
+        }
+        else
+        {
+            WireHelloAck ack = MemoryPackSerializer.Deserialize<WireHelloAck>(payload);
+
+            accepted = ack.Accepted;
+            rejectCode = ack.RejectCode;
+            NegotiatedVersion = ack.ProtocolVersion;
+            NegotiatedFeatures = 0;
+            ContentHashWarning = false;
+        }
+
+        if (accepted != 1)
+        {
+            RejectCode = (LinkRejectCode)rejectCode;
             await CloseAsync(LinkByeCode.HandshakeRejected, ct).ConfigureAwait(false);
 
             return false;
@@ -528,6 +576,15 @@ public sealed class LinkSession : IAsyncDisposable
         FramesSent++;
     }
 
+    /// <summary>협상된 프로토콜 버전 (B-01). 핸드셰이크 전에는 0.</summary>
+    public int NegotiatedVersion { get; private set; }
+
+    /// <summary>협상된 기능 비트 (B-01).</summary>
+    public ulong NegotiatedFeatures { get; private set; }
+
+    /// <summary>NPC 서버가 내용 해시 불일치를 경고로 수락했는가 (B-04).</summary>
+    public bool ContentHashWarning { get; private set; }
+
     /// <summary>마지막으로 받은 <c>Bye</c> 사유. 아직 없으면 null (A-02).</summary>
     public LinkByeCode? LastByeCode { get; private set; }
 
@@ -585,12 +642,17 @@ public sealed class LinkSession : IAsyncDisposable
             MemoryPackSerializer.Serialize(new WireBye { Code = (byte)code }),
             ct);
 
+    public static Task WriteFrameAsync(
+        Stream stream, LinkMessageKind kind, byte[] payload, CancellationToken ct) =>
+        WriteFrameAsync(stream, kind, payload, ct, FrameCodec.Version);
+
+    /// <summary>버전을 명시해 프레임 하나를 쓴다 (B-01 협상 경로).</summary>
     public static async Task WriteFrameAsync(
-        Stream stream, LinkMessageKind kind, byte[] payload, CancellationToken ct)
+        Stream stream, LinkMessageKind kind, byte[] payload, CancellationToken ct, byte version)
     {
         var writer = new ArrayBufferWriter<byte>(FrameCodec.HeaderSize + payload.Length);
 
-        FrameCodec.WriteHeader(writer, kind, payload.Length);
+        FrameCodec.WriteHeader(writer, kind, payload.Length, version);
         writer.Write(payload);
 
         await stream.WriteAsync(writer.WrittenMemory, ct).ConfigureAwait(false);
@@ -604,6 +666,21 @@ public sealed class LinkSession : IAsyncDisposable
     public static async Task<(LinkMessageKind Kind, byte[] Payload)> ReadFrameAsync(
         Stream stream, CancellationToken ct)
     {
+        (LinkMessageKind kind, byte[] payload, _) =
+            await ReadFrameWithVersionAsync(stream, ct).ConfigureAwait(false);
+
+        return (kind, payload);
+    }
+
+    /// <summary>
+    /// 위와 같되 프레임의 와이어 버전을 같이 돌려준다 (B-01).
+    ///
+    /// <c>WireHelloAck</c> 와 <c>WireHelloAckV2</c> 는 배치가 달라, 페이로드를 읽기 전에
+    /// 어느 쪽인지 알아야 한다.
+    /// </summary>
+    public static async Task<(LinkMessageKind Kind, byte[] Payload, byte Version)>
+        ReadFrameWithVersionAsync(Stream stream, CancellationToken ct)
+    {
         var header = new byte[FrameCodec.HeaderSize];
 
         await stream.ReadExactlyAsync(header, ct).ConfigureAwait(false);
@@ -612,7 +689,7 @@ public sealed class LinkSession : IAsyncDisposable
         // 여기서 필요한 것은 그 검사가 도는 것이고, 어기면 InvalidDataException 이 나온다.
         var probe = new ReadOnlySequence<byte>(header);
 
-        FrameCodec.TryReadFrame(ref probe, out _, out _);
+        FrameCodec.TryReadFrame(ref probe, out _, out _, out byte version);
 
         int length = (int)BinaryPrimitives.ReadUInt32LittleEndian(header);
         var kind = (LinkMessageKind)header[4];
@@ -623,7 +700,7 @@ public sealed class LinkSession : IAsyncDisposable
             await stream.ReadExactlyAsync(payload, ct).ConfigureAwait(false);
         }
 
-        return (kind, payload);
+        return (kind, payload, version);
     }
 
     /// <summary>

@@ -439,7 +439,7 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
         little-endian          u8     u8      u16 = 0     MemoryPack</code></pre>
       <ul>
         <li><code>PayloadLength</code>는 헤더를 뺀 바이트 수다.</li>
-        <li><code>Ver = 1</code>. 다르면 즉시 <code>Bye(ProtocolViolation)</code> 후 연결을 끊는다.</li>
+        <li><code>Ver ∈ [1, 2]</code> (B-01). 범위 <strong>밖</strong>이면 즉시 <code>Bye(ProtocolViolation)</code> 후 끊는다. 핸드셰이크 전에는 <code>1</code>로 쓰고, 협상이 끝나면 그 결과가 이후 모든 프레임의 <code>Ver</code>다. <strong>예전에는 단일 값 비교라 v2 프레임을 아예 읽을 수 없었고, 그래서 "버전이 다르다"를 협상으로 풀 방법이 없었다.</strong></li>
         <li><code>PayloadLength &gt; 1,048,576</code>(1MiB)이면 연결을 끊는다. <strong>길이 접두 프로토콜에서 이 검사를 빼면 잘못된 4바이트 하나로 프로세스가 죽는다.</strong></li>
         <li>헤더는 손으로 쓴다. MemoryPack 안에 길이를 또 넣지 않는다 — 진실의 출처를 둘로 만들지 않는다.</li>
       </ul>
@@ -448,8 +448,8 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
       <div class="table-wrap"><table>
         <thead><tr><th>Kind</th><th>이름</th><th>방향</th><th>페이로드</th></tr></thead>
         <tbody>
-          <tr><td>1</td><td><code>Hello</code></td><td>GS → NPC</td><td><code>WireHello</code></td></tr>
-          <tr><td>2</td><td><code>HelloAck</code></td><td>NPC → GS</td><td><code>WireHelloAck</code></td></tr>
+          <tr><td>1</td><td><code>Hello</code></td><td>GS → NPC</td><td>v1 <code>WireHello</code> · v2 <code>WireHelloV2</code></td></tr>
+          <tr><td>2</td><td><code>HelloAck</code></td><td>NPC → GS</td><td>v1 <code>WireHelloAck</code> · v2 <code>WireHelloAckV2</code></td></tr>
           <tr><td>3</td><td><code>CommandBatch</code></td><td>NPC → GS</td><td><code>WireCommand[]</code></td></tr>
           <tr><td>4</td><td><code>EventBatch</code></td><td>GS → NPC</td><td><code>WireEvent[]</code></td></tr>
           <tr><td>5</td><td><code>Heartbeat</code></td><td>양방향</td><td><code>WireHeartbeat</code></td></tr>
@@ -542,6 +542,46 @@ public enum LinkByeCode : byte
    │◄────────── EventBatch(TickSync) ──────────────────│ 이후 매 틱
    │ ─────────── CommandBatch ─────────────────────────►│ 틱 루프의 FlushAsync</code></pre>
       <div class="callout bad"><strong>거절은 조용히 넘기지 않는다</strong><p>마스터데이터가 다른 두 프로세스를 붙이면 POI 코드가 어긋나 NPC가 엉뚱한 곳으로 간다. 원인을 찾는 데 하루가 든다. <strong>연결 시점에 죽이는 편이 싸다.</strong> <code>--force</code> 같은 우회 옵션을 만들지 않는다.</p></div>
+      <h3>버전 협상 (B-01)</h3>
+      <p>v1 은 <code>ProtocolVersion</code>이 다르면 협상 없이 절단이었다. 계약(의미)에는 버전 자체가 없어서, <code>NpcCommandKind</code>에 항목 하나를 뒤에 추가해도 알릴 방법이 없었고 알리려면 양쪽을 동시에 내려야 했다 — 라이브 서비스의 롤링 배포와 정면으로 충돌한다.</p>
+      <p><strong>v2 는 범위를 보내고 NPC 서버가 고른다.</strong> 게임서버가 <code>[MinProtocolVersion, ProtocolVersion]</code>과 <code>ContractMajor/Minor</code>·<code>Features</code>를 보내면, NPC 서버가 자기 범위 <code>[1, 2]</code>와의 교집합에서 <strong>최댓값</strong>을 골라 <code>HelloAck.ProtocolVersion</code>으로 돌려준다. 최솟값을 고르면 양쪽이 새 버전을 지원해도 영원히 옛 버전으로 돌아 새 버전을 올릴 이유가 사라진다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>상황</th><th>판정</th><th>사유 코드</th></tr></thead>
+        <tbody>
+          <tr><td>교집합이 비었다</td><td>거절</td><td><code>ProtocolVersion</code></td></tr>
+          <tr><td><code>ContractMajor</code> 불일치</td><td>거절</td><td><code>ContractMismatch</code></td></tr>
+          <tr><td><code>ContractMinor</code> 불일치</td><td><strong>수락.</strong> 낮은 쪽 기준으로 돈다 — 높은 쪽이 상대가 모르는 Kind 를 보내지 않고, 드롭을 <strong>세면서</strong> 버린다</td><td>—</td></tr>
+          <tr><td>구조 해시 불일치</td><td>거절 (B-04)</td><td><code>MasterDataMismatch</code></td></tr>
+          <tr><td>내용 해시 불일치</td><td><strong>경고 후 수락</strong> (B-04). <code>HelloAck.ContentHashWarning = 1</code></td><td>—</td></tr>
+          <tr><td>인증 요구했는데 <code>Auth</code> 비트가 꺼짐</td><td>거절 (A-06)</td><td><code>AuthFailed</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>호환성 매트릭스</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>게임서버</th><th>NPC 서버</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr><td>v1</td><td>v1</td><td>protocol 1. 지금까지의 동작 그대로</td></tr>
+          <tr><td>v1</td><td>v1~v2</td><td><strong>protocol 1.</strong> 기능 비트 0, 게임 시각 없음. 재동기화는 그대로 돈다</td></tr>
+          <tr><td>v1~v2</td><td>v1~v2</td><td><strong>protocol 2.</strong> 기능 비트는 교집합, 계약 Minor 는 낮은 쪽</td></tr>
+          <tr><td>v2 만 (Min=2)</td><td>v1 만</td><td>거절 <code>ProtocolVersion</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>기능 비트 (<code>LinkFeatures</code>)</h3>
+      <p><strong>비트는 재배치하지 않는다</strong> — 마스터데이터의 <code>code</code>·<code>bit</code>와 같은 규칙이다. 추가는 뒤에만. 게임서버가 켠 것 중 NPC 서버가 아는 것만 협상 결과에 남는다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>비트</th><th>이름</th><th>무엇</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td><code>Auth</code></td><td>핸드셰이크 상호 인증 (A-06)</td></tr>
+          <tr><td>1</td><td><code>GlobalIds</code></td><td>전역 <code>NpcId</code>·샤드 식별 (A-08)</td></tr>
+          <tr><td>2</td><td><code>ExtSlots</code></td><td><code>InstanceId</code>·<code>Faction</code>·<code>ExtA/B</code> (B-02)</td></tr>
+          <tr><td>3</td><td><code>DynamicRoster</code></td><td>런타임 스폰·디스폰 (B-05)</td></tr>
+          <tr><td>4</td><td><code>Hostility</code></td><td><code>PlayerHostility</code> 이벤트 (B-06)</td></tr>
+          <tr><td>5</td><td><code>SessionEpoch</code></td><td>게임서버 재기동 시 시퀀스 기준 재설정 (G-02)</td></tr>
+        </tbody>
+      </table></div>
+
       <div class="callout warn"><strong>존 기후를 같이 보내야 한다</strong><p>존 정의에는 지역 상태와 기후가 <strong>둘 다</strong> 있다. 지역 상태만 초기화하면 기본값이 아닌 기후를 가진 존이 조용히 어긋난 채로 돈다. 기후는 버킷 키의 한 축이라 어긋나면 그 존의 NPC가 다른 버킷의 플랜을 쓴다 — 증상이 "가끔 이상하게 행동한다"로만 나타난다.</p></div>
 
       <h3>재접속과 시퀀스</h3>

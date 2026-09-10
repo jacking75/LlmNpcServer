@@ -156,7 +156,8 @@ public sealed class FrameCodecTests
         // 길이도 같이 망가뜨린다. 버전을 먼저 보지 않으면 길이 쪽 메시지가 나온다.
         BinaryPrimitives.WriteUInt32LittleEndian(header, uint.MaxValue);
         header[4] = (byte)LinkMessageKind.Hello;
-        header[5] = FrameCodec.Version + 1;
+        // B-01 뒤로는 [MinVersion, MaxVersion] 범위다. 범위 <b>밖</b>을 써야 거절된다.
+        header[5] = FrameCodec.MaxVersion + 1;
 
         var buffer = new ReadOnlySequence<byte>(header);
 

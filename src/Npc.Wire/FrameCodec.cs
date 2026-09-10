@@ -30,8 +30,19 @@ public static class FrameCodec
     /// <summary>헤더 크기. 고정 8바이트.</summary>
     public const int HeaderSize = 8;
 
-    /// <summary>지금 쓰는 와이어 버전. 다르면 <c>Bye(ProtocolViolation)</c> 후 끊는다.</summary>
+    /// <summary>
+    /// 기본 와이어 버전. 핸드셰이크 전에는 이 값으로 쓴다 (B-01).
+    ///
+    /// <b>협상 뒤에는 <see cref="MaxVersion"/> 까지 올라갈 수 있다.</b> 예전에는 이 상수 하나가
+    /// "쓰는 버전" 이자 "받아 줄 유일한 버전" 이라 v1 과 v2 를 동시에 말할 수 없었다.
+    /// </summary>
     public const byte Version = 1;
+
+    /// <summary>받아 줄 최소 와이어 버전.</summary>
+    public const byte MinVersion = 1;
+
+    /// <summary>받아 줄 최대 와이어 버전. 협상 결과가 이 안에 든다 (B-01).</summary>
+    public const byte MaxVersion = 2;
 
     /// <summary>페이로드 상한. 1 MiB.</summary>
     public const int MaxPayloadLength = 1 << 20;
@@ -41,17 +52,29 @@ public static class FrameCodec
     /// <param name="kind">프레임 종류.</param>
     /// <param name="payloadLength">헤더를 뺀 페이로드 바이트 수.</param>
     /// <exception cref="ArgumentOutOfRangeException">길이가 음수이거나 상한을 넘는다.</exception>
-    public static void WriteHeader(IBufferWriter<byte> writer, LinkMessageKind kind, int payloadLength)
+    public static void WriteHeader(IBufferWriter<byte> writer, LinkMessageKind kind, int payloadLength) =>
+        WriteHeader(writer, kind, payloadLength, Version);
+
+    /// <summary>헤더를 쓴다. 버전을 명시한다 (B-01 협상 뒤 경로).</summary>
+    /// <param name="writer">쓸 곳.</param>
+    /// <param name="kind">프레임 종류.</param>
+    /// <param name="payloadLength">헤더를 뺀 페이로드 바이트 수.</param>
+    /// <param name="version">와이어 버전. 협상 결과다.</param>
+    /// <exception cref="ArgumentOutOfRangeException">길이나 버전이 범위를 벗어난다.</exception>
+    public static void WriteHeader(
+        IBufferWriter<byte> writer, LinkMessageKind kind, int payloadLength, byte version)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentOutOfRangeException.ThrowIfNegative(payloadLength);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(payloadLength, MaxPayloadLength);
+        ArgumentOutOfRangeException.ThrowIfLessThan(version, MinVersion);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(version, MaxVersion);
 
         Span<byte> header = writer.GetSpan(HeaderSize);
 
         BinaryPrimitives.WriteUInt32LittleEndian(header, (uint)payloadLength);
         header[4] = (byte)kind;
-        header[5] = Version;
+        header[5] = version;
         BinaryPrimitives.WriteUInt16LittleEndian(header[6..], 0);   // Reserved
 
         writer.Advance(HeaderSize);
@@ -76,10 +99,28 @@ public static class FrameCodec
     public static bool TryReadFrame(
         ref ReadOnlySequence<byte> buffer,
         out LinkMessageKind kind,
-        out ReadOnlySequence<byte> payload)
+        out ReadOnlySequence<byte> payload) =>
+        TryReadFrame(ref buffer, out kind, out payload, out _);
+
+    /// <summary>
+    /// 위와 같되 프레임의 와이어 버전을 같이 돌려준다 (B-01).
+    ///
+    /// 핸드셰이크는 상대가 v1 인지 v2 인지 <b>페이로드를 읽기 전에</b> 알아야 한다 —
+    /// <c>WireHello</c> 와 <c>WireHelloV2</c> 는 배치가 다르다.
+    /// </summary>
+    /// <param name="buffer">읽을 곳. 성공하면 떼어낸 프레임 뒤로 밀려 있다.</param>
+    /// <param name="kind">프레임 종류.</param>
+    /// <param name="payload">페이로드.</param>
+    /// <param name="version">프레임의 와이어 버전.</param>
+    public static bool TryReadFrame(
+        ref ReadOnlySequence<byte> buffer,
+        out LinkMessageKind kind,
+        out ReadOnlySequence<byte> payload,
+        out byte version)
     {
         kind = LinkMessageKind.None;
         payload = default;
+        version = 0;
 
         if (buffer.Length < HeaderSize)
         {
@@ -91,13 +132,18 @@ public static class FrameCodec
         buffer.Slice(0, HeaderSize).CopyTo(header);
 
         uint length = BinaryPrimitives.ReadUInt32LittleEndian(header);
-        byte version = header[5];
+
+        version = header[5];
 
         // 버전을 길이보다 먼저 본다 — 버전이 다르면 길이 해석 자체를 믿을 수 없다.
-        if (version != Version)
+        //
+        // <b>범위 검사다</b> (B-01). 예전에는 단일 값과 비교해 v2 프레임을 아예 못 읽었고,
+        // 그래서 "버전이 다르다" 를 협상으로 풀 방법이 없었다.
+        if (version < MinVersion || version > MaxVersion)
         {
             throw new InvalidDataException(
-                $"와이어 버전이 다르다: 받은 {version}, 기대 {Version}. 연결을 끊는다 (docs/20 §5.1).");
+                $"와이어 버전이 범위를 벗어난다: 받은 {version}, 지원 [{MinVersion}, {MaxVersion}]. "
+                + "연결을 끊는다 (docs/20 §5.1).");
         }
 
         if (length > MaxPayloadLength)

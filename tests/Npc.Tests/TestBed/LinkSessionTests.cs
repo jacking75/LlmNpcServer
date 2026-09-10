@@ -5,6 +5,7 @@ using Npc.MasterData;
 using Npc.TestGameServer;
 using Npc.TestGameServer.Link;
 using Npc.Wire;
+using Npc.Wire.V2;
 
 namespace Npc.Tests.TestBed;
 
@@ -41,6 +42,49 @@ public sealed class LinkSessionTests
         Assert.True(session.IsAccepted);
         Assert.True(session.NeedsResync);
         Assert.Equal(1, bed.Listener.SessionsAccepted);
+    }
+
+    /// <summary>B-01 — v2 게임서버와 v2 NPC 서버는 protocol 2 로 붙는다.</summary>
+    [Fact]
+    public async Task LinkSession_NegotiatesVersionTwo()
+    {
+        await using var bed = await Bed.StartAsync(npcs: 8);
+
+        Assert.True(bed.Connected);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        Assert.Equal(2, session.NegotiatedVersion);
+        Assert.Equal(2, bed.Link.NegotiatedVersion);
+        Assert.Equal(Npc.Contracts.ContractVersion.Minor, bed.Link.NegotiatedContractMinor);
+
+        // 기능 비트는 교집합이다 — 대역이 켠 것 중 NPC 서버가 아는 것만 남는다.
+        Assert.True(VersionNegotiation.Has(bed.Link.NegotiatedFeatures, LinkFeatures.GlobalIds));
+        Assert.False(VersionNegotiation.Has(bed.Link.NegotiatedFeatures, LinkFeatures.Auth));
+
+        // A-10 — 게임 시각이 핸드셰이크에 실린다.
+        Assert.InRange(bed.Link.StartGameMinuteOfDay, 0, 1439);
+    }
+
+    /// <summary>B-01 완료 조건 — v1 게임서버가 v2 NPC 서버에 붙어 데모가 돈다.</summary>
+    [Fact]
+    public async Task LinkSession_V1GameServer_StillConnects()
+    {
+        await using var bed = await Bed.StartAsync(npcs: 8, protocolVersion: 1);
+
+        Assert.True(bed.Connected);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        Assert.True(session.IsAccepted);
+        Assert.Equal(1, bed.Link.NegotiatedVersion);
+
+        // v1 회차에는 기능 비트도 게임 시각도 없다. 없는 것을 있는 척하지 않는다.
+        Assert.Equal(0UL, bed.Link.NegotiatedFeatures);
+        Assert.Equal(-1, bed.Link.StartGameMinuteOfDay);
+
+        // 그래도 재동기화는 돈다 — v1 의 의미가 그대로 유지된다.
+        Assert.True(session.NeedsResync);
     }
 
     /// <summary>A-02 — 정상 종료는 <c>Bye(Shutdown)</c> 을 보낸다. 게임서버가 사유를 안다.</summary>
@@ -444,10 +488,16 @@ public sealed class LinkSessionTests
         /// <param name="corruptRoster">
         /// NPC 서버 쪽 로스터 해시를 일부러 어긋나게 한다. 거절 경로를 보는 회차다.
         /// </param>
-        public static async Task<Bed> StartAsync(int npcs, bool corruptRoster = false)
+        public static async Task<Bed> StartAsync(
+            int npcs, bool corruptRoster = false, int protocolVersion = 2)
         {
             NpcRoster roster = NpcRoster.Select(s_instances, npcs);
-            var options = new GameServerOptions { Npcs = npcs, LinkPort = 0 };
+            var options = new GameServerOptions
+            {
+                Npcs = npcs,
+                LinkPort = 0,
+                ProtocolVersion = protocolVersion,
+            };
             GameWorld world = GameWorld.Create(options, s_data, roster);
 
             var listener = new LinkListener(world, s_data, options);

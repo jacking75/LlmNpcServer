@@ -34,6 +34,29 @@ public sealed record TcpLinkOptions
     /// <summary>내 마스터데이터 콘텐츠 해시.</summary>
     public WireHash MasterData { get; init; }
 
+    /// <summary>
+    /// 내 마스터데이터 <b>구조</b> 해시 (B-04). id·code·bit·좌표 집합.
+    ///
+    /// 비어 있으면 <see cref="MasterData"/> 를 쓴다 — v1 회차와 같은 동작이다.
+    /// <b>불일치는 거절이다.</b> 게임서버가 POI 좌표를 다르게 알면 NPC 가 엉뚱한 곳으로 간다.
+    /// </summary>
+    public WireHash MasterDataStructural { get; init; }
+
+    /// <summary>
+    /// 내 마스터데이터 <b>내용</b> 해시 (B-04). desc·traits·인터럽트 등 나머지.
+    ///
+    /// <b>불일치는 경고 후 수락이다.</b> 게임서버와 NPC 서버가 다른 파이프라인으로 배포되는
+    /// 상용에서 한쪽이 밸런스를 먼저 받은 상태는 정상 운영의 일부다.
+    /// </summary>
+    public WireHash MasterDataContent { get; init; }
+
+    /// <summary>
+    /// 인증을 반드시 요구하는가 (A-06). 기본은 요구하지 않는다 — v1 게임서버와 붙어야 한다.
+    ///
+    /// 켜면 게임서버가 <c>Auth</c> 기능을 안 켠 회차를 <c>AuthFailed</c> 로 거절한다.
+    /// </summary>
+    public bool RequireAuth { get; init; }
+
     /// <summary>내 NPC 로스터 해시 (docs/20 §10.2).</summary>
     public WireHash Roster { get; init; }
 
