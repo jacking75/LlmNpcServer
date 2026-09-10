@@ -1,0 +1,7 @@
+{
+  "name": "hello_ack_v2",
+  "bytes": 160,
+  "meaning": "WireHelloAckV2 하나.",
+  "generated_by": "tests/Npc.Tests/Wire/LayoutDocTests.cs",
+  "layout": "docs/wire/layout_v2.md"
+}

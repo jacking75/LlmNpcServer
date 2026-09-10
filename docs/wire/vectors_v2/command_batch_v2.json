@@ -1,0 +1,7 @@
+{
+  "name": "command_batch_v2",
+  "bytes": 148,
+  "meaning": "WireCommandV2 2개. 접두 int32 + 원소 72B.",
+  "generated_by": "tests/Npc.Tests/Wire/LayoutDocTests.cs",
+  "layout": "docs/wire/layout_v2.md"
+}

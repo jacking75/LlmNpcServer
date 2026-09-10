@@ -520,6 +520,20 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
       <div class="callout warn"><strong>왜 <code>Reserved</code>를 필드로 두는가</strong><p>MemoryPack은 unmanaged struct를 원시 복사한다. 암묵 패딩이 남아 있으면 <strong>초기화되지 않은 바이트가 그대로 소켓에 나가고</strong>, 회차마다 값이 달라져 골든 바이트 벡터(B-03)가 성립하지 않는다. 다른 언어 구현이 그 바이트를 해석하려 들 수도 있다. <code>Wire_HasNoImplicitPadding_V2</code>가 필드 크기 합 == <code>sizeof</code>를 단언한다.</p></div>
       <div class="callout"><strong>72바이트다 — 로드맵 초안의 64가 아니다</strong><p>v1 명령이 56B(패딩 0)이고 <code>Instance</code>(2)+<code>Faction</code>(2)+<code>ExtA</code>(4)+<code>ExtB</code>(4) = 68B, 정렬 8이라 72B다. 64에 넣으려면 예약 슬롯 하나를 버려야 하고, 그러면 "예약 슬롯 2개"라는 설계 자체가 없어진다. 이벤트는 초안대로 80B다.</p></div>
       <p><strong>프레임 버전으로 배치를 고른다.</strong> 수신 측은 협상 결과가 아니라 <strong>프레임 헤더의 <code>Ver</code></strong>를 보고 v1/v2 배치를 고른다. 협상 직후의 경계에서 두 버전이 섞여 도착할 수 있고, 그때 협상값으로 읽으면 배치가 어긋나 스트림 전체가 쓰레기가 된다.</p>
+
+      <h3>다른 언어로 구현할 때 — <code>docs/wire/</code> (B-03)</h3>
+      <p><strong>지금까지의 프로토콜 명세는 사실상 "C# DTO 의 선언 순서" 였다.</strong> C++ 게임서버를 쓰는 팀은 그것을 추측해야 했고, 추측이 틀린 것은 통합 시험에서야 드러난다. v2 부터는 추측할 자리를 없앤다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>산출물</th><th>무엇</th><th>어떻게 지키나</th></tr></thead>
+        <tbody>
+          <tr><td><code>docs/wire/layout_v2.md</code></td><td><strong>오프셋 표.</strong> 타입 10종의 필드별 오프셋·크기·부호·엔디언·<strong>패딩 위치</strong></td><td><strong>생성물이다.</strong> <code>LayoutDocTests</code> 가 <code>Marshal.OffsetOf</code> 로 다시 뽑아 대조하고, 어긋나면 덮어쓰고 실패한다</td></tr>
+          <tr><td><code>docs/wire/vectors_v2/</code></td><td><strong>골든 바이트 벡터</strong> 7종 (hex + 뜻 json). 다른 언어 구현이 자기 코덱을 이것으로 시험한다</td><td>같은 테스트가 생성·대조한다</td></tr>
+          <tr><td><code>docs/wire/reference/npc_wire.h</code></td><td>C++17 헤더 온리 참조 코덱. <code>static_assert</code> 로 크기를 못 박고, <code>memcpy</code>+시프트라 <strong>빅엔디언 기계에서도 돈다</strong></td><td><code>WireReferenceTests</code> 가 크기 상수·디코더 오프셋을 표와 대조. <strong>컴파일 확인은 미실시</strong>(이 저장소에 C++ 컴파일러가 없다)</td></tr>
+          <tr><td><code>docs/wire/reference/npc_wire.py</code></td><td>파이썬 참조 코덱 + <strong>골든 벡터 자체 시험</strong></td><td><code>python docs/wire/reference/npc_wire.py</code> 가 벡터를 디코드·재인코드해 대조한다. <code>build.ps1</code> 6단계</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout warn"><strong>핸드셰이크에는 정렬 구멍이 있다</strong><p><code>WireHash</code>가 8바이트 정렬이라 앞의 <code>int</code> 뒤에 4바이트가 뜬다 — <code>WireHelloAck</code>는 오프셋 12·82, <code>WireHelloV2</code>는 12·36·52·68, <code>WireHelloAckV2</code>는 155다. MemoryPack 이 원시 복사하므로 <strong>그 바이트도 그대로 나간다.</strong> 고치지 않는다 — 필드를 옮기면 이미 붙어 있는 게임서버가 통째로 깨진다. <strong>읽는 쪽은 건너뛰고 쓰는 쪽은 0 으로 채운다.</strong> 위치는 <code>HandshakePadding_IsPinned</code>가 못 박는다.</p></div>
+      <div class="callout"><strong>v2 배치는 명시 직렬화다</strong><p><code>Npc.Wire/V2/WireWriter.cs</code> 가 필드마다 <code>BinaryPrimitives</code> 로 리틀엔디언을 쓴다. 바이트는 원시 복사와 <strong>같지만</strong>(테스트가 못 박는다) 명세가 배치가 아니라 <strong>오프셋 표</strong>가 된다. 배치 페이로드는 <code>int32</code> 접두 + 고정 크기 원소이고, <strong>접두가 음수면 null 배열</strong>이라 빈 배치(0)와 다르다.</p></div>
       <p><strong>대역폭 어림.</strong> NPC 500, 관측 대상 256 상한 기준 이벤트는 최악 <code>256 × 64B × 10Hz ≈ 164KB/s</code>. 명령은 NPC당 스텝 경계에서만 나가므로 훨씬 적다.</p>
 
       <h3>제어 메시지</h3>
@@ -762,6 +776,11 @@ public enum LinkByeCode : byte
           <tr><td><code>Wire_MirrorsContractMembers</code></td><td>계약 타입 ↔ 와이어 DTO 멤버 집합 1:1</td></tr>
           <tr><td><code>Wire_LayoutIsFrozen</code></td><td><code>sizeof</code>가 56·64. 패딩이 생기면 값이 달라진다</td></tr>
           <tr><td><code>Wire_LayoutIsFrozen_V2</code></td><td><code>sizeof</code>가 72·80. <code>Wire_HasNoImplicitPadding_V2</code>가 암묵 패딩 0 을 같이 본다</td></tr>
+          <tr><td><code>WireWriter_MatchesMemoryPackBytes</code></td><td>명시 직렬화의 바이트가 원시 복사와 <strong>같다</strong>. 형식이 안 바뀌었음을 증명해야 이미 붙어 있는 상대가 안 깨진다</td></tr>
+          <tr><td><code>LayoutDoc_MatchesTheCode</code></td><td><code>docs/wire/layout_v2.md</code> 가 코드와 같다. 어긋나면 <strong>새로 뽑아 덮고</strong> 실패한다 — 손으로 표를 고치면 또 어긋난다</td></tr>
+          <tr><td><code>GoldenVectors_MatchTheCode</code></td><td><code>docs/wire/vectors_v2/</code> 가 코드와 같다. <strong>벡터 diff 는 연동 팀에 알려야 하는 변경</strong>이다</td></tr>
+          <tr><td><code>WireReferenceTests</code></td><td>C++·파이썬 참조 코덱의 크기 상수·디코더 오프셋·필드 이름이 표와 같다</td></tr>
+          <tr><td><code>HandshakePadding_IsPinned</code></td><td>핸드셰이크의 정렬 구멍 위치를 못 박는다. 옮기면 이미 붙어 있는 상대가 깨진다</td></tr>
           <tr><td><code>Ext_ZeroForUndefinedKinds</code></td><td>의미가 등록되지 않은 예약 슬롯에 값이 들어가면 <code>ExtensionSlots.IsClean</code> 이 거짓</td></tr>
           <tr><td><code>TestBed_InstanceIdSurvivesTheRoundTrip</code></td><td>게임서버 대역이 <code>InstanceId=2</code> 로 일부를 띄우고, 되돌아온 명령의 인스턴스를 대조한다. <strong>대조 횟수 0 은 통과가 아니다</strong></td></tr>
           <tr><td><code>Frame_SplitAcrossReads</code></td><td>1바이트씩 넣어도 복원. 다 오기 전에는 버퍼를 건드리지 않는다</td></tr>
@@ -784,7 +803,7 @@ public enum LinkByeCode : byte
       <div class="table-wrap"><table>
         <thead><tr><th>항목</th><th>상태</th><th>내용</th></tr></thead>
         <tbody>
-          <tr><td>이기종 엔디언·패딩</td><td><span class="badge warn">구현 필요</span></td><td>unmanaged 배열을 원시 메모리로 복사하므로 <strong>양쪽이 같은 x64 .NET 런타임</strong>임을 전제한다. 다른 런타임의 게임서버에 붙일 때는 필드별 쓰기를 하는 커스텀 포매터로 바꾼다 — <strong>바꿀 자리가 <code>Npc.Wire</code> 한 곳뿐인 것이 이 설계의 요점이다</strong></td></tr>
+          <tr><td>이기종 엔디언·패딩</td><td><span class="badge ok">구현됨 (v2)</span></td><td><strong>v2 배치는 필드별 리틀엔디언 쓰기</strong>다 (<code>Npc.Wire/V2/WireWriter.cs</code>, B-03) — 원시 복사를 전제하지 않는다. 오프셋 표는 <code>docs/wire/layout_v2.md</code>(생성물), 골든 바이트는 <code>docs/wire/vectors_v2/</code>, 참조 코덱은 <code>docs/wire/reference/npc_wire.h</code>(C++17)·<code>npc_wire.py</code> 다. <strong>v1 배치는 여전히 원시 복사</strong>이고 그것이 v1 의 의미다 — 다른 런타임과 붙을 때는 v2 로 협상한다</td></tr>
           <tr><td>인증·암호화</td><td><span class="badge ok">구현됨 (v2)</span></td><td>HMAC-SHA256 상호 인증 + nonce 재사용 거절 + TLS/mTLS (A-06). 비밀은 <code>NPC_LINK_SECRET</code> 환경변수로만. 관리 API 는 <code>Authorization: Bearer &lt;NPC_ADMIN_TOKEN&gt;</code> — <code>/healthz/*</code>와 <code>/metrics/prometheus</code>만 무인증이다. 상세는 §09</td></tr>
           <tr><td>샤딩</td><td><span class="badge warn">구현 필요</span></td><td>링크 하나가 게임서버 하나에 붙는다. 월드를 여러 프로세스로 쪼개면 존별 라우팅이 필요하다</td></tr>
         </tbody>

@@ -1,0 +1,7 @@
+{
+  "name": "heartbeat",
+  "bytes": 16,
+  "meaning": "WireHeartbeat 하나.",
+  "generated_by": "tests/Npc.Tests/Wire/LayoutDocTests.cs",
+  "layout": "docs/wire/layout_v2.md"
+}

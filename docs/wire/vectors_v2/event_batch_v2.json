@@ -1,0 +1,7 @@
+{
+  "name": "event_batch_v2",
+  "bytes": 244,
+  "meaning": "WireEventV2 3개. 접두 int32 + 원소 80B.",
+  "generated_by": "tests/Npc.Tests/Wire/LayoutDocTests.cs",
+  "layout": "docs/wire/layout_v2.md"
+}

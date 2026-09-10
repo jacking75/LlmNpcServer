@@ -132,6 +132,7 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 | **링크 구현 5종** | `Loopback`(인프로세스 `Npc.Sim` 직결) · `Null` · `Recording` · `Replay` · `Tcp` |
 | **와이어** | MemoryPack DTO + 8바이트 프레임 헤더. 버전 범위 [1, 2] 협상. **v1 56B/64B 는 동결**, v2 72B/80B |
 | **확장 슬롯** | `Instance`(채널·인스턴스 던전) · `Faction`(세력) · `ExtA`/`ExtB`(예약). `ExtSlots` 기능 비트를 켠 게임서버에만 나간다 — 안 켜면 **버려진다** |
+| **이기종 구현** | 오프셋 표(생성물) · 골든 바이트 벡터 7종 · **C++17/파이썬 참조 코덱** → [`docs/wire/`](docs/wire/layout_v2.md). v2 배치는 필드별 리틀엔디언 명시 직렬화다 |
 | **상호 인증** | HMAC-SHA256 + 논스 재사용 캐시 · `FixedTimeEquals` · TLS/mTLS |
 | **해시 분할** | **구조 해시**는 완전 일치 요구(불일치 = 거절), **내용 해시**는 경고 후 수락 |
 | **장애 주입** | `--drop-rate` 로 명령 유실을 상시 시험 |
@@ -645,6 +646,7 @@ docs/               설계 사양 (아래)
 | [`docs/security/secrets.md`](docs/security/secrets.md) | **시크릿.** 환경변수 목록 · 회전 절차 · 유출 대응. **무중단 회전은 없다** — 회전 = 재기동 |
 | [`docs/security/privacy.md`](docs/security/privacy.md) | 플레이어 id 가 남는 위치와 삭제 경로 |
 | [`docs/legal/dotllm.md`](docs/legal/dotllm.md) · [`models.md`](docs/legal/models.md) | dotLLM GPLv3 배포 경계 · 모델 약관. **법무 확인은 미실시** |
+| [`docs/wire/layout_v2.md`](docs/wire/layout_v2.md) | **와이어 오프셋 표 (생성물).** 다른 언어로 게임서버를 짤 때 읽는다 — 필드별 오프셋·크기·부호·엔디언·패딩 위치 |
 
 코드를 고친다면 [`CLAUDE.md`](CLAUDE.md)(규칙)와 [`CODEMAP.md`](CODEMAP.md)(무엇을 하려면 어디를 여는가)를 먼저 읽는다.
 

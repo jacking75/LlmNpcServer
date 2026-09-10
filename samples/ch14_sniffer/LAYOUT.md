@@ -75,6 +75,10 @@ NPC 50마리 · 배속 60 · 12초 (`samples/ch14_sniffer/sniff.py`)
 | `Heartbeat` | `WireHeartbeat` |
 | `Bye` | `WireBye` |
 
+> **더 정확한 표가 있다.** `docs/wire/layout_v2.md` 는 코드에서 뽑는 생성물이라
+> 필드별 오프셋·패딩 위치까지 있다. 이 문서는 스니퍼를 쓰는 데 필요한 만큼만 적는다.
+> 코덱을 직접 쓸 것이라면 `docs/wire/reference/npc_wire.py` 를 베낀다.
+
 ### 구조체 크기는 **고정**이다
 
 | 타입 | 크기 | 테스트 |

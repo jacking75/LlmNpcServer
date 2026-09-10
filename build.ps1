@@ -17,6 +17,9 @@
        Load  는 수 분이 걸리고 docs/measurements/*.csv 를 덮어쓴다 (CLAUDE.md §5 — 야간).
     4. npc validate        마스터데이터 V1~V13 + 로더 + 파생물 신선도
     5. npc regen --check   파생물이 낡았으면 실패 (F-04)
+    6. check_wire_reference.ps1  참조 코덱(python·C++)이 골든 바이트와 맞는가 (B-03)
+       도구가 없는 기계에서는 그 항목을 "미실시" 로 적고 넘어간다 — 파이썬도 C++ 컴파일러도
+       이 저장소의 빌드 의존이 아니다. 숫자 대조는 3단계의 WireReferenceTests 가 한다.
 
 .PARAMETER Configuration
     빌드 구성. 기본 Release.
@@ -26,6 +29,9 @@
 
 .PARAMETER SkipData
     마스터데이터 검증과 파생물 신선도 검사를 건너뛴다. 코드만 고쳤을 때 쓴다.
+
+.PARAMETER SkipWire
+    참조 코덱 확인을 건너뛴다.
 
 .EXAMPLE
     .\build.ps1
@@ -38,7 +44,9 @@ param(
 
     [switch] $SkipFormat,
 
-    [switch] $SkipData
+    [switch] $SkipData,
+
+    [switch] $SkipWire
 )
 
 $ErrorActionPreference = 'Stop'
@@ -92,6 +100,21 @@ if (-not $SkipData) {
         'run', '--project', $cli, '-c', $Configuration, '--no-build', '--',
         'regen', '--check', '--masterdata', (Join-Path $PSScriptRoot 'masterdata')
     )
+}
+
+if (-not $SkipWire) {
+    # 참조 코덱은 연동 팀이 베끼는 것이다. 코드와 어긋나면 없는 것보다 나쁘다 (B-03).
+    Write-Host ''
+    Write-Host '=== wire reference ===' -ForegroundColor Cyan
+
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'tools/check_wire_reference.ps1')
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host '    FAILED' -ForegroundColor Red
+        $failed += 'wire reference'
+    }
+    else {
+        Write-Host '    OK' -ForegroundColor Green
+    }
 }
 
 Write-Host ''

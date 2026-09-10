@@ -1,0 +1,7 @@
+{
+  "name": "bye",
+  "bytes": 1,
+  "meaning": "WireBye 하나. Code = Shutdown.",
+  "generated_by": "tests/Npc.Tests/Wire/LayoutDocTests.cs",
+  "layout": "docs/wire/layout_v2.md"
+}

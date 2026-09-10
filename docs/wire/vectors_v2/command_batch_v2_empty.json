@@ -1,0 +1,7 @@
+{
+  "name": "command_batch_v2_empty",
+  "bytes": 4,
+  "meaning": "빈 배치. 접두 4바이트만. 빈 배치도 프레임 하나다 (N8).",
+  "generated_by": "tests/Npc.Tests/Wire/LayoutDocTests.cs",
+  "layout": "docs/wire/layout_v2.md"
+}

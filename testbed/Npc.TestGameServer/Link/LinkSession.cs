@@ -65,6 +65,9 @@ public sealed class LinkSession : IAsyncDisposable
     /// <summary>v2 스테이징 (B-02). 확장 슬롯이 협상되면 이쪽으로 나간다.</summary>
     private readonly WireEventV2[] _stagingV2 = new WireEventV2[MaxEventsPerTick];
 
+    /// <summary>v2 페이로드 버퍼 (B-03). 틱 스레드만 만진다.</summary>
+    private readonly byte[] _payload = new byte[WireWriter.EventBatchSize(MaxEventsPerTick)];
+
     /// <summary>
     /// 세션이 살아 있는가. 0 이면 죽은 것이다.
     ///
@@ -417,16 +420,24 @@ public sealed class LinkSession : IAsyncDisposable
 
         if (version >= 2)
         {
-            WireCommandV2[]? v2 = MemoryPackSerializer.Deserialize<WireCommandV2[]>(payload);
+            // B-03 — 명시 직렬화를 읽는다. 길이가 안 맞으면 하나도 반영하지 않는다.
+            byte[] bytes = payload.ToArray();
 
-            if (v2 is null)
+            if (!WireWriter.TryReadCount(bytes, out int declared) || declared <= 0)
             {
                 return;   // 빈 배치도 프레임 하나다 (N8). 셌으니 할 일이 없다
             }
 
-            foreach (WireCommandV2 wire in v2)
+            var v2 = new WireCommandV2[declared];
+
+            if (!WireWriter.TryReadCommands(bytes, v2, out int read))
             {
-                NpcCommand command = wire.To();
+                return;
+            }
+
+            for (int i = 0; i < read; i++)
+            {
+                NpcCommand command = v2[i].To();
 
                 CommandsReceived++;
                 _world.Inbox.TryEnqueue(in command);
@@ -642,8 +653,9 @@ public sealed class LinkSession : IAsyncDisposable
     {
         bool ext = ExtSlotsNegotiated;
 
-        byte[] payload = ext
-            ? MemoryPackSerializer.Serialize(_stagingV2.AsSpan(0, count).ToArray())
+        // B-03 — v2 는 명시 직렬화다. 버퍼를 재사용하므로 배치마다 배열을 만들지 않는다.
+        ReadOnlyMemory<byte> payload = ext
+            ? _payload.AsMemory(0, WireWriter.WriteEvents(_payload, _stagingV2.AsSpan(0, count)))
             : MemoryPackSerializer.Serialize(_staging.AsSpan(0, count).ToArray());
 
         await WriteFrameAsync(
@@ -730,12 +742,12 @@ public sealed class LinkSession : IAsyncDisposable
 
     /// <summary>버전을 명시해 프레임 하나를 쓴다 (B-01 협상 경로).</summary>
     public static async Task WriteFrameAsync(
-        Stream stream, LinkMessageKind kind, byte[] payload, CancellationToken ct, byte version)
+        Stream stream, LinkMessageKind kind, ReadOnlyMemory<byte> payload, CancellationToken ct, byte version)
     {
         var writer = new ArrayBufferWriter<byte>(FrameCodec.HeaderSize + payload.Length);
 
         FrameCodec.WriteHeader(writer, kind, payload.Length, version);
-        writer.Write(payload);
+        writer.Write(payload.Span);
 
         await stream.WriteAsync(writer.WrittenMemory, ct).ConfigureAwait(false);
         await stream.FlushAsync(ct).ConfigureAwait(false);

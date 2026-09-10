@@ -72,6 +72,14 @@ public sealed class TcpGameServerLink : IGameServerLink
     /// </summary>
     private readonly WireCommandV2[] _stagingV2;
 
+    /// <summary>
+    /// v2 페이로드 버퍼 (B-03). 센더 태스크만 만진다.
+    ///
+    /// <b>배치마다 배열을 만들지 않는다.</b> 10Hz × 배치 하나면 초당 10개의 임시 배열이고,
+    /// 그것이 곧 센더 스레드의 Gen0 이다.
+    /// </summary>
+    private readonly byte[] _payload;
+
     private TcpClient? _client;
     private Stream? _stream;
     private Task? _sender;
@@ -116,6 +124,7 @@ public sealed class TcpGameServerLink : IGameServerLink
         _outbound = new BatchQueue(options.OutboundBatches, options.Capacity);
         _staging = new WireCommand[options.Capacity];
         _stagingV2 = new WireCommandV2[options.Capacity];
+        _payload = new byte[WireWriter.CommandBatchSize(options.Capacity)];
     }
 
     /// <summary>게임서버 → NPC 서버.</summary>
@@ -781,7 +790,7 @@ public sealed class TcpGameServerLink : IGameServerLink
         byte[] bytes = payload.ToArray();
 
         GameEvent[]? decoded = version >= 2
-            ? Decode(MemoryPackSerializer.Deserialize<WireEventV2[]>(bytes))
+            ? DecodeV2(bytes)
             : Decode(MemoryPackSerializer.Deserialize<WireEvent[]>(bytes));
 
         if (decoded is null)
@@ -831,17 +840,35 @@ public sealed class TcpGameServerLink : IGameServerLink
         return events;
     }
 
-    /// <summary>v2 이벤트 배치를 도메인으로 (B-02).</summary>
-    private static GameEvent[]? Decode(WireEventV2[]? wire)
+    /// <summary>
+    /// v2 이벤트 배치를 도메인으로 (B-02 · B-03).
+    ///
+    /// <b>명시 직렬화를 읽는다.</b> 길이가 안 맞으면 <b>하나도 반영하지 않는다</b> —
+    /// 잘라 읽으면 그 프레임부터 스트림 전체가 쓰레기가 되고, 증상은 "가끔 이상한 이벤트가
+    /// 온다" 로만 나타난다.
+    /// </summary>
+    private static GameEvent[]? DecodeV2(ReadOnlySpan<byte> payload)
     {
-        if (wire is null)
+        if (!WireWriter.TryReadCount(payload, out int declared))
         {
             return null;
         }
 
-        var events = new GameEvent[wire.Length];
+        if (declared <= 0)
+        {
+            return declared == 0 ? [] : null;
+        }
 
-        for (int i = 0; i < wire.Length; i++)
+        var wire = new WireEventV2[declared];
+
+        if (!WireWriter.TryReadEvents(payload, wire, out int count))
+        {
+            return null;
+        }
+
+        var events = new GameEvent[count];
+
+        for (int i = 0; i < count; i++)
         {
             events[i] = wire[i].To();
         }
@@ -884,7 +911,7 @@ public sealed class TcpGameServerLink : IGameServerLink
             // B-02 — 확장 슬롯이 협상됐으면 v2 배치로 나간다. 아니면 v1 그대로이고
             // Instance·Faction·ExtA·ExtB 는 조용히 버려진다(그것이 v1 의 의미다).
             bool ext = ExtSlotsNegotiated;
-            byte[] payload;
+            ReadOnlyMemory<byte> payload;
 
             if (ext)
             {
@@ -893,7 +920,11 @@ public sealed class TcpGameServerLink : IGameServerLink
                     _stagingV2[i] = WireCommandV2.From(in batch[i]);
                 }
 
-                payload = MemoryPackSerializer.Serialize(_stagingV2.AsSpan(0, count).ToArray());
+                // B-03 — 명시 직렬화다. 바이트는 원시 복사와 같지만(WireWriter 요약),
+                // 명세가 "C# DTO 의 선언 순서" 가 아니라 오프셋 표가 된다.
+                // 버퍼를 재사용하므로 배치마다 배열을 만들지 않는다.
+                payload = _payload.AsMemory(
+                    0, WireWriter.WriteCommands(_payload, _stagingV2.AsSpan(0, count)));
             }
             else
             {
@@ -1073,12 +1104,12 @@ public sealed class TcpGameServerLink : IGameServerLink
         WriteFrameAsync(stream, kind, payload, ct, FrameCodec.Version);
 
     private static async Task WriteFrameAsync(
-        Stream stream, LinkMessageKind kind, byte[] payload, CancellationToken ct, byte version)
+        Stream stream, LinkMessageKind kind, ReadOnlyMemory<byte> payload, CancellationToken ct, byte version)
     {
         var writer = new ArrayBufferWriter<byte>(FrameCodec.HeaderSize + payload.Length);
 
         FrameCodec.WriteHeader(writer, kind, payload.Length, version);
-        writer.Write(payload);
+        writer.Write(payload.Span);
 
         await stream.WriteAsync(writer.WrittenMemory, ct).ConfigureAwait(false);
         await stream.FlushAsync(ct).ConfigureAwait(false);

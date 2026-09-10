@@ -1,0 +1,7 @@
+{
+  "name": "hello_v2",
+  "bytes": 216,
+  "meaning": "WireHelloV2 하나. 배치가 아니라 단일 구조체라 접두가 없다.",
+  "generated_by": "tests/Npc.Tests/Wire/LayoutDocTests.cs",
+  "layout": "docs/wire/layout_v2.md"
+}
