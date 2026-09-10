@@ -201,7 +201,7 @@ public sealed class LinkSession : IAsyncDisposable
                 ShardId = 0,
                 ZoneMask = 0,
                 SessionEpoch = _options.SessionEpoch,
-                MasterDataStructural = WireHash.FromHex(_data.ContentHash),
+                MasterDataStructural = WireHash.FromHex(_data.StructuralHash),
                 MasterDataContent = WireHash.FromHex(_data.ContentHash),
                 Roster = WireHash.FromHex(_world.Roster.Hash),
             })

@@ -62,6 +62,8 @@ public static class MasterDataLoader
             Interrupts = interrupts,
             FileHashes = hashes,
             ContentHash = CombineHashes(hashes),
+            StructuralHash = MasterData.StructuralHash.Compute(
+                actions, items, zones, pois, archetypes, buckets),
         };
 
         // 폴백 플랜은 MasterDataSet 자신을 어휘로 써서 검증·컴파일하므로 나중에 붙인다.

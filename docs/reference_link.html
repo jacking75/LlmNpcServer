@@ -553,6 +553,22 @@ public enum LinkByeCode : byte
           <tr><td><code>ContractMinor</code> 불일치</td><td><strong>수락.</strong> 낮은 쪽 기준으로 돈다 — 높은 쪽이 상대가 모르는 Kind 를 보내지 않고, 드롭을 <strong>세면서</strong> 버린다</td><td>—</td></tr>
           <tr><td>구조 해시 불일치</td><td>거절 (B-04)</td><td><code>MasterDataMismatch</code></td></tr>
           <tr><td>내용 해시 불일치</td><td><strong>경고 후 수락</strong> (B-04). <code>HelloAck.ContentHashWarning = 1</code></td><td>—</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>해시 분할 (B-04)</h3>
+      <p>마스터데이터가 한 글자만 달라도 링크가 안 붙던 것을 고쳤다. 상용에서는 게임서버·NPC 서버·클라이언트가 다른 파이프라인으로 배포되고 핫픽스로 한쪽만 갱신되는 일이 잦은데, 그때마다 NPC 전체가 멈추는 것(성능 저하가 아니라 <strong>링크 거절</strong>)은 과잉이다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>해시</th><th>재료</th><th>불일치 시</th></tr></thead>
+        <tbody>
+          <tr><td><strong>구조</strong> <code>StructuralHash</code></td><td>액션·아이템·아키타입·존·POI 의 <code>id ↔ code</code> · 월드 플래그의 <code>id ↔ bit</code> · POI 의 소속 존과 좌표 · 버킷 공간의 차원</td><td><strong>거절.</strong> 두 프로세스가 같은 번호로 다른 것을 가리키는 상태다</td></tr>
+          <tr><td><strong>내용</strong> <code>ContentHash</code></td><td>파일 전체 (구조 포함). 실질적으로 <code>desc</code>·<code>traits</code>·<code>allowed_actions</code>·인터럽트·폴백·레시피·<code>open_hours</code>·정원이 여기서만 움직인다</td><td><strong>경고 후 수락.</strong> 양쪽 해시를 <code>HelloAck</code>·로그·<code>/status</code> 에 남긴다</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><strong><code>code</code>·<code>bit</code> 재배치 금지는 그대로다</strong><p>번호를 바꾸면 구조 해시가 바뀌고 링크가 거절된다. <strong>그것이 이 분할이 지키는 것이다</strong> — 느슨해진 것은 "설명을 고쳤다" 뿐이고, 위험한 변경은 여전히 연결 시점에 죽는다.</p></div>
+      <div class="callout"><strong>구조 해시는 파일 바이트가 아니라 로드된 표에서 계산한다</strong><p>같은 파일 안에서 구조와 내용을 가르는 방법은 그것뿐이다. 덕분에 들여쓰기·키 순서를 바꿔도 구조 해시는 그대로다.</p></div>
+      <div class="table-wrap" hidden><table>
+        <tbody>
           <tr><td>인증 요구했는데 <code>Auth</code> 비트가 꺼짐</td><td>거절 (A-06)</td><td><code>AuthFailed</code></td></tr>
         </tbody>
       </table></div>

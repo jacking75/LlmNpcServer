@@ -504,13 +504,22 @@ public sealed class TcpGameServerLink : IGameServerLink
             return LinkRejectCode.TimeScaleMismatch;
         }
 
-        // 구조 해시는 완전 일치다. 게임서버가 POI 좌표·id 를 다르게 알면 NPC 가 엉뚱한 곳으로 간다.
-        WireHash structural = _options.MasterDataStructural == default
-            ? _options.MasterData
-            : _options.MasterDataStructural;
-
-        if (hello.MasterDataStructural != structural)
+        if (_options.MasterDataStructural == default)
         {
+            // 분할 해시를 설정하지 않은 호출부는 <b>v1 규칙으로 돈다</b> — 전체 내용 해시가
+            // 완전히 같아야 한다.
+            //
+            // 구조 해시 자리에 내용 해시를 넣어 비교하면 언제나 어긋나고, 반대로 검사를
+            // 건너뛰면 보장이 조용히 사라진다. 둘 다 나쁘다. <b>설정하지 않았으면 예전처럼 엄격하다</b>
+            // 가 유일하게 안전한 기본값이다.
+            if (hello.MasterDataContent != _options.MasterData)
+            {
+                return LinkRejectCode.MasterDataMismatch;
+            }
+        }
+        else if (hello.MasterDataStructural != _options.MasterDataStructural)
+        {
+            // 구조 해시는 완전 일치다. 게임서버가 POI 좌표·id 를 다르게 알면 NPC 가 엉뚱한 곳으로 간다.
             return LinkRejectCode.MasterDataMismatch;
         }
 

@@ -389,6 +389,17 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     /// </summary>
     public required string ContentHash { get; init; }
 
+    /// <summary>
+    /// 구조 해시 (B-04). id·code·bit 대응 · POI 좌표·존 · 버킷 차원만 담는다.
+    ///
+    /// <b>핸드셰이크에서 이것만 완전 일치를 요구한다.</b> <see cref="ContentHash"/> 불일치는
+    /// 경고 후 수락이다 — 게임서버와 NPC 서버가 다른 파이프라인으로 배포되는 상용에서
+    /// 한쪽이 밸런스를 먼저 받은 상태는 정상 운영의 일부이지 장애가 아니다.
+    ///
+    /// 계산은 <see cref="StructuralHash"/> 에 있다. 파일 바이트가 아니라 로드된 표에서 뽑는다.
+    /// </summary>
+    public required string StructuralHash { get; init; }
+
     /// <summary>파일 하나의 해시 조회. 부분 무효화 판정용.</summary>
     public string? HashOf(string fileName)
     {

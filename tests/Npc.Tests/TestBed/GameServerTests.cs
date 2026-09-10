@@ -317,6 +317,11 @@ public sealed class GameServerTests
                 TimeScale = 60,
                 NpcCount = server.World.Roster.Count,
                 MasterData = WireHash.FromHex(server.Data.ContentHash),
+
+                // B-04 — v2 핸드셰이크는 두 해시를 따로 본다. 하나만 채우면
+                // 구조 해시가 내용 해시와 비교되어 언제나 어긋난다.
+                MasterDataStructural = WireHash.FromHex(server.Data.StructuralHash),
+                MasterDataContent = WireHash.FromHex(server.Data.ContentHash),
                 Roster = WireHash.FromHex(server.World.Roster.Hash),
             };
 

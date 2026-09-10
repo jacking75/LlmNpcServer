@@ -66,6 +66,40 @@ public sealed class LinkSessionTests
         Assert.InRange(bed.Link.StartGameMinuteOfDay, 0, 1439);
     }
 
+    /// <summary>
+    /// B-04 완료 조건 — NPC 서버만 <c>interrupts.json</c> 을 고쳐 재기동해도 게임서버에 붙는다.
+    ///
+    /// 내용 해시만 다른 상태는 정상 운영이다. 구조 해시가 같으면 두 프로세스는 여전히
+    /// 같은 번호로 같은 것을 가리키고 있다.
+    /// </summary>
+    [Fact]
+    public async Task LinkSession_AcceptsContentHashMismatchWithWarning()
+    {
+        await using var bed = await Bed.StartAsync(npcs: 8, contentHashDrift: true);
+
+        Assert.True(bed.Connected);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        Assert.True(session.IsAccepted);
+        Assert.True(bed.Link.ContentHashWarning, "내용 해시 경고가 서지 않았다");
+        Assert.True(session.ContentHashWarning, "게임서버 쪽에 경고가 전달되지 않았다");
+
+        // 구조 해시는 여전히 완전 일치를 요구한다 — 경고는 수락이지 무시가 아니다.
+        Assert.Equal(LinkRejectCode.None, bed.Link.RejectCode);
+    }
+
+    /// <summary>B-04 — 구조 해시가 다르면 여전히 거절이다.</summary>
+    [Fact]
+    public async Task LinkSession_RejectsStructuralHashMismatch()
+    {
+        await using var bed = await Bed.StartAsync(npcs: 8, structuralDrift: true);
+
+        Assert.False(bed.Connected);
+        Assert.Equal(LinkRejectCode.MasterDataMismatch, bed.Link.RejectCode);
+        Assert.Equal(LinkState.Faulted, bed.Link.State);
+    }
+
     /// <summary>B-01 완료 조건 — v1 게임서버가 v2 NPC 서버에 붙어 데모가 돈다.</summary>
     [Fact]
     public async Task LinkSession_V1GameServer_StillConnects()
@@ -473,6 +507,10 @@ public sealed class LinkSessionTests
             _clients = clients;
         }
 
+        /// <summary>해시 한 글자를 바꾼다. "다른 마스터데이터" 를 재현하는 가장 싼 방법이다.</summary>
+        private static string Flip(string hash) =>
+            (hash[0] == '0' ? '1' : '0') + hash[1..];
+
         public GameWorld World { get; }
 
         public LinkListener Listener { get; }
@@ -489,7 +527,11 @@ public sealed class LinkSessionTests
         /// NPC 서버 쪽 로스터 해시를 일부러 어긋나게 한다. 거절 경로를 보는 회차다.
         /// </param>
         public static async Task<Bed> StartAsync(
-            int npcs, bool corruptRoster = false, int protocolVersion = 2)
+            int npcs,
+            bool corruptRoster = false,
+            int protocolVersion = 2,
+            bool contentHashDrift = false,
+            bool structuralDrift = false)
         {
             NpcRoster roster = NpcRoster.Select(s_instances, npcs);
             var options = new GameServerOptions
@@ -511,6 +553,15 @@ public sealed class LinkSessionTests
                 TimeScale = options.TimeScale,
                 NpcCount = roster.Count,
                 MasterData = WireHash.FromHex(s_data.ContentHash),
+
+                // B-04 — NPC 서버 쪽 해시를 어긋나게 해 두 정책을 각각 재현한다.
+                MasterDataStructural = structuralDrift
+                    ? WireHash.FromHex(Flip(s_data.StructuralHash))
+                    : WireHash.FromHex(s_data.StructuralHash),
+                MasterDataContent = contentHashDrift
+                    ? WireHash.FromHex(Flip(s_data.ContentHash))
+                    : WireHash.FromHex(s_data.ContentHash),
+
                 Roster = corruptRoster
                     ? WireHash.FromHex(NpcRoster.Select(s_instances, npcs + 1).Hash)
                     : WireHash.FromHex(roster.Hash),

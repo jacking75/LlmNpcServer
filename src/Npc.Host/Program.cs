@@ -463,6 +463,8 @@ internal sealed class NpcHost : IAsyncDisposable
             TimeScale = options.TimeScale,
             NpcCount = roster.Count,
             MasterData = WireHash.FromHex(data.ContentHash),
+            MasterDataStructural = WireHash.FromHex(data.StructuralHash),
+            MasterDataContent = WireHash.FromHex(data.ContentHash),
             Roster = WireHash.FromHex(roster.Hash),
         });
 
