@@ -17,7 +17,7 @@ public static class ValidateCommand
 
     /// <summary>사용법.</summary>
     public const string Usage =
-        "사용법: Npc.Host validate --masterdata <경로> [--prefix-tokens <n>]";
+        "사용법: Npc.Host validate --masterdata <경로> [--prefix-tokens <n>] [--format text|json]";
 
     /// <summary>검증 실행. 0 = 통과, 1 = 위반, 2 = 인자 오류.</summary>
     public static int Run(string[] args, TextWriter output)
@@ -26,6 +26,7 @@ public static class ValidateCommand
 
         string? directory = null;
         int? prefixTokens = null;
+        bool json = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -43,6 +44,24 @@ public static class ValidateCommand
                     }
 
                     prefixTokens = tokens;
+                    break;
+
+                case "--format" when i + 1 < args.Length:
+                    switch (args[++i])
+                    {
+                        case "json":
+                            json = true;
+                            break;
+
+                        case "text":
+                            json = false;
+                            break;
+
+                        default:
+                            output.WriteLine($"--format 값이 잘못됐다: {args[i]}. text|json 중 하나다.");
+                            return 2;
+                    }
+
                     break;
 
                 case "--help" or "-h":
@@ -68,6 +87,11 @@ public static class ValidateCommand
 
         MasterDataValidationReport report =
             MasterDataValidator.Validate(directory, new MasterDataValidationOptions(prefixTokens));
+
+        if (json)
+        {
+            return RunJson(report, directory, output);
+        }
 
         output.WriteLine($"masterdata: {Path.GetFullPath(directory)}");
 
@@ -101,10 +125,43 @@ public static class ValidateCommand
         foreach (MasterDataViolation violation in report.Violations)
         {
             output.WriteLine($"  FAIL {violation.Code}  {violation.Detail}");
+
+            // 힌트는 사람에게도 도움이 된다 (E-04). 없는 코드는 조용히 넘어간다 —
+            // 그런 코드가 있으면 FixHintTests 가 먼저 깨진다.
+            if (violation.FixHint is { Length: > 0 } hint)
+            {
+                output.WriteLine($"       → {hint}");
+            }
         }
 
         output.WriteLine($"검증 실패 {report.Violations.Length}건");
         return 1;
+    }
+
+    /// <summary>
+    /// 기계가 읽는 출력 (E-04). <b>로더까지 돌려 본다</b> — 규칙만 통과하고 참조가 깨진
+    /// 상태를 <c>ok: true</c> 로 내면 호출부가 그 위에 다음 작업을 쌓는다.
+    /// </summary>
+    private static int RunJson(
+        MasterDataValidationReport report, string directory, TextWriter output)
+    {
+        MasterDataSet? data = null;
+        string? loadError = null;
+
+        try
+        {
+            data = MasterDataLoader.Load(directory);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException)
+        {
+            loadError = ex.Message;
+        }
+
+        ValidationResultJson result = ValidationJson.From(report, directory, data, loadError);
+
+        output.WriteLine(ValidationJson.Serialize(result));
+
+        return result.Ok ? 0 : 1;
     }
 
     /// <summary>

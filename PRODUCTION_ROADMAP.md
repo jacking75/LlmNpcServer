@@ -97,7 +97,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 - [ ] **E-01** LLM 온보딩 팩 `docs/llm/` (SKILL · CONTEXT · RECIPES · ANTIPATTERNS · GLOSSARY) — P1 · M · 의존 없음
 - [ ] **E-02** JSON Schema 발행 (마스터데이터 10종 · 플랜 · 시나리오 · 스냅샷) — 코드에서 생성 — P1 · M · 의존 없음
 - [ ] **E-03** MCP 서버 `tools/Npc.Mcp` (검증·설명·스캐폴드·플랜 검증·서버 질의) — P1 · L · 의존 E-02, F-01, F-03
-- [ ] **E-04** 기계가 읽는 검증 출력 (`--format json` + `fix_hint` 사전) — P1 · S · 의존 없음
+- [x] **E-04** 기계가 읽는 검증 출력 (`--format json` + `fix_hint` 사전) — P1 · S · 의존 없음
 - [ ] **E-05** OpenAPI 명세 + 툴 정의 (관리·질의 API) — P2 · S · 의존 B-08
 - [ ] **E-06** LLM 에이전트 벤치마크 (과제 10종 · 자동 채점) — P2 · M · 의존 E-01, E-03
 

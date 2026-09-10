@@ -1,5 +1,22 @@
 # 작업 로그
 
+## 2026-09-10 12:58 KST · E-04 기계가 읽는 검증 출력 · 수정 힌트 사전
+
+검증이 실패하면 코드만 나왔다. `V5` 를 받은 LLM 은 무엇을 고쳐야 하는지 모른다 —
+사람은 소스를 열어 보지만 LLM 은 그럴 수 없고, 그러면 온보딩 자동화가 거기서 멈춘다.
+
+- **신규** `src/Npc.MasterData/Validation/FixHints.cs` — 검증 코드 41건의 **"무엇을 하면
+  되는가"** 사전. V0~V15 · 플랜 4단(V1.~V4.) · 핸드셰이크 거절. 관련 파일도 같이 준다.
+- **신규** `src/Npc.Host/Commands/ValidationJson.cs` — `validate --format json`.
+  `code`·`message`·`file`·`path`·`fix_hint`·`related` + 두 해시. **로더까지 돌린다** —
+  규칙만 통과하고 참조가 깨진 상태를 `ok: true` 로 내면 호출부가 그 위에 작업을 쌓는다.
+- **신규** `src/Npc.Host/Commands/HintsCommand.cs` — `hints --out docs/llm/VALIDATION.md`.
+  **문서는 생성물이다.** 두 벌 관리하면 어긋나고, 어긋난 문서는 없는 것보다 나쁘다.
+- `MasterDataViolation` 에 `File`·`Path` 를 더하고 `FixHint`·`Related` 를 사전에서 끌어 쓴다.
+  텍스트 출력도 힌트를 한 줄 덧붙인다.
+- 테스트 12건 추가 — 소스에서 코드 문자열을 긁어 사전과 대조하므로 **힌트 없는 새 규칙을
+  추가하면 깨진다.** 생성 문서 최신 여부와 렌더 결정론도 단언한다. 전체 1,278건 통과 · 경고 0.
+
 ## 2026-09-10 12:26 KST · C-07 스필오버 서브 쿼터 · 버킷/개체 예산 분리
 
 개별 재계획이 T1 큐 64 를 넘겨 T2 로 흐르면 하루 예산(약 649건)이 몇 분 만에 소진됐다.

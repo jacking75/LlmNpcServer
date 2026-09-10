@@ -29,7 +29,8 @@
 | **새 아이템·레시피** | `masterdata/items.json` → `src/Npc.MasterData/ItemTable.cs` → `src/Npc.Runtime/EventApplier.cs`(`RecomputeItemFlags`) | `grants` 가 플래그를 만든다. 코드에 하드코딩 금지 |
 | **새 아키타입·POI·존** | `masterdata/*.json` → `ArchetypeTable.cs`·`MasterDataSet.cs` → `tools/gen_npcs.cs` 재실행 | `population_weight` 합 1.0(V5) · POI 정원(V10) |
 | **인터럽트 규칙 추가·수정** | `masterdata/interrupts.json` → `src/Npc.MasterData/InterruptRules.cs`(파싱) → `src/Npc.Runtime/InterruptMatcher.cs`(판정·엣지 트리거) | **LLM 이 만들지 않는다.** `cooldown_s` 를 두지 않는다 — 결정론이 깨진다 |
-| **검증 규칙(V1~V11) 추가** | `src/Npc.MasterData/Validation/MasterDataValidator.cs` | 실패는 **기동 실패**다. 경고 후 진행을 만들지 않는다 |
+| **검증 규칙(V1~V15) 추가** | `src/Npc.MasterData/Validation/MasterDataValidator.cs` → **`Validation/FixHints.cs` 에 힌트도 같이** | 실패는 **기동 실패**다. 힌트를 빼먹으면 `FixHintTests` 가 깨진다 |
+| **검증 결과를 기계가 읽어야 한다** | `validate --format json` — `src/Npc.Host/Commands/ValidationJson.cs` · 사전 문서는 `hints --out` 이 생성한다 |
 | **마스터데이터가 안 읽힌다** | `src/Npc.MasterData/MasterDataLoader.cs` → `MasterDataSet.cs` | `dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata` 로 먼저 재현 |
 
 ### 런타임 · 틱 루프

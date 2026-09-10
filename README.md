@@ -112,7 +112,7 @@ dotnet --version                     # 10.x
 dotnet build -c Release
 dotnet test
 
-# 2) 마스터데이터 검증만 (V1~V11)
+# 2) 마스터데이터 검증만 (V0~V15). --format json 이면 기계가 읽는 출력 + 수정 힌트
 dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata
 
 # 3) LLM 없이 구동 — 폴백 플랜만으로 NPC 500마리

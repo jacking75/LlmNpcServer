@@ -7,7 +7,31 @@ namespace Npc.MasterData.Validation;
 /// <summary>검증 위반 하나. docs/01 §11 의 V1~V11.</summary>
 /// <param name="Code">V1 ~ V11.</param>
 /// <param name="Detail">무엇이 어디서 어긋났는지. 사람이 읽고 고칠 수 있어야 한다.</param>
-public readonly record struct MasterDataViolation(string Code, string Detail);
+/// <summary>
+/// 검증 위반 하나.
+///
+/// <para>
+/// <b><see cref="File"/>·<see cref="Path"/> 는 E-04 에서 붙였다.</b> 사람은 <see cref="Detail"/>
+/// 만으로도 어디를 볼지 알지만, LLM 이나 에디터는 "어느 파일의 어느 경로" 가 구조화돼 있어야
+/// 고칠 수 있다. 없으면 추측하게 되고, 추측은 대개 다른 곳을 고친다.
+/// </para>
+/// </summary>
+/// <param name="Code">검증 코드. <c>V0</c>~<c>V15</c>.</param>
+/// <param name="Detail">사람이 읽는 한 줄.</param>
+/// <param name="File">위반이 있는 파일 이름. 파일을 특정할 수 없으면 빈 문자열.</param>
+/// <param name="Path">JSON Pointer. 항목까지 짚을 수 있으면 짚는다. 없으면 빈 문자열.</param>
+public readonly record struct MasterDataViolation(
+    string Code,
+    string Detail,
+    string File = "",
+    string Path = "")
+{
+    /// <summary>이 코드의 수정 힌트 (E-04). 없으면 빈 문자열.</summary>
+    public string FixHint => FixHints.HintOf(Code);
+
+    /// <summary>이 코드의 근거 문서 (E-04).</summary>
+    public System.Collections.Immutable.ImmutableArray<string> Related => FixHints.RelatedOf(Code);
+}
 
 /// <summary>검사를 건너뛴 규칙과 이유.</summary>
 public readonly record struct SkippedRule(string Code, string Reason);
@@ -119,7 +143,8 @@ public static class MasterDataValidator
                 string path = Path.Combine(masterDataDirectory, name);
                 if (!File.Exists(path))
                 {
-                    violations.Add(new MasterDataViolation("V0", $"필수 파일이 없다: {name}"));
+                    violations.Add(new MasterDataViolation(
+                        "V0", $"필수 파일이 없다: {name}", name));
                     continue;
                 }
 
