@@ -249,29 +249,62 @@ app.MapGet("/dashboard", () =>
         : Results.NotFound($"dashboard.html 이 없다: {app.Environment.WebRootPath}");
 });
 
-// 데모용 제어 (T6-13 · docs/20 §11.4). --dev-control 일 때만 <b>등록 자체를 한다</b> —
-// 플래그 없이 기동하면 라우트가 없으므로 /control/* 은 404 다.
-// 조건부 401/403 이 아니라 조건부 등록인 이유: 상태를 바꾸는 HTTP 를 기본으로 열어 두면
-// 대시보드가 열려 있는 동안 누구든 티어를 끊을 수 있다.
+// ── 운영 제어 (A-11) ────────────────────────────────────────────
+// 토큰이 설정돼 있거나 --dev-control 이면 연다. 앞의 미들웨어(A-06)가 인증을 보므로
+// 여기서 다시 보지 않는다 — 두 곳에서 보면 한쪽만 고쳐지는 날이 온다.
 //
 // <b>이벤트 주입은 없다.</b> 그건 게임서버의 일이고, 여기서 같이 내면 세계가 두 번 밀린다.
-if (options.DevControl)
+if (adminAuth.Enabled || options.DevControl)
 {
-    app.MapPost("/control/killswitch", (string? target) =>
+    var audit = new AuditLog(
+        Path.Combine(options.ResolveSnapshotDir(), "audit.jsonl"), Console.Out);
+
+    string Client(HttpContext context) =>
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    // 되돌릴 수 있다 (A-11). 예전에는 한 번 켜면 재기동뿐이었고 재기동은 상태 전손이었다.
+    app.MapPost(AdminEndpoints.KillSwitchRoute, (
+        HttpContext context, string? target, string? state, string? reason) =>
     {
-        if (!KillSwitchState.TryParse(target, out KillSwitchTarget parsed))
-        {
-            return Results.BadRequest(
-                $"target 이 {KillSwitchState.TargetNames} 중 하나여야 한다: {target ?? "(없음)"}");
-        }
+        AdminResult result = AdminEndpoints.KillSwitch(
+            host.Switches, audit, host.Clock.Current.Value, target, state, reason, Client(context));
 
-        host.Switches.Fire(parsed);
-
-        // 멱등이다 (N7). 두 번 눌러도 같은 상태라 200 을 그대로 준다.
-        return Results.Ok(new { target = parsed.ToString(), fired = true });
+        return result.Ok ? Results.Ok(result) : Results.BadRequest(result);
     });
 
-    Console.Out.WriteLine("dev-control: POST /control/killswitch?target=T2|T1|PlanStore");
+    // 즉시 스냅샷 (A-01). 배포 직전에 손으로 한 장 떠 두는 용도다.
+    app.MapPost(AdminEndpoints.SnapshotRoute, async (HttpContext context, string? reason) =>
+    {
+        if (host.Snapshots is not { } writer)
+        {
+            return Results.BadRequest(new AdminResult(
+                false, "스냅샷이 꺼져 있다 (--snapshot-interval-s)", []));
+        }
+
+        SnapshotWriteResult written = await writer.CaptureNowAsync(
+            TimeSpan.FromSeconds(10), CancellationToken.None);
+
+        audit.Write(new AuditEntry(
+            host.Clock.Current.Value, "snapshot", string.Empty, Client(context),
+            reason ?? "(사유 없음)", written.Error ?? $"tick {written.Tick} · {written.Bytes}B"));
+
+        return written.Error is null
+            ? Results.Ok(new AdminResult(true, $"tick {written.Tick} · {written.Bytes}B", []))
+            : Results.BadRequest(new AdminResult(false, written.Error, []));
+    });
+
+    // 호환: 예전 경로를 남긴다. 켜기만 하던 시절의 스크립트가 아직 있다.
+    app.MapPost("/control/killswitch", (HttpContext context, string? target) =>
+    {
+        AdminResult result = AdminEndpoints.KillSwitch(
+            host.Switches, audit, host.Clock.Current.Value, target, "on", "legacy", Client(context));
+
+        return result.Ok ? Results.Ok(result) : Results.BadRequest(result);
+    });
+
+    Console.Out.WriteLine(
+        $"admin: POST {AdminEndpoints.KillSwitchRoute}?target=T2|T1|PlanStore&state=on|off&reason=..."
+        + $" · POST {AdminEndpoints.SnapshotRoute}");
 }
 
 await app.StartAsync(CancellationToken.None);
@@ -1098,6 +1131,7 @@ internal sealed class NpcHost : IAsyncDisposable
         LinkState: _link.State.ToString(),
         LinkReject: LinkRejectReason,
         LinkNegotiation: _tcp?.NegotiationDetail ?? "링크 없음",
+        KillSwitches: AdminEndpoints.Names(_switches),
         TicksBehind: _tickSync.TicksBehind,
         TickSyncStalled: _tickSync.Stalled,
         ContractVersion: Npc.Contracts.ContractVersion.Text,
@@ -1346,6 +1380,7 @@ internal sealed class NpcHost : IAsyncDisposable
 /// <param name="LinkState">링크 접속 상태 (A-03). <c>/status</c> 가 링크와 무관하게 200 이던 결손을 메운다.</param>
 /// <param name="LinkReject">핸드셰이크 거절 사유. 없으면 null.</param>
 /// <param name="LinkNegotiation">협상 결과 (B-01). 프로토콜·계약·기능 비트.</param>
+/// <param name="KillSwitches">지금 끊겨 있는 킬스위치 대상 (A-11). 비어 있으면 전부 정상이다.</param>
 /// <param name="TicksBehind">게임서버가 알려준 틱과 우리가 처리한 틱의 차이 (A-10). 0 이 정상.</param>
 /// <param name="TickSyncStalled"><c>TickSync</c> 가 임계를 넘겨 멈춰 있는가 (A-10).</param>
 /// <param name="ContractVersion">이 프로세스가 구현한 계약 버전 (B-01).</param>
@@ -1374,6 +1409,7 @@ internal readonly record struct HostSnapshot(
     string LinkState,
     string? LinkReject,
     string LinkNegotiation,
+    IReadOnlyList<string> KillSwitches,
     long TicksBehind,
     bool TickSyncStalled,
     string ContractVersion,

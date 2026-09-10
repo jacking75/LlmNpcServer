@@ -24,7 +24,18 @@ public enum KillSwitchTarget : byte
 ///
 /// 시나리오 러너(게임서버 대역 스레드)가 세우고 틱 루프·재계획 워커가 읽는다.
 /// <b>락을 쓰지 않는다</b> — 비트마스크 하나에 <c>Interlocked</c>/<c>Volatile</c> 만 쓴다
-/// (CLAUDE.md §2.1). 한 번 켜지면 꺼지지 않으므로 읽는 쪽에서 경합할 것이 없다.
+/// (CLAUDE.md §2.1).
+///
+/// <para>
+/// <b>되돌릴 수 있다</b> (A-11). 예전에는 한 번 켜지면 꺼지지 않아 오조작 복구가 재기동뿐이었고,
+/// 재기동은 상태 전손이었다. 지금은 <see cref="Clear"/> 가 있고, 읽는 쪽은 매번
+/// <see cref="IsDisabled"/> 를 보므로 해제가 즉시 반영된다.
+/// </para>
+///
+/// <para>
+/// <b>시나리오 파일은 여전히 켜기만 한다.</b> 시나리오 C 는 "끊었는데도 동작하는가" 를 보는
+/// 것이고, 대본이 중간에 되돌리면 그 게이트가 무엇을 쟀는지 알 수 없게 된다.
+/// </para>
 /// </summary>
 public sealed class KillSwitchState
 {
@@ -42,6 +53,34 @@ public sealed class KillSwitchState
 
     /// <summary>끊는다. 멱등이다 — 같은 대상을 두 번 끊어도 상태가 같다 (N7).</summary>
     public void Fire(KillSwitchTarget target) => Interlocked.Or(ref _fired, 1 << (int)target);
+
+    /// <summary>
+    /// 되돌린다 (A-11). 멱등이다 — 안 끊긴 것을 되돌려도 상태가 같다.
+    ///
+    /// <b>읽는 쪽은 매 호출 <see cref="IsDisabled"/> 를 본다</b>(<c>TieredPlanCompiler</c>·
+    /// <c>PlanStore</c>). 그래서 해제가 다음 요청부터 즉시 반영된다.
+    /// </summary>
+    public void Clear(KillSwitchTarget target) => Interlocked.And(ref _fired, ~(1 << (int)target));
+
+    /// <summary>지금 끊겨 있는 대상 전부. 감사 로그·<c>/status</c> 가 읽는다.</summary>
+    public IReadOnlyList<KillSwitchTarget> Fired
+    {
+        get
+        {
+            int mask = Volatile.Read(ref _fired);
+            var list = new List<KillSwitchTarget>();
+
+            foreach (KillSwitchTarget target in Enum.GetValues<KillSwitchTarget>())
+            {
+                if ((mask & (1 << (int)target)) != 0)
+                {
+                    list.Add(target);
+                }
+            }
+
+            return list;
+        }
+    }
 
     /// <summary>전부 되돌린다. 테스트가 회차 사이에 쓴다.</summary>
     public void Reset() => Volatile.Write(ref _fired, 0);

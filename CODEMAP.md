@@ -101,6 +101,7 @@
 | **상태를 저장·복구한다** | `src/Npc.Host/Persistence/` — `SnapshotFile`(형식·CRC) · `SnapshotWriter`(주기 쓰기) · `SnapshotRestorer`(조건 판정) · 틱 루프 쪽 통로는 `src/Npc.Runtime/NpcStoreSnapshot.cs` |
 | **헬스체크 · 죽었는지 살았는지** | `src/Npc.Host/Api/HealthEndpoints.cs` (`/healthz/live`·`ready`·`startup`) · 루프 하트비트는 `src/Npc.Runtime/ILoopProbe.cs` |
 | **링크가 `Faulted` 인데 프로세스가 안 죽는다** | `src/Npc.Host/LinkFaultPolicy.cs` (`--on-link-fault`) |
+| **운영 제어 · 감사 로그** | `src/Npc.Host/Api/AdminEndpoints.cs`(`/admin/killswitch`·`/admin/snapshot`) · `Api/AuditLog.cs` — 시각은 게임 틱이다 |
 | **시나리오 주입 · 킬스위치** | `src/Npc.Sim/ScenarioRunner.cs` · `src/Npc.Core/KillSwitch.cs` · `src/Npc.Host/KillSwitchSchedule.cs` · `scenarios/*.jsonl` |
 
 ### 시뮬 · 테스트 베드

@@ -136,13 +136,19 @@ public sealed class KillSwitchScheduleTests
     }
 
     /// <summary>
-    /// T6-13 완료 조건 — <c>--dev-control</c> 없이 기동하면 <c>/control/*</c> 이 404 다.
+    /// T6-13 완료 조건 — 아무 설정 없이 기동하면 <c>/control/*</c>·<c>/admin/*</c> 이 404 다.
     ///
     /// <para>
     /// 라우트를 <b>등록조차 하지 않는</b> 것으로 막는다. 조건부 401/403 이었다면 여기서
     /// 상태 코드만 보게 되는데, 그건 "핸들러가 있고 거절한다" 라서 실수 하나로 열린다.
-    /// 그래서 소스에서 <c>MapPost("/control/...")</c> 가 <c>options.DevControl</c> 안쪽에
-    /// 있는지를 본다 — 이 저장소가 엔드포인트를 검사해 온 방식이다(<c>DashboardTests</c>).
+    /// 그래서 소스에서 제어 라우트가 가드 안쪽에 있는지를 본다 —
+    /// 이 저장소가 엔드포인트를 검사해 온 방식이다(<c>DashboardTests</c>).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>A-11 에서 가드가 넓어졌다</b> — 토큰(<c>NPC_ADMIN_TOKEN</c>)이 설정돼 있어도 열린다.
+    /// 그때는 <see cref="Npc.Host.Api.AdminAuth"/> 미들웨어가 앞에서 <c>Bearer</c> 를 요구하므로
+    /// "아무나 부를 수 있다" 가 되지 않는다. <c>--dev-control</c> 은 토큰 없이 도는 데모용으로 남긴다.
     /// </para>
     /// </summary>
     [Fact]
@@ -150,9 +156,10 @@ public sealed class KillSwitchScheduleTests
     {
         string program = File.ReadAllText(TestPaths.At("src", "Npc.Host", "Program.cs"));
 
-        int guard = program.IndexOf("if (options.DevControl)", StringComparison.Ordinal);
+        int guard = program.IndexOf(
+            "if (adminAuth.Enabled || options.DevControl)", StringComparison.Ordinal);
 
-        Assert.True(guard >= 0, "--dev-control 가드가 없다");
+        Assert.True(guard >= 0, "제어 라우트 가드가 없다 (토큰 또는 --dev-control)");
 
         // 가드 블록의 끝. 중첩이 없는 단순 블록이라 여는 중괄호부터 짝을 센다.
         int open = program.IndexOf('{', guard);
@@ -173,15 +180,23 @@ public sealed class KillSwitchScheduleTests
 
         string guarded = program[guard..end];
 
-        // /control/ 을 다는 모든 자리가 가드 안쪽이어야 한다.
+        // /control/ 과 /admin/ 을 다는 모든 자리가 가드 안쪽이어야 한다.
         foreach (int at in Occurrences(program, "\"/control/"))
         {
             Assert.True(
                 at > guard && at < end,
-                $"/control/ 라우트가 --dev-control 가드 밖에 있다 (오프셋 {at})");
+                $"/control/ 라우트가 가드 밖에 있다 (오프셋 {at})");
+        }
+
+        foreach (int at in Occurrences(program, "AdminEndpoints.KillSwitchRoute"))
+        {
+            Assert.True(
+                at > guard && at < end,
+                $"/admin/killswitch 라우트가 가드 밖에 있다 (오프셋 {at})");
         }
 
         Assert.Contains("MapPost(\"/control/killswitch\"", guarded, StringComparison.Ordinal);
+        Assert.Contains("AdminEndpoints.KillSwitchRoute", guarded, StringComparison.Ordinal);
     }
 
     /// <summary>기본값은 꺼짐이고 <c>--dev-control</c> 로만 켜진다.</summary>

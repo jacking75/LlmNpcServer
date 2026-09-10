@@ -188,6 +188,17 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `NPC_LINK_SECRET` | 링크 HMAC 비밀. hex 64자(32바이트) |
 | `NPC_LINK_CERT_PASSWORD` | `--link-cert` pfx 비밀번호 |
 | `NPC_ADMIN_TOKEN` | 관리·질의 API `Bearer` 토큰. `--bind 0.0.0.0` 의 전제조건이다 |
+
+**운영 제어** (A-11). 토큰이 설정돼 있으면 열린다. **모든 호출이 감사 로그**(`state/audit.jsonl`)에 남는다 — 누가·언제·무엇을·왜.
+
+```bash
+# 킬스위치를 끊었다가 되살린다. 예전에는 되돌릴 수 없어 복구가 재기동 = 상태 전손이었다.
+curl -XPOST -H "Authorization: Bearer $NPC_ADMIN_TOKEN"   "localhost:5080/admin/killswitch?target=T2&state=on&reason=제공사+장애"
+curl -XPOST -H "Authorization: Bearer $NPC_ADMIN_TOKEN"   "localhost:5080/admin/killswitch?target=T2&state=off&reason=복구됨"
+
+# 즉시 스냅샷 (배포 직전에 한 장)
+curl -XPOST -H "Authorization: Bearer $NPC_ADMIN_TOKEN"   "localhost:5080/admin/snapshot?reason=배포+전"
+```
 | `--max-speed` | 10Hz 페이싱 없이 최대 속도로. 부하·게이트 측정용 |
 | `--no-dashboard` | 웹 호스트를 띄우지 않는다 |
 | `--gs-host <host>` / `--gs-port N` | 게임서버 주소 (기본 `127.0.0.1:7010`). `--link tcp` 전용 |
@@ -195,7 +206,7 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--planstore <dir>` | 프리베이크된 플랜 스토어 (기본 `./planstore`). 없으면 폴백 40개로 돈다 |
 | `--weights A\|B\|C\|D` | 재계획 점수 가중치 세트 (기본 B. A/B 결과는 `reference_metrics.html` §11) |
 | `--scan-cap N` | 인지 스캔 틱당 상한. 0=해제. **측정 전용** |
-| `--dev-control` | `POST /control/killswitch` 를 연다 (기본 꺼짐. 데모용) |
+| `--dev-control` | `NPC_ADMIN_TOKEN` 없이도 `/admin/*` 을 연다 (기본 꺼짐. 데모용) |
 | `--on-link-fault exit\|wait` | 링크가 `Faulted` 로 가면 어떻게 할까 (기본 `exit` → 종료 코드 3) |
 | `--fault-grace-s N` | `Faulted` 진입 후 종료까지 유예 초 (기본 5) |
 | `--live-stall-s N` | `/healthz/live` 가 허용하는 루프 정지 초 (기본 30) |
