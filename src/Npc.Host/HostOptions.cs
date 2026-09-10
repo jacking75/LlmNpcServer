@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using Npc.Host.Config;
+using Npc.Host.Observability;
 using Npc.Host.Persistence;
 
 namespace Npc.Host;
@@ -256,6 +257,12 @@ public sealed record HostOptions
     /// <summary><c>--snapshot-interval-s</c> 를 명시했는가. 프로파일이 이 값을 존중한다.</summary>
     public bool SnapshotSpecified { get; init; }
 
+    /// <summary><c>--prometheus</c> 를 명시했는가.</summary>
+    public bool PrometheusSpecified { get; init; }
+
+    /// <summary><c>--log-format</c> 을 명시했는가.</summary>
+    public bool LogFormatSpecified { get; init; }
+
     /// <summary>읽은 설정 파일 경로. 없으면 null. 기동 로그에 적는다.</summary>
     public string? LoadedConfigPath { get; init; }
 
@@ -305,6 +312,33 @@ public sealed record HostOptions
     /// </summary>
     public int TickSyncStallSeconds { get; init; } = 5;
 
+    /// <summary>
+    /// OTLP 수집기 주소 (A-05). null 이면 OTLP 를 켜지 않는다.
+    ///
+    /// 예: <c>http://otel-collector:4317</c>.
+    /// </summary>
+    public string? OtlpEndpoint { get; init; }
+
+    /// <summary>
+    /// Prometheus 스크레이프 엔드포인트를 열까 (A-05). 기본은 <c>--profile service</c> 에서 켜진다.
+    ///
+    /// 기존 <c>/metrics</c> JSON 은 그대로 둔다 — 대시보드가 그것을 쓴다.
+    /// </summary>
+    public bool Prometheus { get; init; }
+
+    /// <summary>경보 웹훅 주소 (A-05). Slack·Teams 호환 JSON 을 보낸다. null 이면 로그만.</summary>
+    public string? AlarmWebhook { get; init; }
+
+    /// <summary>
+    /// 같은 <c>(종류, 열쇠)</c> 경보의 재발화 간격(초). 기본 300.
+    ///
+    /// <b>없으면 링크가 흔들릴 때 초당 수십 건이 나가고 진짜 경보가 묻힌다.</b>
+    /// </summary>
+    public int AlarmCooldownSeconds { get; init; } = 300;
+
+    /// <summary>로그 형식 (A-05). 기본은 평문, <c>--profile service</c> 는 JSON.</summary>
+    public LogFormat LogFormat { get; init; } = LogFormat.Text;
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -348,6 +382,11 @@ public sealed record HostOptions
           --restore auto|none|<path>  복원 정책 (기본 auto). 조건이 안 맞으면 시드로 기동한다
           --shutdown-timeout-s N  정상 종료 예산 초 (기본 15). 넘기면 종료 코드 2
           --tick-sync-stall-s N   TickSync 가 멈춰도 되는 상한 초. 0=끔 (기본 5)
+          --otlp-endpoint <url>   OpenTelemetry 수집기 주소 (예 http://collector:4317)
+          --prometheus            /metrics/prometheus 를 연다 (--profile service 는 자동)
+          --alarm-webhook <url>   경보 웹훅 (Slack/Teams 호환 JSON)
+          --alarm-cooldown-s N    같은 경보의 재발화 간격 초 (기본 300)
+          --log-format text|json  로그 형식 (기본 text · --profile service 는 json)
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
@@ -930,6 +969,66 @@ public sealed record HostOptions
                     };
                     break;
 
+                case "--otlp-endpoint":
+                    if (!TryValue(args, ref i, arg, out string? otlp, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    if (!Uri.TryCreate(otlp, UriKind.Absolute, out _))
+                    {
+                        error = $"--otlp-endpoint 가 절대 URL 이 아니다: '{otlp}'";
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { OtlpEndpoint = otlp };
+                    break;
+
+                case "--prometheus":
+                    result = result with { Prometheus = true, PrometheusSpecified = true };
+                    break;
+
+                case "--alarm-webhook":
+                    if (!TryValue(args, ref i, arg, out string? webhook, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    if (!Uri.TryCreate(webhook, UriKind.Absolute, out _))
+                    {
+                        error = $"--alarm-webhook 이 절대 URL 이 아니다: '{webhook}'";
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { AlarmWebhook = webhook };
+                    break;
+
+                case "--alarm-cooldown-s":
+                    if (!TryInt(args, ref i, arg, 0, 86_400, out int cooldown, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { AlarmCooldownSeconds = cooldown };
+                    break;
+
+                case "--log-format":
+                    if (!TryValue(args, ref i, arg, out string? logFormat, out error)
+                        || !Enum.TryParse(logFormat, ignoreCase: true, out LogFormat parsedFormat))
+                    {
+                        error ??= $"--log-format 값이 잘못됐다: '{logFormat}'. text|json 중 하나다.";
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { LogFormat = parsedFormat, LogFormatSpecified = true };
+                    break;
+
                 case "--tick-sync-stall-s":
                     if (!TryInt(args, ref i, arg, 0, 86_400, out int tickStall, out error))
                     {
@@ -1034,6 +1133,10 @@ public sealed record HostOptions
             {
                 Days = 0,
                 SnapshotEnabled = result.SnapshotSpecified ? result.SnapshotEnabled : true,
+
+                // 운영은 수집기가 읽고 사람은 안 읽는다 (A-05).
+                Prometheus = result.PrometheusSpecified ? result.Prometheus : true,
+                LogFormat = result.LogFormatSpecified ? result.LogFormat : LogFormat.Json,
             };
         }
 

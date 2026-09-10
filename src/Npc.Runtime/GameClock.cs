@@ -7,7 +7,8 @@ namespace Npc.Runtime;
 /// <summary>
 /// 게임 시계. docs/11 §5.
 ///
-/// <b><see cref="DateTime"/>·<see cref="System.Diagnostics.Stopwatch"/> 를 쓰지 않는다</b> (CLAUDE.md §2.3).
+/// <b><c>DateTime</c>·<c>Stopwatch</c> 를 쓰지 않는다</b> (CLAUDE.md §2.3).
+/// 이름을 <c>see cref</c> 로 적지 않는 이유는 BannedSymbols.txt 가 cref 도 금지로 세기 때문이다.
 /// 시간 기준은 게임서버가 보내는 <c>TickSync</c> 하나뿐이다 (docs/02 §3.3).
 /// 그래야 리플레이가 100% 일치한다.
 ///

@@ -558,6 +558,59 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
       <p>자료·양식·정답 키·통계 처리기는 전부 준비돼 있고 검정 구현도 <code>--self-test</code>로 검증했다. <strong>참가자가 0명이라 판정하지 않는다</strong> — 참가자 6명 미만이면 결론을 내지 않는 것이 사전에 정한 규칙이다. LLM 심사원 6명 × 40건의 예비 실시는 마쳤고 Q1 정답률 50.8%로, "돌릴 값이 있다"는 것까지는 확인했다.</p>
     </section>
 
+    <section class="card" id="metric-names">
+      <div class="shead"><span class="snum">13.5</span><h2>메트릭 이름 사전 (A-05)</h2></div>
+      <p><code>Meter("Npc.Server")</code> 가 내는 것 전부다. Prometheus 는 <code>/metrics/prometheus</code>, OTLP 는 <code>--otlp-endpoint</code>. 기존 <code>/metrics</code> JSON 은 <strong>대시보드용으로 그대로 둔다</strong> — 브라우저 하나 띄우자고 수집기를 세울 이유가 없다.</p>
+      <div class="callout"><strong>Prometheus 이름 규칙</strong><p>점이 밑줄이 된다: <code>npc.tick.duration</code> 은 <code>npc_tick_duration_ms_bucket</code>·<code>_sum</code>·<code>_count</code> 로 나온다. 히스토그램 경계는 <strong>틱 예산 20ms 에 맞춰</strong> <code>[0.1, 0.5, 1, 2, 5, 10, 20, 50]</code>ms 로 잡았다 — 기본 경계는 초 단위라 0.8ms 짜리 틱이 전부 첫 칸에 몰려 p99 를 볼 수 없다.</p></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>이름</th><th>종류</th><th>단위</th><th>경보 기준</th></tr></thead>
+        <tbody>
+          <tr><td><code>npc.tick.duration</code></td><td>히스토그램</td><td>ms</td><td>p99 &gt; 20 이 연속 3창</td></tr>
+          <tr><td><code>npc.tick.overruns</code></td><td>카운터</td><td>건</td><td>증가하면 즉시</td></tr>
+          <tr><td><code>npc.count</code></td><td>게이지</td><td>마리</td><td>—</td></tr>
+          <tr><td><code>npc.cognition.scan_per_tick</code></td><td>게이지</td><td>건/틱</td><td>&gt; 150 (상한)</td></tr>
+          <tr><td><code>npc.replan.queue_depth</code></td><td>게이지</td><td>건</td><td>용량의 80%</td></tr>
+          <tr><td><code>npc.gc.gen0</code></td><td>게이지</td><td>건</td><td><strong>프로세스 전역이다.</strong> 틱 루프의 계기가 아니다</td></tr>
+          <tr><td><code>npc.gc.heap_mb</code></td><td>게이지</td><td>MB</td><td>72시간 추세가 0 이 아니면 (G-02)</td></tr>
+          <tr><td><code>npc.link.state</code></td><td>게이지</td><td>enum</td><td><code>Faulted</code>·<code>Degraded</code></td></tr>
+          <tr><td><code>npc.link.commands_flushed</code> · <code>_dropped</code></td><td>카운터</td><td>건</td><td>dropped 증가</td></tr>
+          <tr><td><code>npc.link.events_drained</code> · <code>event_gaps</code></td><td>카운터</td><td>건</td><td>gaps &gt; 0 (N6)</td></tr>
+          <tr><td><code>npc.clock.ticks_since_sync</code></td><td>게이지</td><td>틱</td><td>계속 크면 게임서버가 앞서 있다</td></tr>
+          <tr><td><code>npc.clock.stalled</code></td><td>게이지</td><td>0/1</td><td>1 (A-10)</td></tr>
+          <tr><td><code>npc.clock.game_hour</code></td><td>게이지</td><td>시</td><td>—</td></tr>
+          <tr><td><code>npc.snapshot.last_tick</code></td><td>게이지</td><td>틱</td><td>현재 틱과 주기 이상 벌어지면</td></tr>
+          <tr><td><code>npc.snapshot.write_ms</code> · <code>bytes</code></td><td>게이지</td><td>ms · B</td><td>—</td></tr>
+          <tr><td><code>npc.snapshot.failures</code></td><td>카운터</td><td>건</td><td>&gt; 0 — 상태 손실 창을 아무도 모른다 (A-01)</td></tr>
+          <tr><td><code>npc.plan.cache.hit_ratio</code></td><td>게이지</td><td>비율</td><td>&lt; 0.98 (게이트)</td></tr>
+          <tr><td><code>npc.plan.cache.cold_buckets</code> · <code>top_miss</code></td><td>게이지</td><td>건</td><td>—</td></tr>
+          <tr><td><code>npc.plan.individual.turnover</code></td><td>게이지</td><td>배</td><td>크면 개별 재계획 과다</td></tr>
+          <tr><td><code>npc.llm.unique_prefix_hashes</code></td><td>게이지</td><td>종</td><td><strong>1 이 아니면 즉시</strong> — 프롬프트 캐시가 깨졌다</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>경보 종류 (<code>AlarmKind</code>)</h3>
+      <p>싱크는 텍스트가 기본이고 <code>--alarm-webhook</code> 이 있으면 Slack·Teams 호환 JSON 을 덧붙인다. <strong>같은 <code>(종류, 열쇠)</code> 는 <code>--alarm-cooldown-s</code>(기본 300) 안에 한 번만 나간다</strong> — 없으면 링크가 흔들릴 때 초당 수십 건이 나가고 그 순간 진짜 경보가 묻힌다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>종류</th><th>심각도</th><th>언제</th></tr></thead>
+        <tbody>
+          <tr><td><code>TokenBudget</code> · <code>CostBudget</code></td><td>Warning → Critical</td><td>일일 예산 80% · 95% · 100%. 각 임계는 하루에 한 번 (C-02)</td></tr>
+          <tr><td><code>TierDowngraded</code></td><td>Warning</td><td>T2 → T1. 플랜 품질이 떨어진다</td></tr>
+          <tr><td><code>ReplanRejected</code></td><td>Warning</td><td>예산 소진. NPC 는 기존 플랜을 계속 쓴다</td></tr>
+          <tr><td><code>RateLimited</code></td><td>Info</td><td>초당 상한. <strong>예전에는 로그조차 없었다</strong></td></tr>
+          <tr><td><code>BreakerOpened</code> · <code>Failover</code></td><td>Warning</td><td>서킷 개방 · 제공사 페일오버 (C-01)</td></tr>
+          <tr><td><code>LinkState</code></td><td>Info → Critical</td><td>상태 전이. <code>Faulted</code>·<code>Degraded</code> 는 Critical (A-03)</td></tr>
+          <tr><td><code>EventGap</code></td><td>Critical</td><td>시퀀스 갭 (N6)</td></tr>
+          <tr><td><code>TickAllocation</code> · <code>TickOverrun</code></td><td>Critical</td><td><code>bytesPerTick != 0</code> · p99 초과</td></tr>
+          <tr><td><code>SnapshotFailed</code></td><td>Critical</td><td>상태 손실 창이 주기보다 커진다 (A-01)</td></tr>
+          <tr><td><code>TickSyncStalled</code></td><td>Critical</td><td>게임서버가 틱을 멈췄다 (A-10)</td></tr>
+          <tr><td><code>LocalEngineDown</code></td><td>Critical</td><td>로컬 추론이 응답하지 않는다 (C-08)</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>추적</h3>
+      <p><code>ActivitySource("Npc.Replan")</code> 하나뿐이다. LLM 호출 하나가 하나의 span 이다. <strong>틱 루프에는 붙이지 않는다</strong> — <code>Activity</code> 는 매번 할당한다 (CLAUDE.md §2.1).</p>
+    </section>
+
     <section class="card" id="open">
       <div class="shead"><span class="snum">14</span><h2>미측정으로 남은 것</h2></div>
       <p><strong>이 목록을 지우지 않는다.</strong> 없는 것을 채우면 이 문서를 근거로 쓴 모든 판단이 거짓이 된다.</p>

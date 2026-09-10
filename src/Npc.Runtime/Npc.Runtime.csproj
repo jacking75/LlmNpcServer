@@ -22,4 +22,19 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
+  <!--
+    금지 심볼 (A-05). CLAUDE.md §2.1·§2.3 의 규칙 몇 개를 컴파일 단계에서 거든다.
+
+    <b>테스트가 아니라 컴파일이 막는다.</b> 틱 루프에 LINQ 한 줄을 넣으면 부하 테스트가
+    야간에 잡아 주지만, 그때는 이미 커밋이 올라간 뒤다 — 여기서 막으면 손이 멈춘다.
+    TreatWarningsAsErrors 라 RS0030 이 곧 빌드 실패다.
+  -->
+  <ItemGroup>
+    <AdditionalFiles Include="BannedSymbols.txt" />
+
+    <!-- 분석기다. 런타임 의존이 아니므로 §3 의 "NuGet 0" 규칙과 충돌하지 않는다. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers"
+                      PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
+
 </Project>

@@ -89,7 +89,10 @@
 | **기동 순서 · 무엇이 어디에 꽂히나** | `src/Npc.Host/Program.cs` (905줄 — **조립의 유일한 자리**) · 그림은 `docs/startup_flow.html` |
 | **CLI 옵션 추가** | `src/Npc.Host/HostOptions.cs` → `src/Npc.Host/Config/HostOptionsSource.cs` 의 옵션 표에도 한 줄 (환경변수·설정 파일이 그것을 본다) → `tests/Npc.Tests/Host/HostOptionsTests.cs` |
 | **환경변수·설정 파일로 옵션을 주고 싶다** | `src/Npc.Host/Config/HostOptionsSource.cs` (CLI > 환경변수 > 파일) · 탐색 기준은 `Config/ConfigPaths.cs` |
-| **메트릭 · `/metrics` 대시보드** | `src/Npc.Host/Metrics/NpcMeter.cs` (722줄) |
+| **메트릭 · `/metrics` 대시보드** | `src/Npc.Host/Metrics/NpcMeter.cs` · 이름 사전은 `docs/reference_metrics.html` §13.5 |
+| **경보를 어디로 보내나** | `src/Npc.Host/Observability/Alarms.cs`(싱크·쿨다운·웹훅) · 예산 임계는 `Observability/BudgetAlarmBridge.cs` |
+| **Prometheus·OTLP·구조화 로그** | `src/Npc.Host/Observability/Telemetry.cs` |
+| **틱 루프에 금지된 API 를 썼다** | `src/Npc.Runtime/BannedSymbols.txt` — 빌드가 RS0030 으로 막는다 |
 | **NPC 하나를 추적하고 싶다** | `src/Npc.Host/Api/NpcTraceEndpoint.cs` |
 | **컨테이너·CI·릴리스** | `deploy/` (Dockerfile · compose · k8s · Grafana) · `.github/workflows/` · 버전은 `src/Npc.Host/HostVersion.cs` · 패키지 버전은 `Directory.Packages.props` 한 곳 |
 | **재기동하면 게임 시각이 새벽 6시로 돌아간다** | `src/Npc.Runtime/GameClock.cs`(`RequestOrigin`·`TryApplyPendingOrigin`) — 값은 핸드셰이크가 싣는다 · 정지 감시는 `src/Npc.Host/TickSyncWatchdog.cs` |

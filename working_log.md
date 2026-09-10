@@ -1,5 +1,25 @@
 # 작업 로그
 
+## 2026-09-10 11:30 KST · A-05 관측성 — OpenTelemetry · Prometheus · 구조화 로깅 · 경보 싱크
+
+계측기 13종이 `Meter` 에 만들어져 있는데 아무도 수집하지 않았다. 로그는 평문 한국어 한 줄이라
+수집기가 파싱할 수 없었고, 경보는 대시보드 색깔로만 존재했다.
+
+- **신규** `src/Npc.Host/Observability/` — `Alarms.cs`(싱크·쿨다운·컴포지트·웹훅) ·
+  `BudgetAlarmBridge.cs`(80/95/100% 임계) · `Telemetry.cs`(OTel·Prometheus·로그 형식).
+- 같은 `(종류, 열쇠)` 는 `--alarm-cooldown-s`(기본 300) 안에 한 번만. 없으면 링크가 흔들릴 때
+  초당 수십 건이 나가고 진짜 경보가 묻힌다.
+- 웹훅은 큐에 넣고 즉시 돌아온다. 큐가 차면 **오래된 것부터** 버린다 — 최신 경보가 살아남는다.
+- `RateLimited` 도 남긴다. 예전에는 로그조차 없어 "왜 처리율이 안 오르나" 를 추적할 수 없었다.
+- 틱 히스토그램 경계를 `[0.1, 0.5, 1, 2, 5, 10, 20, 50]`ms 로 잡았다 — 기본 경계는 초 단위라
+  0.8ms 짜리 틱이 전부 첫 칸에 몰려 p99 를 볼 수 없다.
+- **`src/Npc.Runtime/BannedSymbols.txt`** — `Stopwatch`·LINQ·`ILogger` 확장을 **빌드가 막는다**.
+  부하 테스트는 야간에 잡지만 그때는 이미 커밋이 올라간 뒤다.
+- 옵션 5개 — `--otlp-endpoint` · `--prometheus` · `--alarm-webhook` · `--alarm-cooldown-s` ·
+  `--log-format`. `--profile service` 는 Prometheus 와 JSON 로그를 켠다.
+- `docs/reference_metrics.html` §13.5 에 메트릭 이름 사전 21종과 경보 종류 표를 넣었다.
+- 테스트 12건 추가. 전체 1,167건 통과 · 경고 0.
+
 ## 2026-09-10 11:12 KST · A-10 게임 시각 복원 · `TickSync` 워치독
 
 재기동 시 게임 시각이 새벽 6시로 돌아가 NPC 스케줄 전체가 게임서버와 어긋났다.

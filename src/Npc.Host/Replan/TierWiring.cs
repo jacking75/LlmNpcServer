@@ -3,6 +3,7 @@ using Npc.Contracts;
 using Npc.Core;
 using Npc.Core.Plan;
 using Npc.Host.Config;
+using Npc.Host.Observability;
 using Npc.Llm;
 using Npc.MasterData;
 using Npc.Planning;
@@ -76,10 +77,14 @@ internal sealed class TierWiring : IAsyncDisposable
         ZoneStateTable zoneStates,
         GameClock clock,
         TextWriter log,
-        KillSwitchState? switches = null)
+        KillSwitchState? switches = null,
+        IAlarmSink? alarms = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(log);
+
+        // 싱크가 없으면 예산 경보는 로그로만 간다. 테스트가 그 경로를 쓴다.
+        IAlarmSink sink = alarms ?? NullAlarmSink.Instance;
 
         if (options.Tier == TierMode.None)
         {
@@ -110,11 +115,19 @@ internal sealed class TierWiring : IAsyncDisposable
         log.WriteLine($"llm-config: {llmPath}");
 
         var stats = new CompileStatsCollector();
-        var budget = new ReplanBudget(
-            ReplanBudgetLimits.Measured.ForWorkers(options.T1Workers),
-            clock.Current)
+        ReplanBudgetLimits limits = ReplanBudgetLimits.Measured.ForWorkers(options.T1Workers);
+
+        // 예산 경보는 싱크로 간다 (A-05 · C-02). 예전에는 콘솔 한 줄이었고
+        // RateLimited 는 로그조차 없어서 "왜 처리율이 안 오르나" 를 추적할 수 없었다.
+        var bridge = new BudgetAlarmBridge(sink, limits);
+
+        var budget = new ReplanBudget(limits, clock.Current)
         {
-            Alarm = alarm => LogAlarm(log, alarm),
+            Alarm = alarm =>
+            {
+                bridge.OnBudgetAlarm(alarm);
+                LogAlarm(log, alarm);
+            },
         };
 
         var breaker = new CircuitBreaker();

@@ -7,6 +7,14 @@
     <NoWarn>$(NoWarn);MEAI001</NoWarn>
   </PropertyGroup>
 
+  <ItemGroup Label="관측성 (A-05). Host 는 NuGet 제한이 없다 — §3 의존 규칙은 Contracts·Core 만 막는다.">
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- 게이트 러너(T1-62)가 조립된 호스트를 그대로 돌린다. 테스트용 조립을 따로 두면
          "기동되는 것"과 "테스트되는 것"이 갈라진다. -->

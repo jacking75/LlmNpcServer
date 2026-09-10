@@ -1,0 +1,14 @@
+; CLAUDE.md §2.1 — 틱 루프의 금지 목록을 컴파일 단계에서 거든다 (A-05).
+;
+; 로깅은 소스 생성 로거([LoggerMessage])만 쓴다. ILogger 확장 메서드는 매 호출마다
+; object[] 를 할당하고 문자열을 보간한다 — 틱마다 부르면 Gen0 이 폭증한다.
+;
+; 형식: T:전체이름 | M:전체시그니처 | P:속성 | F:필드  ;메시지
+M:Microsoft.Extensions.Logging.LoggerExtensions.LogTrace(Microsoft.Extensions.Logging.ILogger,System.String,System.Object[]); 소스 생성 로거([LoggerMessage])를 쓴다. 확장 메서드는 호출마다 할당한다 (CLAUDE.md §2.1).
+M:Microsoft.Extensions.Logging.LoggerExtensions.LogDebug(Microsoft.Extensions.Logging.ILogger,System.String,System.Object[]); 소스 생성 로거([LoggerMessage])를 쓴다. 확장 메서드는 호출마다 할당한다 (CLAUDE.md §2.1).
+M:Microsoft.Extensions.Logging.LoggerExtensions.LogInformation(Microsoft.Extensions.Logging.ILogger,System.String,System.Object[]); 소스 생성 로거([LoggerMessage])를 쓴다. 확장 메서드는 호출마다 할당한다 (CLAUDE.md §2.1).
+M:Microsoft.Extensions.Logging.LoggerExtensions.LogWarning(Microsoft.Extensions.Logging.ILogger,System.String,System.Object[]); 소스 생성 로거([LoggerMessage])를 쓴다. 확장 메서드는 호출마다 할당한다 (CLAUDE.md §2.1).
+M:Microsoft.Extensions.Logging.LoggerExtensions.LogError(Microsoft.Extensions.Logging.ILogger,System.String,System.Object[]); 소스 생성 로거([LoggerMessage])를 쓴다. 확장 메서드는 호출마다 할당한다 (CLAUDE.md §2.1).
+M:Microsoft.Extensions.Logging.LoggerExtensions.LogCritical(Microsoft.Extensions.Logging.ILogger,System.String,System.Object[]); 소스 생성 로거([LoggerMessage])를 쓴다. 확장 메서드는 호출마다 할당한다 (CLAUDE.md §2.1).
+T:System.Diagnostics.Stopwatch; 게임 로직은 Tick 만 본다 (CLAUDE.md §2.3). 계측은 호스트가 한다.
+T:System.Linq.Enumerable; 틱 루프에 LINQ 를 넣지 않는다 — 반복자가 할당이다 (CLAUDE.md §2.1).

@@ -171,6 +171,11 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--restore auto\|none\|<path>` | 복원 정책 (기본 `auto`). 해시가 안 맞으면 시드로 기동한다 |
 | `--shutdown-timeout-s N` | 정상 종료 예산 초 (기본 15). 넘기면 **종료 코드 2** |
 | `--tick-sync-stall-s N` | `TickSync` 가 멈춰도 되는 상한 초. `0`=끔 (기본 5) |
+| `--otlp-endpoint <url>` | OpenTelemetry 수집기 주소 |
+| `--prometheus` | `/metrics/prometheus` 를 연다 (`--profile service` 는 자동) |
+| `--alarm-webhook <url>` | 경보 웹훅 (Slack/Teams 호환 JSON) |
+| `--alarm-cooldown-s N` | 같은 경보의 재발화 간격 초 (기본 300) |
+| `--log-format text\|json` | 로그 형식 (기본 `text`. `--profile service` 는 `json`) |
 | `--max-speed` | 10Hz 페이싱 없이 최대 속도로. 부하·게이트 측정용 |
 | `--no-dashboard` | 웹 호스트를 띄우지 않는다 |
 | `--gs-host <host>` / `--gs-port N` | 게임서버 주소 (기본 `127.0.0.1:7010`). `--link tcp` 전용 |

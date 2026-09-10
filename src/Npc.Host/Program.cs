@@ -8,6 +8,7 @@ using Npc.Host;
 using Npc.Host.Api;
 using Npc.Host.Commands;
 using Npc.Host.Metrics;
+using Npc.Host.Observability;
 using Npc.Host.Persistence;
 using Npc.Host.Replan;
 using Npc.Llm;
@@ -154,9 +155,26 @@ else if (options.NoDashboard)
 }
 
 builder.WebHost.UseUrls([.. bindings]);
-builder.Logging.SetMinimumLevel(LogLevel.Warning);
+
+// 로그는 형식이 갈린다 (A-05). 운영은 JSON 한 줄, 개발은 평문이다.
+// ASP.NET 자체 로그는 여전히 Warning 이상만 — Information 을 켜면 요청마다 두 줄이 나온다.
+builder.Logging.AddNpcLogging(options.LogFormat, LogLevel.Warning);
+
+// 계측기 13종을 실제로 수집한다 (A-05). 아무도 수집하지 않으면 배선 비용을 내지 않는다.
+builder.Services.AddNpcTelemetry(
+    instanceId: $"{Environment.MachineName}:{options.Port}",
+    otlpEndpoint: options.OtlpEndpoint is { } otlp ? new Uri(otlp) : null,
+    prometheus: options.Prometheus);
 
 WebApplication app = builder.Build();
+
+// Prometheus 스크레이프 (A-05). 기존 /metrics JSON 은 그대로 둔다 —
+// 대시보드가 그것을 쓰고, 브라우저 하나 띄우자고 수집기를 세울 이유가 없다.
+if (options.Prometheus)
+{
+    app.MapPrometheusScrapingEndpoint(Telemetry.PrometheusRoute);
+    Console.Out.WriteLine($"prometheus: http://{options.Bind}:{options.Port}{Telemetry.PrometheusRoute}");
+}
 
 // ── 헬스체크 (A-03) ─────────────────────────────────────────────
 // --no-dashboard 여도 --health-port 를 주면 이 세 라우트만 뜬다.
@@ -287,6 +305,7 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly long _totalTicks;
     private readonly SnapshotWriter? _snapshots;
     private readonly TickSyncWatchdog _tickSync;
+    private readonly IAlarmSink _alarms;
 
     private NpcHost(
         HostOptions options,
@@ -308,7 +327,8 @@ internal sealed class NpcHost : IAsyncDisposable
         NpcRoster roster,
         TierWiring tiers,
         KillSwitchState switches,
-        SnapshotWriter? snapshots)
+        SnapshotWriter? snapshots,
+        IAlarmSink alarms)
     {
         _options = options;
         _link = link;
@@ -329,13 +349,15 @@ internal sealed class NpcHost : IAsyncDisposable
         _tiers = tiers;
         _switches = switches;
         _snapshots = snapshots;
+        _alarms = alarms;
         Roster = roster;
 
         // TickSync 워치독 (A-10). 게임서버가 틱을 멈추면 NPC 서버는 조용히 얼어붙는다.
         _tickSync = new TickSyncWatchdog(
             clock,
             options.TickSyncStallSeconds,
-            message => Console.Error.WriteLine($"alarm: {message}"));
+            message => alarms.Raise(new AlarmPayload(
+                AlarmKind.TickSyncStalled, AlarmSeverity.Critical, "tick-sync", message)));
 
         // 게임서버가 알려준 시각을 시계에 예약한다 (A-10). 반영은 틱 경계에서 한다.
         //
@@ -349,12 +371,26 @@ internal sealed class NpcHost : IAsyncDisposable
                 {
                     clock.RequestOrigin(socket.StartTick, socket.StartGameMinuteOfDay);
                 }
+
+                // 상태 전이는 그 자체가 사건이다 (A-05). 쿨다운이 같은 상태의 반복을 접는다.
+                alarms.Raise(new AlarmPayload(
+                    AlarmKind.LinkState,
+                    state is Npc.Contracts.LinkState.Faulted or Npc.Contracts.LinkState.Degraded
+                        ? AlarmSeverity.Critical
+                        : AlarmSeverity.Info,
+                    state.ToString(),
+                    $"링크 상태 {state}" + (socket.RejectCode != LinkRejectCode.None
+                        ? $" — {socket.RejectCode}"
+                        : string.Empty)));
             };
         }
     }
 
     /// <summary><c>TickSync</c> 워치독 (A-10). 계측·테스트가 읽는다.</summary>
     public TickSyncWatchdog TickSync => _tickSync;
+
+    /// <summary>경보 싱크 (A-05). 호스트 안의 모든 경보가 여기로 모인다.</summary>
+    public IAlarmSink Alarms => _alarms;
 
     /// <summary>이 호스트가 돌리는 NPC 수. <b><c>--npcs</c> 가 아니라 로스터가 정한다</b> — <c>--zone</c> 이 줄인다.</summary>
     public int Npcs => Roster.Count;
@@ -439,6 +475,9 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>마지막 종료 시퀀스 (A-02). 테스트가 단계 순서를 읽는다.</summary>
     public HostShutdown? LastShutdown { get; private set; }
+
+    /// <summary>경보 웹훅 (A-05). 없으면 null. 종료 시 큐를 비운다.</summary>
+    internal WebhookAlarmSink? Webhook { get; init; }
 
     /// <summary>
     /// 릴리스 버전 (A-09). <c>MAJOR.MINOR.PATCH+메타</c>.
@@ -721,10 +760,28 @@ internal sealed class NpcHost : IAsyncDisposable
             Handoff = handoff,
         };
 
+        // ── 경보 싱크 (A-05) ─────────────────────────────────────
+        // 텍스트가 기본이고 웹훅은 있으면 덧붙인다. 쿨다운이 바깥을 감싼다 —
+        // 억제는 싱크마다가 아니라 사건마다여야 한다.
+        var textAlarms = new TextAlarmSink(log);
+        IAlarmSink alarmTarget = textAlarms;
+
+        WebhookAlarmSink? webhook = null;
+
+        if (options.AlarmWebhook is { } webhookUrl)
+        {
+            webhook = new WebhookAlarmSink(new Uri(webhookUrl), textAlarms);
+            alarmTarget = new CompositeAlarmSink(textAlarms, webhook);
+
+            log.WriteLine($"alarm-webhook: {webhookUrl}");
+        }
+
+        var alarms = new CooldownAlarmSink(alarmTarget, options.AlarmCooldownSeconds);
+
         // ── 재계획 티어 (docs/14 §4). --tier 가 결정한다 ──
         TierWiring tiers = TierWiring.Build(
             options, data, masterDataDir, store, plans, replanQueue, handoff, snapshots,
-            individualPool, swapper, zoneStates, clock, log, switches);
+            individualPool, swapper, zoneStates, clock, log, switches, alarms);
 
         var meter = new NpcMeter(
             store, bands, plans, replanQueue, cognition, interrupts, link, loop, clock, data,
@@ -782,7 +839,9 @@ internal sealed class NpcHost : IAsyncDisposable
 
                     if (result.Error is { } error)
                     {
-                        log.WriteLine($"alarm: 스냅샷 실패 — {error}");
+                        alarms.Raise(new AlarmPayload(
+                            AlarmKind.SnapshotFailed, AlarmSeverity.Critical, "snapshot",
+                            $"스냅샷 실패 — {error}. 상태 손실 창이 주기보다 커진다"));
                     }
                 });
 
@@ -794,9 +853,10 @@ internal sealed class NpcHost : IAsyncDisposable
 
         var host = new NpcHost(
             options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
-            meter, driver, nullLink, tcp, totalTicks, roster, tiers, switches, snapshotWriter)
+            meter, driver, nullLink, tcp, totalTicks, roster, tiers, switches, snapshotWriter, alarms)
         {
             Restore = restore,
+            Webhook = webhook,
         };
 
         meter.TickSync = host.TickSync;
@@ -1019,6 +1079,11 @@ internal sealed class NpcHost : IAsyncDisposable
         if (_snapshots is { } snapshots)
         {
             await snapshots.DisposeAsync().ConfigureAwait(false);
+        }
+
+        if (Webhook is { } webhook)
+        {
+            await webhook.DisposeAsync().ConfigureAwait(false);
         }
 
         await _tiers.DisposeAsync().ConfigureAwait(false);
