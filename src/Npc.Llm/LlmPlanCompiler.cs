@@ -19,6 +19,13 @@ namespace Npc.Llm;
 /// </summary>
 public sealed class LlmPlanCompiler : IPlanCompiler
 {
+    /// <summary>
+    /// 내용 모더레이터 (C-06). 없으면 <c>reasoning</c> 을 그대로 둔다.
+    ///
+    /// 조립 순서상 컴파일러가 먼저 생기므로 init 이 아니다.
+    /// </summary>
+    public IContentModerator? Moderator { get; set; }
+
     private readonly MasterDataSet _data;
     private readonly PromptPrefix _prefix;
     private readonly LlmEngineOptions _engine;
@@ -189,6 +196,17 @@ public sealed class LlmPlanCompiler : IPlanCompiler
         if (!schema.IsValid || document is null)
         {
             return new PlanCompileResult(null, schema, stats, text);
+        }
+
+        // reasoning 정화 (C-06). 플랜 문서의 나머지는 전부 enum·id 인데 이것만 자유 자연어이고,
+        // planstore 에 그대로 저장돼 검수자가 읽는다. 제어문자·URL 이 파일에 남으면
+        // 터미널·웹 뷰어를 그대로 지난다.
+        //
+        // <b>플랜 자체는 건드리지 않는다.</b> 정화가 스텝을 바꾸면 검증을 지난 뒤에 플랜을
+        // 고치는 것이고, 그러면 "검증된 플랜" 이라는 말이 거짓이 된다.
+        if (Moderator is { } moderator && document.Reasoning is { Length: > 0 })
+        {
+            document = document with { Reasoning = moderator.Sanitize(document.Reasoning, out _) };
         }
 
         ArchetypeId archetype = request.Bucket.A;

@@ -133,6 +133,15 @@ internal sealed class TierWiring : IAsyncDisposable
 
         var breaker = new CircuitBreaker();
         PromptPrefix prefix = PromptPrefix.Build(data, masterDataDir);
+
+        // reasoning 정화 (C-06). 금칙어 파일이 없으면 빈 정화기다 — 없는 것은 오류가 아니다.
+        ReasoningSanitizer moderator = ReasoningSanitizer.Load(Path.Combine(masterDataDir, "prompt"));
+
+        if (moderator.BlockedWordCount > 0)
+        {
+            log.WriteLine($"moderation: 금칙어 {moderator.BlockedWordCount}건");
+        }
+
         var dryRun = new DryRunValidator(data);
 
         // 인접 버킷 재사용은 LLM 을 부르기 전에 공짜로 한 번 더 시도하는 경로다 (docs/12 §7).
@@ -140,11 +149,11 @@ internal sealed class TierWiring : IAsyncDisposable
 
         IPlanCompiler? local = TryBuildCompiler(
             llm, options.T1Engine ?? FirstLocalEngineId(llm), data, prefix, stats, dryRun, reuse,
-            log, "T1", () => clock.Current, sink);
+            log, "T1", () => clock.Current, sink, moderator);
 
         IPlanCompiler? external = TryBuildCompiler(
             llm, options.T2Engine, data, prefix, stats, dryRun, reuse,
-            log, "T2", () => clock.Current, sink);
+            log, "T2", () => clock.Current, sink, moderator);
 
         // 요청한 티어의 엔진이 없으면 그 티어는 꺼진다. 라우터는 둘 다 필요하므로
         // 없는 쪽을 있는 쪽으로 대신 채운다 — 그러면 강등·페일오버가 같은 엔진으로 간다.
@@ -307,7 +316,8 @@ internal sealed class TierWiring : IAsyncDisposable
         TextWriter log,
         string label,
         Func<Tick> now,
-        IAlarmSink alarms)
+        IAlarmSink alarms,
+        IContentModerator moderator)
     {
         // --t1-engine·--t2-engine 은 체인의 첫 자리를 덮어쓰는 것으로 의미를 유지한다.
         ImmutableArray<LlmEngineOptions> chain = llm.Chain(label.ToLowerInvariant(), engineId);
@@ -337,7 +347,10 @@ internal sealed class TierWiring : IAsyncDisposable
             log.WriteLine($"{label}: {head.Id}");
 
             return new LlmPlanCompiler(
-                data, prefix, head, ChatClientFactory.Create(head), stats, dryRun, reuse);
+                data, prefix, head, ChatClientFactory.Create(head), stats, dryRun, reuse)
+            {
+                Moderator = moderator,
+            };
         }
 
         var engines = new List<FailoverEngine>(chain.Length);
@@ -362,7 +375,10 @@ internal sealed class TierWiring : IAsyncDisposable
 
         log.WriteLine($"{label}: 체인 {string.Join(" → ", failover.EngineIds)}");
 
-        return new LlmPlanCompiler(data, prefix, head, failover, stats, dryRun, reuse);
+        return new LlmPlanCompiler(data, prefix, head, failover, stats, dryRun, reuse)
+        {
+            Moderator = moderator,
+        };
     }
 }
 
