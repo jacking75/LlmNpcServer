@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    [B-07] 게임서버 적합성 테스트 키트.
+
+    NPC 서버 **대신** 게임서버에 붙어 발행 규약(docs/reference_link.html §11)을 지키는지
+    관찰하고 보고서를 낸다. 규약 위반은 크래시가 아니라 "재계획 큐 폭주" 와
+    "가끔 이상하다" 로 나타나므로, 붙여 보기 전에 걸러 낼 도구가 필요하다.
+
+    잎(leaf)이다. 아무도 참조하지 않는다.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Npc.Conformance</RootNamespace>
+    <AssemblyName>Npc.Conformance</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Npc.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.Contracts\Npc.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Gateway\Npc.Gateway.csproj" />
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Wire\Npc.Wire.csproj" />
+  </ItemGroup>
+
+</Project>

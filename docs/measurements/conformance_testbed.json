@@ -1,0 +1,56 @@
+{
+  "target": "게임서버 대역 (Npc.TestGameServer)",
+  "run_at": "테스트 회차",
+  "passed": true,
+  "checks": [
+    {
+      "id": "C1.handshake",
+      "title": "핸드셰이크 · 재동기화",
+      "verdict": "pass",
+      "detail": "protocol 2 · contract minor 2 · features 0x3E · 스폰 16/16 · 존 12/12 · 프레임 최대 40건",
+      "violations": []
+    },
+    {
+      "id": "C2.ticksync",
+      "title": "TickSync — 단조 · 갭 0 · 10Hz",
+      "verdict": "pass",
+      "detail": "TickSync 240건 · 틱 3~242 · 갭 0 · 속도 미판정 (구동 회차 — 벽시계가 없다)",
+      "violations": []
+    },
+    {
+      "id": "C3.sequence",
+      "title": "시퀀스 — 단조 · 갭 0 · 리셋 없음",
+      "verdict": "pass",
+      "detail": "이벤트 311건 · 시퀀스 19~329 · 갭 0 · 되감김 0",
+      "violations": []
+    },
+    {
+      "id": "C4.proximity",
+      "title": "근접 — 동시 1건 · 히스테리시스 · 에지 트리거",
+      "verdict": "pass",
+      "detail": "PlayerProximity 4건 (Enter 2 · Leave 2) · 관찰 끝에 열려 있는 NPC 0명",
+      "violations": []
+    },
+    {
+      "id": "C5.combat",
+      "title": "전투 — DamageTaken 은 CombatStarted 뒤에만",
+      "verdict": "notchecked",
+      "detail": "전투 이벤트가 0건이다 — 이 회차에 전투가 없었다",
+      "violations": []
+    },
+    {
+      "id": "C6.response",
+      "title": "명령 응답 — timeout_s 안에 · 상관 ID 일치",
+      "verdict": "pass",
+      "detail": "명령 16건 · 응답 16건 (100.0 %) · 마감 초과 0 · 모르는 상관 ID 0",
+      "violations": []
+    },
+    {
+      "id": "C7.throughput",
+      "title": "처리량 — 드롭 0 · 이벤트 백로그 없음",
+      "verdict": "pass",
+      "detail": "명령 16건 · 드롭 0 · 프레임 241개 · 프레임당 평균 1.1건 · 최대 17건",
+      "violations": []
+    }
+  ]
+}

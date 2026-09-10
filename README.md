@@ -73,7 +73,7 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 
 | 구분 | 내용 |
 |---|---|
-| **실행 바이너리** | `Npc.Host`(NPC 서버 — 게임서버 대역·리플레이는 `--link` 로 갈아끼운다) · `npc`(마스터데이터·플랜 CLI) · `Npc.Prebake`(플랜 생성 CLI) · `Npc.Narrate`(기록을 하루 일지로) · `Npc.TestGameServer`·`Npc.TestClient`(P6) |
+| **실행 바이너리** | `Npc.Host`(NPC 서버 — 게임서버 대역·리플레이는 `--link` 로 갈아끼운다) · `npc`(마스터데이터·플랜 CLI) · `Npc.Prebake`(플랜 생성 CLI) · `Npc.Narrate`(기록을 하루 일지로) · `Npc.Conformance`(게임서버 적합성 키트) · `Npc.TestGameServer`·`Npc.TestClient`(P6) |
 | **데이터 아티팩트** | 마스터데이터 11종 · **프리베이크 플랜 2,880개** · 골든 픽스처 50건 · 리플레이 로그 |
 | **관측** | 운영 대시보드 (단일 HTML) |
 | **테스트 베드** | `Npc.TestGameServer`(소켓 게임서버 대역) · `Npc.TestClient`(WinForms 뷰어) → [`testbed/`](testbed/README.md) |
@@ -133,6 +133,7 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 | **와이어** | MemoryPack DTO + 8바이트 프레임 헤더. 버전 범위 [1, 2] 협상. **v1 56B/64B 는 동결**, v2 72B/80B |
 | **확장 슬롯** | `Instance`(채널·인스턴스 던전) · `Faction`(세력) · `ExtA`/`ExtB`(예약). `ExtSlots` 기능 비트를 켠 게임서버에만 나간다 — 안 켜면 **버려진다** |
 | **이기종 구현** | 오프셋 표(생성물) · 골든 바이트 벡터 7종 · **C++17/파이썬 참조 코덱** → [`docs/wire/`](docs/wire/layout_v2.md). v2 배치는 필드별 리틀엔디언 명시 직렬화다 |
+| **적합성 키트** | `Npc.Conformance` 가 게임서버에 붙어 발행 규약 7종을 관찰하고 보고서를 낸다. **미판정을 통과로 세지 않는다** |
 | **상호 인증** | HMAC-SHA256 + 논스 재사용 캐시 · `FixedTimeEquals` · TLS/mTLS |
 | **해시 분할** | **구조 해시**는 완전 일치 요구(불일치 = 거절), **내용 해시**는 경고 후 수락 |
 | **장애 주입** | `--drop-rate` 로 명령 유실을 상시 시험 |
@@ -403,6 +404,7 @@ npc --help
 |---|---|
 | `tools/Npc.Prebake` | 플랜 대량 생성. `--budget-usd` 로 비용 상한 · `--resume` 로 이어서 · 실패분은 `planstore/rejected/` 에 코드와 함께 보존 |
 | `tools/Npc.Narrate` | 명령 기록(`--link record`) → **사람이 읽는 하루 일지**. 틱 번호·상관 ID·플랜 id 를 남기지 않는다(블라인드 평가) |
+| `tools/Npc.Conformance` | **게임서버 적합성 키트.** NPC 서버 대신 붙어 규약 7종(핸드셰이크·TickSync·시퀀스·근접·전투·명령 응답·처리량)을 관찰하고 `conformance_*.md`·`.json` 을 낸다. 종료 코드 0=합격 · 1=위반 · 2=못 붙음 |
 | `tools/gen_poi_distances.cs` · `gen_npcs.cs` | 파생물 생성기. 끝나면 `derived.lock.json` 을 갱신한다 |
 | `testbed/Npc.TestGameServer` | 소켓 게임서버 **대역**. 진짜 게임서버 없이 연동을 시험한다 |
 | `testbed/Npc.TestClient` | WinForms 뷰어. NPC 가 실제로 어떻게 움직이는지 눈으로 본다 |
@@ -590,6 +592,7 @@ tools/
   Npc.Cli/          `npc` CLI — 검증·설명·편집·플랜 (F-01)
   Npc.Prebake/      프리베이크 CLI
   Npc.Narrate/      기록 → 하루 일지 · `card`·`explain` 서브커맨드(Npc.Narrative 껍질)
+  Npc.Conformance/  게임서버 적합성 키트 — 규약 7종 관찰 + 보고서 (B-07)
   *.cs              파일 기반 .NET 앱 (gen_npcs · gen_poi_distances · report_scale · …)
                     gen_* 는 `#:project` 로 Npc.MasterData 를 참조해 derived.lock.json 을 갱신한다
   *.ps1             측정·검수 스크립트 (run_load · run_weight_ab · review · pin_plan)

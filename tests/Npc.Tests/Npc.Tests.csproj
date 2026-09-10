@@ -33,6 +33,7 @@
     <ProjectReference Include="..\..\tools\Npc.Prebake\Npc.Prebake.csproj" />
     <ProjectReference Include="..\..\tools\Npc.Narrate\Npc.Narrate.csproj" />
     <ProjectReference Include="..\..\tools\Npc.Cli\Npc.Cli.csproj" />
+    <ProjectReference Include="..\..\tools\Npc.Conformance\Npc.Conformance.csproj" />
   </ItemGroup>
 
   <ItemGroup>

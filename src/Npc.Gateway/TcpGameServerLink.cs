@@ -96,6 +96,7 @@ public sealed class TcpGameServerLink : IGameServerLink
 
     // 아래 셋은 리시버 태스크만 쓴다. 읽기는 Interlocked.Read 로 한다.
     private long _eventsReceived;
+    private long _eventFrames;
     private long _eventGaps;
     private long _lastSequence = -1;
 
@@ -154,6 +155,24 @@ public sealed class TcpGameServerLink : IGameServerLink
 
     /// <summary>거절 사유. 수락됐거나 아직 핸드셰이크 전이면 <see cref="LinkRejectCode.None"/>.</summary>
     public LinkRejectCode RejectCode { get; private set; }
+
+    /// <summary>
+    /// 받은 <c>EventBatch</c> 프레임 수. 프레임당 건수 규약을 밖에서 볼 수 있게 한다 (B-07).
+    /// </summary>
+    public long EventFramesReceived => Interlocked.Read(ref _eventFrames);
+
+    /// <summary>
+    /// 이벤트를 하나 받을 때마다 부른다. <b>기본은 null 이고 운영 경로에서는 비어 있다.</b>
+    ///
+    /// <para>
+    /// 적합성 키트(B-07)가 <b>프레임 경계</b>를 알아야 해서 있다 — 채널로 나간 뒤에는
+    /// "이 이벤트가 몇 번째 프레임에 실려 왔는가" 를 되찾을 방법이 없고, 프레임당 상한
+    /// 256 은 그것 없이 검사할 수 없다.
+    /// </para>
+    ///
+    /// <para><b>리시버 태스크에서 부른다.</b> 무거운 일을 하면 수신이 밀린다.</para>
+    /// </summary>
+    public Action<GameEvent, long>? EventObserver { get; set; }
 
     /// <summary>
     /// 협상된 와이어 프로토콜 버전 (B-01). 핸드셰이크 전에는 0.
@@ -798,8 +817,12 @@ public sealed class TcpGameServerLink : IGameServerLink
             return;
         }
 
+        long frame = Interlocked.Increment(ref _eventFrames);
+
         foreach (GameEvent ev in decoded)
         {
+            EventObserver?.Invoke(ev, frame);
+
             // N6 — 시퀀스 불연속을 센다. 건너뛴 개수만큼 더한다.
             //
             // 게임서버 프로세스가 사는 동안 시퀀스는 순증하고 재접속해도 리셋하지 않는다

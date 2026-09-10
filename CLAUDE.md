@@ -238,6 +238,7 @@ testbed/Npc.TestClient        ←  MasterData, Protocol   (net10.0-windows · �
 
 ```
 tools/Npc.Cli       ←  Contracts, Core, MasterData, Narrative, Planning, Sim   (npc 명령)
+tools/Npc.Conformance ← Contracts, Gateway, MasterData, Wire   (게임서버 적합성 키트)
 tools/Npc.Prebake   ←  Core, MasterData, Planning, Llm, Sim
 tools/Npc.Narrate   ←  Contracts, Core, Gateway, MasterData, Narrative
 tools/gen_*.cs      ←  #:project 로 MasterData (파생물 잠금 갱신)
@@ -327,6 +328,7 @@ logs/ replays/ artifacts/
 | `Npc.Runtime`에서 `Npc.Llm` 참조 추가 | 틱 루프에 LLM이 들어올 길 | §3 의존 규칙 |
 | `docs/wire/layout_v2.md` 를 손으로 고침 | 생성물이라 다음 회차에 덮어써진다 | `LayoutDocTests` 가 코드에서 다시 뽑는다 |
 | 핸드셰이크 필드 순서를 바꿈 | 정렬 구멍 위치가 바뀌어 이미 붙어 있는 상대가 깨진다 | `HandshakePadding_IsPinned` |
+| 적합성 보고서의 "미판정" 을 통과로 셈 | 안 본 것을 봤다고 하는 것이다 | `Verdict.NotChecked` 는 합격에 안 든다. 보고서가 사유를 적는다 |
 | v1 와이어 DTO(`Npc.Wire/V1/`)에 필드 추가 | v1 게임서버가 읽던 배치가 통째로 어긋난다 | **동결이다.** 새 필드는 `V2/` 에만 |
 | 의미를 등록하지 않고 `ExtA`·`ExtB` 사용 | 두 팀이 같은 칸에 다른 것을 넣고 알아챌 계기가 없다 | `ExtensionSlots` 에 등록 + `Ext_ZeroForUndefinedKinds` |
 | 아키타입에 `duty_hours` 없이 `Guard`·`Patrol` 허용 | 인지 스캔이 매번 이탈로 읽어 재계획 큐 포화 | **V12 가 기동을 막는다.** `OnDuty`를 세우는 것은 `duty_hours` 뿐이다 |
