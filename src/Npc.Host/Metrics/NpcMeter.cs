@@ -469,7 +469,25 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
             "npc.snapshot.bytes", () => LastSnapshotBytes, description: "마지막 스냅샷 크기(B)");
         _meter.CreateObservableCounter(
             "npc.snapshot.failures", () => Snapshots?.Failures ?? 0, description: "스냅샷 실패 누계");
+
+        // ── 게임 시계 (A-10) ──
+        //
+        // ticks_behind 가 계속 크면 게임서버가 우리보다 빠르다는 뜻이고,
+        // stalled 는 TickSync 자체가 멈춘 사건이다. 둘은 다른 장애다.
+        _meter.CreateObservableGauge(
+            "npc.clock.ticks_since_sync",
+            () => TickSync?.TicksBehind ?? 0,
+            description: "게임서버 틱과 처리한 틱의 차이. 0 이 정상");
+        _meter.CreateObservableGauge(
+            "npc.clock.stalled",
+            () => TickSync is { Stalled: true } ? 1 : 0,
+            description: "TickSync 가 임계를 넘겨 멈춰 있으면 1");
+        _meter.CreateObservableGauge(
+            "npc.clock.game_hour", () => _clock.GameHour, description: "게임 시각 0~23");
     }
+
+    /// <summary><c>TickSync</c> 워치독 (A-10). 조립 순서상 계측기가 먼저 생기므로 init 이 아니다.</summary>
+    public TickSyncWatchdog? TickSync { get; set; }
 
     /// <summary>
     /// 스냅샷 쓰기 (A-01). 조립 순서상 계측기가 먼저 생기므로 init 이 아니다.

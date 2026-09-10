@@ -286,6 +286,7 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly KillSwitchState _switches;
     private readonly long _totalTicks;
     private readonly SnapshotWriter? _snapshots;
+    private readonly TickSyncWatchdog _tickSync;
 
     private NpcHost(
         HostOptions options,
@@ -329,7 +330,31 @@ internal sealed class NpcHost : IAsyncDisposable
         _switches = switches;
         _snapshots = snapshots;
         Roster = roster;
+
+        // TickSync 워치독 (A-10). 게임서버가 틱을 멈추면 NPC 서버는 조용히 얼어붙는다.
+        _tickSync = new TickSyncWatchdog(
+            clock,
+            options.TickSyncStallSeconds,
+            message => Console.Error.WriteLine($"alarm: {message}"));
+
+        // 게임서버가 알려준 시각을 시계에 예약한다 (A-10). 반영은 틱 경계에서 한다.
+        //
+        // <b>게임서버 값이 스냅샷보다 세다.</b> 세계를 미는 것은 게임서버이고,
+        // NPC 서버가 다른 시각을 들고 있으면 스케줄 전체가 어긋난다.
+        if (tcp is { } socket)
+        {
+            socket.StateChanged += state =>
+            {
+                if (state == Npc.Contracts.LinkState.Connected)
+                {
+                    clock.RequestOrigin(socket.StartTick, socket.StartGameMinuteOfDay);
+                }
+            };
+        }
     }
+
+    /// <summary><c>TickSync</c> 워치독 (A-10). 계측·테스트가 읽는다.</summary>
+    public TickSyncWatchdog TickSync => _tickSync;
 
     /// <summary>이 호스트가 돌리는 NPC 수. <b><c>--npcs</c> 가 아니라 로스터가 정한다</b> — <c>--zone</c> 이 줄인다.</summary>
     public int Npcs => Roster.Count;
@@ -774,6 +799,8 @@ internal sealed class NpcHost : IAsyncDisposable
             Restore = restore,
         };
 
+        meter.TickSync = host.TickSync;
+
         // 생존 신호는 루프가 조립된 뒤에 붙인다 (A-03). Volatile 쓰기 하나라 틱 예산에 영향이 없다.
         loop.Probe = host.Probe;
 
@@ -812,6 +839,7 @@ internal sealed class NpcHost : IAsyncDisposable
         await _tiers.StartAsync(workers.Token).ConfigureAwait(false);
 
         _snapshots?.Start();
+        _tickSync.Start();
 
         // 소켓 링크는 스스로 붙지 않는다 — 접속·재접속 루프를 누군가 돌려야 한다.
         // <b>WhenAll 에 넣지 않는다</b>: 이 루프는 취소될 때까지 끝나지 않으므로
@@ -950,6 +978,8 @@ internal sealed class NpcHost : IAsyncDisposable
         LinkState: _link.State.ToString(),
         LinkReject: LinkRejectReason,
         LinkNegotiation: _tcp?.NegotiationDetail ?? "링크 없음",
+        TicksBehind: _tickSync.TicksBehind,
+        TickSyncStalled: _tickSync.Stalled,
         ContractVersion: Npc.Contracts.ContractVersion.Text,
         LastSnapshotTick: _snapshots?.LastTick ?? 0,
         SnapshotFailures: _snapshots?.Failures ?? 0,
@@ -984,6 +1014,7 @@ internal sealed class NpcHost : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _meter.Dispose();
+        _tickSync.Dispose();
 
         if (_snapshots is { } snapshots)
         {
@@ -1190,6 +1221,8 @@ internal sealed class NpcHost : IAsyncDisposable
 /// <param name="LinkState">링크 접속 상태 (A-03). <c>/status</c> 가 링크와 무관하게 200 이던 결손을 메운다.</param>
 /// <param name="LinkReject">핸드셰이크 거절 사유. 없으면 null.</param>
 /// <param name="LinkNegotiation">협상 결과 (B-01). 프로토콜·계약·기능 비트.</param>
+/// <param name="TicksBehind">게임서버가 알려준 틱과 우리가 처리한 틱의 차이 (A-10). 0 이 정상.</param>
+/// <param name="TickSyncStalled"><c>TickSync</c> 가 임계를 넘겨 멈춰 있는가 (A-10).</param>
 /// <param name="ContractVersion">이 프로세스가 구현한 계약 버전 (B-01).</param>
 /// <param name="LastSnapshotTick">마지막으로 쓴 스냅샷의 틱 (A-01). 상태 손실 창의 하한이다.</param>
 /// <param name="SnapshotFailures">스냅샷 실패 누계. 0 이 아니면 손실 창이 주기보다 크다.</param>
@@ -1216,6 +1249,8 @@ internal readonly record struct HostSnapshot(
     string LinkState,
     string? LinkReject,
     string LinkNegotiation,
+    long TicksBehind,
+    bool TickSyncStalled,
     string ContractVersion,
     long LastSnapshotTick,
     long SnapshotFailures,

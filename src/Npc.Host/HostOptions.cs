@@ -298,6 +298,13 @@ public sealed record HostOptions
     /// </summary>
     public int ShutdownTimeoutSeconds { get; init; } = 15;
 
+    /// <summary>
+    /// <c>TickSync</c> 가 멈춰도 되는 상한(초). 기본 5. 0 이면 워치독을 끈다 (A-10).
+    ///
+    /// 하트비트 타임아웃은 소켓이 죽었을 때만 뜬다 — 소켓은 멀쩡한데 틱만 안 오는 경우가 남는다.
+    /// </summary>
+    public int TickSyncStallSeconds { get; init; } = 5;
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -340,6 +347,7 @@ public sealed record HostOptions
           --snapshot-keep N       보존할 스냅샷 수 (기본 3)
           --restore auto|none|<path>  복원 정책 (기본 auto). 조건이 안 맞으면 시드로 기동한다
           --shutdown-timeout-s N  정상 종료 예산 초 (기본 15). 넘기면 종료 코드 2
+          --tick-sync-stall-s N   TickSync 가 멈춰도 되는 상한 초. 0=끔 (기본 5)
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
@@ -920,6 +928,16 @@ public sealed record HostOptions
                         "none" => result with { Restore = RestoreMode.None, RestorePath = null },
                         _ => result with { Restore = RestoreMode.File, RestorePath = restore },
                     };
+                    break;
+
+                case "--tick-sync-stall-s":
+                    if (!TryInt(args, ref i, arg, 0, 86_400, out int tickStall, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { TickSyncStallSeconds = tickStall };
                     break;
 
                 case "--shutdown-timeout-s":

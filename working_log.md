@@ -1,5 +1,21 @@
 # 작업 로그
 
+## 2026-09-10 11:12 KST · A-10 게임 시각 복원 · `TickSync` 워치독
+
+재기동 시 게임 시각이 새벽 6시로 돌아가 NPC 스케줄 전체가 게임서버와 어긋났다.
+게임서버가 `TickSync` 를 멈추면 NPC 서버가 조용히 얼어붙는데 그것을 알리는 장치가 없었다.
+
+- `GameClock.RequestOrigin` / `TryApplyPendingOrigin` — 소켓 스레드가 예약하고 틱 경계에서
+  반영한다. 락 없이 `Volatile` 만 쓴다. **게임서버 값이 스냅샷보다 세다.**
+- 값은 v2 핸드셰이크의 `StartTick`·`StartGameMinuteOfDay` 다 (B-01). v1 은 `-1` 이고
+  없는 것을 있는 척하지 않는다.
+- 원점을 `[0, 하루)` 로 정규화한다 — 그러지 않으면 게임 초가 음수가 되어 시각이 뒤집힌다.
+- **신규** `src/Npc.Host/TickSyncWatchdog.cs` — 틱이 `--tick-sync-stall-s`(기본 5) 동안
+  안 늘면 경보, 다시 돌면 복구 경보. 한 사건에 한 번만 운다.
+- 계측기 `npc.clock.ticks_since_sync`·`npc.clock.stalled`·`npc.clock.game_hour`,
+  `/status` 에 `ticksBehind`·`tickSyncStalled`.
+- 테스트 11건 추가. 전체 1,155건 통과 · 경고 0.
+
 ## 2026-09-10 11:04 KST · B-04 핸드셰이크 해시 분할 · 부분 호환 정책
 
 마스터데이터가 한 글자만 달라도 링크가 안 붙었다. 상용에서는 게임서버·NPC 서버가 다른

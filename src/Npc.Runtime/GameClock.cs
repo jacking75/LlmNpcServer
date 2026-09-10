@@ -17,8 +17,14 @@ namespace Npc.Runtime;
 public sealed class GameClock
 {
     private readonly BucketSpace _buckets;
-    private readonly long _originGameSeconds;
+    private long _originGameSeconds;
     private long _syncedTick;
+
+    // 게임서버가 알려준 시각을 틱 루프 밖에서 받아 두는 자리 (A-10).
+    // 소켓 스레드가 쓰고 틱 루프가 읽는다 — 락 없이 Volatile 만 쓴다 (CLAUDE.md §2.1).
+    private long _pendingOriginTick = -1;
+    private int _pendingOriginMinute = -1;
+    private int _originRequested;
 
     /// <summary>게임 하루의 초.</summary>
     public const int SecondsPerGameDay = 24 * 3600;
@@ -54,6 +60,62 @@ public sealed class GameClock
 
     /// <summary>게임 시작부터의 게임 초.</summary>
     public long GameSeconds => _originGameSeconds + (Current.Value * TimeScale / Tick.PerSecond);
+
+    /// <summary>
+    /// 게임서버가 알려준 시각을 예약한다 (A-10). <b>소켓 스레드에서 부른다.</b>
+    ///
+    /// 여기서 시계를 직접 고치지 않는다 — 틱 루프가 돌고 있으면 데이터 레이스다.
+    /// 예약만 하고 반영은 틱 경계에서 <see cref="TryApplyPendingOrigin"/> 이 한다.
+    /// </summary>
+    /// <param name="startTick">게임서버의 현재 틱.</param>
+    /// <param name="minuteOfDay">게임 안 하루의 몇 분째인가 (0~1439). 음수면 "모른다".</param>
+    public void RequestOrigin(long startTick, int minuteOfDay)
+    {
+        if (minuteOfDay < 0)
+        {
+            return;   // v1 게임서버는 시각을 모른다. 없는 것을 있는 척하지 않는다.
+        }
+
+        Volatile.Write(ref _pendingOriginTick, startTick);
+        Volatile.Write(ref _pendingOriginMinute, minuteOfDay);
+        Volatile.Write(ref _originRequested, 1);
+    }
+
+    /// <summary>
+    /// 예약된 시각을 반영한다 (A-10). <b>틱 경계에서만 부른다.</b>
+    ///
+    /// <b>게임서버 값이 이긴다.</b> 스냅샷(A-01)이 복원한 시계와 충돌하면 게임서버 쪽으로 맞춘다 —
+    /// 세계를 미는 것은 게임서버이고, NPC 서버가 다른 시각을 들고 있으면 스케줄 전체가 어긋난다.
+    /// </summary>
+    /// <returns>반영했으면 true.</returns>
+    public bool TryApplyPendingOrigin()
+    {
+        if (Volatile.Read(ref _originRequested) == 0)
+        {
+            return false;
+        }
+
+        Volatile.Write(ref _originRequested, 0);
+
+        long startTick = Volatile.Read(ref _pendingOriginTick);
+        int minute = Volatile.Read(ref _pendingOriginMinute);
+
+        // 원점을 [0, 하루) 로 정규화한다. 그러지 않으면 GameSeconds 가 음수가 되어
+        // GameDay·GameHour 가 뒤집힌다.
+        long elapsed = startTick * TimeScale / Tick.PerSecond;
+        long wanted = (long)minute * 60;
+
+        _originGameSeconds = (((wanted - elapsed) % SecondsPerGameDay) + SecondsPerGameDay)
+            % SecondsPerGameDay;
+
+        Current = new Tick(startTick);
+        _syncedTick = Math.Max(_syncedTick, startTick);
+
+        TimeOfDay = _buckets.TimeOfDayAt(GameHour);
+        TimeOfDayChanged = false;
+
+        return true;
+    }
 
     /// <summary>현재 게임 시각 0~23.</summary>
     public int GameHour => (int)(GameSeconds / 3600 % 24);

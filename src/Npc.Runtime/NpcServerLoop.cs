@@ -167,6 +167,10 @@ public sealed class NpcServerLoop
         {
             Probe?.Beat();
 
+            // 게임서버가 알려준 시각을 반영한다 (A-10). 틱 경계이자 배수 전이다 —
+            // 이벤트를 먼저 먹이면 낡은 시각으로 판단한 뒤 시계만 뒤늦게 뛴다.
+            _clock.TryApplyPendingOrigin();
+
             // ── 1. 이벤트 배수 (멱등, N7) ────────────────────────────
             int drained = DrainEvents();
 
