@@ -46,6 +46,7 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     private long _t1Calls;
     private long _t2Calls;
     private long _rejected;
+    private long _spilloverDeferred;
     private long _failovers;
     private long _spillovers;
 
@@ -81,6 +82,11 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     public Func<int>? LocalQueueDepth { get; init; }
 
     /// <summary>
+    /// 개체 스필오버 서브 쿼터 (C-07). null 이면 제한하지 않는다 — 지금까지의 동작이다.
+    /// </summary>
+    public SpilloverQuota? Quota { get; init; }
+
+    /// <summary>
     /// 요청당 토큰 추정 함수. 없으면 <see cref="DefaultEstimatedTokens"/> 를 쓴다.
     /// 예산은 추정으로 선차감하고 실측으로 정산한다 (<see cref="IReplanBudget.Settle"/>).
     /// </summary>
@@ -109,6 +115,9 @@ public sealed class TieredPlanCompiler : IPlanCompiler
 
     /// <summary>지금 T1 큐가 임계를 넘었는가. 없는 공급자면 항상 거짓이다.</summary>
     public bool IsSpilling => LocalQueueDepth is { } depth && depth() > SpilloverThreshold;
+
+    /// <summary>서브 쿼터를 넘겨 T1 으로 돌린 개체 요청 수 (C-07).</summary>
+    public long SpilloverDeferred => Interlocked.Read(ref _spilloverDeferred);
 
     /// <summary>
     /// T2 서킷 브레이커 (T4-09). 없으면 항상 닫혀 있다고 본다.
@@ -212,6 +221,23 @@ public sealed class TieredPlanCompiler : IPlanCompiler
         if (wanted == Tier.T2 && request.Quality != PlanQuality.Archetype)
         {
             Interlocked.Increment(ref _spillovers);
+
+            // 서브 쿼터 (C-07). 넘으면 <b>거절이 아니라 T1 대기</b>다 —
+            // 개별 재계획은 급하지 않고, 그 NPC 는 기존 플랜을 계속 쓰면 된다.
+            //
+            // 없으면 개별 스필오버가 하루 예산(약 649건)을 몇 분 만에 태우고, 정작
+            // 수천 NPC 가 공유하는 버킷 미스 보충이 굶는다.
+            if (Quota is { } quota
+                && !quota.TryUseT2(ReplanAccount.Individual, Estimate(in request), now)
+                && Available(Tier.T1))
+            {
+                wanted = Tier.T1;
+                Interlocked.Increment(ref _spilloverDeferred);
+            }
+        }
+        else if (wanted == Tier.T2 && Quota is { } bucketQuota)
+        {
+            bucketQuota.TryUseT2(ReplanAccount.Bucket, Estimate(in request), now);
         }
 
         // 브레이커가 차단 중이면 시도하지 않는다. 무한 재시도는 외부 장애 시 지연을 폭발시킨다

@@ -235,7 +235,12 @@ public readonly record struct CostPanel(
     string BreakerState,
     long T1Calls,
     long T2Calls,
-    long Spillovers);
+    long Spillovers,
+    long SpilloverDeferred,
+    long IndividualTokensToday,
+    long IndividualTokenCap,
+    double WallClockSpentUsd,
+    double WallClockCapUsd);
 
 /// <summary>
 /// 버킷 히트맵. docs/14 §8 · T4-22.
@@ -488,6 +493,9 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
 
     /// <summary><c>TickSync</c> 워치독 (A-10). 조립 순서상 계측기가 먼저 생기므로 init 이 아니다.</summary>
     public TickSyncWatchdog? TickSync { get; set; }
+
+    /// <summary>벽시계 청구 캡 (C-02). 조립 순서상 계측기가 먼저 생기므로 init 이 아니다.</summary>
+    public Npc.Host.Replan.BillingGuard? Billing { get; set; }
 
     /// <summary>
     /// 스냅샷 쓰기 (A-01). 조립 순서상 계측기가 먼저 생기므로 init 이 아니다.
@@ -778,7 +786,16 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
             BreakerState: (tiers.Breaker?.StateAt(_clock.Current) ?? CircuitState.Closed).ToString(),
             T1Calls: tiers.Router?.T1Calls ?? 0,
             T2Calls: tiers.Router?.T2Calls ?? 0,
-            Spillovers: tiers.Router?.Spillovers ?? 0);
+            Spillovers: tiers.Router?.Spillovers ?? 0,
+
+            // C-07 — 개체 몫이 먼저 마르는지 본다. 버킷 미스 보충이 굶고 있으면 여기가 꽉 차 있다.
+            SpilloverDeferred: tiers.Router?.SpilloverDeferred ?? 0,
+            IndividualTokensToday: tiers.Quota?.IndividualTokensToday ?? 0,
+            IndividualTokenCap: tiers.Quota?.IndividualCap ?? 0,
+
+            // C-02 — 벽시계 오늘 지출. ReplanBudget 의 틱 기준 하루와 별개다.
+            WallClockSpentUsd: Billing?.SpentToday ?? 0,
+            WallClockCapUsd: Billing?.CapUsd ?? 0);
     }
 
     /// <summary>

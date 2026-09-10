@@ -368,6 +368,14 @@ public sealed record HostOptions
     /// <summary>청구일이 바뀌는 UTC 시각(0~23). 제공사 청구 주기에 맞춘다.</summary>
     public int BillingResetHour { get; init; }
 
+    /// <summary>
+    /// 개체 재계획이 쓸 수 있는 T2 예산의 몫 0~1. 기본 0.20 (C-07).
+    ///
+    /// <b>예산을 나누기만 하고 총 캡은 그대로다</b> (CLAUDE.md §2.7). 없으면 개별 스필오버가
+    /// 하루 예산(약 649건)을 몇 분 만에 태우고, 정작 수천 NPC 가 공유하는 버킷 미스 보충이 굶는다.
+    /// </summary>
+    public double BudgetIndividualShare { get; init; } = Npc.Core.SpilloverQuota.DefaultShare;
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -423,6 +431,9 @@ public sealed record HostOptions
           --require-link-auth     게임서버가 인증을 지원하지 않으면 거절한다
           --billing-cap-usd <n>   벽시계 하루 비용 캡(USD). 0=끔. 넘으면 T2 를 끊는다
           --billing-reset-hour N  청구일이 바뀌는 UTC 시각 0~23 (기본 0)
+          --budget-individual-share <0~1>
+                                  개체 재계획이 쓸 T2 예산의 몫 (기본 0.20).
+                                  넘으면 거절이 아니라 T1 대기다
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
@@ -1108,6 +1119,16 @@ public sealed record HostOptions
                     }
 
                     result = result with { BillingCapUsd = capUsd };
+                    break;
+
+                case "--budget-individual-share":
+                    if (!TryRate(args, ref i, arg, out double share, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { BudgetIndividualShare = share };
                     break;
 
                 case "--billing-reset-hour":

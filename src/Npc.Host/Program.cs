@@ -969,6 +969,7 @@ internal sealed class NpcHost : IAsyncDisposable
         };
 
         meter.TickSync = host.TickSync;
+        meter.Billing = billing;
 
         // 생존 신호는 루프가 조립된 뒤에 붙인다 (A-03). Volatile 쓰기 하나라 틱 예산에 영향이 없다.
         loop.Probe = host.Probe;

@@ -1,5 +1,21 @@
 # 작업 로그
 
+## 2026-09-10 12:26 KST · C-07 스필오버 서브 쿼터 · 버킷/개체 예산 분리
+
+개별 재계획이 T1 큐 64 를 넘겨 T2 로 흐르면 하루 예산(약 649건)이 몇 분 만에 소진됐다.
+그러면 정작 수천 NPC 가 공유하는 **버킷 미스 보충**이 굶는다.
+
+- **신규** `src/Npc.Core/Planning/ReplanAccount.cs` — `ReplanAccount`(Bucket/Individual) ·
+  `SpilloverQuota`. **`Npc.Core` 에 둔다** — `Npc.Llm` 이 읽는데 의존 그래프상
+  `Npc.Llm → Npc.Planning` 이 없다(`IReplanBudget` 이 거기 있는 것과 같은 이유).
+- 개체가 서브 쿼터(기본 20%)를 넘으면 **거절이 아니라 T1 대기**다. 개별 재계획은 급하지 않고
+  그 NPC 는 기존 플랜을 계속 쓰면 된다.
+- **버킷은 제한하지 않는다.** 서브 쿼터는 개체에만 건다 — 버킷을 제한하면 서브 쿼터를 둔
+  이유가 사라진다.
+- `--budget-individual-share`. `/metrics` 비용 패널에 `spilloverDeferred`·
+  `individualTokensToday`·`individualTokenCap` 과 C-02 의 `wallClockSpentUsd` 를 실었다.
+- 테스트 7건 추가. 전체 1,266건 통과 · 경고 0.
+
 ## 2026-09-10 12:17 KST · C-06 문자열 격리 테스트 강제 · `reasoning` 정화 · 모더레이션 훅
 
 플레이어 문자열 금지는 타입 설계로만 지켜졌고 회귀 테스트가 없었다. `PlanRequest` 에

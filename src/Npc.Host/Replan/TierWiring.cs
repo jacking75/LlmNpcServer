@@ -43,6 +43,9 @@ internal sealed class TierWiring : IAsyncDisposable
     /// <summary>T2 서킷 브레이커.</summary>
     public CircuitBreaker? Breaker { get; private set; }
 
+    /// <summary>개체 스필오버 서브 쿼터 (C-07). 대시보드·계측이 읽는다.</summary>
+    public SpilloverQuota? Quota { get; private set; }
+
     /// <summary>개별 재계획 공급원 (T1).</summary>
     public IndividualReplanSource? Individual { get; private set; }
 
@@ -168,9 +171,17 @@ internal sealed class TierWiring : IAsyncDisposable
 
         // 메꾼 자리는 반드시 알려 준다 (T5-21). 이게 없으면 --tier t2 에서 T2 를 끊어도
         // T1 자리에 앉은 같은 외부 컴파일러가 계속 불려 킬스위치가 아무것도 끊지 못한다.
+        // 개체 스필오버 서브 쿼터 (C-07). 버킷 미스 보충이 굶지 않게 개체 몫을 제한한다.
+        var quota = new SpilloverQuota(options.BudgetIndividualShare, limits.DailyTokenCap);
+
+        log.WriteLine(
+            $"budget: 일일 {limits.DailyTokenCap:N0} tok · "
+            + $"개체 몫 {options.BudgetIndividualShare:P0} ({quota.IndividualCap:N0} tok)");
+
         var router = new TieredPlanCompiler(t1 ?? t2!, t2 ?? t1!, budget, () => clock.Current)
         {
             LocalQueueDepth = () => queue.Count,
+            Quota = quota,
             Breaker = breaker,
             Switches = switches ?? KillSwitchState.None,
             HasT1 = t1 is not null,
@@ -183,6 +194,7 @@ internal sealed class TierWiring : IAsyncDisposable
             Budget = budget,
             Router = router,
             Breaker = breaker,
+            Quota = quota,
         };
 
         if (t1 is not null)

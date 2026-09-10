@@ -82,7 +82,7 @@
 | **`Resolve` 가 null 을 준다** | `src/Npc.Planning/PlanStore.cs` | **절대 null 을 반환하지 않는다.** 미스여도 폴백을 준다 |
 | **프리베이크** | `tools/Npc.Prebake/` → `src/Npc.Planning/Manifest.cs`·`PlanStoreIo.cs` | `--concurrency` 기본 8. 429 를 먼저 재고 올린다 |
 | **재계획 우선순위** | `src/Npc.Planning/ReplanQueue.cs` → `ReplanScorer.cs` | 같은 NPC 중복 삽입 금지(`_heapPos`). 지금은 **예산이 병목**이라 가중치 효과가 작다 |
-| **일일 토큰 캡 · 예산** | `src/Npc.Planning/ReplanBudget.cs` → `TokenBucket.cs` | 캡 우회 코드를 만들지 않는다 |
+| **일일 토큰 캡 · 예산** | `src/Npc.Planning/ReplanBudget.cs` → `TokenBucket.cs` · 개체 몫은 `src/Npc.Core/Planning/ReplanAccount.cs` | 캡 우회 코드를 만들지 않는다. **나누기만 한다** |
 | **워커가 플랜을 못 넘긴다** | `src/Npc.Host/Replan/ReplanWorker.cs` → `src/Npc.Planning/ReplanHandoff.cs` | 워커는 `Volatile.Write` 만. 틱 루프 상태를 직접 고치지 않는다 |
 | **마스터데이터를 고쳤는데 플랜이 안 맞는다** | `src/Npc.Planning/PlanStoreValidator.cs` | `ContentHash` 가 바뀌면 전량 무효 |
 
