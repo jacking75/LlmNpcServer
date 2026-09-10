@@ -639,6 +639,10 @@ docs/               설계 사양 (아래)
 | [`LLM_NPC_Server_Plan.md`](LLM_NPC_Server_Plan.md) | 상위 계획 · 타당성 판단 · 아키텍처 · 비용 분석 · 리스크 대장 |
 | [`PRODUCTION_ROADMAP.md`](PRODUCTION_ROADMAP.md) | **상용 투입 로드맵.** 상용 결손 진단 · 태스크 50건(체크리스트) · 구현 방법 · LLM 온보딩 · NPC 정의 툴 |
 | [`docs/measurements/`](docs/measurements/) | 실측 **원자료** (jsonl · csv). 보고서는 `reference_metrics.html` 로 옮겼다 |
+| [`docs/security/threat_model.md`](docs/security/threat_model.md) | **위협 모델.** 자산 · 신뢰 경계 · 위협 T1~T15 와 대응 · 실측 · **잔여 위험** |
+| [`docs/security/secrets.md`](docs/security/secrets.md) | **시크릿.** 환경변수 목록 · 회전 절차 · 유출 대응. **무중단 회전은 없다** — 회전 = 재기동 |
+| [`docs/security/privacy.md`](docs/security/privacy.md) | 플레이어 id 가 남는 위치와 삭제 경로 |
+| [`docs/legal/dotllm.md`](docs/legal/dotllm.md) · [`models.md`](docs/legal/models.md) | dotLLM GPLv3 배포 경계 · 모델 약관. **법무 확인은 미실시** |
 
 코드를 고친다면 [`CLAUDE.md`](CLAUDE.md)(규칙)와 [`CODEMAP.md`](CODEMAP.md)(무엇을 하려면 어디를 여는가)를 먼저 읽는다.
 

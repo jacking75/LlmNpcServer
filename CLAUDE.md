@@ -31,6 +31,8 @@
 | `docs/testbed_guide.html` | 테스트 베드 · 게임서버 연동 시험 |
 | `docs/FAQ.html` | 도입·행동 플랜·전투 반응·대화 확장 |
 | **`docs/llm/`** | **LLM 온보딩 팩 — `SKILL.md` · `CONTEXT.md`(3,000토큰 압축) · `RECIPES/`(작업별 절차 11) · `ANTIPATTERNS.md` · `GLOSSARY.md` · `PROMPTS.md` · `VALIDATION.md`(생성물)** |
+| `docs/security/` | 위협 모델 · 시크릿(목록·회전·유출 대응) · 개인정보. **"미실시" 표시를 지우지 않는다** |
+| `docs/legal/` | dotLLM GPLv3 배포 경계 · 모델 약관. **법무 확인은 미실시**다 |
 | **`PRODUCTION_ROADMAP.md`** | **상용 투입 로드맵 — 결손 태스크 50건(체크리스트)·구현 방법·LLM 온보딩·NPC 정의 툴. 유일한 작업 지시서** |
 
 ★ **`reference_link.html` · `reference_masterdata.html` 을 읽지 않고 계약·마스터데이터를 건드리지
