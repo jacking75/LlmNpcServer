@@ -61,7 +61,8 @@
 | 하려는 일 | 여는 곳 | 주의 |
 |---|---|---|
 | **계약 버전 · 와이어 협상 · 기능 비트** | `src/Npc.Contracts/ContractVersion.cs` → `src/Npc.Wire/V2/VersionNegotiation.cs` · v2 핸드셰이크는 `src/Npc.Wire/V2/LinkMessagesV2.cs` · **`V1/` 은 수정하지 않는다** |
-| **패킷에 필드 추가 · 새 명령/이벤트 종류** | `src/Npc.Contracts/NpcCommand.cs`·`GameEvent.cs` → **반드시** `src/Npc.Wire/WireCommand.cs`·`WireEvent.cs` 도 같이 | `Wire_MirrorsContractMembers`·`Wire_LayoutIsFrozen` 가 먼저 깨진다. 56B·64B 고정 |
+| **패킷에 필드 추가 · 새 명령/이벤트 종류** | `src/Npc.Contracts/NpcCommand.cs`·`GameEvent.cs` → **반드시** `src/Npc.Wire/V2/WireCommandV2.cs`·`WireEventV2.cs` 도 같이 | `Wire_MirrorsContractMembers`·`Wire_LayoutIsFrozen_V2` 가 먼저 깨진다. **v1(`V1/`)은 동결 — 56B·64B.** v2 는 72B·80B |
+| **채널·인스턴스 던전 · 세력 · 예약 슬롯** | `src/Npc.Contracts/ExtensionSlots.cs`(의미 등록부) · `NpcStore.Instance` · `docs/reference_link.html` §05 | **등록되지 않은 예약 슬롯은 0 이다.** 쓰려면 등록부에 줄을 넣고 문서를 같은 커밋에서 고친다 |
 | **실제 게임서버에 붙인다** | `docs/reference_link.html` 를 상대 팀에 전달 → `src/Npc.Gateway/TcpGameServerLink.cs`(661줄) | 이기종 런타임이면 `Npc.Wire` 한 곳만 고친다 |
 | **링크 인증·암호화** | `src/Npc.Wire/V2/LinkAuth.cs`(HMAC·nonce) · `src/Npc.Gateway/TlsStreamFactory.cs`(TLS/mTLS) · 관리 API 는 `src/Npc.Host/Api/AdminAuth.cs` |
 | **소켓이 끊긴다 · 재접속** | `src/Npc.Gateway/TcpGameServerLink.cs` → `TcpLinkOptions.cs` → `src/Npc.Wire/LinkMessages.cs`(핸드셰이크) | 시퀀스를 리셋하면 NPC 가 영원히 멈춘다 |
@@ -150,7 +151,7 @@ PlanExecutor.Step
   → PoiBinder                  $home · $workplace · $nearest_* 해석
   → CorrelationTable           상관 ID 발급
   → IGameServerLink.Enqueue → PriorityCommandRing → FlushAsync
-  → TcpGameServerLink 센더 → WireCommand → FrameCodec → 소켓
+  → TcpGameServerLink 센더 → WireCommand(v1) 또는 WireCommandV2(v2) → FrameCodec → 소켓
 ```
 
 **이벤트 하나가 들어오는 길**
@@ -188,7 +189,7 @@ CognitionScheduler.Scan        이탈 판정 → ReplanQueue (ReplanScorer 점�
 | `Npc.Planning` | 플랜 캐시·재계획 큐·예산 | `PlanStore.cs` |
 | `Npc.Narrative` | **정의 설명 카드** — 아키타입·플랜·인터럽트·인스턴스 → 한국어 markdown. LLM·시각·난수 없음 | `ArchetypeCard.cs` |
 | `Npc.Llm` | 프롬프트 조립·컴파일·티어링 | `TieredPlanCompiler.cs` |
-| `Npc.Wire` | 소켓 위의 표현 (MemoryPack) | `WireCommand.cs` |
+| `Npc.Wire` | 소켓 위의 표현 (MemoryPack) | `V1/WireCommand.cs`(동결) · `V2/WireCommandV2.cs` |
 | `Npc.Gateway` | 링크 구현 5종 (Loopback·Null·Recording·Replay·Tcp) | `TcpGameServerLink.cs` |
 | `Npc.Sim` | 게임서버 대역 (인프로세스) | `SimWorld.cs` |
 | `Npc.Host` | 조립·CLI·메트릭 | `Program.cs` |

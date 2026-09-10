@@ -65,8 +65,11 @@ def pump(src, dst, label, verbose):
             while len(buf) >= HEADER:
                 length, kind, version, reserved = struct.unpack_from("<IBBH", buf, 0)
 
-                if version != 1:
-                    print(f"[{label}] 와이어 버전이 다르다: {version}")
+                # 받아 줄 범위다. v2 는 확장 슬롯이 붙은 배치이고(B-02), 원소가 커진다 —
+                # WireCommand 56B → 72B · WireEvent 64B → 80B. 여기서는 프레임만 세므로
+                # 원소 크기를 몰라도 되지만, 버전은 찍어 둔다.
+                if not (1 <= version <= 2):
+                    print(f"[{label}] 와이어 버전이 범위를 벗어난다: {version}")
                     return
                 if length > (1 << 20):
                     print(f"[{label}] 페이로드 상한 초과: {length}B — 경계가 밀렸다")
@@ -81,7 +84,7 @@ def pump(src, dst, label, verbose):
                     bytes_by_kind[(label, name)] += HEADER + length
 
                 if verbose and name not in ("Heartbeat",):
-                    print(f"[{label}] {name:<13} payload {length:6}B")
+                    print(f"[{label}] v{version} {name:<13} payload {length:6}B")
 
                 del buf[: HEADER + length]
     except OSError:

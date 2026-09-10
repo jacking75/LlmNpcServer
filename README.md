@@ -130,7 +130,8 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 | **패킷 규약** | 전부 `readonly record struct` · **`string`·`DateTime` 금지** · 시간은 `Tick`(long) |
 | **순서·멱등** | 명령에 `CorrelationId`, 이벤트에 `Sequence`(갭 검출 → 경보). 2회 주입 → 상태 해시 동일 |
 | **링크 구현 5종** | `Loopback`(인프로세스 `Npc.Sim` 직결) · `Null` · `Recording` · `Replay` · `Tcp` |
-| **와이어** | MemoryPack DTO + 8바이트 프레임 헤더. 버전 범위 [1, 2] 협상 |
+| **와이어** | MemoryPack DTO + 8바이트 프레임 헤더. 버전 범위 [1, 2] 협상. **v1 56B/64B 는 동결**, v2 72B/80B |
+| **확장 슬롯** | `Instance`(채널·인스턴스 던전) · `Faction`(세력) · `ExtA`/`ExtB`(예약). `ExtSlots` 기능 비트를 켠 게임서버에만 나간다 — 안 켜면 **버려진다** |
 | **상호 인증** | HMAC-SHA256 + 논스 재사용 캐시 · `FixedTimeEquals` · TLS/mTLS |
 | **해시 분할** | **구조 해시**는 완전 일치 요구(불일치 = 거절), **내용 해시**는 경고 후 수락 |
 | **장애 주입** | `--drop-rate` 로 명령 유실을 상시 시험 |
@@ -560,6 +561,7 @@ NPC 서버를 붙이는 쪽(게임서버)이 알아야 할 것은 **연동 계�
 | MCP 서버 | `npc … --json` 을 셸로 부른다 | E-03 |
 | 웹 편집기(Studio) | `npc scaffold` dry-run + 사람 리뷰 · VS Code 는 스키마·스니펫이 있다 | F-02 |
 | 대화 생성 | **없다.** 이 서버는 행동 플랜만 만든다 | D-01 |
+| 세력 테이블 | 패킷의 `Faction` 은 **통과만** 한다 — 값을 정의하는 마스터데이터가 없다 | D-04 |
 
 ---
 
@@ -573,7 +575,7 @@ src/
   Npc.Runtime/      틱 스케줄러 · 플랜 실행기 · 인지 LOD
   Npc.Planning/     플랜 캐시 · 버킷터 · 우선순위 재계획 큐
   Npc.Llm/          IChatClient 어댑터 · 프롬프트 조립 · 3-티어 라우터
-  Npc.Wire/         링크의 전송 표현 (MemoryPack DTO + 프레임 코덱)
+  Npc.Wire/         링크의 전송 표현 (MemoryPack DTO + 프레임 코덱. V1/ 동결 · V2/ 확장 슬롯)
   Npc.Gateway/      IGameServerLink 구현체 (Loopback/Null/Recording/Replay/Tcp)
   Npc.Narrative/    정의 설명 카드 (아키타입·플랜·인터럽트·인스턴스 → markdown)
   Npc.Sim/          헤드리스 월드 = 게임서버 대역

@@ -335,7 +335,9 @@ public sealed class PlanExecutor
         new PoiId(_store.HomePoi[npc]),
         new PoiId(_store.WorkPoi[npc]),
         new PoiId(_store.CurrentPoi[npc]),
-        new ZoneId(_store.ZoneCode[npc]));
+        new ZoneId(_store.ZoneCode[npc]),
+        default,
+        new InstanceId(_store.Instance[npc]));
 
     /// <summary>
     /// 명령 유실 방어. docs/02 §1 · docs/03 §6.

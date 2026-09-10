@@ -477,7 +477,7 @@ dotnet run -c Release --project testbed/Npc.TestClient -- `
 <div class="card">
 <h4>링크 kind <span class="pill">Npc.Wire</span></h4>
 <p class="small"><code>Hello 1</code> · <code>HelloAck 2</code> · <code>CommandBatch 3</code> · <code>EventBatch 4</code> · <code>Heartbeat 5</code> · <code>Bye 6</code></p>
-<p class="small"><code>sizeof(WireCommand) == 56</code>, <code>sizeof(WireEvent) == 64</code> — 테스트가 못 박는다.</p>
+<p class="small"><code>sizeof(WireCommand) == 56</code>, <code>sizeof(WireEvent) == 64</code> — 테스트가 못 박는다. 확장 슬롯을 켜면(B-02) <code>WireCommandV2</code> 72 B · <code>WireEventV2</code> 80 B 로 나간다 — 테스트 베드는 <code>ExtSlots</code> 를 기본으로 켜므로 <b>이 경로가 곧 v2 다</b>.</p>
 </div>
 <div class="card">
 <h4>클라 kind <span class="pill">Npc.TestBed.Protocol</span></h4>

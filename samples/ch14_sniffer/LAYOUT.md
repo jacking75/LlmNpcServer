@@ -80,10 +80,16 @@ NPC 50마리 · 배속 60 · 12초 (`samples/ch14_sniffer/sniff.py`)
 | 타입 | 크기 | 테스트 |
 |---|---:|---|
 | `WireCommand` | **56 B** | `Wire_LayoutIsFrozen` |
+| `WireCommandV2` | **72 B** | `Wire_LayoutIsFrozen_V2` (B-02. `ExtSlots` 협상 시) |
 | `WireEvent` | **64 B** | `Wire_LayoutIsFrozen` |
+| `WireEventV2` | **80 B** | `Wire_LayoutIsFrozen_V2` (B-02) |
 
 필드 순서는 **큰 타입부터**다(`long` → `int` → `float` → `ushort` → `byte`).
 패딩이 생기면 이 크기가 달라지고 테스트가 먼저 깨진다.
+
+> **v2 는 프레임 헤더의 `Ver` 가 2 일 때다.** `ExtSlots` 기능 비트를 켠 게임서버에만 나가고,
+> 배치 뒤쪽에 `Instance`·`Faction`·`ExtA`·`ExtB` 와 꼬리 정렬 `Reserved`(항상 0)가 붙는다.
+> 스니퍼는 **`Ver` 를 보고 원소 크기를 고른다** — 협상 결과로 고르면 경계에서 어긋난다.
 
 ### 핸드셰이크 필드
 

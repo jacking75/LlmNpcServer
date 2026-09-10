@@ -163,6 +163,9 @@ public sealed class EventApplier
                     MoveTo(npc, ev.Poi);
                 }
 
+                // 인스턴스는 스폰이 정한다 (B-02). 이후 그 NPC 로 나가는 명령에 그대로 찍힌다.
+                // 값을 해석하지 않는다 — 무엇이 인스턴스인가는 게임서버의 개념이다.
+                _store.Instance[npc] = ev.Instance.Value;
                 _store.StepStatus[npc] = (byte)StepStatus.Ready;
                 break;
 

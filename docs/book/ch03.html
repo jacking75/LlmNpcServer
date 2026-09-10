@@ -189,6 +189,15 @@
 </div>
 
 <div class="note">
+  <span class="tag">확장 슬롯 (B-02)</span>
+  명령·이벤트 <b>양쪽 모두</b> 뒤에 넷이 더 있다 — <code>Instance</code>(채널·인스턴스 던전, 0 = 기본 월드) ·
+  <code>Faction</code>(대상 세력, 0 = 미지정) · <code>ExtA</code>/<code>ExtB</code>(예약).
+  <b>게임서버가 <code>LinkFeatures.ExtSlots</code>를 켜야 와이어에 실린다</b> — 켜지 않으면 v1 DTO 로 나가고
+  이 넷은 조용히 버려진다. 예약 슬롯은 <code>ExtensionSlots</code>에 Kind별 의미를 등록해야 쓸 수 있고,
+  <b>등록되지 않은 Kind에서는 0이어야 한다</b>. 지금 등록된 것은 없다.
+</div>
+
+<div class="note">
   <span class="tag">판별 공용체를 struct 로</span>
   <code>NpcCommand</code>는 <b>모든 페이로드 필드를 명시적으로 갖는다</b>.
   <code>[StructLayout(LayoutKind.Explicit)]</code> 유니온을 쓰지 않은 이유는 두 가지다 —

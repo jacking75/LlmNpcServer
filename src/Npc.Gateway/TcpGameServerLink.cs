@@ -64,6 +64,14 @@ public sealed class TcpGameServerLink : IGameServerLink
     /// <summary>와이어 변환 스테이징. 센더 태스크만 만진다.</summary>
     private readonly WireCommand[] _staging;
 
+    /// <summary>
+    /// v2 스테이징 (B-02). 확장 슬롯이 협상되면 이쪽으로 나간다.
+    ///
+    /// <b>두 벌을 들고 있는 이유는 협상이 런타임 값이기 때문이다.</b> 어느 쪽으로 말할지는
+    /// 핸드셰이크가 끝나야 정해지는데, 스테이징 배열은 틱마다 만들 수 없다(할당 0).
+    /// </summary>
+    private readonly WireCommandV2[] _stagingV2;
+
     private TcpClient? _client;
     private Stream? _stream;
     private Task? _sender;
@@ -107,6 +115,7 @@ public sealed class TcpGameServerLink : IGameServerLink
         _ring = new PriorityCommandRing(options.Capacity);
         _outbound = new BatchQueue(options.OutboundBatches, options.Capacity);
         _staging = new WireCommand[options.Capacity];
+        _stagingV2 = new WireCommandV2[options.Capacity];
     }
 
     /// <summary>게임서버 → NPC 서버.</summary>
@@ -153,6 +162,15 @@ public sealed class TcpGameServerLink : IGameServerLink
 
     /// <summary>협상 결과를 사람 말로. 로그·<c>/status</c> 가 쓴다.</summary>
     public string NegotiationDetail { get; private set; } = "핸드셰이크 전";
+
+    /// <summary>
+    /// 확장 슬롯을 쓸 수 있는가 (B-02).
+    ///
+    /// <b>둘 다 필요하다.</b> 프로토콜 2 여야 v2 프레임을 쓸 수 있고,
+    /// <see cref="LinkFeatures.ExtSlots"/> 여야 상대가 그 배치를 이해한다.
+    /// </summary>
+    public bool ExtSlotsNegotiated =>
+        NegotiatedVersion >= 2 && VersionNegotiation.Has(NegotiatedFeatures, LinkFeatures.ExtSlots);
 
     /// <summary>
     /// 게임서버가 알려준 게임 시각 (하루의 몇 분째). v1 이면 <c>-1</c> (A-10).
@@ -710,12 +728,13 @@ public sealed class TcpGameServerLink : IGameServerLink
                 ReadOnlySequence<byte> buffer = result.Buffer;
 
                 while (FrameCodec.TryReadFrame(
-                    ref buffer, out LinkMessageKind kind, out ReadOnlySequence<byte> payload))
+                    ref buffer, out LinkMessageKind kind, out ReadOnlySequence<byte> payload,
+                    out byte version))
                 {
                     // 무엇이든 받았으면 살아 있는 것이다 — 하트비트도 포함이다.
                     Volatile.Write(ref _lastReceivedTicks, Environment.TickCount64);
 
-                    Deliver(kind, payload);
+                    Deliver(kind, payload, version);
                 }
 
                 reader.AdvanceTo(buffer.Start, buffer.End);
@@ -743,8 +762,14 @@ public sealed class TcpGameServerLink : IGameServerLink
         }
     }
 
-    /// <summary>프레임 하나를 처리한다. 리시버 태스크 전용.</summary>
-    private void Deliver(LinkMessageKind kind, ReadOnlySequence<byte> payload)
+    /// <summary>
+    /// 프레임 하나를 처리한다. 리시버 태스크 전용.
+    ///
+    /// <b>배치의 배치를 프레임의 <c>Ver</c> 로 고른다</b> (B-02). 협상 결과가 아니라
+    /// 프레임이 말하는 버전을 믿는다 — 협상 직후의 경계에서 두 버전이 섞여 도착할 수 있고,
+    /// 그때 협상값으로 읽으면 배치가 어긋나 스트림 전체가 쓰레기가 된다.
+    /// </summary>
+    private void Deliver(LinkMessageKind kind, ReadOnlySequence<byte> payload, byte version)
     {
         if (kind != LinkMessageKind.EventBatch)
         {
@@ -753,17 +778,19 @@ public sealed class TcpGameServerLink : IGameServerLink
             return;
         }
 
-        WireEvent[]? events = MemoryPackSerializer.Deserialize<WireEvent[]>(payload.ToArray());
+        byte[] bytes = payload.ToArray();
 
-        if (events is null)
+        GameEvent[]? decoded = version >= 2
+            ? Decode(MemoryPackSerializer.Deserialize<WireEventV2[]>(bytes))
+            : Decode(MemoryPackSerializer.Deserialize<WireEvent[]>(bytes));
+
+        if (decoded is null)
         {
             return;
         }
 
-        foreach (WireEvent wire in events)
+        foreach (GameEvent ev in decoded)
         {
-            GameEvent ev = wire.To();
-
             // N6 — 시퀀스 불연속을 센다. 건너뛴 개수만큼 더한다.
             //
             // 게임서버 프로세스가 사는 동안 시퀀스는 순증하고 재접속해도 리셋하지 않는다
@@ -784,6 +811,42 @@ public sealed class TcpGameServerLink : IGameServerLink
                 _eventsReceived++;
             }
         }
+    }
+
+    /// <summary>v1 이벤트 배치를 도메인으로. 확장 슬롯은 전부 0 이 된다.</summary>
+    private static GameEvent[]? Decode(WireEvent[]? wire)
+    {
+        if (wire is null)
+        {
+            return null;
+        }
+
+        var events = new GameEvent[wire.Length];
+
+        for (int i = 0; i < wire.Length; i++)
+        {
+            events[i] = wire[i].To();
+        }
+
+        return events;
+    }
+
+    /// <summary>v2 이벤트 배치를 도메인으로 (B-02).</summary>
+    private static GameEvent[]? Decode(WireEventV2[]? wire)
+    {
+        if (wire is null)
+        {
+            return null;
+        }
+
+        var events = new GameEvent[wire.Length];
+
+        for (int i = 0; i < wire.Length; i++)
+        {
+            events[i] = wire[i].To();
+        }
+
+        return events;
     }
 
     /// <summary>
@@ -818,16 +881,34 @@ public sealed class TcpGameServerLink : IGameServerLink
                 continue;
             }
 
-            for (int i = 0; i < count; i++)
-            {
-                _staging[i] = WireCommand.From(in batch[i]);
-            }
+            // B-02 — 확장 슬롯이 협상됐으면 v2 배치로 나간다. 아니면 v1 그대로이고
+            // Instance·Faction·ExtA·ExtB 는 조용히 버려진다(그것이 v1 의 의미다).
+            bool ext = ExtSlotsNegotiated;
+            byte[] payload;
 
-            byte[] payload = MemoryPackSerializer.Serialize(_staging.AsSpan(0, count).ToArray());
+            if (ext)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    _stagingV2[i] = WireCommandV2.From(in batch[i]);
+                }
+
+                payload = MemoryPackSerializer.Serialize(_stagingV2.AsSpan(0, count).ToArray());
+            }
+            else
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    _staging[i] = WireCommand.From(in batch[i]);
+                }
+
+                payload = MemoryPackSerializer.Serialize(_staging.AsSpan(0, count).ToArray());
+            }
 
             try
             {
-                await WriteFrameAsync(stream, LinkMessageKind.CommandBatch, payload, ct)
+                await WriteFrameAsync(
+                    stream, LinkMessageKind.CommandBatch, payload, ct, ext ? (byte)2 : FrameCodec.Version)
                     .ConfigureAwait(false);
             }
             catch (Exception) when (!ct.IsCancellationRequested)

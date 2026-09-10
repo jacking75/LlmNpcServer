@@ -97,6 +97,17 @@ public sealed class NpcStore
 
     // --- 콜드 (재계획·바인딩 시에만) ---
 
+    /// <summary>
+    /// 채널·인스턴스 던전·레이어 (B-02). 0 = 기본 월드.
+    ///
+    /// <b>게임서버가 정하고 우리는 되돌려 준다.</b> <c>NpcSpawned</c> 가 실어 주고,
+    /// 이후 그 NPC 로 나가는 모든 명령에 그대로 찍힌다. NPC 서버는 이 값으로
+    /// <b>아무 판단도 하지 않는다</b> — 무엇이 인스턴스인가는 게임서버의 개념이다.
+    ///
+    /// <b>콜드다.</b> 발행 경로에서만 읽으므로 핫 배열에 넣지 않는다.
+    /// </summary>
+    public ushort[] Instance = [];
+
     /// <summary>자택 POI.</summary>
     public ushort[] HomePoi = [];
 
@@ -179,6 +190,7 @@ public sealed class NpcStore
         ArchetypeCode = new ushort[capacity];
         CurrentPoi = new ushort[capacity];
 
+        Instance = new ushort[capacity];
         HomePoi = new ushort[capacity];
         WorkPoi = new ushort[capacity];
         Inventory = new int[(long)capacity * inventoryStride <= int.MaxValue
@@ -238,6 +250,7 @@ public sealed class NpcStore
         Array.Copy(ZoneCode, buffer.ZoneCode, Count);
         Array.Copy(ArchetypeCode, buffer.ArchetypeCode, Count);
         Array.Copy(CurrentPoi, buffer.CurrentPoi, Count);
+        Array.Copy(Instance, buffer.Instance, Count);
         Array.Copy(HomePoi, buffer.HomePoi, Count);
         Array.Copy(WorkPoi, buffer.WorkPoi, Count);
         Array.Copy(Inventory, buffer.Inventory, Count * InventoryStride);
@@ -280,6 +293,7 @@ public sealed class NpcStore
         Array.Copy(buffer.ZoneCode, ZoneCode, Count);
         Array.Copy(buffer.ArchetypeCode, ArchetypeCode, Count);
         Array.Copy(buffer.CurrentPoi, CurrentPoi, Count);
+        Array.Copy(buffer.Instance, Instance, Count);
         Array.Copy(buffer.HomePoi, HomePoi, Count);
         Array.Copy(buffer.WorkPoi, WorkPoi, Count);
         Array.Copy(buffer.Inventory, Inventory, Count * InventoryStride);
@@ -345,6 +359,7 @@ public sealed class NpcStore
             hash = Mix(hash, (ulong)(ushort)Stamina[i]);
             hash = Mix(hash, ZoneCode[i]);
             hash = Mix(hash, CurrentPoi[i]);
+            hash = Mix(hash, Instance[i]);
 
             ReadOnlySpan<int> inventory = ReadInventoryOf(i);
             for (int slot = 0; slot < inventory.Length; slot++)

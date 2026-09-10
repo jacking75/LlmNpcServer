@@ -20,6 +20,10 @@ namespace Npc.Runtime;
 /// 이벤트가 알려준 대상 NPC. 인터럽트가 <c>$threat</c> 를 쓸 때만 채워진다 —
 /// 위협의 정체는 규칙이 아니라 이벤트에 있다. 평시 플랜에서는 default 다.
 /// </param>
+/// <param name="Instance">
+/// 이 NPC 가 있는 채널·인스턴스 (B-02). <c>NpcSpawned</c> 가 알려준 값 그대로다 —
+/// 발행기는 해석하지 않고 <b>모든 명령에 찍기만</b> 한다.
+/// </param>
 public readonly record struct EmitContext(
     NpcId Npc,
     ArchetypeId Archetype,
@@ -29,7 +33,8 @@ public readonly record struct EmitContext(
     PoiId Workplace,
     PoiId Current,
     ZoneId Zone,
-    NpcId Target = default);
+    NpcId Target = default,
+    InstanceId Instance = default);
 
 /// <summary>
 /// 컴파일된 스텝을 <see cref="NpcCommand"/> 로 바꾼다. docs/03 §6 · docs/01 §2.1 <c>emits</c>.
@@ -90,6 +95,10 @@ public sealed class CommandEmitter
                 IssuedAt = ctx.Now,
                 Correlation = ctx.Correlation,
                 Priority = emit.Priority,
+
+                // B-02 — 인스턴스는 통과만 한다. Faction·ExtA·ExtB 는 아직 아무도 채우지
+                // 않으므로 default(0) 로 둔다. 0 이 아니면 Ext_ZeroForUndefinedKinds 가 깨진다.
+                Instance = ctx.Instance,
             };
 
             foreach (EmitMapping mapping in emit.Map)

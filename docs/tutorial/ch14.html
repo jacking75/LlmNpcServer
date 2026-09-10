@@ -102,7 +102,7 @@ def pump(src, dst, label, verbose):
         while len(buf) &gt;= HEADER:
             length, kind, version, reserved = struct.unpack_from("&lt;IBBH", buf, 0)
 
-            if version != 1:            <span class="cm"># 버전을 먼저</span>
+            if not (1 &lt;= version &lt;= 2):  <span class="cm"># 버전을 먼저 — 받아 줄 범위다</span>
                 return
             if length &gt; (1 &lt;&lt; 20):      <span class="cm"># 그다음 상한</span>
                 return
@@ -154,7 +154,8 @@ PS&gt; dotnet run -c Release --project src/Npc.Host -- `
 <li>
   <b>배치가 실제로 뭉친다</b> <span class="pill">평균 139 B / 332 B</span>
   <p>
-    명령 하나가 56바이트다. 평균 139바이트면 <b>프레임당 명령 두 개쯤</b> 들어 있다는 뜻이다.
+    명령 하나가 56바이트다(v1 기준. 확장 슬롯을 켠 v2 는 72바이트다).
+  평균 139바이트면 <b>프레임당 명령 두 개쯤</b> 들어 있다는 뜻이다.
     이벤트는 64바이트니 평균 332바이트면 <b>네다섯 개</b>다.
     명령 하나에 프레임 하나였다면 헤더 오버헤드가 14 %가 된다.
   </p>
@@ -174,8 +175,8 @@ PS&gt; dotnet run -c Release --project src/Npc.Host -- `
 <table>
 <thead><tr><th>Kind</th><th>페이로드</th><th>크기</th></tr></thead>
 <tbody>
-<tr><td><code>CommandBatch</code></td><td><code>WireCommand[]</code></td><td>원소 <b>56 B 고정</b></td></tr>
-<tr><td><code>EventBatch</code></td><td><code>WireEvent[]</code></td><td>원소 <b>64 B 고정</b></td></tr>
+<tr><td><code>CommandBatch</code></td><td><code>WireCommand[]</code> (v1) · <code>WireCommandV2[]</code> (v2)</td><td>원소 <b>56 B</b> · v2 는 <b>72 B</b></td></tr>
+<tr><td><code>EventBatch</code></td><td><code>WireEvent[]</code> (v1) · <code>WireEventV2[]</code> (v2)</td><td>원소 <b>64 B</b> · v2 는 <b>80 B</b></td></tr>
 <tr><td><code>Hello</code> / <code>HelloAck</code></td><td><code>WireHello</code> / <code>WireHelloAck</code></td><td>프레임 96 B</td></tr>
 </tbody>
 </table>
@@ -235,7 +236,8 @@ PS&gt; dotnet run -c Release --project src/Npc.Host -- `
 <table>
 <thead><tr><th>바꿔 보기</th><th>결과</th></tr></thead>
 <tbody>
-<tr><td>스니퍼에서 <code>version != 1</code> 검사를 뺀다</td><td>당장은 잘 돈다. <b>버전이 올라가는 날 조용히 깨진다</b></td></tr>
+<tr><td>스니퍼에서 버전 범위 검사를 뺀다</td><td>당장은 잘 돈다. <b>버전이 올라가는 날 조용히 깨진다</b> — 실제로 v2 가 그날이었다(B-02)</td></tr>
+<tr><td>프레임의 <code>Ver</code> 대신 <b>핸드셰이크에서 협상한 버전</b>으로 원소 크기를 고른다</td><td>협상 직후 경계에서 두 버전이 섞여 도착하면 <b>배치가 어긋나 스트림 전체가 쓰레기</b>가 된다</td></tr>
 <tr><td>재조립 없이 <code>recv</code> 한 번을 한 프레임으로 친다</td><td>부하가 낮으면 통과하고 높으면 깨진다 — <b>가장 나쁜 종류의 버그</b></td></tr>
 <tr><td><code>&lt;IBBH</code> 를 <code>&gt;IBBH</code>(빅엔디언)로</td><td>길이가 터무니없이 커져 상한 검사에 걸린다. <b>검사가 잡아 준다</b></td></tr>
 <tr><td>중계에서 <code>sendall</code> 을 빼고 읽기만 한다</td><td>핸드셰이크가 안 끝난다 — 중계는 <b>양방향 다</b> 흘려야 한다</td></tr>

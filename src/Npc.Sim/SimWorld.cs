@@ -36,6 +36,10 @@ public sealed partial class SimWorld : IAsyncDisposable
     private readonly ushort[] _poi;
     private readonly ushort[] _zone;
     private readonly ushort[] _archetype;
+
+    /// <summary>NPC 가 속한 채널·인스턴스 (B-02). 0 = 기본 월드.</summary>
+    private readonly ushort[] _instance;
+
     private readonly int[] _inventory;
     private readonly int _stride;
     private long _sequence;
@@ -64,6 +68,7 @@ public sealed partial class SimWorld : IAsyncDisposable
         _poi = new ushort[capacity];
         _zone = new ushort[capacity];
         _archetype = new ushort[capacity];
+        _instance = new ushort[capacity];
         _inventory = new int[(long)capacity * _stride <= int.MaxValue
             ? capacity * _stride
             : throw new ArgumentOutOfRangeException(nameof(capacity), "인벤토리 배열이 int 범위를 넘는다.")];
@@ -110,6 +115,35 @@ public sealed partial class SimWorld : IAsyncDisposable
     /// <summary>이 NPC 의 아키타입.</summary>
     public ArchetypeId ArchetypeOf(int npc) => new(_archetype[npc]);
 
+    /// <summary>이 NPC 가 속한 채널·인스턴스 (B-02).</summary>
+    public InstanceId InstanceOf(int npc) => new(_instance[npc]);
+
+    /// <summary>
+    /// 되돌아온 명령의 인스턴스가 스폰 때 알려준 값과 달랐던 횟수 (B-02).
+    ///
+    /// <b>0 이 아니면 파이프 어딘가에서 값이 떨어졌다.</b> v1 링크에서는 확장 슬롯이
+    /// 실리지 않으므로 <see cref="InstanceEchoChecked"/> 가 0 이고 이 값도 0 이다 —
+    /// 두 수를 같이 봐야 "통과했다" 와 "아예 안 봤다" 가 갈린다.
+    /// </summary>
+    public long InstanceMismatches { get; private set; }
+
+    /// <summary>인스턴스를 실제로 대조한 명령 수 (B-02).</summary>
+    public long InstanceEchoChecked { get; private set; }
+
+    /// <summary>
+    /// NPC 를 채널·인스턴스에 넣는다 (B-02). <b>스폰 전에 부른다.</b>
+    ///
+    /// 게임서버가 정하는 값이다 — NPC 서버는 <c>NpcSpawned</c> 로 이 값을 받아
+    /// 이후 명령에 그대로 되돌려준다.
+    /// </summary>
+    public void SetInstance(int npc, InstanceId instance)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(npc);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(npc, Capacity);
+
+        _instance[npc] = instance.Value;
+    }
+
     /// <summary>이 NPC 의 인벤토리.</summary>
     public Span<int> InventoryOf(int npc) => _inventory.AsSpan(npc * _stride, _stride);
 
@@ -142,6 +176,18 @@ public sealed partial class SimWorld : IAsyncDisposable
             return;
         }
 
+        // B-02 — 되돌아온 인스턴스를 대조한다. Spawn 은 제외다: 그 명령이 나갈 때
+        // NPC 서버는 아직 NpcSpawned 를 못 받았으므로 인스턴스를 모른다.
+        if (command.Kind != NpcCommandKind.Spawn && _instance[npc] != 0 && _spawned[npc])
+        {
+            InstanceEchoChecked++;
+
+            if (command.Instance.Value != _instance[npc])
+            {
+                InstanceMismatches++;
+            }
+        }
+
         switch (command.Kind)
         {
             case NpcCommandKind.Spawn:
@@ -166,6 +212,10 @@ public sealed partial class SimWorld : IAsyncDisposable
                     Poi = new PoiId(_poi[npc]),
                     Zone = new ZoneId(_zone[npc]),
                     Pos = PositionOf(npc),
+
+                    // B-02 — 인스턴스는 게임서버가 정한다. NPC 서버는 이 값을 기억했다가
+                    // 이후 명령에 되돌려준다.
+                    Instance = new InstanceId(_instance[npc]),
                 });
                 return;
 

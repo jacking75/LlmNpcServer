@@ -442,7 +442,8 @@ dotnet run -c Release --project tools/Npc.Prebake -- --model &lt;id&gt; --limit 
 
     ['Npc.Wire/FrameCodec.cs', '8바이트 헤더 + 프레임 분리', '10'],
     ['Npc.Wire/LinkMessages.cs', 'Hello/Ack/Heartbeat/Bye + WireHash', '10'],
-    ['Npc.Wire/WireCommand.cs · WireEvent.cs', '계약 타입의 전송 표현 (1:1 매핑)', '10'],
+    ['Npc.Wire/V1/WireCommand.cs · WireEvent.cs', '계약 타입의 전송 표현 (1:1 매핑). 동결', '10'],
+    ['Npc.Wire/V2/WireCommandV2.cs · WireEventV2.cs', '확장 슬롯이 붙은 v2 배치 (B-02)', '10'],
 
     ['Npc.Gateway/LoopbackGameServerLink.cs', '인프로세스 링크 (기본)', '3'],
     ['Npc.Gateway/TcpGameServerLink.cs', '소켓 링크 + 접속·재접속', '10'],

@@ -132,4 +132,24 @@ public readonly record struct NpcCommand
     /// SetAggro → 0/1.
     /// </summary>
     public byte Flags { get; init; }
+
+    // --- 확장 슬롯 (B-02) ---
+    //
+    // <b>v1 링크에서는 이 네 필드가 버려진다.</b> 게임서버가 LinkFeatures.ExtSlots 를 켜야
+    // 와이어에 실린다 — 켜지 않으면 v1 DTO 로 나가고 값은 조용히 사라진다.
+
+    /// <summary>채널·인스턴스 던전·레이어 (B-02). 0 = 기본 월드.</summary>
+    public InstanceId Instance { get; init; }
+
+    /// <summary><c>SetAggro</c>·<c>CombatAction</c> 의 대상 세력 (B-02). 0 = 미지정.</summary>
+    public FactionId Faction { get; init; }
+
+    /// <summary>
+    /// 예약 슬롯 A (B-02). <b>Kind 별 의미는 <see cref="ExtensionSlots"/> 가 정한다.</b>
+    /// 정의되지 않은 Kind 에서는 0 이어야 하고 테스트가 그것을 강제한다.
+    /// </summary>
+    public uint ExtA { get; init; }
+
+    /// <summary>예약 슬롯 B (B-02). <see cref="ExtA"/> 와 같은 규칙이다.</summary>
+    public uint ExtB { get; init; }
 }

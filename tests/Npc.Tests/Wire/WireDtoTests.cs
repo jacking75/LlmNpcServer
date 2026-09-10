@@ -133,36 +133,61 @@ public sealed class WireDtoTests
     // ---------------------------------------------------------------- 드리프트
 
     /// <summary>
+    /// v2 에서 <b>뒤에 더한</b> 계약 필드. v1 DTO 에는 없는 것이 정상이다 (B-02).
+    ///
+    /// <b>이 집합이 곧 "v1 링크에서 버려지는 것" 의 목록이다.</b> 늘어나면 여기에 한 줄
+    /// 추가하고, 그것이 정말 버려도 되는 값인지 그 자리에서 판단하게 만든다.
+    /// </summary>
+    public static readonly string[] V2OnlyMembers = ["Instance", "Faction", "ExtA", "ExtB"];
+
+    /// <summary>
     /// <b>계약 타입에 멤버를 추가하고 와이어를 잊으면 여기가 깨진다</b> (docs/20 §3.1·§13).
     ///
     /// 이름으로 1:1 을 맞추되 <see cref="WorldPos"/> 만 예외다 — 와이어는 참조 타입을 실을 수 없어
     /// <c>PosX</c>·<c>PosY</c>·<c>PosZ</c> 세 필드로 편다. 그 예외를 여기 한 곳에 적어 둔다.
+    ///
+    /// <para>
+    /// <b>v1 DTO 는 <see cref="V2OnlyMembers"/> 를 뺀 집합과 맞는다</b> (B-02).
+    /// v1 파일은 동결이라 새 필드가 들어가지 않고, 그것이 v1 게임서버가 계속 도는 이유다.
+    /// </para>
     /// </summary>
     [Theory]
     [InlineData(typeof(NpcCommand), typeof(WireCommand))]
     [InlineData(typeof(GameEvent), typeof(WireEvent))]
     public void Wire_MirrorsContractMembers(Type contract, Type wire)
     {
-        var expected = new SortedSet<string>(StringComparer.Ordinal);
+        SortedSet<string> expected = ContractMemberNames(contract);
 
-        foreach (PropertyInfo p in contract.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-        {
-            if (p.PropertyType == typeof(WorldPos))
-            {
-                expected.Add("PosX");
-                expected.Add("PosY");
-                expected.Add("PosZ");
-                continue;
-            }
-
-            expected.Add(p.Name);
-        }
+        expected.ExceptWith(V2OnlyMembers);
 
         var actual = new SortedSet<string>(
             wire.GetFields(BindingFlags.Public | BindingFlags.Instance).Select(f => f.Name),
             StringComparer.Ordinal);
 
         Assert.Equal(expected, actual);
+    }
+
+    /// <summary>계약 타입의 멤버 이름. <see cref="WorldPos"/> 는 세 필드로 편다.</summary>
+    public static SortedSet<string> ContractMemberNames(Type contract)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+
+        var names = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (PropertyInfo p in contract.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (p.PropertyType == typeof(WorldPos))
+            {
+                names.Add("PosX");
+                names.Add("PosY");
+                names.Add("PosZ");
+                continue;
+            }
+
+            names.Add(p.Name);
+        }
+
+        return names;
     }
 
     // ---------------------------------------------------------------- 제어 메시지 (T6-03)

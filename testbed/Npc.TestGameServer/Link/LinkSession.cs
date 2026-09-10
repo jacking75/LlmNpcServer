@@ -62,6 +62,9 @@ public sealed class LinkSession : IAsyncDisposable
     /// </summary>
     private readonly WireEvent[] _staging = new WireEvent[MaxEventsPerTick];
 
+    /// <summary>v2 스테이징 (B-02). 확장 슬롯이 협상되면 이쪽으로 나간다.</summary>
+    private readonly WireEventV2[] _stagingV2 = new WireEventV2[MaxEventsPerTick];
+
     /// <summary>
     /// 세션이 살아 있는가. 0 이면 죽은 것이다.
     ///
@@ -328,12 +331,13 @@ public sealed class LinkSession : IAsyncDisposable
                 ReadOnlySequence<byte> buffer = result.Buffer;
 
                 while (FrameCodec.TryReadFrame(
-                    ref buffer, out LinkMessageKind kind, out ReadOnlySequence<byte> payload))
+                    ref buffer, out LinkMessageKind kind, out ReadOnlySequence<byte> payload,
+                    out byte version))
                 {
                     // 무엇이든 받았으면 살아 있는 것이다 — 하트비트도 포함이다.
                     Volatile.Write(ref _lastReceivedMillis, Environment.TickCount64);
 
-                    Deliver(kind, payload);
+                    Deliver(kind, payload, version);
                 }
 
                 reader.AdvanceTo(buffer.Start, buffer.End);
@@ -362,13 +366,18 @@ public sealed class LinkSession : IAsyncDisposable
         }
     }
 
-    /// <summary>프레임 하나를 처리한다. 리시버 태스크 전용.</summary>
-    private void Deliver(LinkMessageKind kind, ReadOnlySequence<byte> payload)
+    /// <summary>
+    /// 프레임 하나를 처리한다. 리시버 태스크 전용.
+    ///
+    /// <b>명령 배치의 배치는 프레임의 <c>Ver</c> 가 정한다</b> (B-02) — 협상 상태가 아니라
+    /// 프레임이 말하는 버전을 믿는다.
+    /// </summary>
+    private void Deliver(LinkMessageKind kind, ReadOnlySequence<byte> payload, byte version)
     {
         switch (kind)
         {
             case LinkMessageKind.CommandBatch:
-                Receive(payload);
+                Receive(payload, version);
                 return;
 
             case LinkMessageKind.Bye:
@@ -402,15 +411,35 @@ public sealed class LinkSession : IAsyncDisposable
     /// 이 링크의 계약이고(docs/02 §1), NPC 서버는 <c>timeout_s</c> 만료로 스스로 재개한다.
     /// </para>
     /// </summary>
-    private void Receive(ReadOnlySequence<byte> payload)
+    private void Receive(ReadOnlySequence<byte> payload, byte version)
     {
-        WireCommand[]? commands = MemoryPackSerializer.Deserialize<WireCommand[]>(payload);
-
         CommandFramesReceived++;
+
+        if (version >= 2)
+        {
+            WireCommandV2[]? v2 = MemoryPackSerializer.Deserialize<WireCommandV2[]>(payload);
+
+            if (v2 is null)
+            {
+                return;   // 빈 배치도 프레임 하나다 (N8). 셌으니 할 일이 없다
+            }
+
+            foreach (WireCommandV2 wire in v2)
+            {
+                NpcCommand command = wire.To();
+
+                CommandsReceived++;
+                _world.Inbox.TryEnqueue(in command);
+            }
+
+            return;
+        }
+
+        WireCommand[]? commands = MemoryPackSerializer.Deserialize<WireCommand[]>(payload);
 
         if (commands is null)
         {
-            return;   // 빈 배치도 프레임 하나다 (N8). 셌으니 할 일이 없다
+            return;
         }
 
         foreach (WireCommand wire in commands)
@@ -461,6 +490,10 @@ public sealed class LinkSession : IAsyncDisposable
                 Poi = world.PoiOf(i),
                 Zone = world.ZoneOf(i),
                 Pos = world.PositionOf(i),
+
+                // B-02 — 재동기화 스폰도 인스턴스를 실어야 한다. NPC 서버가 인스턴스를
+                // 아는 경로는 NpcSpawned 하나뿐이고, 세션 전 이벤트는 위에서 버려진다.
+                Instance = world.InstanceOf(i),
             });
         }
 
@@ -526,7 +559,7 @@ public sealed class LinkSession : IAsyncDisposable
 
             EventObserver?.Invoke(in ev);
 
-            _staging[count++] = WireEvent.From(in ev);
+            Stage(count++, in ev);
         }
 
         if (count > 0)
@@ -577,7 +610,7 @@ public sealed class LinkSession : IAsyncDisposable
 
             EventObserver?.Invoke(in ev);
 
-            _staging[count++] = WireEvent.From(in ev);
+            Stage(count++, in ev);
 
             if (count == MaxEventsPerFrame)
             {
@@ -592,11 +625,30 @@ public sealed class LinkSession : IAsyncDisposable
         }
     }
 
+    /// <summary>협상 결과에 맞는 스테이징에 하나 담는다 (B-02).</summary>
+    private void Stage(int index, in GameEvent ev)
+    {
+        if (ExtSlotsNegotiated)
+        {
+            _stagingV2[index] = WireEventV2.From(in ev);
+        }
+        else
+        {
+            _staging[index] = WireEvent.From(in ev);
+        }
+    }
+
     private async Task SendBatchAsync(int count, CancellationToken ct)
     {
-        byte[] payload = MemoryPackSerializer.Serialize(_staging.AsSpan(0, count).ToArray());
+        bool ext = ExtSlotsNegotiated;
 
-        await WriteFrameAsync(_stream, LinkMessageKind.EventBatch, payload, ct).ConfigureAwait(false);
+        byte[] payload = ext
+            ? MemoryPackSerializer.Serialize(_stagingV2.AsSpan(0, count).ToArray())
+            : MemoryPackSerializer.Serialize(_staging.AsSpan(0, count).ToArray());
+
+        await WriteFrameAsync(
+            _stream, LinkMessageKind.EventBatch, payload, ct, ext ? (byte)2 : FrameCodec.Version)
+            .ConfigureAwait(false);
 
         EventsSent += count;
         FramesSent++;
@@ -607,6 +659,10 @@ public sealed class LinkSession : IAsyncDisposable
 
     /// <summary>협상된 기능 비트 (B-01).</summary>
     public ulong NegotiatedFeatures { get; private set; }
+
+    /// <summary>확장 슬롯을 쓸 수 있는가 (B-02). 프로토콜 2 + <c>ExtSlots</c> 둘 다 필요하다.</summary>
+    public bool ExtSlotsNegotiated =>
+        NegotiatedVersion >= 2 && VersionNegotiation.Has(NegotiatedFeatures, LinkFeatures.ExtSlots);
 
     /// <summary>NPC 서버가 내용 해시 불일치를 경고로 수락했는가 (B-04).</summary>
     public bool ContentHashWarning { get; private set; }

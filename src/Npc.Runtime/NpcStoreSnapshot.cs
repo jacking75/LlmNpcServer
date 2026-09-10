@@ -40,6 +40,7 @@ public sealed class ShadowBuffer
         ZoneCode = new ushort[capacity];
         ArchetypeCode = new ushort[capacity];
         CurrentPoi = new ushort[capacity];
+        Instance = new ushort[capacity];
         HomePoi = new ushort[capacity];
         WorkPoi = new ushort[capacity];
         Inventory = new int[capacity * inventoryStride];
@@ -104,6 +105,9 @@ public sealed class ShadowBuffer
 
     /// <summary>현재 POI.</summary>
     public ushort[] CurrentPoi { get; }
+
+    /// <summary>채널·인스턴스 던전·레이어 (B-02).</summary>
+    public ushort[] Instance { get; }
 
     /// <summary>집 POI.</summary>
     public ushort[] HomePoi { get; }

@@ -31,6 +31,22 @@ public readonly record struct DialogueId(ushort Value);
 /// <summary>애니메이션 식별자.</summary>
 public readonly record struct AnimationId(ushort Value);
 
+/// <summary>
+/// 채널·인스턴스 던전·레이어 식별자 (B-02). <b>0 = 기본 월드다.</b>
+///
+/// 같은 좌표에 있어도 인스턴스가 다르면 서로 보이지 않는다. NPC 서버는 이 값을
+/// <b>해석하지 않고 되돌려준다</b> — 무엇이 인스턴스인가는 게임서버의 개념이다.
+/// </summary>
+public readonly record struct InstanceId(ushort Value);
+
+/// <summary>
+/// 세력 식별자 (B-02). <b>0 = 미지정이다.</b>
+///
+/// 명령에서는 <c>SetAggro</c>·<c>CombatAction</c> 의 대상 세력, 이벤트에서는 플레이어의 세력이다.
+/// <b>세력 테이블 자체는 아직 없다</b> (D-04) — 지금은 값이 통과만 한다.
+/// </summary>
+public readonly record struct FactionId(ushort Value);
+
 /// <summary>플랜 식별자. PlanStore 의 첨자.</summary>
 public readonly record struct PlanId(int Value);
 

@@ -6,6 +6,7 @@ using Npc.Core;
 using Npc.Host;
 using Npc.Host.Api;
 using Npc.Runtime;
+using Npc.Sim;
 using Npc.TestBed.Protocol;
 using Npc.TestGameServer;
 using Npc.TestGameServer.Client;
@@ -218,6 +219,63 @@ public sealed class EndToEndTests
         Assert.Equal(0, bed.Host.Snapshot().Link.EventGapsDetected);
     }
 
+    /// <summary>
+    /// B-02 완료 조건 — <b>게임서버 대역이 <c>InstanceId=2</c> 로 NPC 일부를 띄우고
+    /// NPC 서버가 그것을 명령에 되돌려준다.</b>
+    ///
+    /// <para>
+    /// 확장 슬롯이 통과하려면 네 곳이 전부 맞아야 한다 — 협상(프로토콜 2 + <c>ExtSlots</c>) ·
+    /// v2 이벤트 배치 · <c>NpcStore.Instance</c> · v2 명령 배치. <b>하나라도 v1 로 떨어지면
+    /// 값이 조용히 0 이 되고, 그 증상은 "인스턴스 던전 NPC 가 기본 월드에 보인다" 로
+    /// 한참 뒤에 나타난다.</b> 그래서 대조를 게임서버 대역 쪽에서 센다.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>InstanceEchoChecked</c> 를 같이 본다 — 0 이면 "통과했다" 가 아니라
+    /// <b>아예 대조하지 않았다</b> 는 뜻이고, 그것을 합격으로 세면 게이트가 거짓이 된다.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task TestBed_InstanceIdSurvivesTheRoundTrip()
+    {
+        const int Npcs = 16;
+        const ushort Dungeon = 2;
+
+        await using Bed bed = await Bed.StartAsync(
+            npcs: Npcs,
+            configure: server =>
+            {
+                // 짝수 NPC 만 인스턴스 던전에 넣는다. 전부 넣으면 "그냥 상수를 쓰고 있다" 와
+                // 구분이 안 된다.
+                for (int npc = 0; npc < Npcs; npc += 2)
+                {
+                    server.World.World.SetInstance(npc, new InstanceId(Dungeon));
+                }
+            });
+
+        Assert.True(
+            bed.Server.Link.Session is { ExtSlotsNegotiated: true },
+            $"확장 슬롯이 협상되지 않았다. {bed.Describe()}");
+
+        await bed.DriveAsync(RunTicks);
+
+        SimWorld world = bed.Server.World.World;
+
+        Assert.True(
+            world.InstanceEchoChecked > 0,
+            $"인스턴스를 한 번도 대조하지 않았다 — 통과가 아니다. {bed.Describe()}");
+
+        Assert.Equal(0, world.InstanceMismatches);
+
+        // NPC 서버가 실제로 기억하고 있는가. 홀수는 기본 월드(0) 그대로여야 한다.
+        for (int npc = 0; npc < Npcs; npc++)
+        {
+            Assert.Equal(
+                npc % 2 == 0 ? Dungeon : (ushort)0,
+                bed.Host.Store.Instance[npc]);
+        }
+    }
+
     // ---------------------------------------------------------------- 보조
 
     private static bool Saw(Bed bed, int npc, GameEventKind kind)
@@ -271,7 +329,14 @@ public sealed class EndToEndTests
         /// <summary>게임서버가 낸 이 종류의 이벤트 수. 미러에서 샌다 (docs/20 §7.4).</summary>
         public long EventsOf(GameEventKind kind) => _counts[(byte)kind];
 
-        public static async Task<Bed> StartAsync(int npcs = 32, double dropRate = 0)
+        /// <param name="npcs">NPC 수.</param>
+        /// <param name="dropRate">게임서버가 명령을 조용히 버릴 확률.</param>
+        /// <param name="configure">
+        /// 게임서버를 <b>듣기 시작하기 전에</b> 손보는 자리. 인스턴스 배정처럼
+        /// 스폰보다 먼저 정해져야 하는 값이 여기 들어간다 (B-02).
+        /// </param>
+        public static async Task<Bed> StartAsync(
+            int npcs = 32, double dropRate = 0, Action<GameServer>? configure = null)
         {
             GameServer server = GameServer.Create(
                 new GameServerOptions
@@ -284,6 +349,8 @@ public sealed class EndToEndTests
                     MasterData = TestPaths.MasterData,
                 },
                 TextWriter.Null);
+
+            configure?.Invoke(server);
 
             server.Start();
 

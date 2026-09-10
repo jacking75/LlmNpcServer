@@ -68,7 +68,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 ### 트랙 B — 게임서버 연동 계약 (남의 서버에 붙는다)
 
 - [x] **B-01** 계약 버전(`ContractVersion`) · 와이어 버전 협상 · 기능 비트 — P0 · M · 의존 없음
-- [ ] **B-02** 패킷 확장 슬롯 (v2 레이아웃: `InstanceId` · `Ext` 예약) — P1 · M · 의존 B-01
+- [x] **B-02** 패킷 확장 슬롯 (v2 레이아웃: `InstanceId` · `Ext` 예약) — P1 · M · 의존 B-01 — **완료. 계약 필드는 `Instance`·`Faction`(계약의 `NpcId Npc` 이름 규칙), 크기는 72B·80B**
 - [ ] **B-03** 이기종 런타임 명세: 바이트 오프셋 표 자동 생성 · 참조 코덱(C++/Python) · 골든 바이트 벡터 — P1 · M · 의존 B-01
 - [x] **B-04** 핸드셰이크 해시 분할 (구조 해시 / 내용 해시) · 부분 호환 정책 — P1 · S · 의존 B-01
 - [ ] **B-05** 동적 로스터: 런타임 스폰·디스폰 · 용량 예약 — P1 · M · 의존 B-01, A-01
@@ -839,6 +839,12 @@ TLS 와 토큰이 필요하다"(`docs/reference_link.html` §13)고 적었다. �
 
 **설계.** v2 DTO 에 다음을 **뒤에** 추가하고 크기를 새로 동결한다(권장: `WireCommand` 64B, `WireEvent` 80B — 캐시라인 정렬).
 
+> **구현 결과 — 명령은 64B 가 아니라 72B 다.** v1 이 56B(패딩 0)이고 네 필드가 12B 라 68B,
+> 정렬 8 이라 72B 가 된다. 64 에 넣으려면 예약 슬롯 하나를 버려야 하고 그러면 설계가 없어진다.
+> 이벤트는 초안대로 80B. **꼬리 정렬을 `Reserved` 필드로 명시**했다 — MemoryPack 이 unmanaged
+> struct 를 원시 복사하므로 암묵 패딩은 초기화되지 않은 바이트를 소켓에 내보낸다(B-03 의 골든
+> 바이트 벡터가 성립하지 않는다). `Wire_HasNoImplicitPadding_V2` 가 필드 크기 합 == `sizeof` 를 본다.
+
 | 필드 | 타입 | 의미 |
 |---|---|---|
 | `InstanceId` | `ushort` | 채널·인스턴스 던전·레이어. 0 = 기본 월드 |
@@ -853,6 +859,31 @@ TLS 와 토큰이 필요하다"(`docs/reference_link.html` §13)고 적었다. �
 **테스트.** `Contracts_*` 3종 유지 · `Wire_LayoutIsFrozen_V2` 64/80 · `Ext_ZeroForUndefinedKinds`.
 
 **완료 조건.** 게임서버 대역이 `InstanceId=2` 로 NPC 일부를 띄우고 NPC 서버가 그것을 명령에 되돌려준다(파이프 통과).
+
+**구현 (2026-09-11).**
+
+| 자리 | 무엇 |
+|---|---|
+| `Npc.Contracts/Ids.cs` | `InstanceId`·`FactionId`(둘 다 ushort 래퍼) |
+| `Npc.Contracts/{NpcCommand,GameEvent}.cs` | `Instance`·`Faction`·`ExtA`·`ExtB` 를 뒤에 `init` 로 |
+| `Npc.Contracts/ExtensionSlots.cs` | **예약 슬롯 의미 등록부.** 지금 등록된 것은 없다 — 그래서 전부 0 이어야 한다 |
+| `Npc.Wire/V2/{WireCommandV2,WireEventV2}.cs` | 72B · 80B. `Reserved` 로 꼬리 정렬 명시 |
+| `TcpGameServerLink` · `LinkSession` | 송신은 협상 결과, **수신은 프레임의 `Ver`** 로 배치를 고른다 |
+| `NpcStore.Instance` | 콜드 배열. `NpcSpawned` 가 세우고 `CommandEmitter` 가 모든 명령에 찍는다 |
+| `SnapshotFile.FormatVersion` | 1 → **2** (`Instance` 배열이 들어갔다). v1 스냅샷은 거절 — 60초면 새로 쓰인다 |
+| `ContractVersion.Minor` | 1 → **2**. v1 코덱이 네 필드를 안 실으므로 옛 게임서버는 그대로 돈다 |
+| `SimWorld.SetInstance` · `InstanceMismatches`/`InstanceEchoChecked` | 게임서버 대역이 배정하고 **되돌아온 값을 대조**한다 |
+
+**수신을 프레임 버전으로 고르는 이유.** 협상 결과로 고르면 협상 직후 경계에서 두 버전이 섞여
+도착할 때 배치가 어긋나 스트림 전체가 쓰레기가 된다.
+
+**대조 횟수 0 은 통과가 아니다.** `TestBed_InstanceIdSurvivesTheRoundTrip` 은
+`InstanceEchoChecked > 0` 을 같이 단언한다 — 안 본 것을 합격으로 세면 게이트가 거짓이 된다.
+
+**같이 고친 것.** `LinkSession.ResyncAsync` 의 재동기화 스폰이 `Instance` 를 안 실어 값이
+0 으로 떨어졌다. NPC 서버가 인스턴스를 아는 경로는 `NpcSpawned` 하나뿐이고 세션 전 이벤트는
+버려지므로, 재동기화 스폰이 실어야 한다. `samples/ch14_sniffer` 는 `version != 1` 에서
+멈추고 있었다 — 받아 줄 범위 [1, 2] 로 고쳤다.
 
 **규칙 충돌 확인.** N2·N3·N4 준수. 새 필드는 NPC 결정에 쓰지 않는 한 결정론 무관.
 

@@ -129,7 +129,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
     <section class="summary" aria-label="핵심 요약">
       <div><strong>방향</strong><span>명령은 NPC 서버가 낸다. 게임서버는 사실만 통보한다.</span></div>
       <div><strong>결합</strong><span>패킷에 문자열·시각·참조가 없다. 전부 강타입 ID와 Tick이다.</span></div>
-      <div><strong>고정</strong><span>WireCommand 56B · WireEvent 64B. 크기를 테스트가 못 박는다.</span></div>
+      <div><strong>고정</strong><span>WireCommand 56B · WireEvent 64B (v1) · V2 72B/80B. 크기를 테스트가 못 박는다.</span></div>
     </section>
 
     <section class="card" id="view">
@@ -326,6 +326,7 @@ public enum VisualState : byte
           <tr><td><code>InventoryChange</code></td><td><code>Item, Amount</code>(부호 있음)</td><td>인벤 증감 요청</td></tr>
           <tr><td><code>CombatAction</code></td><td><code>TargetNpc</code>/<code>TargetPlayer</code>, <code>Flags</code>(행동 종류)</td><td>전투 행동. <strong>명중·피해·사망 판정은 게임서버</strong></td></tr>
           <tr><td><code>SetAggro</code></td><td><code>Flags</code></td><td>적대 상태 토글</td></tr>
+          <tr><td colspan="3"><strong>모든 명령 공통 (v2 · B-02)</strong> — <code>Instance</code>(채널·인스턴스 던전) · <code>Faction</code>(대상 세력) · <code>ExtA</code>/<code>ExtB</code>(예약, 지금은 항상 0). <code>ExtSlots</code>를 켜지 않은 게임서버에는 나가지 않는다</td></tr>
         </tbody>
       </table></div>
       <div class="callout"><strong>대상은 ID로 지정한다. 좌표를 계산해 보내지 않는다</strong><p>NPC 서버는 플레이어 좌표를 저장하지 않는다. <code>nearest:&lt;archetype&gt;</code> 같은 참조도 대상을 여기서 고르지 않고 아키타입만 실어 보낸다 — 근접 판정은 게임서버 소관이다. 5,000 NPC × 플레이어 20이면 틱당 10만 회 거리 계산이고, 그것만으로 20ms 틱 예산이 날아간다.</p></div>
@@ -390,6 +391,7 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
           <tr><td><code>CombatEnded</code></td><td><code>Npc</code></td><td><code>ThreatNearby</code>·<code>InCombat</code> 해제</td></tr>
           <tr><td><code>ZoneStateChanged</code></td><td><code>Zone, Code</code>(RegionState)</td><td><strong>버킷 키 변경 → 존 전체 플랜 스왑.</strong> War·Disaster면 그 존 전체를 LOD 1로 승격</td></tr>
           <tr><td><code>WeatherChanged</code></td><td><code>Zone, Code</code>(Climate)</td><td>동일</td></tr>
+          <tr><td colspan="3"><strong>모든 이벤트 공통 (v2 · B-02)</strong> — <code>Instance</code> · <code>Faction</code> · <code>ExtA</code>/<code>ExtB</code>. <strong><code>NpcSpawned</code>의 <code>Instance</code>가 NPC 서버가 인스턴스를 아는 유일한 경로다</strong> — 재동기화 스폰에도 실어야 한다</td></tr>
         </tbody>
       </table></div>
       <h3>인지 LOD — 거리가 등급이 되는 지점</h3>
@@ -481,6 +483,43 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
     public byte   Kind, Code;
 }</code></pre>
       <div class="callout"><strong>크기를 테스트로 못 박는다</strong><p><code>Wire_LayoutIsFrozen</code>이 <code>sizeof(WireCommand) == 56</code>, <code>sizeof(WireEvent) == 64</code>를 단언한다. 누가 필드를 끼워 넣으면 이 테스트가 먼저 깨진다. <code>Wire_MirrorsContractMembers</code>는 리플렉션으로 계약 타입과 DTO의 멤버 집합이 1:1인지 본다 — <strong>계약에 필드를 추가하고 와이어를 잊으면 여기서 걸린다.</strong></p></div>
+
+      <h3>v2 DTO — 확장 슬롯 (B-02)</h3>
+      <p><strong>v1 DTO 두 개는 동결이다.</strong> 확장은 새 타입으로만 한다 — v1 게임서버가 그 배치를 그대로 읽고 있기 때문이다. <code>WireCommandV2</code>·<code>WireEventV2</code>는 <code>Npc.Wire.V2</code>에 있고, <strong>게임서버가 <code>LinkFeatures.ExtSlots</code>를 켜고 프로토콜 2로 협상했을 때만</strong> 쓰인다. 켜지 않으면 v1으로 나가고 확장 필드는 <strong>조용히 버려진다</strong> — 이해하지 못하는 값을 실어 보내는 것보다 버리는 편이 정직하다.</p>
+<pre><code>[MemoryPackable] public partial struct WireCommandV2   // 72 bytes, unmanaged
+{
+    public long   IssuedAt;
+    public int    Npc, TargetNpc, TargetPlayer, Amount;
+    public uint   Correlation;
+    public float  PosX, PosY, PosZ;
+    public uint   ExtA, ExtB, Reserved;                 // Reserved 는 항상 0
+    public ushort TargetPoi, Item, Animation, Dialogue, Archetype, Zone, Instance, Faction;
+    public byte   Kind, Priority, Visual, Flags;
+}
+
+[MemoryPackable] public partial struct WireEventV2     // 80 bytes, unmanaged
+{
+    public long   Sequence, OccurredAt;
+    public int    Npc, OtherNpc, Player, Amount;
+    public uint   Correlation;
+    public float  PosX, PosY, PosZ, Heading;
+    public uint   ExtA, ExtB, Reserved;
+    public ushort Poi, Zone, Item, Instance, Faction;
+    public short  Hp, Stamina;
+    public byte   Kind, Code;
+}</code></pre>
+      <div class="table-wrap"><table>
+        <thead><tr><th>필드</th><th>타입</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td><code>Instance</code></td><td><code>InstanceId</code>(ushort)</td><td>채널·인스턴스 던전·레이어. <strong>0 = 기본 월드.</strong> 게임서버가 <code>NpcSpawned</code>로 알려주고 NPC 서버는 그 NPC로 나가는 <strong>모든 명령에 그대로 찍는다</strong> — 값을 해석하지 않는다</td></tr>
+          <tr><td><code>Faction</code></td><td><code>FactionId</code>(ushort)</td><td>명령은 <code>SetAggro</code>·<code>CombatAction</code>의 대상 세력, 이벤트는 관련 플레이어·NPC의 세력. <strong>0 = 미지정.</strong> 세력 테이블은 아직 없다(D-04) — 지금은 값이 통과만 한다</td></tr>
+          <tr><td><code>ExtA</code>, <code>ExtB</code></td><td><code>uint</code></td><td><strong>예약 슬롯.</strong> Kind별 의미를 <code>ExtensionSlots</code>에 등록해야 쓸 수 있고, <strong>등록되지 않은 Kind에서는 0이어야 한다</strong>(<code>Ext_ZeroForUndefinedKinds</code>). 지금 등록된 것은 <strong>없다</strong></td></tr>
+          <tr><td><code>Reserved</code></td><td><code>uint</code></td><td>꼬리 정렬을 명시한 것. <strong>항상 0.</strong> 계약에는 대응물이 없다</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout warn"><strong>왜 <code>Reserved</code>를 필드로 두는가</strong><p>MemoryPack은 unmanaged struct를 원시 복사한다. 암묵 패딩이 남아 있으면 <strong>초기화되지 않은 바이트가 그대로 소켓에 나가고</strong>, 회차마다 값이 달라져 골든 바이트 벡터(B-03)가 성립하지 않는다. 다른 언어 구현이 그 바이트를 해석하려 들 수도 있다. <code>Wire_HasNoImplicitPadding_V2</code>가 필드 크기 합 == <code>sizeof</code>를 단언한다.</p></div>
+      <div class="callout"><strong>72바이트다 — 로드맵 초안의 64가 아니다</strong><p>v1 명령이 56B(패딩 0)이고 <code>Instance</code>(2)+<code>Faction</code>(2)+<code>ExtA</code>(4)+<code>ExtB</code>(4) = 68B, 정렬 8이라 72B다. 64에 넣으려면 예약 슬롯 하나를 버려야 하고, 그러면 "예약 슬롯 2개"라는 설계 자체가 없어진다. 이벤트는 초안대로 80B다.</p></div>
+      <p><strong>프레임 버전으로 배치를 고른다.</strong> 수신 측은 협상 결과가 아니라 <strong>프레임 헤더의 <code>Ver</code></strong>를 보고 v1/v2 배치를 고른다. 협상 직후의 경계에서 두 버전이 섞여 도착할 수 있고, 그때 협상값으로 읽으면 배치가 어긋나 스트림 전체가 쓰레기가 된다.</p>
       <p><strong>대역폭 어림.</strong> NPC 500, 관측 대상 256 상한 기준 이벤트는 최악 <code>256 × 64B × 10Hz ≈ 164KB/s</code>. 명령은 NPC당 스텝 경계에서만 나가므로 훨씬 적다.</p>
 
       <h3>제어 메시지</h3>
@@ -722,6 +761,9 @@ public enum LinkByeCode : byte
           <tr><td><code>Link_Swappable</code></td><td>같은 시나리오를 Loopback·Recording·Replay로 실행 → NPC 서버 코드 무변경</td></tr>
           <tr><td><code>Wire_MirrorsContractMembers</code></td><td>계약 타입 ↔ 와이어 DTO 멤버 집합 1:1</td></tr>
           <tr><td><code>Wire_LayoutIsFrozen</code></td><td><code>sizeof</code>가 56·64. 패딩이 생기면 값이 달라진다</td></tr>
+          <tr><td><code>Wire_LayoutIsFrozen_V2</code></td><td><code>sizeof</code>가 72·80. <code>Wire_HasNoImplicitPadding_V2</code>가 암묵 패딩 0 을 같이 본다</td></tr>
+          <tr><td><code>Ext_ZeroForUndefinedKinds</code></td><td>의미가 등록되지 않은 예약 슬롯에 값이 들어가면 <code>ExtensionSlots.IsClean</code> 이 거짓</td></tr>
+          <tr><td><code>TestBed_InstanceIdSurvivesTheRoundTrip</code></td><td>게임서버 대역이 <code>InstanceId=2</code> 로 일부를 띄우고, 되돌아온 명령의 인스턴스를 대조한다. <strong>대조 횟수 0 은 통과가 아니다</strong></td></tr>
           <tr><td><code>Frame_SplitAcrossReads</code></td><td>1바이트씩 넣어도 복원. 다 오기 전에는 버퍼를 건드리지 않는다</td></tr>
           <tr><td><code>Frame_ReadsAcrossSegments</code></td><td>헤더 한가운데서 잘린 다중 세그먼트</td></tr>
           <tr><td><code>Frame_RejectsOversizePayload</code></td><td>1MiB 초과 거절. <strong>프로세스는 산다</strong></td></tr>
