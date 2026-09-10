@@ -1,0 +1,215 @@
+{
+  "// 이 파일은 무엇인가": [
+    "F-08 스니펫. 마스터데이터 항목을 손으로 치지 않게 한다.",
+    "스키마(E-02)가 자동완성과 경고를 주고, 여기는 '뼈대' 를 준다 —",
+    "빠뜨리기 쉬운 필드(timeout_s · fallback_plan · duty_hours)를 자리와 함께 낸다.",
+    "code/bit 번호는 넣지 않는다. `npc next-code <파일>` 이 답한다 (F-04)."
+  ],
+
+  "아키타입": {
+    "scope": "json",
+    "prefix": "npc-archetype",
+    "description": "archetypes.json 항목. code 는 `npc next-code archetypes` 로 받는다",
+    "body": [
+      "{",
+      "  \"id\": \"${1:beekeeper}\",",
+      "  \"code\": ${2:0},",
+      "  \"name_key\": \"npc.${1:beekeeper}\",",
+      "  \"desc\": \"${3:프롬프트에 실리는 문장이다. 사람이 쓴다.}\",",
+      "  \"allowed_actions\": [\"MoveTo\", \"${4:Work}\", \"Eat\", \"Drink\", \"Sleep\", \"Rest\"],",
+      "  \"home_poi_type\": \"home\",",
+      "  \"workplace_poi_type\": ${5|\"apiary\",null|},",
+      "  \"primary_recipes\": [],",
+      "  \"traits\": { \"diligence\": ${6:60}, \"sociability\": ${7:50}, \"courage\": ${8:50}, \"greed\": ${9:50} },",
+      "  \"default_goals\": [\"${10:tend_hives}\"],",
+      "  \"initial_inventory\": [{ \"item\": \"bread\", \"count\": 2 }, { \"item\": \"water\", \"count\": 1 }],",
+      "  \"duty_hours\": [],",
+      "  \"fallback_plan\": \"fb_${1:beekeeper}\",",
+      "  \"combat_capable\": false,",
+      "  \"population_weight\": ${11:0.004}",
+      "}",
+      "$0"
+    ]
+  },
+
+  "아키타입 (근무직)": {
+    "scope": "json",
+    "prefix": "npc-archetype-duty",
+    "description": "Guard·Patrol 을 쓰는 아키타입. duty_hours 가 없으면 V12 로 기동 실패다",
+    "body": [
+      "{",
+      "  \"id\": \"${1:watch_officer}\",",
+      "  \"code\": ${2:0},",
+      "  \"name_key\": \"npc.${1:watch_officer}\",",
+      "  \"desc\": \"${3:설명}\",",
+      "  \"allowed_actions\": [\"MoveTo\", \"Guard\", \"Patrol\", \"Talk\", \"Eat\", \"Drink\", \"Sleep\", \"Rest\"],",
+      "  \"home_poi_type\": \"home\",",
+      "  \"workplace_poi_type\": \"guardhouse\",",
+      "  \"primary_recipes\": [],",
+      "  \"traits\": { \"diligence\": 75, \"sociability\": 45, \"courage\": ${4:70}, \"greed\": 35 },",
+      "  \"default_goals\": [\"stand_watch\"],",
+      "  \"initial_inventory\": [{ \"item\": \"guard_spear\", \"count\": 1 }],",
+      "  \"// duty_hours 가 OnDuty 를 세운다\": \"비우면 Guard·Patrol 의 전제조건이 영원히 안 선다 (V12)\",",
+      "  \"duty_hours\": [\"Morning\", \"Noon\", \"Afternoon\", \"Evening\"],",
+      "  \"fallback_plan\": \"fb_${1:watch_officer}\",",
+      "  \"combat_capable\": true,",
+      "  \"population_weight\": ${5:0.01}",
+      "}",
+      "$0"
+    ]
+  },
+
+  "액션": {
+    "scope": "json",
+    "prefix": "npc-action",
+    "description": "actions.json 항목. 40개 상한이다 — 하나를 빼거나 기존 액션의 파라미터로 흡수한다",
+    "body": [
+      "{",
+      "  \"id\": \"${1:Harvest}\",",
+      "  \"code\": ${2:0},",
+      "  \"category\": \"${3|movement,labor,social,needs,combat,items,misc|}\",",
+      "  \"desc\": \"${4:프롬프트 카탈로그에 실린다. 언제 쓰는 액션인지 적는다.}\",",
+      "  \"params\": { \"poi\": { \"type\": \"poi_ref\", \"required\": true } },",
+      "  \"requires\": [${5:\"AtWorkplace\"}],",
+      "  \"requires_any\": [],",
+      "  \"forbids\": [\"IsSleeping\"],",
+      "  \"grants\": [${6:\"HasRawMaterial\"}],",
+      "  \"clears\": [],",
+      "  \"duration\": { \"kind\": \"fixed\", \"base_s\": ${7:300} },",
+      "  \"cost\": 1,",
+      "  \"default_timeout_s\": ${8:600},",
+      "  \"emits\": [],",
+      "  \"completes_on\": [\"ActionCompleted\"],",
+      "  \"fails_on\": [\"ActionFailed\"]",
+      "}",
+      "$0"
+    ]
+  },
+
+  "POI": {
+    "scope": "json",
+    "prefix": "npc-poi",
+    "description": "pois.json 항목. 정원이 그 일터를 쓰는 아키타입 인구 이상이어야 한다 (V10)",
+    "body": [
+      "{",
+      "  \"id\": \"${1:apiary_001_12}\",",
+      "  \"code\": ${2:0},",
+      "  \"zone\": \"${3:highland_pasture}\",",
+      "  \"type\": \"${4|home,workplace,market,tavern,temple,gate,field,wilderness|}\",",
+      "  \"subtype\": \"${5:apiary}\",",
+      "  \"pos\": { \"x\": ${6:0}, \"y\": 0, \"z\": ${7:0} },",
+      "  \"capacity\": ${8:12},",
+      "  \"open_from\": \"Dawn\",",
+      "  \"open_to\": \"Night\",",
+      "  \"grants\": [],",
+      "  \"allowed_archetypes\": [\"${9:beekeeper}\"],",
+      "  \"resources\": []",
+      "}",
+      "$0"
+    ]
+  },
+
+  "아이템": {
+    "scope": "json",
+    "prefix": "npc-item",
+    "description": "items.json 항목. grants 가 플래그를 만든다 — 코드에 하드코딩하지 않는다",
+    "body": [
+      "{ \"id\": \"${1:honey}\", \"code\": ${2:0}, \"category\": \"${3|raw,product,food,drink,tool,weapon,currency|}\", \"grants\": [${4:\"HasRawMaterial\"}], \"stack\": ${5:20} }",
+      "$0"
+    ]
+  },
+
+  "레시피": {
+    "scope": "json",
+    "prefix": "npc-recipe",
+    "description": "items.json 의 recipes 항목. id 는 산출 아이템 id 와 같다",
+    "body": [
+      "{",
+      "  \"id\": \"${1:honey_jar}\",",
+      "  \"workplace_type\": \"${2:apiary}\",",
+      "  \"inputs\": [{ \"item\": \"${3:honey}\", \"count\": ${4:2} }],",
+      "  \"outputs\": [{ \"item\": \"${1:honey_jar}\", \"count\": 1 }],",
+      "  \"duration_s\": ${5:600}",
+      "}",
+      "$0"
+    ]
+  },
+
+  "인터럽트": {
+    "scope": "json",
+    "prefix": "npc-interrupt",
+    "description": "interrupts.json 규칙. LLM 이 만들지 않는다 — 반응 속도가 생명이라 결정론 규칙이다",
+    "body": [
+      "{",
+      "  \"id\": \"${1:flee_from_fire}\",",
+      "  \"priority\": ${2:80},",
+      "  \"when\": {",
+      "    \"any_flag\": [${3:\"ThreatNearby\"}],",
+      "    \"none_flag\": [\"IsSleeping\"]",
+      "  },",
+      "  \"then\": { \"action\": \"${4:MoveTo}\", \"params\": { \"poi\": \"$nearest_safe\" } },",
+      "  \"replan\": { \"urgency\": ${5:90} }",
+      "}",
+      "$0"
+    ]
+  },
+
+  "폴백 플랜": {
+    "scope": "json",
+    "prefix": "npc-fallback",
+    "description": "fallback_plans.json 항목. loop:true 여야 하고 허용 액션만 쓴다 (V7·V8)",
+    "body": [
+      "{",
+      "  \"id\": \"fb_${1:beekeeper}\",",
+      "  \"archetype\": \"${1:beekeeper}\",",
+      "  \"goal\": \"${2:tend_and_rest}\",",
+      "  \"loop\": true,",
+      "  \"on_step_fail\": \"skip\",",
+      "  \"steps\": [",
+      "    { \"action\": \"MoveTo\", \"args\": { \"poi\": \"\\$workplace\" }, \"timeout_s\": 300 },",
+      "    { \"action\": \"${3:Work}\", \"args\": {}, \"timeout_s\": 900 },",
+      "    { \"action\": \"MoveTo\", \"args\": { \"poi\": \"\\$home\" }, \"timeout_s\": 300 },",
+      "    { \"action\": \"Sleep\", \"args\": { \"until_time\": \"Morning\" }, \"timeout_s\": 7200 }",
+      "  ]",
+      "}",
+      "$0"
+    ]
+  },
+
+  "플랜 스텝": {
+    "scope": "json",
+    "prefix": "npc-step",
+    "description": "플랜 스텝 하나. timeout_s 는 0 이면 안 된다 — 모든 스텝에 강제한다",
+    "body": [
+      "{ \"action\": \"${1:MoveTo}\", \"args\": { ${2:\"poi\": \"\\$workplace\"} }, \"timeout_s\": ${3:300} },",
+      "$0"
+    ]
+  },
+
+  "월드 플래그": {
+    "scope": "json",
+    "prefix": "npc-flag",
+    "description": "world_flags.json 항목. bit 는 예약 구간에서만 — `npc next-code flags` 가 답한다",
+    "body": [
+      "{ \"bit\": ${1:22}, \"id\": \"${2:HasHive}\", \"group\": \"${3|location,inventory,condition,time,social,world|}\", \"desc\": \"${4:설명}\" },",
+      "$0"
+    ]
+  },
+
+  "존": {
+    "scope": "json",
+    "prefix": "npc-zone",
+    "description": "zones.json 항목. adjacent 는 대칭이어야 한다 (V11)",
+    "body": [
+      "{",
+      "  \"id\": \"${1:highland_pasture}\",",
+      "  \"code\": ${2:0},",
+      "  \"name_key\": \"zone.${1:highland_pasture}\",",
+      "  \"default_region_state\": \"Peace\",",
+      "  \"default_climate\": \"Fair\",",
+      "  \"adjacent\": [\"${3:mine_hills}\"]",
+      "}",
+      "$0"
+    ]
+  }
+}

@@ -232,6 +232,11 @@ using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions
 }))
 {
     writer.WriteStartObject();
+
+    // 에디터가 스키마를 찾게 한다 (F-08). 생성물이라 사람이 편집할 일은 없지만,
+    // "모든 마스터데이터 파일이 자기 스키마를 가리킨다" 는 예외 없는 규칙이라야
+    // 빠뜨린 파일을 테스트가 잡을 수 있다.
+    writer.WriteString("$schema", "../docs/schema/npc_instances.schema.json");
     writer.WriteNumber("version", 1);
     writer.WriteNumber("seed", seed);
 

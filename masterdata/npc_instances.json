@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/npc_instances.schema.json",
   "version": 1,
   "seed": 20260725,
   "_comment": [

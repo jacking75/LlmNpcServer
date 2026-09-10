@@ -9,16 +9,16 @@
     "npc_instances.json": {
       "generator": "tools/gen_npcs.cs",
       "inputs": {
-        "archetypes.json": "217a4e4b2166e9883bf548e56db161bd2475cf3f14a62b902156292dbdb226f0",
-        "pois.json": "233507ff92666fe451ef224d6fa3c660a43a4052edaedfdbbea1569110e88157",
-        "zones.json": "b2af8466ec7e00a66c86eb576fea12e40eb778ec5956241c5965b4e9e66e269e"
+        "archetypes.json": "c105fa2f4fd4eb0fbd5e48f95ec7a8bce9e9e0f81fc3fe4729cf732b437fd481",
+        "pois.json": "d1a5e285165ed6ba2db425da7ec584bbea3c5459ec18c7acde65a199c50344d1",
+        "zones.json": "adf206f71b77dc045c89cceec9c3d238f45ec8b3bc1537fc21ec769a9bfe7925"
       }
     },
     "poi_distances.bin": {
       "generator": "tools/gen_poi_distances.cs",
       "inputs": {
-        "pois.json": "233507ff92666fe451ef224d6fa3c660a43a4052edaedfdbbea1569110e88157",
-        "zones.json": "b2af8466ec7e00a66c86eb576fea12e40eb778ec5956241c5965b4e9e66e269e"
+        "pois.json": "d1a5e285165ed6ba2db425da7ec584bbea3c5459ec18c7acde65a199c50344d1",
+        "zones.json": "adf206f71b77dc045c89cceec9c3d238f45ec8b3bc1537fc21ec769a9bfe7925"
       }
     }
   }

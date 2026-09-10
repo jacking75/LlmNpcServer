@@ -1,0 +1,80 @@
+{
+  "version": "2.0.0",
+  "// 이 파일은 무엇인가": [
+    "F-08. 자주 쓰는 명령을 Ctrl+Shift+B 로 올린다.",
+    "여기 있는 것이 build.ps1 이 돌리는 것과 같아야 한다 — 로컬과 파이프라인이 갈리면",
+    "'내 기계에서는 됐다' 를 환경 차이로 좁힐 수 없다."
+  ],
+  "tasks": [
+    {
+      "label": "파이프라인 전부 (build.ps1)",
+      "detail": "빌드 · 스타일 · 테스트 · 마스터데이터 검증 · 파생물 신선도",
+      "type": "shell",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/build.ps1"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "마스터데이터 검증",
+      "detail": "V1~V13 + 로더 + 파생물 신선도",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/tools/Npc.Cli", "--", "validate"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "파생물 낡았나",
+      "detail": "낡았으면 비0 으로 끝난다",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/tools/Npc.Cli", "--", "regen", "--check"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "스키마 다시 만들기",
+      "detail": "masterdata 를 고친 뒤 자동완성을 맞춘다 (E-02)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/tools/Npc.Cli", "--", "schema"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "아키타입 카드",
+      "detail": "지금 커서가 아닌, 물어보는 아키타입의 정의 한 장 (F-03)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/tools/Npc.Cli", "--", "card", "archetype", "${input:archetype}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "변경 파급 보기",
+      "detail": "무엇이 무효화되고 무엇을 다시 만들어야 하는가",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/tools/Npc.Cli", "--", "diff"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "테스트만 (빠르게)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["test", "${workspaceFolder}/NpcServer.sln", "-c", "Release", "--filter", "Category!=Golden&Category!=Gate&Category!=Load"],
+      "group": "test",
+      "problemMatcher": "$msCompile"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "archetype",
+      "type": "promptString",
+      "description": "아키타입 id (예: blacksmith)",
+      "default": "blacksmith"
+    }
+  ]
+}

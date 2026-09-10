@@ -544,9 +544,8 @@ NPC 서버를 붙이는 쪽(게임서버)이 알아야 할 것은 **연동 계�
 | 없는 것 | 무엇을 대신 쓰나 | 로드맵 |
 |---|---|---|
 | MCP 서버 | `npc … --json` 을 셸로 부른다 | E-03 |
-| JSON Schema 발행 | `docs/reference_masterdata.html` 의 스키마 절 | E-02 |
 | 온보딩 팩(SKILL·RECIPES·ANTIPATTERNS) | `CLAUDE.md` + 위 시스템 프롬프트 | E-01 |
-| 웹 편집기(Studio) | `npc scaffold` dry-run + 사람 리뷰 | F-02 |
+| 웹 편집기(Studio) | `npc scaffold` dry-run + 사람 리뷰 · VS Code 는 스키마·스니펫이 있다 | F-02 |
 | 대화 생성 | **없다.** 이 서버는 행동 플랜만 만든다 | D-01 |
 
 ---
