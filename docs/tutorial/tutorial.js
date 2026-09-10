@@ -21,7 +21,7 @@
       desc: '소켓으로 붙인 데모 · 누가 무엇을 아는가 · 핸드셰이크를 어긋내 보기' },
 
     { part: '2부 · 세계를 바꾼다', file: 'ch04.html', no: '4장', title: '마스터데이터 지도와 검증기', status: 'done',
-      desc: '11개 파일의 참조 관계 · V1~V11 · 아홉 가지로 깨뜨려 보기' },
+      desc: '11개 파일의 참조 관계 · V1~V13 · 아홉 가지로 깨뜨려 보기' },
     { part: '2부 · 세계를 바꾼다', file: 'ch05.html', no: '5장', title: '마을에 없던 것을 만든다', status: 'done',
       desc: '아이템 honey · 양봉장 POI · 거리표 재생성 · content_hash' },
     { part: '2부 · 세계를 바꾼다', file: 'ch06.html', no: '6장', title: '하루 일과를 손으로 쓴다', status: 'done',

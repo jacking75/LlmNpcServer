@@ -530,15 +530,24 @@ Console.CancelKeyPress += (_, e) =&gt; { e.Cancel = <span class="kw">true</span>
 
 <h4>곁길 — <code>validate</code> 서브커맨드</h4>
 <p>
-  본체를 띄우지 않고 마스터데이터 규칙 V1~V11 만 검사한다. 실제 출력:
+  본체를 띄우지 않고 마스터데이터 규칙 V1~V13 만 검사한다. 실제 출력:
 </p>
 <div class="codewrap"><button class="copy" type="button">복사</button>
-<pre><code><span class="cmt">&gt; Npc.Host.exe validate --masterdata ./masterdata</span>
-masterdata: F:\github\LlmNpcServer\masterdata
+<pre><code><span class="cmt">&gt; npc validate</span>
+masterdata  C:\github_edu\LlmNpcServer\masterdata
   SKIP V9  프롬프트 프리픽스는 Npc.Llm 이 조립한다 (P2). P1 에는 없다.
   OK   액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14
-  content_hash: f37c02926c0b3d26582c4f47a4d393c6548fe921e5b6bc74f04c31ce2cb53218
-검증 통과 (V1~V11, 건너뜀 1건)</code></pre></div>
+  content_hash    f37c02926c0b3d26582c4f47a4d393c6548fe921e5b6bc74f04c31ce2cb53218
+  structural_hash a7dd5c980ee7a7ea2dff9f6428690facb48b73c9b30bbd427c2f3577d72856c8
+검증 통과 (V1~V13, 건너뜀 1건)</code></pre></div>
+<p class="sub">
+  <code>Npc.Host validate --masterdata &lt;dir&gt;</code> 도 같은 코어를 부른다 — 기동 스크립트 호환으로 남겨 둔 경로다.
+  <code>--format json</code>(호스트) · <code>--json</code>(<code>npc</code>) 은 <b>같은 형식</b>을 낸다:
+  위반마다 <code>file</code>·<code>path</code>·<code>fix_hint</code>·<code>related</code> 가 붙는다 (E-04).
+  파생물(<code>poi_distances.bin</code>·<code>npc_instances.json</code>)이 낡았으면
+  <code>WARN 파생물 …</code> 줄이 더 나오지만 <b>종료 코드는 0 이다</b> — 규칙 위반이 아니라
+  "다시 만들어야 한다" 는 사실이고, 판정은 사람이 한다 (F-04).
+</p>
 <p class="sub">
   <code>content_hash</code> 는 마스터데이터 10개 파일의 SHA-256 을 파일명 순으로 접은 값이다.
   줄 끝은 LF 로 통일해서 잰다 — CRLF 로 체크아웃된 기계에서 해시가 달라지면
@@ -1624,7 +1633,7 @@ scan/tick 24 · interrupts 200 · replan-q 200 · drops link 0 sim 0 · backlogs
   // ================================================================
   var BOOT = [
   { ph:'P0 · 프로세스 진입', t:'서브커맨드 분기', f:'Program.cs 26–29',
-    d:'첫 인자가 <code>validate</code> 면 본체를 띄우지 않고 마스터데이터 V1~V11만 검사하고 끝낸다.',
+    d:'첫 인자가 <code>validate</code>·<code>hints</code>·<code>healthcheck</code> 면 본체를 띄우지 않고 그것만 하고 끝낸다. 같은 일을 <code>npc</code> CLI 도 한다.',
     c:'<span class="hl"><span class="kw">if</span> (args.Length &gt; <span class="num">0</span> &amp;&amp; args[<span class="num">0</span>] == ValidateCommand.Name)\n{\n    <span class="kw">return</span> ValidateCommand.<span class="fn">Run</span>(args[<span class="num">1</span>..], Console.Out);\n}</span>',
     o:[], s:'아직 아무것도 없다. 이 분기를 타면 종료 코드 0(통과) / 1(위반) / 2(인자 오류)로 끝난다.' },
 
@@ -1644,10 +1653,10 @@ scan/tick 24 · interrupts 200 · replan-q 200 · drops link 0 sim 0 · backlogs
     o:['CancellationTokenSource'], s:'이후 모든 비동기 작업이 이 토큰에 묶인다. 워커 토큰은 여기서 파생된다.' },
 
   { ph:'P1 · 조립', t:'마스터데이터 로드', f:'MasterDataLoader.Load',
-    d:'11종 JSON 을 전량 읽고 → 스키마 검증 → 참조 무결성 → 인덱스 컴파일. <b>이후 불변이다.</b> 참조가 깨져 있으면 여기서 던진다 — 경고 후 진행은 없다.',
+    d:'11종 JSON 을 전량 읽고 → 스키마 검증 → 참조 무결성 → 인덱스 컴파일. <b>이후 불변이다.</b> 참조가 깨져 있으면 여기서 던진다 — 경고 후 진행은 없다.<br>파생물 신선도(<code>derived.lock.json</code>)도 여기서 읽어 <code>StaleArtifacts</code> 에 싣는다 — <b>기동을 막지는 않고 경고한다</b>.',
     c:'<span class="ty">string</span> masterDataDir = options.<span class="fn">ResolveMasterData</span>();\n<span class="hl">MasterDataSet data = MasterDataLoader.<span class="fn">Load</span>(masterDataDir);</span>\n\n<span class="cmt">// 내부 순서 — 이 순서를 어기면 참조를 풀 수 없다</span>\n<span class="cmt">// items → actions → archetypes → zones → pois → buckets → interrupts</span>\n<span class="cmt">// 폴백 플랜은 MasterDataSet 자신을 어휘로 쓰므로 마지막에 붙인다</span>',
     o:['MasterDataSet','ItemTable','ActionCatalog','ArchetypeTable','ZoneTable','PoiTable','BucketSpace','InterruptRules','PlanTable (폴백)'],
-    s:'액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14. <code>ContentHash</code> 도 여기서 계산된다 — 플랜 스토어가 낡았는지 판정하는 기준이다.' },
+    s:'액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14. <code>ContentHash</code> 도 여기서 계산된다 — 플랜 스토어가 낡았는지 판정하는 기준이다. <b>아키타입 수는 여기서 정해진다</b>(F-05) — <code>BucketSpace.TotalKeys</code> 가 플랜 스토어 배열 길이를 정한다.' },
 
   { ph:'P1 · 조립', t:'NPC 인스턴스 표', f:'NpcInstanceTable.Load',
     d:'어떤 NPC 가 어느 아키타입·집·일터·존에 속하는지 적힌 표. <code>--npcs</code> 가 이 수보다 크면 <b>줄이고 경고한다</b>.',

@@ -30,7 +30,7 @@
 
 | # | 항목 | 기준 | 확인 | 결과 |
 |---|---|---|---|---|
-| C1 | 마스터데이터 검증 | V1~V11 전부 통과 | `validate` · `samples/ch20_tests` | ☐ |
+| C1 | 마스터데이터 검증 | V1~V13 전부 통과 | `validate` · `samples/ch20_tests` | ☐ |
 | C2 | 결정론 | 루프백 두 회차가 완전 일치 | `samples/ch15_replay/record-replay.ps1` | ☐ |
 
 ## D. 연동 (2)

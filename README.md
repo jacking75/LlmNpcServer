@@ -260,15 +260,23 @@ kubectl apply -f deploy/k8s/deployment.yaml
 | `deploy/compose.yaml` | `run_demo.ps1` 의 컨테이너판 |
 | `deploy/k8s/` | Deployment(프로브 3종·시크릿·PVC) · Service · ConfigMap |
 | `deploy/prometheus.yml` · `deploy/grafana/` | 스크레이프 설정 · 대시보드 |
-| `.github/workflows/ci.yml` | PR·푸시 — 빌드 · 스타일 · 테스트(리눅스/윈도) · 마스터데이터 검증 · 이미지 |
-| `.github/workflows/nightly.yml` | 야간 — Load · FaultInjection · 실측 diff |
-| `.github/workflows/release.yml` | 태그 — 버전 주입 · 이미지 · SBOM · `planstore/pinned` 아티팩트 |
+
+**CI 워크플로 파일은 두지 않는다.** 이 저장소는 CI 제공자를 고르지 않았다 — 파이프라인이
+해야 할 일은 `build.ps1` 한 줄과 아래 세 명령으로 정의되어 있고, 사내 CI 든 GitHub Actions 든
+그것을 부르면 된다. 없는 워크플로 파일을 두면 "CI 가 있다" 는 거짓 신호가 된다.
+
+```powershell
+.\build.ps1                                              # 빌드 · 스타일 · 테스트(CI 기본 필터)
+dotnet run --project tools/Npc.Cli -- validate            # 마스터데이터 V1~V13 + 로더
+dotnet run --project tools/Npc.Cli -- regen --check       # 파생물이 낡았으면 비0 으로 끝난다
+```
 
 **이미지에 넣는 것과 넣지 않는 것.** `masterdata/`·`planstore/pinned/`·`manifest.json` 은 들어간다.
 `planstore/plans/` 는 생성물이라 볼륨이고, `state/`(스냅샷)도 볼륨이다.
 **dotLLM 은 넣지 않는다** — GPLv3 경계라 별도 배포다 (CLAUDE.md §2.7).
 
-**버전.** `MAJOR.MINOR.PATCH` 는 태그가 정하고 CI 가 `-p:VersionPrefix` 로 주입한다.
+**버전.** `MAJOR.MINOR.PATCH` 의 기본값은 `Directory.Build.props` 의 `VersionPrefix` 이고,
+릴리스는 빌드 시 `-p:VersionPrefix=<태그>` 로 덮어쓴다.
 `/status.version` 은 거기에 마스터데이터 `content_hash` 앞 8자리를 붙인다 —
 같은 바이너리라도 다른 콘텐츠면 다른 버전이다.
 
@@ -280,7 +288,7 @@ kubectl apply -f deploy/k8s/deployment.yaml
 src/
   Npc.Contracts/    게임서버 연동 IF + 패킷 DTO        (외부 의존 0)
   Npc.Core/         플랜 DSL · 4단 검증기 · WorldFlags  (외부 의존 0)
-  Npc.MasterData/   로더 · 검증 · 읽기전용 인덱스
+  Npc.MasterData/   로더 · 검증 V1~V13 · 읽기전용 인덱스 · Authoring/(편집 안전장치)
   Npc.Runtime/      틱 스케줄러 · 플랜 실행기 · 인지 LOD
   Npc.Planning/     플랜 캐시 · 버킷터 · 우선순위 재계획 큐
   Npc.Llm/          IChatClient 어댑터 · 프롬프트 조립 · 3-티어 라우터
@@ -299,10 +307,10 @@ tools/
   Npc.Prebake/      프리베이크 CLI
   Npc.Narrate/      기록 → 하루 일지 · `card`·`explain` 서브커맨드(Npc.Narrative 껍질)
   *.cs              파일 기반 .NET 앱 (gen_npcs · gen_poi_distances · report_scale · …)
+                    gen_* 는 `#:project` 로 Npc.MasterData 를 참조해 derived.lock.json 을 갱신한다
   *.ps1             측정·검수 스크립트 (run_load · run_weight_ab · review · pin_plan)
 masterdata/         마스터데이터 11종  → docs/reference_masterdata.html
 deploy/             Dockerfile · compose · k8s · Prometheus/Grafana  → README §배포
-.github/workflows/  CI · 야간 · 릴리스
 planstore/          프리베이크 플랜 (plans/ 는 gitignore, pinned/ 는 버전관리)
 state/              NPC 상태 스냅샷 (gitignore. --snapshot-dir)
 scenarios/          시나리오 스크립트 (jsonl)
@@ -341,7 +349,7 @@ docs/               설계 사양 (아래)
 | [`docs/book/index.html`](docs/book/index.html) | **코드 이해와 활용 안내서 (13장).** 왜 이 구조인가 → 계약 → 런타임 → 플랜 생성 → 설정·실측. **코드를 읽거나 고쳐야 하면 여기부터** |
 | [`docs/tutorial/index.html`](docs/tutorial/index.html) | **활용 실습서 (6부 21장 + 부록).** 실행 한 줄 → 콘텐츠 추가 → 내 게임서버 붙이기 → LLM 켜기 → 부하·테스트. 장마다 예제(`samples/` 24종)와 확인 절차가 붙고, **실린 수치는 전부 실제로 돌려 얻은 것**이다. **직접 만들어 보려면 여기부터** |
 | [`docs/reference_link.html`](docs/reference_link.html) | **게임서버 연동 계약 ★** N1~N8 · 패킷 · 와이어 프로토콜 · 핸드셰이크 · **게임서버가 지켜야 할 발행 규약**. 연동 팀에 그대로 건넬 수 있다 |
-| [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | **마스터데이터 레퍼런스 ★** 월드 플래그 42 · 액션 37 · 아키타입 40 · 버킷 2,880 · 검증 V1~V11 · 작성 순서 |
+| [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | **마스터데이터 레퍼런스 ★** 월드 플래그 42 · 액션 37 · 아키타입 40 · 버킷 2,880 · 검증 V1~V13 · 작성 순서 |
 | [`docs/reference_metrics.html`](docs/reference_metrics.html) | **실측 데이터.** 런타임 성능 · 스케일 · LLM 지연 · 캐시 · 비용 · 프리베이크 · 플랜 품질 · 수용 기준 판정 · **미측정으로 남은 것** |
 | [`docs/FAQ.html`](docs/FAQ.html) | 도입 이점 · 적합한 범위와 한계 · 행동 플랜 준비 · 전투 반응 설계 · NPC 대화 확장 |
 | [`docs/startup_flow.html`](docs/startup_flow.html) | 기동 흐름 시각화 — 무엇이 어떤 순서로 조립되는가 |

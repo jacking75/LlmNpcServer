@@ -5,7 +5,7 @@ using Npc.MasterData.Validation;
 namespace Npc.Tests.MasterData;
 
 /// <summary>
-/// docs/01 §11 의 V1~V11. 각 규칙마다 위반 픽스처를 하나씩 만들어
+/// docs/01 §11 의 V1~V13. 각 규칙마다 위반 픽스처를 하나씩 만들어
 /// <b>정확히 그 코드로</b> 실패하는지 확인한다.
 /// 검증 실패는 기동 실패다 — 경고 후 진행을 허용하지 않는다.
 /// </summary>

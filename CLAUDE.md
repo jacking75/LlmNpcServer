@@ -30,6 +30,7 @@
 | `docs/startup_flow.html` | 기동 흐름 |
 | `docs/testbed_guide.html` | 테스트 베드 · 게임서버 연동 시험 |
 | `docs/FAQ.html` | 도입·행동 플랜·전투 반응·대화 확장 |
+| `docs/llm/VALIDATION.md` | **검증 오류 사전 — 코드 → 무엇을 하면 되는가.** 생성물이다 (`npc hints --out`) |
 | **`PRODUCTION_ROADMAP.md`** | **상용 투입 로드맵 — 결손 태스크 50건(체크리스트)·구현 방법·LLM 온보딩·NPC 정의 툴. 유일한 작업 지시서** |
 
 ★ **`reference_link.html` · `reference_masterdata.html` 을 읽지 않고 계약·마스터데이터를 건드리지
@@ -61,7 +62,14 @@ dotnet format --verify-no-changes              # 스타일 검사
 ```
 
 ```powershell
-# 마스터데이터 검증만 (V1~V13)
+# 마스터데이터·플랜 도구 (F-01). 저장소 루트에서 돈다
+dotnet run --project tools/Npc.Cli -- validate                 # V1~V13 + 로더 + 파생물 신선도
+dotnet run --project tools/Npc.Cli -- card archetype blacksmith
+dotnet run --project tools/Npc.Cli -- next-code flags          # 다음 bit (예약 구간부터)
+dotnet run --project tools/Npc.Cli -- regen --check            # 파생물이 낡았으면 비0
+dotnet run --project tools/Npc.Cli -- --help                   # 명령 전체
+
+# 마스터데이터 검증만 (V1~V13). 기동 스크립트 호환으로 남겨 둔 경로다
 dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata
 
 # LLM 없이 스모크
@@ -144,6 +152,9 @@ NPC 상태는 **SoA(struct of arrays)**다. `class Npc`를 5,000개 만들지 �
 - **`code` 번호와 `bit` 번호는 절대 재배치하지 않는다.** 프리베이크된 플랜 2,880개가 통째로 깨진다. 추가는 뒤에만.
 - `prompt/` 의 액션 카탈로그는 `actions.json`에서 **생성**된다. 손으로 편집하지 않는다.
 - 검증 V1~V13 실패는 **기동 실패**다. 경고 후 진행을 허용하지 않는다.
+- **파생물(`poi_distances.bin`·`npc_instances.json`)은 `derived.lock.json` 이 신선도를 건다.**
+  낡으면 기동은 되지만 경고가 나온다 — `npc regen` 이 무엇을 다시 만들지 알려 준다.
+  생성기(`tools/gen_*.cs`)가 잠금을 갱신하므로 **생성기를 돌린 뒤 잠금도 같이 커밋한다.**
 
 작업 순서를 지킨다 (역순이면 계속 되돌아온다):
 
@@ -188,6 +199,7 @@ Npc.Core       ←  외부 NuGet 의존 0. Contracts만 참조
 Npc.MasterData ←  Core
 Npc.Runtime    ←  Core, MasterData, Contracts, Planning
 Npc.Planning   ←  Core, MasterData
+Npc.Narrative  ←  Core, MasterData          (정의 설명 카드. LLM·시각·난수 없음)
 Npc.Llm        ←  Core, MasterData (+ Microsoft.Extensions.AI)
 Npc.Wire       ←  Contracts (+ MemoryPack)
 Npc.Gateway    ←  Contracts, Wire
@@ -213,6 +225,20 @@ testbed/Npc.TestClient        ←  MasterData, Protocol   (net10.0-windows · �
 - **`Npc.Runtime`은 `Npc.Llm`을 참조하지 않는다.** 참조가 생기면 틱 루프에 LLM이 들어올 길이 열린다.
 - `Npc.Runtime → Npc.Planning`은 허용한다. `CognitionScheduler.Scan`이 `PlanStore`·`ReplanQueue`를 직접 받기 때문이다. `Npc.Planning`은 `Core`·`MasterData`만 참조하므로 이 간선으로 LLM이 들어올 길은 없다.
 - `Npc.Core`와 `Npc.Contracts`에 NuGet 패키지를 추가하지 않는다. 순수 로직만.
+- **`Npc.Narrative` 는 잎이다.** `Npc.Host`·런타임이 참조하지 않는다 — 서버가 도는 데 설명 카드는
+  필요 없다. 부르는 것은 도구(`npc` CLI · `Npc.Narrate`)와 앞으로의 Studio·MCP 다.
+- **`Npc.MasterData/Authoring/` 은 편집 도구다** (F-04). 로더 옆에 두되 로더가 의존하지 않는다 —
+  기동 경로에 편집 기능이 들어갈 이유가 없다. 예외는 `DerivedArtifacts` 하나로,
+  로더가 파생물 신선도를 읽어 `MasterDataSet.StaleArtifacts` 에 싣는다.
+
+도구는 전부 잎이다.
+
+```
+tools/Npc.Cli       ←  Contracts, Core, MasterData, Narrative, Planning, Sim   (npc 명령)
+tools/Npc.Prebake   ←  Core, MasterData, Planning, Llm, Sim
+tools/Npc.Narrate   ←  Contracts, Core, Gateway, MasterData, Narrative
+tools/gen_*.cs      ←  #:project 로 MasterData (파생물 잠금 갱신)
+```
 
 ---
 
@@ -296,7 +322,10 @@ logs/ replays/ artifacts/
 | 검증 실패분을 조용히 폐기 | 품질 개선 원자료 소실 | `planstore/rejected/`에 실패 코드와 함께 보존 |
 | `manifest.json`에 `DateTime.Now` | 결정론 파괴 | 시각은 외부에서 인자로 주입 |
 | `Npc.Runtime`에서 `Npc.Llm` 참조 추가 | 틱 루프에 LLM이 들어올 길 | §3 의존 규칙 |
-| 아키타입에 `duty_hours` 없이 `Guard`·`Patrol` 허용 | 인지 스캔이 매번 이탈로 읽어 재계획 큐 포화 | `OnDuty`를 세우는 것은 `duty_hours` 뿐이다 |
+| 아키타입에 `duty_hours` 없이 `Guard`·`Patrol` 허용 | 인지 스캔이 매번 이탈로 읽어 재계획 큐 포화 | **V12 가 기동을 막는다.** `OnDuty`를 세우는 것은 `duty_hours` 뿐이다 |
+| `code`·`bit` 를 눈으로 세어 다음 번호를 정함 | 중복·예약 구간 침범 | `npc next-code <파일>` 이 답한다 |
+| 마스터데이터를 고치고 생성기를 안 돌림 | 낡은 거리표로 조용히 돈다 | `npc regen --check` (CI 에 걸 수 있다) |
+| 편집 스크립트가 문자열 치환으로 JSON 을 고침 | 서식이 깨져 diff 를 못 읽는다 | `JsonSurgeon` (F-04). 무변경 편집은 바이트 동일 |
 
 ---
 
@@ -330,7 +359,7 @@ logs/ replays/ artifacts/
 | 요청당 입력 토큰 | **13,948** (프리픽스 11,967). 계획 가정 1,750 의 **8배** |
 | 요청 단가 · 프리베이크 | **$0.001015/요청** · 2,880건 **$5.12** (도달집합 264건은 $0.37) |
 | 프롬프트 캐시 적중률 | **30.7~42.6 %.** 암시적 캐싱이라 95 % 는 도달 불가 |
-| 버킷 수 | 40 × 6 × 4 × 3 = **2,880**. 단 **실제 도달은 264개(9.2 %)** |
+| 버킷 수 | 아키타입 40 × 6 × 4 × 3 = **2,880**. 단 **실제 도달은 264개(9.2 %)**<br>아키타입 수는 `archetypes.json` 이 정한다 (F-05) — 코드 상수가 아니다 |
 | 외부 동시성 | **24 까지 429 0회.** 32·64 는 미측정 — `--concurrency` 기본은 **8** |
 | 플랜 생성 통과율 · 다양성 | **64.6 %** (288버킷) · 유니크 시퀀스 **37.1 %** |
 | 골든 회귀 | 단언 합격률 **93.6 %** (206/220) |

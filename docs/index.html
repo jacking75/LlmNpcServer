@@ -539,7 +539,7 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
   <rect class="bx2" x="6" y="60" width="140" height="64" rx="9"/>
   <text class="t" x="20" y="86">masterdata/</text>
   <text class="t3" x="20" y="104">11종 · 단일 원천(SSOT)</text>
-  <text class="t3" x="20" y="118">V1~V11 실패 = 기동 실패</text>
+  <text class="t3" x="20" y="118">V1~V13 실패 = 기동 실패</text>
 
   <rect class="bx2" x="6" y="148" width="140" height="64" rx="9"/>
   <text class="t" x="20" y="174">planstore/</text>
@@ -556,7 +556,7 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
   <text class="t3" x="198" y="112">await 금지 · 힙 할당 0 · lock 금지 · 단일 스레드 · LLM 없음</text>
 
   <rect class="bx" x="246" y="152" width="292" height="56" rx="10"/>
-  <text class="t" x="262" y="176">L1 · 플랜 스토어 — CompiledPlan[2880]</text>
+  <text class="t" x="262" y="176">L1 · 플랜 스토어 — CompiledPlan[TotalKeys]</text>
   <text class="t3" x="262" y="196">Resolve() 는 절대 null 을 반환하지 않는다</text>
 
   <rect class="bxo" x="176" y="228" width="432" height="128" rx="11"/>
@@ -637,7 +637,7 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
   <text class="t3" x="6" y="424">② 전제 이탈 판정 → 재계획 큐에 점수와 함께 넣는다</text>
   <text class="t3" x="6" y="442">③ 예산 안에서만 꺼내 간다. 넘으면 그냥 안 만든다</text>
   <text class="t3" x="470" y="406">④ 4단 검증 통과분만 · 원자 참조 교체(Volatile)로 반영</text>
-  <text class="t3" x="470" y="424">⑤ 기동 시 1회 로드 + V1~V11 검증</text>
+  <text class="t3" x="470" y="424">⑤ 기동 시 1회 로드 + V1~V13 검증</text>
   <text class="t3" x="470" y="442">⑥ 프리베이크된 플랜 + 사람이 pin 한 플랜</text>
 </svg>
 </div>
@@ -757,7 +757,7 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
   <text class="t3" x="68" y="249">← Core, MasterData · 플랜 스토어 · 재계획 큐</text>
   <rect class="bx" x="328" y="214" width="258" height="42" rx="8"/>
   <text class="t" x="340" y="234">Npc.MasterData</text>
-  <text class="t3" x="340" y="249">← Core · 로더 · V1~V11 검증</text>
+  <text class="t3" x="340" y="249">← Core · 로더 · V1~V13 검증</text>
 
   <!-- 밴드 1 -->
   <rect class="bxo" x="44" y="276" width="556" height="70" rx="10"/>
@@ -811,7 +811,7 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
 
 <div class="codewrap"><button class="copy" type="button">복사</button><pre class="dia"><code>Npc.Contracts   게임서버 링크 계약 · 패킷 DTO      외부 NuGet 0 · 아무것도 참조 안 함
 Npc.Core        플랜 DSL · 검증기 1~3단 · 버킷 키    외부 NuGet 0 · Contracts만
-Npc.MasterData  로더 · V1~V11 검증 · 읽기전용 인덱스  ← Core
+Npc.MasterData  로더 · V1~V13 검증 · 읽기전용 인덱스  ← Core
 Npc.Planning    플랜 스토어 · 재계획 큐 · 개별 풀      ← Core, MasterData
 Npc.Runtime     틱 루프 · SoA 저장소 · 인지 LOD       ← Core, MasterData, Contracts, Planning
 Npc.Llm         프롬프트 · 4단 검증 · 티어 라우터      ← Core, MasterData (+ Microsoft.Extensions.AI)
@@ -923,7 +923,7 @@ Npc.Host        조립 · 대시보드 · 메트릭             ← 전부</code
 <h3>3.10 마스터데이터가 단일 원천이다</h3>
 <p>
   액션·플래그·아키타입을 코드에 하드코딩하지 않는다. 전부 <code>masterdata/</code>에서 온다.
-  기동 시 <b>V1~V11</b> 검증을 돌리고, 실패하면 경고가 아니라 <b>기동 실패</b>다.
+  기동 시 <b>V1~V13</b> 검증을 돌리고, 실패하면 경고가 아니라 <b>기동 실패</b>다.
 </p>
 <div class="tw"><table>
   <thead><tr><th class="nowrap">파일</th><th>내용</th><th class="nowrap">현재 규모</th></tr></thead>
@@ -1371,7 +1371,7 @@ Npc.Host        조립 · 대시보드 · 메트릭             ← 전부</code
         <td>플랜의 런타임 표현(<code>CompiledPlan</code>)과 검증기 1~3단</td>
         <td class="nowrap"><code>Plan/CompiledPlan.cs</code></td></tr>
     <tr><td><code>Npc.MasterData</code></td><td class="nowrap">8 · 4,257</td>
-        <td><code>masterdata/</code>를 읽고 V1~V11로 검증해 읽기전용 인덱스로 만든다</td>
+        <td><code>masterdata/</code>를 읽고 V1~V13로 검증해 읽기전용 인덱스로 만든다</td>
         <td class="nowrap"><code>MasterDataSet.cs</code></td></tr>
     <tr><td><code>Npc.Runtime</code></td><td class="nowrap">14 · 2,707</td>
         <td><b>심장부.</b> 10Hz 틱 루프 · SoA 저장소 · 인지 LOD · 명령 발행</td>
@@ -1728,7 +1728,7 @@ src/Npc.Core/obj/generated/WorldFlags.g.cs      ← 커밋하지 않는다. 재�
   <b>이 메서드의 위에서 아래 순서가 곧 의존 순서다.</b> 여기만 따라 읽어도 전체 구조가 잡힌다.
 </p>
 <ol class="steps">
-  <li><code>MasterDataLoader.Load(dir)</code> — <code>masterdata/</code> 11종 로드 + V1~V11 검증. <b>실패하면 여기서 죽는다</b></li>
+  <li><code>MasterDataLoader.Load(dir)</code> — <code>masterdata/</code> 11종 로드 + V1~V13 검증. <b>실패하면 여기서 죽는다</b></li>
   <li><code>NpcInstanceTable.Load(...)</code> — NPC 개체. <code>--npcs</code>가 더 크면 있는 만큼으로 줄인다</li>
   <li><code>store.Allocate(npcs, items.MaxCode + 1)</code> — <b>SoA 배열을 여기서 한 번에 잡는다.</b> 이후 틱 루프에서 절대 재할당하지 않는다</li>
   <li><code>GameClock</code> · <code>CorrelationTable</code> · <code>EventApplier</code> · <code>CommandEmitter</code> · <code>PlanSwapper</code> · <code>ReplanQueue</code></li>
@@ -1944,7 +1944,7 @@ dotnet run -c Release --project tools/Npc.Narrate -- <span class="flag">--trace<
       <li><b>코드 주석 · 커밋 메시지 · 문서는 한국어</b></li>
       <li><b>식별자 · 타입명 · 로그 메시지는 영어</b></li>
       <li><code>N1~N8</code> = 게임서버 계약 규칙 (<code>docs/02</code>)</li>
-      <li><code>V1~V11</code> = 마스터데이터 검증 (<code>docs/01</code>)</li>
+      <li><code>V1~V13</code> = 마스터데이터 검증 (<code>docs/01</code>)</li>
       <li><code>V1.*</code>~<code>V4.*</code> = 플랜 검증 실패 코드 (<code>docs/03</code>)</li>
       <li><code>T{n}-{nn}</code> = 태스크 번호. 주석에 자주 나온다</li>
     </ul>
@@ -2132,7 +2132,7 @@ dotnet format --verify-no-changes        <span class="cmt"># 스타일 검사</s
   SKIP V9  프롬프트 프리픽스는 Npc.Llm 이 조립한다 (P2). P1 에는 없다.
   OK   액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14
   content_hash: f37c0292...2cb53218
-검증 통과 (V1~V11, 건너뜀 1건)</code></pre></div>
+검증 통과 (V1~V13, 건너뜀 1건)</code></pre></div>
 
 <h4>② LLM 없이 스모크 — NPC 500마리, 게임 1일</h4>
 <div class="codewrap"><button class="copy" type="button">복사</button><pre><code>dotnet run -c Release --project src/Npc.Host -- <span class="flag">--loopback --npcs</span> 500 <span class="flag">--time-scale</span> 600 <span class="flag">--days</span> 1 <span class="flag">--no-llm --max-speed --no-dashboard</span></code></pre></div>
@@ -2473,7 +2473,7 @@ dotnet test <span class="flag">--filter</span> Category=Golden                  
 <div class="codewrap"><button class="copy" type="button">복사</button><pre class="dia"><code>src/
   Npc.Contracts/    게임서버 연동 IF + 패킷 DTO          외부 의존 0
   Npc.Core/         플랜 DSL · 검증기 1~3단 · WorldFlags   외부 의존 0
-  Npc.MasterData/   로더 · V1~V11 검증 · 읽기전용 인덱스
+  Npc.MasterData/   로더 · V1~V13 검증 · 읽기전용 인덱스
   Npc.Runtime/      틱 스케줄러 · 플랜 실행기 · 인지 LOD
   Npc.Planning/     플랜 캐시 · 버킷터 · 우선순위 재계획 큐
   Npc.Llm/          IChatClient 어댑터 · 프롬프트 · 3티어 라우터
@@ -2501,10 +2501,12 @@ spike/              W1 스파이크 (지연·캐시·스키마 측정 코드)</c
     <tr><td><b>이 문서</b> <code>docs/index.html</code></td><td>전체 안내 — 아키텍처 그림 · 동작 애니메이션 · <b>구현 코드 안내</b> · <b>코드 분석 가이드</b> · 빌드 · 실행</td><td class="nowrap">전체를 훑을 때 · 코드를 처음 열 때</td></tr>
     <tr><td><a href="../LLM_NPC_Server_Plan.md"><code>LLM_NPC_Server_Plan.md</code></a></td><td><b>왜 이 구조인가</b> — 타당성 판단 · 비용 분석 · 리스크 대장</td><td class="nowrap">판단 근거가 궁금할 때</td></tr>
     <tr><td><a href="reference_link.html"><code>reference_link.html</code></a></td><td><b>공통 계약 ★</b> 게임서버 연동 — N1~N8 · 패킷 · 와이어 · 발행 규약</td><td class="nowrap" rowspan="2">코드 쓰기 전 필수</td></tr>
-    <tr><td><a href="reference_masterdata.html"><code>reference_masterdata.html</code></a></td><td><b>공통 계약 ★</b> 마스터데이터 스키마 · 플래그 42 · 액션 37 · V1~V11</td></tr>
+    <tr><td><a href="reference_masterdata.html"><code>reference_masterdata.html</code></a></td><td><b>공통 계약 ★</b> 마스터데이터 스키마 · 플래그 42 · 액션 37 · V1~V13</td></tr>
     <tr><td><a href="reference_metrics.html"><code>reference_metrics.html</code></a></td><td>실측 데이터 — 성능 · 비용 · 품질 · 수용 기준 판정</td><td class="nowrap">숫자와 결과가 궁금할 때</td></tr>
     <tr><td><a href="testbed_guide.html"><code>testbed_guide.html</code></a></td><td>테스트 베드 — 게임서버 연동을 실제 소켓으로 시험</td><td class="nowrap">연동을 붙일 때</td></tr>
     <tr><td><a href="FAQ.html"><code>FAQ.html</code></a></td><td>도입 이점 · 적용 범위 · 행동 플랜 준비 · 전투 반응 · 대화 확장</td><td class="nowrap">도입을 검토할 때</td></tr>
+    <tr><td><code>docs/llm/VALIDATION.md</code></td><td><b>검증 오류 사전</b> — 코드 → 무엇을 하면 되는가. <b>생성물이다</b> (<code>npc hints --out</code>)</td><td class="nowrap">검증이 떨어졌을 때</td></tr>
+    <tr><td><a href="../PRODUCTION_ROADMAP.md"><code>PRODUCTION_ROADMAP.md</code></a></td><td>상용 투입 로드맵 — 결손 태스크 50건 체크리스트</td><td class="nowrap">다음에 뭘 만들지 정할 때</td></tr>
     <tr><td><code>docs/measurements/</code></td><td>실측 <b>원자료</b>(jsonl · csv). 보고서는 <code>reference_metrics.html</code> 로 옮겼다</td><td class="nowrap">원본을 직접 볼 때</td></tr>
     <tr><td><a href="../CLAUDE.md"><code>CLAUDE.md</code></a></td><td>AI 코딩 에이전트용 작업 규칙</td><td class="nowrap">에이전트로 작업할 때</td></tr>
   </tbody>

@@ -281,7 +281,10 @@ dotnet run -c Release --project tools/Npc.Prebake -- --model &lt;id&gt; --limit 
 <tr><td><b>킬스위치</b></td><td>티어·스토어를 끊어 가용성을 시험하는 장치. 한 번 켜지면 재기동까지 유지</td><td><a href="ch09.html">9장</a></td></tr>
 <tr><td><b>게이트</b> (Gate)</td><td>Phase를 끝냈다고 선언하기 위한 판정 항목</td><td><a href="ch12.html">12장</a></td></tr>
 <tr><td><b>N1~N8</b></td><td>게임서버 연동 규칙 8개. 테스트로 강제된다</td><td><a href="ch03.html">3장</a></td></tr>
-<tr><td><b>V1~V11</b></td><td>마스터데이터 검증 규칙. 실패는 기동 실패</td><td><a href="ch02.html">2장</a></td></tr>
+<tr><td><b>V1~V13</b></td><td>마스터데이터 검증 규칙. 실패는 기동 실패</td><td><a href="ch02.html">2장</a></td></tr>
+<tr><td><b>파생물 잠금</b></td><td><code>derived.lock.json</code>. 생성물이 어떤 입력 해시로 만들어졌는지의 기록. <b>기록이 없으면 낡은 것</b></td><td><a href="ch02.html">2장</a></td></tr>
+<tr><td><b>버킷 공간</b> (BucketSpace)</td><td>아키타입 수 × 72. <b>아키타입 수는 마스터데이터가 정한다</b> — 코드 상수가 아니다</td><td><a href="ch02.html">2장</a></td></tr>
+<tr><td><b>카드</b></td><td><code>Npc.Narrative</code> 가 만드는 정의 설명 한 장. LLM·시각·난수 없음 — 같은 입력이면 바이트 동일</td><td><a href="ch02.html">2장</a></td></tr>
 </tbody>
 </table>
 </div>
@@ -381,7 +384,19 @@ dotnet run -c Release --project tools/Npc.Prebake -- --model &lt;id&gt; --limit 
     ['Npc.MasterData/PlanTable.cs', '폴백 플랜 로드 + 심볼 해석', '2'],
     ['Npc.MasterData/InterruptRules.cs', '인터럽트 규칙 매칭 (플래그·성향·이벤트)', '7'],
     ['Npc.MasterData/NpcRoster.cs', 'NPC 선택 규칙 + 로스터 해시', '5·10'],
-    ['Npc.MasterData/Validation/MasterDataValidator.cs', 'V1~V11', '2'],
+    ['Npc.MasterData/Validation/MasterDataValidator.cs', 'V1~V13', '2'],
+    ['Npc.MasterData/Validation/FixHints.cs', '검증 코드 → 수정 힌트 사전 (41건)', '2'],
+    ['Npc.MasterData/Validation/ValidationJson.cs', '기계가 읽는 검증 결과', '2'],
+    ['Npc.MasterData/Authoring/CodeAllocator.cs', '다음 code·bit (예약 구간 우선)', '2'],
+    ['Npc.MasterData/Authoring/WeightRebalancer.cs', '가중치 재배분 3안 + 인구표', '2'],
+    ['Npc.MasterData/Authoring/JsonSurgeon.cs', '서식 보존 JSON 편집', '2'],
+    ['Npc.MasterData/Authoring/DerivedArtifacts.cs', '파생물 신선도 잠금', '2'],
+    ['Npc.MasterData/Authoring/ImpactAnalyzer.cs', '변경 → 무효화·재생성·재배포 파급', '2'],
+
+    ['Npc.Narrative/ArchetypeCard.cs', '아키타입 카드 (정의 한 장)', '2'],
+    ['Npc.Narrative/PlanExplain.cs', '플랜 스텝 트레이스 — 3단 검증기와 같은 판정', '8'],
+    ['Npc.Narrative/InterruptExplain.cs', '인터럽트 규칙 문장화 + 우선순위 충돌', '7'],
+    ['Npc.Narrative/InstanceCard.cs', 'NPC 개체 카드 (집·일터·거리)', '2'],
 
     ['Npc.Runtime/NpcServerLoop.cs', '틱 루프 여섯 단계 + DrainEvents + 시퀀스 갭', '5'],
     ['Npc.Runtime/NpcStore.cs', 'SoA 저장소 + StateHash', '5'],

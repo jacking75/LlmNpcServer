@@ -1,5 +1,40 @@
 # 작업 로그
 
+## 2026-09-10 19:12 KST · CI 워크플로 제거 · 이번 세션 결과물을 문서에 반영
+
+**CI 워크플로 파일을 만들지 않기로 했다.** 이 저장소는 CI 제공자를 고르지 않았고, 고르지 않은
+채 `.github/workflows/*.yml` 을 두면 **"CI 가 있다" 는 거짓 신호**가 된다 — 아무도 돌리지 않는
+파이프라인이 녹색으로 보이는 것이 없는 것보다 나쁘다.
+
+- `.github/` 삭제. 커밋된 적이 없어 이력에는 남지 않는다.
+- **`build.ps1` 이 파이프라인 그 자체가 됐다.** 빌드·스타일·테스트에 더해
+  `npc validate`(V1~V13 + 로더 + 파생물)와 `npc regen --check`(낡으면 비0)를 돌린다.
+  `-SkipData` 로 코드만 고쳤을 때는 건너뛴다. 사내 CI 든 Actions 든 이 한 줄을 부르면 된다.
+- `DeployArtifactTests` 를 뒤집었다 — 워크플로 파일의 **존재**를 요구하던 것이
+  이제 `.github/` 가 **없음**을 요구한다. 결정이 테스트로 지켜진다.
+- 로드맵 A-09 의 CI 항목에 취소선과 결정 근거를 달고, G-03 을 "성능 회귀 **판정**" 으로
+  고쳐 A-09 의존을 끊었다 — 워크플로가 아니라 판정 명령으로 만든다.
+
+**이번 세션 결과물(E-04·F-05·F-03·F-04·F-01)을 문서 전반에 반영했다.**
+
+- `CLAUDE.md` — §3 의존 그래프에 `Npc.Narrative` 와 **도구 잎 4종**, §1 에 `npc` 명령,
+  §2.4 에 파생물 잠금, §7 실수 표에 4줄(V12 가 막는다 · `next-code` · `regen --check` · `JsonSurgeon`).
+- `README.md` — 배포 표에서 워크플로 3줄 삭제 + 파이프라인 명령 3줄, 구조 트리에 `Npc.Cli`.
+- `CODEMAP.md` — 작업별 지도에 CLI 줄, 도구 표 신설, 컨테이너 줄에서 CI 제거.
+- `docs/book/ch02` — V12·V13 행, `FixHints` 절, **`derived.lock.json` 절 신설**,
+  무효화 표에 `ImpactAnalyzer`·`npc diff` 카드.
+- `docs/book/ch04` — `CompiledStep` **14 B → 16 B**, `NpcRef` `byte` → `ushort`.
+  64종이 조용한 상한이었다는 사실을 캡션에 남겼다.
+- `docs/book/ch11`·`ch13` — `npc` 명령, 파일 지도에 `Authoring/`·`Narrative/` 11줄, 용어 3개.
+- `docs/startup_flow` — `validate` 출력 갱신(구조 해시·`WARN 파생물`), 로더 단계에 신선도.
+- `docs/tutorial/appendix` — 도구 표에 `npc`, V12·V13 행, `hints`·`healthcheck` 서브커맨드.
+- `docs/index`·`LLM_NPC_Server_Plan.md` — 문서 지도에 `VALIDATION.md`·로드맵,
+  검증 목록에 V12·V13, **"아키타입 수는 코드가 모른다"** 절 신설.
+- `V1~V11` → `V1~V13` 을 저장소 전역 36곳에서 고쳤다. **`working_log.md` 는 되돌렸다** —
+  과거 기록은 그때의 사실이고, 고치면 V13 이 그때 있었다고 주장하게 된다.
+
+빌드 경고 0 · 테스트 1,353건 통과 · `dotnet format` 통과.
+
 ## 2026-09-10 16:14 KST · F-01 `npc` CLI (`tools/Npc.Cli`)
 
 서브커맨드가 `validate` 하나였다. F-03·F-04 의 라이브러리를 사람과 LLM 이 터미널에서 쓸

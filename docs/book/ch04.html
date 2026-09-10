@@ -298,7 +298,7 @@ State before this step: AtWorkplace|HasFood|HasWater|HasTool|HasProduct|HasCoin|
 
       <rect x="330" y="30" width="250" height="230" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6"/>
       <text x="455" y="54" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">CompiledStep</text>
-      <text x="455" y="74" text-anchor="middle" font-size="11" fill="var(--ink-3)">readonly record struct · 14 B</text>
+      <text x="455" y="74" text-anchor="middle" font-size="11" fill="var(--ink-3)">readonly record struct · 16 B</text>
       <g font-size="11.5" font-family="var(--mono)" fill="var(--ink-2)">
         <text x="350" y="104">ActionId  Action</text>
         <text x="350" y="124">PoiSymbol Poi</text>
@@ -306,7 +306,7 @@ State before this step: AtWorkplace|HasFood|HasWater|HasTool|HasProduct|HasCoin|
         <text x="350" y="164">ushort    Count</text>
         <text x="350" y="184">ushort    TimeoutSeconds</text>
         <text x="350" y="204">byte      ArgFlags</text>
-        <text x="350" y="224">byte      NpcRef</text>
+        <text x="350" y="224">ushort    NpcRef</text>
         <text x="350" y="244">ushort    FlagSetIndex</text>
       </g>
 
@@ -333,6 +333,11 @@ State before this step: AtWorkplace|HasFood|HasWater|HasTool|HasProduct|HasCoin|
   <figcaption>
     플래그 5종(각 8 B, 합 40 B)은 <code>CompiledStep</code> 밖의 <b>병렬 배열</b>로 뺐다.
     스텝마다 인라인으로 물면 5,000 NPC × 10스텝이 캐시에서 넘친다.
+    <br><b>14 B 였다</b> — <code>NpcRef</code> 가 <code>byte</code>(상위 2비트 종류 + 하위 6비트 payload)라
+    아키타입 <b>64종이 조용한 상한</b>이었다. 65번째 아키타입은 <code>nearest:</code> 에서 code 를 잃고
+    엉뚱한 NPC 를 가리켰을 것이고, 그런 오류는 런타임에 티가 나지 않는다.
+    F-05 에서 12비트 payload 로 넓히며 16 B 가 됐고, <b>크기를 16 으로 동결</b>했다 —
+    상한만 보면 필드가 하나씩 늘어 32 에 닿을 때까지 아무도 모른다.
   </figcaption>
 </figure>
 

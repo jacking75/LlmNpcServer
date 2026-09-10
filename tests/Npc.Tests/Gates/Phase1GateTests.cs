@@ -235,9 +235,9 @@ public sealed class Phase1GateTests
         }
     }
 
-    // ── 7. 마스터데이터 V1~V11 ──────────────────────────────────
+    // ── 7. 마스터데이터 V1~V13 ──────────────────────────────────
 
-    /// <summary>V1~V11 전부 통과한다. 실패는 기동 실패다 (CLAUDE.md §2.4).</summary>
+    /// <summary>V1~V13 전부 통과한다. 실패는 기동 실패다 (CLAUDE.md §2.4).</summary>
     [Fact]
     public void Gate_MasterDataPassesV1ToV11()
     {

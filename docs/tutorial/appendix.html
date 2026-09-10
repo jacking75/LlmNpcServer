@@ -56,7 +56,9 @@
 <tr><td><code>--dev-control</code></td><td>꺼짐</td><td><code>POST /control/killswitch</code> 를 연다 (11장)</td></tr>
 <tr><td><code>--weights A|B|C|D</code></td><td>B</td><td>재계획 점수 가중치 세트</td></tr>
 <tr><td><code>--scan-cap N</code></td><td>150</td><td>0=해제. <b>측정 전용</b></td></tr>
-<tr><td><code>validate --masterdata &lt;dir&gt;</code></td><td>—</td><td>서브커맨드. V1~V11 만 돌린다</td></tr>
+<tr><td><code>validate --masterdata &lt;dir&gt;</code></td><td>—</td><td>서브커맨드. V1~V13 만 돌린다. <code>--format json</code> 이면 기계 판독</td></tr>
+<tr><td><code>hints [--out &lt;path&gt;]</code></td><td>—</td><td>검증 오류 사전. <code>docs/llm/VALIDATION.md</code> 를 생성한다</td></tr>
+<tr><td><code>healthcheck --url &lt;url&gt;</code></td><td>—</td><td>컨테이너 <code>HEALTHCHECK</code> 용</td></tr>
 </tbody>
 </table>
 </div>
@@ -67,10 +69,11 @@
 <table>
 <thead><tr><th style="width:180px">도구</th><th>주요 옵션</th><th>장</th></tr></thead>
 <tbody>
+<tr><td><code>tools/Npc.Cli</code> (<code>npc</code>)</td><td><code>validate</code> <code>explain</code> <code>card</code> <code>timeline</code> <code>hints</code> <code>next-code</code> <code>scaffold</code> <code>diff</code> <code>regen</code> <code>plan</code> <code>buckets</code> <code>pin</code><br><small>공통: <code>--masterdata</code> <code>--planstore</code> <code>--json</code> <code>--apply</code></small></td><td>5·7·9장</td></tr>
 <tr><td><code>tools/Npc.Prebake</code></td><td><code>--budget-usd</code> <code>--limit</code> <code>--archetypes</code> <code>--concurrency</code> <code>--print-prefix</code> <code>--resume</code></td><td>17장</td></tr>
-<tr><td><code>tools/Npc.Narrate</code></td><td><code>--trace</code> <code>--npc</code> <code>--time-scale</code> <code>--population</code> <code>--cycles</code></td><td>6·15장</td></tr>
-<tr><td><code>tools/gen_poi_distances.cs</code></td><td>없음 — <b>저장소 루트를 찾아 <code>masterdata/</code></b></td><td>5장</td></tr>
-<tr><td><code>tools/gen_npcs.cs</code></td><td><code>--seed</code> <code>--population</code> <code>--out</code></td><td>7장</td></tr>
+<tr><td><code>tools/Npc.Narrate</code></td><td><code>--trace</code> <code>--npc</code> <code>--time-scale</code> <code>--population</code> <code>--cycles</code> · <code>card</code> <code>explain</code></td><td>6·15장</td></tr>
+<tr><td><code>tools/gen_poi_distances.cs</code></td><td>없음 — <b>저장소 루트를 찾아 <code>masterdata/</code></b>. 끝나면 <code>derived.lock.json</code> 갱신</td><td>5장</td></tr>
+<tr><td><code>tools/gen_npcs.cs</code></td><td><code>--seed</code> <code>--population</code> <code>--out</code>. <code>--out</code> 없이 돌리면 <code>derived.lock.json</code> 갱신</td><td>7장</td></tr>
 <tr><td><code>testbed/Npc.TestGameServer</code></td><td><code>--npcs</code> <code>--time-scale</code> <code>--link-port</code> <code>--client-port</code> <code>--headless</code></td><td>3장</td></tr>
 <tr><td><code>samples/ch13_mini_gs</code></td><td><code>--npcs</code> <code>--time-scale</code> <code>--port</code> <code>--travel-ticks</code> <code>--gap-at</code></td><td>13장</td></tr>
 </tbody>
@@ -132,7 +135,7 @@
 </table>
 </div>
 
-<h3>마스터데이터 V1~V11</h3>
+<h3>마스터데이터 V1~V13</h3>
 
 <div class="tablewrap">
 <table>
@@ -149,6 +152,8 @@
 <tr><td><b>V9</b></td><td>프리픽스 ≥ 4,096 토큰</td><td>LLM 을 켜야 판정</td></tr>
 <tr><td><b>V10</b></td><td>일터·주거 정원</td><td><code>정원 합이 64 인데 … 인구는 495 다</code></td></tr>
 <tr><td><b>V11</b></td><td>존 대칭 · POI 도달</td><td><code>인접이 비대칭이다 — A → B 는 있는데 반대가 없다</code></td></tr>
+<tr><td><b>V12</b></td><td><code>duty_hours</code> 없이 근무 액션 허용 금지</td><td><code>'villager' 에 duty_hours 가 없는데 Guard 을 허용한다</code></td></tr>
+<tr><td><b>V13</b></td><td><code>npc_instances.json</code> 참조 · id 중복 · 개체 정원</td><td><code>NPC 41 의 home_poi 'no_such_poi' 가 pois.json 에 없다</code><br><small>파일이 없으면 <code>SKIP</code></small></td></tr>
 </tbody>
 </table>
 </div>
@@ -208,7 +213,7 @@
 <tr><td>실습장 하나</td><td><code>./samples/lab.ps1 -Drop &lt;이름&gt;</code></td></tr>
 <tr><td>실습장 전부</td><td><code>Remove-Item lab -Recurse -Force</code> — <code>.gitignore</code> 라 흔적이 없다</td></tr>
 <tr><td>본체를 고친 실습 (7·9·12장)</td><td><b>전용 브랜치에서 한다.</b> <code>revert.ps1 -Yes</code> → <code>git switch main</code></td></tr>
-<tr><td>생성물 (<code>npc_instances.json</code> · <code>poi_distances.bin</code>)</td><td>손으로 못 되돌린다. <code>git restore masterdata</code></td></tr>
+<tr><td>생성물 (<code>npc_instances.json</code> · <code>poi_distances.bin</code>)</td><td>손으로 못 되돌린다. <code>git restore masterdata</code><br>낡았는지는 <code>npc regen --check</code> 가 답한다 — <code>derived.lock.json</code> 이 근거다</td></tr>
 <tr><td>플랜 스토어</td><td><code>planstore/plans/</code> 는 지워도 된다 — 재생성 가능.<br><b><code>pinned/</code> 는 지우지 않는다</b></td></tr>
 <tr><td>측정 원자료를 덮어썼다</td><td><code>git restore docs/measurements</code></td></tr>
 </tbody>

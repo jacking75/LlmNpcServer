@@ -59,7 +59,9 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 - [x] **A-06** 링크 보안: 핸드셰이크 인증(HMAC+nonce) · TLS/mTLS · 관리 API 인증 — P0 · M · 의존 B-01
 - [ ] **A-07** 핫 리로드: 플랜 스토어 · 인터럽트 · 폴백 · few-shot (구조 변경은 재기동) — P1 · L · 의존 A-01, B-04
 - [ ] **A-08** 전역 `NpcId` · 샤드 식별 · 다중 링크 세션 (샤딩 1단계) — P1 · L · 의존 B-01, B-05
-- [x] **A-09** 배포: Dockerfile · compose(테스트베드 포함) · CI 파이프라인 · 중앙 패키지 관리 · 릴리스 버저닝 — P0 · M · 의존 없음
+- [x] **A-09** 배포: Dockerfile · compose(테스트베드 포함) · ~~CI 파이프라인~~ · 중앙 패키지 관리 · 릴리스 버저닝 — P0 · M · 의존 없음
+  - **CI 워크플로 파일은 만들지 않기로 했다** (2026-09-10 결정). 제공자를 고르지 않았고, 파이프라인의 내용은
+    `build.ps1` · `npc validate` · `npc regen --check` 세 명령으로 이미 정의되어 있다.
 - [x] **A-10** 게임 시각 복원(`StartTick`) · `TickSync` 워치독 — P0 · S · 의존 A-01
 - [x] **A-11** 킬스위치 가역화 · `/admin/*` 네임스페이스 · 감사 로그 — P1 · S · 의존 A-06
 
@@ -116,7 +118,8 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 
 - [ ] **G-01** 미측정 항목 실행: 프리베이크 전량 2,880 · GPU 부하 · 런타임 재계획 수 · 외부 동시성 32/64 — P0 · M(운영) · 의존 C-01
 - [ ] **G-02** 소크·카오스: 72시간 연속 · TCP 프록시 장애 주입(`tools/Npc.Chaos`) · 재기동 복구 시험 — P0 · M · 의존 A-01, A-03
-- [ ] **G-03** 성능 회귀 CI (야간 Load · `bytesPerTick`=0 · p99 게이트 · 아티팩트 diff) — P1 · S · 의존 A-09
+- [ ] **G-03** 성능 회귀 판정 (야간 Load · `bytesPerTick`=0 · p99 게이트 · 아티팩트 diff) — P1 · S · 의존 없음
+  - 워크플로 파일이 아니라 **판정 스크립트**로 만든다 (A-09 의 CI 제외 결정). 어느 CI 든 그것을 부르면 된다.
 - [ ] **G-04** 라이선스·보안 리뷰 (dotLLM GPLv3 법무 · 모델 약관 · SBOM · 위협 모델 문서) — P0 · S(문서) · 의존 없음
 - [ ] **G-05** 상용 수용 기준 v2 (가용성 SLO · RTO · 상태 손실 창 · 보안 항목) + go/no-go 체크리스트 — P0 · S · 의존 전부
 
@@ -130,7 +133,7 @@ graph LR
     A01[A-01 스냅샷] --> A02[A-02 종료]
     A01 --> A10[A-10 시각 복원]
     A03[A-03 헬스체크]
-    A09[A-09 배포·CI]
+    A09[A-09 배포]
     A04[A-04 설정] --> A05[A-05 관측]
   end
   subgraph M1["M1 신뢰 경계 밖에 놓는다"]
@@ -174,7 +177,7 @@ graph LR
   subgraph M6["M6 상용 판정"]
     A01 --> G02[G-02 소크·카오스]
     A03 --> G02
-    A09 --> G03[G-03 성능 CI]
+    G03[G-03 성능 회귀 판정]
     G04[G-04 라이선스·보안]
     G02 --> G05[G-05 수용 기준 v2]
     G01 --> G05
@@ -224,7 +227,7 @@ M3 은 M0 의 A-05(관측) 뒤에 붙인다. M5 는 제품 요구가 확정된 �
 | 관리 API 인증 | **없음** | `/control/killswitch` 는 조건부 라우트 등록(`Program.cs:115`)만 | A-06, A-11 |
 | 핫 리로드 | **없음** | `Reload`·`FileSystemWatcher` 0건. `WarnIfStale`(`Program.cs:737-763`)은 경고 후 계속 | A-07 |
 | 샤딩 | **없음** | `--zone` 은 필터. `NpcId` = 로스터 첨자(`NpcRoster.cs:66-88`) → 두 샤드의 `NpcId=7` 충돌. `LinkListener.cs:18` 세션 1개 | A-08 |
-| 배포 | **없음** | Dockerfile · `.github/` · `*.yml` 0건. `Directory.Packages.props` 없음(xunit 2.9.2/2.9.3 혼재) | A-09 |
+| 배포 | **없음** | Dockerfile 0건. `Directory.Packages.props` 없음(xunit 2.9.2/2.9.3 혼재)<br>CI 워크플로 파일은 만들지 않기로 했다 — 판정 명령으로 대신한다 | A-09 |
 | 게임 시각 복원 | **없음** | `GameClock.cs:30` `startGameHour=6` 고정. `WireHello.StartTick` 미사용 | A-10 |
 | 킬스위치 | 부분 | `KillSwitch.cs:44-47` 되돌릴 수 없음. 복구 = 재기동 = 상태 전손 | A-11 |
 
@@ -695,12 +698,19 @@ TLS 와 토큰이 필요하다"(`docs/reference_link.html` §13)고 적었다. �
 
 ---
 
-### A-09 배포: Dockerfile · compose · CI · 중앙 패키지 · 릴리스 버저닝
+### A-09 배포: Dockerfile · compose · 중앙 패키지 · 릴리스 버저닝
 
 **왜.** 986개 테스트를 자동으로 돌리는 곳이 없다. 이미지·파이프라인·시크릿 주입·롤아웃이 전부 없다.
 
-**현재.** `.github/` 없음. `*.yml` 0건. `build.ps1` 로컬 3단계. `Directory.Packages.props` 없음(xunit 2.9.2/2.9.3, Test.Sdk 17.11.1/17.14.1 혼재).
+**현재(착수 시점).** `.github/` 없음. `*.yml` 0건. `build.ps1` 로컬 3단계. `Directory.Packages.props` 없음(xunit 2.9.2/2.9.3, Test.Sdk 17.11.1/17.14.1 혼재).
 `LangVersion=preview`.
+
+> **CI 워크플로 파일은 만들지 않는다** (2026-09-10 결정). 이 저장소는 CI 제공자를 고르지 않았고,
+> 고르지 않은 채 `.github/workflows/*.yml` 을 두면 **"CI 가 있다" 는 거짓 신호**가 된다 —
+> 아무도 돌리지 않는 파이프라인이 녹색으로 보이는 것이 없는 것보다 나쁘다.
+> 대신 파이프라인이 **무엇을 해야 하는가**를 명령으로 고정해 둔다: `build.ps1`(빌드·스타일·테스트) ·
+> `npc validate`(V1~V13 + 로더) · `npc regen --check`(파생물 신선도, 낡으면 비0).
+> 사내 CI 든 GitHub Actions 든 이 셋을 부르면 된다.
 
 **설계.**
 
@@ -709,22 +719,23 @@ TLS 와 토큰이 필요하다"(`docs/reference_link.html` §13)고 적었다. �
   `HEALTHCHECK` → `/healthz/live`. 별도 `deploy/Dockerfile.testgameserver`.
 - `deploy/compose.yaml` — 게임서버 대역 + NPC 서버 + Prometheus + Grafana. `run_demo.ps1` 의 컨테이너판.
 - `deploy/k8s/` — Deployment(프로브 3종·리소스·시크릿 `NPC_LINK_SECRET`/`NPC_ADMIN_TOKEN`/API 키) · Service · ConfigMap(옵션 A-04).
-- CI(`.github/workflows/ci.yml` 또는 사내 CI 동등물):
-  1. `dotnet restore` (락 파일 `packages.lock.json` 강제) → `build -c Release -warnaserror`
-  2. `dotnet format --verify-no-changes`
-  3. `dotnet test --filter "Category!=Golden&Category!=Gate&Category!=Load"` — 리눅스·윈도 매트릭스(WinForms 클라이언트는 윈도만)
-  4. `Npc.Host validate --masterdata ./masterdata` 종료 코드
-  5. 이미지 빌드 → 레지스트리 푸시(태그 = `git describe`)
-  6. 야간 워크플로: Load(G-03) · FaultInjection
-  7. 릴리스 워크플로: 태그 → 이미지 + `planstore` 아티팩트 + `docs/` 정적 사이트
+- **파이프라인이 부를 명령** (워크플로 파일은 두지 않는다):
+  1. `.\build.ps1` — `build -c Release`(경고=오류) · `dotnet format --verify-no-changes` ·
+     `dotnet test --filter "Category!=Golden&Category!=Gate&Category!=Load"`
+  2. `dotnet run --project tools/Npc.Cli -- validate` — V1~V13 + 로더 + 파생물 신선도. 종료 코드로 판정
+  3. `dotnet run --project tools/Npc.Cli -- regen --check` — 파생물이 낡았으면 비0
+  4. 이미지 빌드 → 레지스트리 푸시(태그 = `git describe`)
+  5. 야간: Load(G-03) · FaultInjection
+  6. 릴리스: 태그 → 이미지 + `planstore` 아티팩트 + `docs/` 정적 사이트
 - `Directory.Packages.props` 중앙 버전 관리. `LangVersion=preview` → `latest` 로 내리고 컴파일되는지 확인(안 되면 사용 기능을 적는다).
 - 릴리스 버전 = `MAJOR.MINOR.PATCH` + 빌드 메타로 `ContractVersion`(B-01)·`prefix_hash` 앞 8자리. `/status.version` 에 노출.
 
-**구현 절차.** 위 파일 생성. `build.ps1` 은 CI 와 같은 단계를 부르도록 유지(로컬 = CI). `README.md` "배포" 절 신설.
+**구현 절차.** 위 파일 생성. `build.ps1` 이 파이프라인 1단계 그대로다(로컬 = CI). `README.md` "배포" 절 신설.
 
 **테스트.** CI 자체가 테스트다. 추가로 `tests/Npc.Tests/Deploy/ComposeSmokeTests`(Docker 있을 때만, `[Trait("Category","Deploy")]`) — compose 기동 → `/healthz/ready` 200 → 종료.
 
-**완료 조건.** PR 마다 CI 녹색. `docker compose up` 한 줄로 데모가 뜬다. 릴리스 태그로 이미지가 나온다.
+**완료 조건.** `docker compose up` 한 줄로 데모가 뜬다. 릴리스 태그로 이미지가 나온다.
+파이프라인이 부를 명령 셋이 로컬에서 종료 코드로 판정된다.
 
 **규칙 충돌 확인.** §6 버전 관리 규칙 — `planstore/plans/` 는 커밋하지 않으므로 이미지에도 넣지 않는다(볼륨). G-04 라이선스 — dotLLM 은 이미지에 넣지 않는다.
 
@@ -1873,13 +1884,18 @@ git commit -m "masterdata: 양봉가 아키타입을 추가했다"
 
 ---
 
-### G-03 성능 회귀 CI
+### G-03 성능 회귀 판정
 
-**설계.** A-09 야간 워크플로에 `Category=Load` 실행 → `docs/measurements/W10_load.csv` 갱신 diff 를 PR 코멘트로 → 게이트: `bytesPerTick != 0` 또는 `p99 > 20ms` 또는 `scan/tick > 150` 이면 실패. 기준선은 직전 릴리스 값. 주간 `Category=Golden` 은 비용 상한 $1 로 `Npc.Eval --sample 48`.
+**설계.** <b>워크플로 파일이 아니라 판정 명령으로 만든다</b> (A-09 의 CI 제외 결정).
+`Category=Load` 실행 → `docs/measurements/W10_load.csv` 갱신 → 직전 릴리스 값과 대조해
+`bytesPerTick != 0` 또는 `p99 > 20ms` 또는 `scan/tick > 150` 이면 <b>비0 으로 끝난다</b>.
+기준선 파일은 커밋한다 — 기준이 저장소 밖에 있으면 판정이 재현되지 않는다.
+`npc perf --check` 로 붙이는 것이 자연스럽다. 주간 `Category=Golden` 은 비용 상한 $1 로 `Npc.Eval --sample 48`.
 
-**완료 조건.** 틱 루프에 LINQ 한 줄을 넣은 PR 이 야간 CI 에서 빨간불.
+**완료 조건.** 틱 루프에 LINQ 한 줄을 넣으면 그 명령이 <b>로컬에서도</b> 빨간불이다 —
+어느 CI 에 붙이든 같은 판정이 나온다.
 
-**크기·의존.** S. 의존 A-09.
+**크기·의존.** S. 의존 없음.
 
 ---
 

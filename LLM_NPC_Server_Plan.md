@@ -750,14 +750,32 @@ world_flags → items → actions → zones → pois → archetypes
 → context_buckets → interrupts → fallback_plans(40개 수작성) → prompt(자동생성) → npc_instances(스크립트)
 ```
 
-### 기동 시 검증 V1~V11
+### 기동 시 검증 V1~V13
 
 전부 **기동 실패 조건**이다. 경고 후 진행을 허용하면 반드시 런타임에 터진다. 특히:
 
-- `V6` 버킷 조합 수 == 2,880
+- `V6` 버킷 조합 수 == 아키타입 수 × 72 (현재 2,880)
 - `V7` 모든 아키타입에 폴백 플랜이 있고 검증 4단을 통과
 - `V9` 프롬프트 프리픽스 ≥ 4,096 토큰 (외부 API 캐시 임계)
 - `V11` 고립 POI 없음
+- `V12` `duty_hours` 없이 `OnDuty` 요구 액션 허용 금지 — 전제조건이 영원히 충족되지 않는다
+- `V13` `npc_instances.json` 의 참조·정원 (파일이 없으면 건너뛴다)
+
+**기동 실패가 아닌 경고가 하나 있다.** 파생물(`poi_distances.bin`·`npc_instances.json`)이
+낡았을 때다. 규칙 위반이 아니라 "다시 만들어야 한다" 는 사실이고, 낡은 거리표로도 개발 중에는
+돌려 봐야 한다 — 판정은 사람이 한다. 대신 조용히 넘기지 않는다:
+`derived.lock.json` 이 근거이고 `npc regen --check` 는 낡았으면 비0 으로 끝난다.
+
+### 아키타입 수는 코드가 모른다
+
+`BucketKey.ArchetypeCount = 40` 이라는 컴파일 상수였다. 아키타입 하나를 넣으려면 C# 을 고치고
+다시 빌드해야 했고, **파일은 41 인데 바이너리가 40** 이면 41번째의 버킷 72칸이 조용히 사라졌다 —
+런타임에 티가 나지 않는 종류의 오류다.
+
+지금은 `archetypes.json` 의 배열 길이가 정하고 `BucketSpace` 가 들고 있다. 배열은 기동 시 한 번
+잡으므로 틱 루프의 조회 비용은 그대로다. **기존 첨자는 변하지 않는다** — 인덱스 식에 아키타입
+수가 들어가지 않고 아키타입이 가장 바깥 차원이라, 뒤에 붙는 것은 뒤에만 자리를 만든다.
+남는 대가는 **프리픽스 해시 변경 → 플랜 스토어 전량 무효** 하나다.
 
 ---
 
@@ -769,10 +787,12 @@ world_flags → items → actions → zones → pois → archetypes
 | [`docs/index.html`](docs/index.html) | 프로젝트 안내서 — 아키텍처 · 동작 · 빌드 · 실행 |
 | [`docs/book/index.html`](docs/book/index.html) | 코드 이해와 활용 안내서 (13장) |
 | [`docs/reference_link.html`](docs/reference_link.html) | **게임서버 연동 계약** — N1~N8 · 패킷 · 와이어 · 발행 규약 |
-| [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | **마스터데이터 레퍼런스** — 플래그 · 액션 · 아키타입 · 버킷 · V1~V11 |
+| [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | **마스터데이터 레퍼런스** — 플래그 · 액션 · 아키타입 · 버킷 · V1~V13 |
 | [`docs/reference_metrics.html`](docs/reference_metrics.html) | **실측 데이터** — 성능 · 비용 · 품질 · 수용 기준 판정 |
 | [`docs/testbed_guide.html`](docs/testbed_guide.html) | 테스트 베드 — 소켓 너머의 게임서버에 붙여 보는 자리 |
 | [`docs/FAQ.html`](docs/FAQ.html) | 도입 검토 · 행동 플랜 준비 · 전투 반응 · 대화 확장 |
+| `docs/llm/VALIDATION.md` | **검증 오류 사전** — 코드 → 무엇을 하면 되는가. 생성물이다 (`npc hints --out`) |
+| [`PRODUCTION_ROADMAP.md`](PRODUCTION_ROADMAP.md) | **상용 투입 로드맵** — 결손 태스크 50건 체크리스트 |
 
 > 단계별 설계 사양(`docs/00`·`01`·`02`·`03`·`10`~`15`)과 주차별 작업 지시서는 구현 완료로
 > 삭제했다 (2026-08-06). 이 문서에 남은 `docs/NN` 언급은 그 시점의 근거를 가리키는 이력이고,

@@ -47,7 +47,7 @@ PS&gt; ./samples/lab.ps1 -New hello
 PS&gt; ./samples/check.ps1 -Masterdata ./lab/hello/masterdata
 
 ① 검증 — ./lab/hello/masterdata
-   검증 통과 (V1~V11, 건너뜀 1건)
+   검증 통과 (V1~V13, 건너뜀 1건)
 ② 실행 — npcs 50 · days 1 · time-scale 600 · tier none
 ③ 판정 — 실시간 2 초
    [OK  ] 틱 p99          0.133 ms     기준 ≤ 20 ms
@@ -147,7 +147,7 @@ masterdata: C:\github_edu\LlmNpcServer\masterdata
   SKIP V9  프롬프트 프리픽스는 Npc.Llm 이 조립한다 (P2). P1 에는 없다.
   OK   액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14
   content_hash: <span class="hl2">f37c02926c0b3d26582c4f47a4d393c6548fe921e5b6bc74f04c31ce2cb53218</span>
-<span class="hl">검증 통과 (V1~V11, 건너뜀 1건)</span></code></pre>
+<span class="hl">검증 통과 (V1~V13, 건너뜀 1건)</span></code></pre>
   </div>
   <p>
     숫자 여섯 개(액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14)가
@@ -184,7 +184,7 @@ masterdata: C:\github_edu\LlmNpcServer\masterdata
   <div class="note">
     <span class="tag">테스트가 곧 사양이다</span>
     1,052개 중 상당수가 "규칙을 어기면 깨지는" 테스트다 — 계약 규칙 N1~N8,
-    마스터데이터 검증 V1~V11, 틱 루프의 할당 0, 프롬프트 서픽스 300토큰 상한.
+    마스터데이터 검증 V1~V13, 틱 루프의 할당 0, 프롬프트 서픽스 300토큰 상한.
     <b>12장에서 일부러 규칙을 어겨 이 테스트들이 어떻게 잡는지</b> 직접 본다.
   </div>
 </li>
@@ -278,7 +278,7 @@ lab/hello/masterdata  vs  masterdata/
         <rect x="20" y="40" width="250" height="110" rx="12" fill="var(--panel-2)" stroke="var(--accent)" stroke-width="1.6"/>
         <text x="44" y="70" font-size="14" font-weight="700" fill="var(--accent)">① 검증</text>
         <text x="44" y="94" font-size="12" fill="var(--ink-2)">validate --masterdata …</text>
-        <text x="44" y="116" font-size="11.5" fill="var(--ink-3)">V1~V11. 돌리기 전에 잡는다</text>
+        <text x="44" y="116" font-size="11.5" fill="var(--ink-3)">V1~V13. 돌리기 전에 잡는다</text>
         <text x="44" y="136" font-size="11.5" fill="var(--ink-3)">실패하면 여기서 멈춘다</text>
       </g>
 
@@ -357,7 +357,7 @@ else           { $runArgs += @('<span class="hl">--max-speed</span>', '--no-dash
      SKIP V9  프롬프트 프리픽스는 Npc.Llm 이 조립한다 (P2). P1 에는 없다.
      OK   액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14
      content_hash: f37c02926c0b3d26582c4f47a4d393c6548fe921e5b6bc74f04c31ce2cb53218
-   검증 통과 (V1~V11, 건너뜀 1건)
+   검증 통과 (V1~V13, 건너뜀 1건)
 
 ② 실행 — npcs 50 · days 1 · time-scale 600 · tier none
    tick p50 0.016ms · p99 0.133ms · max 7.693ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 67.8MB

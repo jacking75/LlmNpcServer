@@ -40,7 +40,7 @@
 <table>
 <thead><tr><th style="width:52px">#</th><th>테스트</th><th>지키는 것</th><th>어느 장</th></tr></thead>
 <tbody>
-<tr><td><b>①</b></td><td><code>MasterData_PassesEveryRule</code></td><td>V1~V11 전부</td><td>4·5·7·8·9장</td></tr>
+<tr><td><b>①</b></td><td><code>MasterData_PassesEveryRule</code></td><td>V1~V13 전부</td><td>4·5·7·8·9장</td></tr>
 <tr><td><b>②</b></td><td><code>Fallback_ExistsAndLoopsForEveryArchetype</code></td><td>모든 아키타입에 폴백이 있다</td><td>6·7장</td></tr>
 <tr><td><b>③</b></td><td><code>Interrupts_UseKnownActionsOnly</code></td><td>인터럽트가 실재하는 액션만 쓴다</td><td>8장</td></tr>
 <tr><td><b>④</b></td><td><code>Wire_CommandRoundTripsWithoutLoss</code></td><td>계약 ↔ 와이어 드리프트</td><td>13·14장</td></tr>
@@ -190,7 +190,7 @@ public void Wire_CommandRoundTripsWithoutLoss()
 <tr><td>B2</td><td>LLM 3단 차단 후 동작</td><td>스텝 계속 증가</td><td>11장 <code>killswitch.ps1</code></td></tr>
 <tr><td>B3</td><td>링크 재접속</td><td>죽였다 살려도 복구</td><td>13장</td></tr>
 <tr><td colspan="4" style="background:var(--panel-2)"><b>C. 콘텐츠</b></td></tr>
-<tr><td>C1</td><td>마스터데이터 검증</td><td>V1~V11 통과</td><td>이 장 테스트 ①</td></tr>
+<tr><td>C1</td><td>마스터데이터 검증</td><td>V1~V13 통과</td><td>이 장 테스트 ①</td></tr>
 <tr><td>C2</td><td>결정론</td><td>루프백 두 회차 완전 일치</td><td>15장</td></tr>
 <tr><td colspan="4" style="background:var(--panel-2)"><b>D. 연동 · E. 비용</b></td></tr>
 <tr><td>D1</td><td>게임서버가 규격대로 붙는다</td><td>수락 · <code>timeouts</code> 0</td><td>13장</td></tr>

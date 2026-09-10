@@ -107,7 +107,8 @@
 | **Prometheus·OTLP·구조화 로그** | `src/Npc.Host/Observability/Telemetry.cs` |
 | **틱 루프에 금지된 API 를 썼다** | `src/Npc.Runtime/BannedSymbols.txt` — 빌드가 RS0030 으로 막는다 |
 | **NPC 하나를 추적하고 싶다** | `src/Npc.Host/Api/NpcTraceEndpoint.cs` |
-| **컨테이너·CI·릴리스** | `deploy/` (Dockerfile · compose · k8s · Grafana) · `.github/workflows/` · 버전은 `src/Npc.Host/HostVersion.cs` · 패키지 버전은 `Directory.Packages.props` 한 곳 |
+| **컨테이너·릴리스** | `deploy/` (Dockerfile · compose · k8s · Grafana) · 버전은 `src/Npc.Host/HostVersion.cs` · 패키지 버전은 `Directory.Packages.props` 한 곳 |
+| **CI 파이프라인을 짠다** | 워크플로 파일을 두지 않는다 — `build.ps1` · `npc validate` · `npc regen --check` 세 명령이 파이프라인의 내용이다 |
 | **재기동하면 게임 시각이 새벽 6시로 돌아간다** | `src/Npc.Runtime/GameClock.cs`(`RequestOrigin`·`TryApplyPendingOrigin`) — 값은 핸드셰이크가 싣는다 · 정지 감시는 `src/Npc.Host/TickSyncWatchdog.cs` |
 | **종료가 지저분하다 · SIGTERM 을 안 받는다** | `src/Npc.Host/HostShutdown.cs` (신호 등록 · 6단계 시퀀스) · `Bye` 송신은 `src/Npc.Gateway/TcpGameServerLink.cs`(`SendByeAsync`) |
 | **상태를 저장·복구한다** | `src/Npc.Host/Persistence/` — `SnapshotFile`(형식·CRC) · `SnapshotWriter`(주기 쓰기) · `SnapshotRestorer`(조건 판정) · 틱 루프 쪽 통로는 `src/Npc.Runtime/NpcStoreSnapshot.cs` |
@@ -178,7 +179,7 @@ CognitionScheduler.Scan        이탈 판정 → ReplanQueue (ReplanScorer 점�
 |---|---|---|
 | `Npc.Contracts` | 게임서버 경계. 316줄뿐이니 통째로 읽어도 된다 | `IGameServerLink.cs` |
 | `Npc.Core` | 순수 로직 — 플랜 표현·검증기 1~3단·버킷 키(크기는 `BucketSpace` 가 안다) | `Plan/CompiledPlan.cs` |
-| `Npc.MasterData` | JSON 로딩·인덱싱·검증 | `MasterDataSet.cs` |
+| `Npc.MasterData` | JSON 로딩·인덱싱·검증 V1~V13 · `Authoring/`(편집 안전장치) | `MasterDataSet.cs` |
 | `Npc.Runtime` | **틱 루프.** 여기의 규칙이 제일 엄하다 | `NpcServerLoop.cs` |
 | `Npc.Planning` | 플랜 캐시·재계획 큐·예산 | `PlanStore.cs` |
 | `Npc.Narrative` | **정의 설명 카드** — 아키타입·플랜·인터럽트·인스턴스 → 한국어 markdown. LLM·시각·난수 없음 | `ArchetypeCard.cs` |
@@ -188,6 +189,15 @@ CognitionScheduler.Scan        이탈 판정 → ReplanQueue (ReplanScorer 점�
 | `Npc.Sim` | 게임서버 대역 (인프로세스) | `SimWorld.cs` |
 | `Npc.Host` | 조립·CLI·메트릭 | `Program.cs` |
 | `testbed/` | 소켓 게임서버 + 뷰어. **아무도 참조하지 않는 잎** | `Npc.TestGameServer/GameServer.cs` |
+
+### 도구 — 전부 잎이다
+
+| 도구 | 무엇 | 진입 파일 |
+|---|---|---|
+| `tools/Npc.Cli` | **`npc` 명령.** 검증·설명·편집·플랜. 로직은 코어에 있고 여기는 껍질이다 | `Program.cs` |
+| `tools/Npc.Prebake` | 플랜 대량 생성 · 매니페스트 | `Program.cs` |
+| `tools/Npc.Narrate` | 명령 기록 → 하루 일지 | `Program.cs` |
+| `tools/gen_*.cs` | 파생물 생성기. `#:project` 로 `Npc.MasterData` 를 참조해 잠금을 갱신한다 | — |
 
 ---
 

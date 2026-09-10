@@ -22,7 +22,7 @@
   <div class="chips">
     <span class="chip a">레퍼런스 · docs/reference_masterdata.html</span>
     <span class="chip">masterdata/ 11종</span>
-    <span class="chip">검증 V1~V11</span>
+    <span class="chip">검증 V1~V13</span>
   </div>
 </div>
 
@@ -425,11 +425,12 @@
   <code>pois.json</code> 총 정원 자체가 <b>9,238</b>이라 늘리려면 마스터데이터를 먼저 바꿔야 한다.
 </p>
 
-<h2 id="validate">8. 검증 V1~V11 — 실패는 경고가 아니라 기동 실패다</h2>
+<h2 id="validate">8. 검증 V1~V13 — 실패는 경고가 아니라 기동 실패다</h2>
 
 <div class="filepath">src/Npc.MasterData/Validation/MasterDataValidator.cs</div>
 
-<pre><code>dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata</code></pre>
+<pre><code>dotnet run --project tools/Npc.Cli -- validate           <span class="c">// V1~V13 + 로더 + 파생물 신선도</span>
+dotnet run --project tools/Npc.Cli -- validate --json    <span class="c">// 기계 판독 (fix_hint 포함)</span></code></pre>
 
 <div class="tablewrap">
 <table>
@@ -440,21 +441,77 @@
 <tr><td><b>V3</b></td><td>poi/item/zone/action 참조가 실재</td><td>런타임에서 0번 POI(=없음)로 바인딩된다</td></tr>
 <tr><td><b>V4</b></td><td><code>allowed_actions</code>가 전부 카탈로그에 있음</td><td>프롬프트에 없는 액션 이름이 실린다</td></tr>
 <tr><td><b>V5</b></td><td><code>population_weight</code> 합 = 1.0 (±0.001)</td><td>인구 배치가 5,000에 못 미치거나 넘친다</td></tr>
-<tr><td><b>V6</b></td><td><code>total_keys</code> == 실제 조합 수 (2,880)</td><td>플랜 스토어 배열과 인덱스 공식이 어긋난다</td></tr>
+<tr><td><b>V6</b></td><td><code>total_keys</code> == 실제 조합 수 (아키타입 수 × 72)</td><td>선언과 실제가 어긋난 채로 남는다. <b>코드는 이 값을 읽지 않는다</b> — 배열 길이는 아키타입 수가 정한다</td></tr>
 <tr><td><b>V7</b></td><td>모든 아키타입에 폴백이 있고 <b>4단을 통과</b></td><td>시나리오 C에서 NPC가 멈춘다</td></tr>
 <tr><td><b>V8</b></td><td>폴백이 그 아키타입의 <code>allowed_actions</code>만으로 구성됨</td><td>폴백 자체가 V2를 어긴다</td></tr>
 <tr><td><b>V9</b></td><td>프롬프트 프리픽스 ≥ 4,096 토큰</td><td>프롬프트 캐시가 <b>아예 안 걸린다</b> (제공사 최소 임계)</td></tr>
 <tr><td><b>V10</b></td><td>POI 정원 총합 ≥ 그 아키타입 인구</td><td><code>gen_npcs</code>가 배치 도중 멈춘다</td></tr>
 <tr><td><b>V11</b></td><td>모든 POI가 존 그래프에서 도달 가능</td><td>고립 POI로 이동 명령이 나가고 영원히 타임아웃</td></tr>
+<tr><td><b>V12</b></td><td><code>duty_hours</code> 없이 <code>OnDuty</code> 요구 액션(<code>Guard</code>·<code>Patrol</code>)을 허용하지 않음</td><td>그 액션의 전제조건이 <b>영원히</b> 충족되지 않아 인지 스캔이 매 틱 이탈로 읽고 재계획 큐가 포화된다</td></tr>
+<tr><td><b>V13</b></td><td><code>npc_instances.json</code> 의 참조 · id 중복 · 개체 단위 정원</td><td>없는 POI 를 가리키는 NPC 가 <b>그 NPC 가 움직일 때</b> 터진다 — 5,000마리 중 하나면 며칠 뒤에야 발견된다</td></tr>
 </tbody>
 </table>
 </div>
 
 <div class="warn">
   <span class="tag">경고 후 진행을 허용하지 않는다</span>
-  V1~V11 실패는 <b>기동 실패</b>다. "경고만 하고 뜨게 하자"는 유혹이 반드시 오는데,
+  V1~V13 실패는 <b>기동 실패</b>다. "경고만 하고 뜨게 하자"는 유혹이 반드시 오는데,
   이 검사들이 잡는 것은 전부 <b>증상이 한참 뒤에, 엉뚱한 곳에서 나타나는</b> 종류다 —
   V2 오타는 "왜 이 NPC만 이상하게 움직이지"로, V11 고립 POI는 "왜 타임아웃이 많지"로 나타난다.
+  <br><br>
+  <b>V13 은 파일이 없으면 건너뛴다.</b> 마스터데이터 검증은 <code>validate</code> 만 돌려도
+  성립해야 하고, 인스턴스 생성은 그다음 단계다 — 없는 것을 실패로 세면 순서를 강요하게 된다.
+</div>
+
+<div class="why">
+  <span class="tag">코드만 내지 않는다</span>
+  <p>
+    검증이 실패하면 <code>V5</code> 같은 코드가 나온다. <b>그 코드를 받은 LLM 은 무엇을 고쳐야
+    하는지 모른다</b> — 사람은 소스를 열어 보지만 LLM 은 그럴 수 없고, 그러면 온보딩 자동화가
+    거기서 멈춘다.
+  </p>
+  <p>
+    그래서 검증 코드 41건 전부에 <b>"무엇을 하면 되는가"</b> 를 붙였다
+    (<code>Validation/FixHints.cs</code>). 텍스트 출력은 힌트를 한 줄 덧붙이고,
+    <code>--json</code> 은 위반마다 <code>file</code>·<code>path</code>·<code>fix_hint</code>·
+    <code>related</code> 를 싣는다. 사전 문서(<code>docs/llm/VALIDATION.md</code>)는
+    <b>생성물</b>이다 — 두 벌 관리하면 반드시 어긋나고, 어긋난 문서는 없는 것보다 나쁘다.
+  </p>
+</div>
+
+<h3>8.1 생성물은 낡는다 — <code>derived.lock.json</code></h3>
+
+<p>
+  <code>poi_distances.bin</code> 과 <code>npc_instances.json</code> 은 <b>생성물</b>이다.
+  입력이 바뀌었는데 다시 만들지 않으면 서버는 <b>낡은 거리표로 조용히 돈다</b> —
+  검증도 통과하고 기동도 되지만 NPC 가 존재하지 않는 POI 로 걸어간다.
+  그 오류는 재현하기도 어렵다.
+</p>
+
+<div class="filepath">masterdata/derived.lock.json</div>
+<pre><code>{
+  "artifacts": {
+    "npc_instances.json": {
+      "generator": "tools/gen_npcs.cs",
+      "inputs": { "archetypes.json": "&lt;sha256&gt;", "pois.json": "…", "zones.json": "…" }
+    },
+    "poi_distances.bin": { "generator": "tools/gen_poi_distances.cs", "inputs": { … } }
+  }
+}</code></pre>
+
+<p>
+  생성기가 쓰고 로더가 읽는다. <b>기록이 없으면 낡은 것으로 본다</b> —
+  무엇으로 만들었는지 모르는 파일을 최신이라 부를 근거가 없다.
+  판정은 <code>MasterDataSet.StaleArtifacts</code> 에 실려 호스트 기동 로그와
+  <code>validate</code> 출력에 <code>WARN</code> 으로 나온다.
+</p>
+
+<div class="note">
+  <span class="tag">왜 기동 실패가 아닌가</span>
+  낡은 거리표로도 <b>개발 중에는 돌려 봐야 한다.</b> 검증 규칙 위반과 달리 이것은
+  "틀렸다" 가 아니라 "다시 만들어야 한다" 는 사실이고, 지금 만들지 말지는 사람이 정한다.
+  대신 조용히 넘기지 않는다 — <code>npc regen --check</code> 는 낡았으면 <b>비0 으로 끝나므로</b>
+  파이프라인에 걸 수 있다.
 </div>
 
 <h2 id="impact">9. 무엇을 고치면 무엇이 무효화되나</h2>
@@ -501,13 +558,13 @@
 <tr>
   <td><code>archetypes.json</code> <code>population_weight</code>만</td>
   <td><span class="pill ok">None</span></td>
-  <td><code>gen_npcs</code> 재실행 → <code>npc_instances.json</code></td>
+  <td><code>gen_npcs</code> 재실행 → <code>npc_instances.json</code>. 재배분 3안은 <code>npc scaffold</code> 가 낸다</td>
   <td>안 바뀐다</td>
 </tr>
 <tr>
   <td><code>pois.json</code> POI 1개 추가</td>
   <td><span class="pill warn">Partial</span></td>
-  <td>거리 행렬 재생성 + 그 존 관련 버킷</td>
+  <td>거리 행렬 재생성 + 그 존 관련 버킷. <code>npc regen --check</code> 가 낡음을 잡는다</td>
   <td>안 바뀐다</td>
 </tr>
 <tr>
@@ -539,6 +596,26 @@
 </div>
 
 <div class="card">
+  <h4>이 표를 손으로 보지 않아도 된다</h4>
+  <p>
+    같은 판정을 <code>ImpactAnalyzer</code> 가 한다 (<code>Npc.MasterData/Authoring/</code>).
+    바뀐 파일 목록을 주면 무효화 범위 · 프리픽스 변경 여부 · <b>구조 해시 변경(게임서버 재배포)</b> ·
+    재생성해야 할 파생물을 한 번에 낸다. <code>PlanStoreValidator</code> 와 <b>같은 답</b>이어야
+    하고 테스트가 그것을 강제한다 — 두 곳이 다른 답을 내면 어느 쪽을 믿고 프리베이크를 돌릴지
+    알 수 없다.
+  </p>
+<pre><code><span class="c">&gt; npc diff</span>
+masterdata 변경 (base: HEAD)
+
+  archetypes.json
+
+구조 해시  변경 → 게임서버 재배포 필요 (핸드셰이크 거절)
+프리픽스   변경 → 플랜 스토어 전량 무효 → 프리베이크 필요
+플랜       전량 무효 → 전량 재생성
+파생물     npc_instances.json 낡음 → `npc regen`</code></pre>
+</div>
+
+<div class="card">
   <h4>무효화됐는지 어떻게 아나</h4>
   <p>호스트가 기동할 때 <code>manifest.json</code>과 지금 마스터데이터를 비교해 알려준다.</p>
 <pre><code><span class="c">// src/Npc.Host/Program.cs — WarnIfStale</span>
@@ -556,7 +633,7 @@ warn: 플랜 스토어가 낡았다 — 무효화 Full (바뀐 것: prompt_sha, 
     <li>상태는 <b>64비트 플래그 하나</b>다. 그래서 이탈 판정이 비트 연산 한 번이다.</li>
     <li><code>code</code>·<code>bit</code> 재배치는 프리베이크된 플랜 2,880개를 조용히 깬다. <b>추가는 뒤에만.</b></li>
     <li>버킷 2,880 중 실제로 조회되는 것은 <b>264</b>다 — 존 배치가 아키타입을 묶기 때문이다.</li>
-    <li>V1~V11 실패는 기동 실패다. 무효화 범위 표(§9)를 보고 재생성 여부를 정한다.</li>
+    <li>V1~V13 실패는 기동 실패다. 무효화 범위 표(§9)를 보고 재생성 여부를 정한다.</li>
   </ul>
 </div>
 

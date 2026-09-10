@@ -35,8 +35,10 @@ dotnet --version                          <span class="c"># 10.x</span>
 dotnet build -c Release
 dotnet test <span class="s">"--filter Category!=Golden&amp;Category!=Gate&amp;Category!=Load"</span>
 
-<span class="c"># 2) 마스터데이터만 검증 (V1~V11)</span>
-dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata
+<span class="c"># 2) 마스터데이터 검증 (V1~V13 + 로더 + 파생물 신선도)</span>
+dotnet run --project tools/Npc.Cli -- validate
+<span class="c">#    npc CLI 는 이것 말고도 card·explain·timeline·next-code·scaffold·diff·regen·plan 을 한다</span>
+dotnet run --project tools/Npc.Cli -- --help
 
 <span class="c"># 3) LLM 없이 스모크 — 500마리 · 게임 7일 · 600배속</span>
 dotnet run -c Release --project src/Npc.Host -- `
