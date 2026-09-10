@@ -3,6 +3,7 @@ using Npc.Contracts;
 using Npc.Core;
 using Npc.Core.Plan;
 using Npc.MasterData;
+using Npc.MasterData.Authoring;
 using Npc.Planning;
 using Npc.Prebake;
 

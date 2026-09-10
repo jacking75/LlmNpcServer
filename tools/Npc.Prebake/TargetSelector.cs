@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Npc.Core;
 using Npc.Core.Plan;
 using Npc.MasterData;
+using Npc.MasterData.Authoring;
 using Npc.Planning;
 
 namespace Npc.Prebake;

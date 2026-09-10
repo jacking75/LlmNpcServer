@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "_comment": [
+    "생성물이 어떤 입력으로 만들어졌는지의 기록이다 (F-04). 손으로 고치지 않는다.",
+    "생성기가 쓰고 MasterDataLoader 가 읽어 낡음을 경고한다.",
+    "시각을 적지 않는다 — 같은 입력이면 같은 파일이어야 diff 로 검토할 수 있다."
+  ],
+  "artifacts": {
+    "npc_instances.json": {
+      "generator": "tools/gen_npcs.cs",
+      "inputs": {
+        "archetypes.json": "47b613ea3829626fbd202d1ac1389c3cab568084985f63a0ca2dc57c6f3e59c2",
+        "pois.json": "be9a2e153e7dfa30bc687da73773c8fcffb8253a12f5475921efa1bb0419c7a6",
+        "zones.json": "5e24a51c98c644b8c75fa603f3470c2da0c3d81459769806ffde2f1ed45fb1f2"
+      }
+    },
+    "poi_distances.bin": {
+      "generator": "tools/gen_poi_distances.cs",
+      "inputs": {
+        "pois.json": "be9a2e153e7dfa30bc687da73773c8fcffb8253a12f5475921efa1bb0419c7a6",
+        "zones.json": "5e24a51c98c644b8c75fa603f3470c2da0c3d81459769806ffde2f1ed45fb1f2"
+      }
+    }
+  }
+}

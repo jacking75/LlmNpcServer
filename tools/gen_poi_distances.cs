@@ -1,3 +1,5 @@
+#:project ../src/Npc.MasterData/Npc.MasterData.csproj
+
 // masterdata/poi_distances.bin 생성기. docs/01 §4.
 //
 // .NET 10 파일 기반 앱이다. 추가 도구 설치 없이 그대로 돈다:
@@ -18,6 +20,7 @@
 
 using System.Globalization;
 using System.Text.Json;
+using Npc.MasterData.Authoring;
 
 string root = FindRepoRoot();
 string masterData = Path.Combine(root, "masterdata");
@@ -200,6 +203,11 @@ long size = new FileInfo(outPath).Length;
 Console.WriteLine(string.Create(
     CultureInfo.InvariantCulture,
     $"poi_distances.bin: POI {n}개 · {size:N0} bytes ({size / 1024.0:F1} KB) · 최대 거리 {maxDistance:F1}m"));
+
+// 어떤 입력으로 만들었는지 남긴다 (F-04). 남기지 않으면 입력이 바뀌었는데 다시 만들지 않은
+// 상태를 아무도 모른다 — 검증도 통과하고 기동도 되지만 NPC 가 낡은 거리표로 걸어간다.
+DerivedArtifacts.Record(masterData, "poi_distances.bin");
+Console.WriteLine($"{DerivedArtifacts.FileName}: poi_distances.bin 기록");
 
 static double Euclid(double ax, double ay, double az, double bx, double by, double bz)
 {

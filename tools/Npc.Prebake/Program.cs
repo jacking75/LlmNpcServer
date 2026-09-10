@@ -5,6 +5,7 @@ using Microsoft.Extensions.AI;
 using Npc.Core;
 using Npc.Llm;
 using Npc.MasterData;
+using Npc.MasterData.Authoring;
 using Npc.Planning;
 using Npc.Prebake;
 
@@ -27,7 +28,7 @@ if (options.Help)
     return 0;
 }
 
-// 1. 마스터데이터 로드 + V1~V11 검증 (로더가 검증까지 한다)
+// 1. 마스터데이터 로드 + V1~V13 검증 (로더가 검증까지 한다)
 MasterDataSet data = MasterDataLoader.Load(options.MasterData);
 PromptPrefix prefix = PromptPrefix.Build(data, options.MasterData);
 

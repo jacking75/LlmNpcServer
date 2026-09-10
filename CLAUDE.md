@@ -61,7 +61,7 @@ dotnet format --verify-no-changes              # 스타일 검사
 ```
 
 ```powershell
-# 마스터데이터 검증만 (V1~V11)
+# 마스터데이터 검증만 (V1~V13)
 dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata
 
 # LLM 없이 스모크
@@ -143,7 +143,7 @@ NPC 상태는 **SoA(struct of arrays)**다. `class Npc`를 5,000개 만들지 �
 - **`masterdata/`가 단일 원천(SSOT)이다.** 액션·플래그·아키타입을 코드에 하드코딩하지 않는다.
 - **`code` 번호와 `bit` 번호는 절대 재배치하지 않는다.** 프리베이크된 플랜 2,880개가 통째로 깨진다. 추가는 뒤에만.
 - `prompt/` 의 액션 카탈로그는 `actions.json`에서 **생성**된다. 손으로 편집하지 않는다.
-- 검증 V1~V11 실패는 **기동 실패**다. 경고 후 진행을 허용하지 않는다.
+- 검증 V1~V13 실패는 **기동 실패**다. 경고 후 진행을 허용하지 않는다.
 
 작업 순서를 지킨다 (역순이면 계속 되돌아온다):
 

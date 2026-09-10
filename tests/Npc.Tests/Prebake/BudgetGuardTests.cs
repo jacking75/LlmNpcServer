@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Npc.Core;
 using Npc.Llm;
 using Npc.MasterData;
+using Npc.MasterData.Authoring;
 using Npc.Planning;
 using Npc.Prebake;
 using Npc.Tests.Fakes;

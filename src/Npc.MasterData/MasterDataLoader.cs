@@ -12,7 +12,7 @@ namespace Npc.MasterData;
 ///
 /// 로딩 규약: 전량 로드 → 스키마 검증 → 참조 무결성 검증 → 인덱스 컴파일 → 이후 불변.
 /// 참조가 깨져 있으면 여기서 <see cref="InvalidDataException"/> 을 던진다. 경고 후 진행은 없다.
-/// 규칙 단위 검증(V1~V11)은 <c>MasterDataValidator</c> 가 따로 본다.
+/// 규칙 단위 검증(V1~V13)은 <c>MasterDataValidator</c> 가 따로 본다.
 /// </summary>
 public static class MasterDataLoader
 {
@@ -64,6 +64,9 @@ public static class MasterDataLoader
             ContentHash = CombineHashes(hashes),
             StructuralHash = MasterData.StructuralHash.Compute(
                 actions, items, zones, pois, archetypes, buckets),
+
+            // 파생물 신선도 (F-04). 여기서 던지지 않는다 — 호출부가 경고로 낸다.
+            StaleArtifacts = Authoring.DerivedArtifacts.Stale(masterDataDirectory),
         };
 
         // 폴백 플랜은 MasterDataSet 자신을 어휘로 써서 검증·컴파일하므로 나중에 붙인다.

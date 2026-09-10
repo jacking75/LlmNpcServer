@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Npc.MasterData;
+using Npc.MasterData.Authoring;
 using Npc.Planning;
 
 namespace Npc.Tests.Planning;

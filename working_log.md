@@ -1,5 +1,34 @@
 # 작업 로그
 
+## 2026-09-10 15:22 KST · F-04 편집 안전장치 · 검증 V12/V13
+
+`code`/`bit` 를 손으로 정하고, 가중치 합을 손으로 맞추고, 거리표·인스턴스 재생성을 기억해야
+했다. 편집 스크립트는 서식 보존을 위해 문자열 치환을 썼다.
+
+- **신규** `src/Npc.MasterData/Authoring/` 5종.
+  `CodeAllocator` — **예약 구간을 먼저 채운다.** "최대 + 1" 로 두면 `world_flags` 의 22~23 처럼
+  비워 둔 구간을 영영 못 쓴다. **재배치 API 를 두지 않았다.**
+  `WeightRebalancer` — 3안 + 결과 인구표. 반올림 잔차를 가장 많이 떼는 줄이 흡수해 V5 를 지킨다.
+  `JsonSurgeon` — `Utf8JsonReader` 토큰 오프셋으로 최소 범위만 치환. **무변경 편집은 바이트 동일.**
+  UTF-8 바이트와 char 오프셋을 구분한다 — 한글 설명이 든 파일에서 밀리면 파일이 깨진다.
+  `DerivedArtifacts` — `masterdata/derived.lock.json`. **기록이 없으면 낡은 것으로 본다.**
+  `ImpactAnalyzer` — 무효화 범위·프리픽스·구조 해시·재생성 목록·재배포 여부.
+- `InvalidationScope` 를 `Npc.Planning` → `Npc.MasterData.Authoring` 으로 옮겼다.
+  `ImpactAnalyzer` 가 이것을 돌려주는데 `MasterData → Planning` 참조는 §3 이 금지한다 —
+  그리고 "어느 파일이 바뀌면 무엇이 무효인가" 는 애초에 마스터데이터의 성질이다.
+  `PlanStoreValidator.ScopeOf` 는 표로 넘긴다. **테스트가 두 판정의 일치를 강제한다.**
+- **V12** — `duty_hours` 없이 `OnDuty` 요구 액션 허용 금지. CLAUDE.md §7 의 함정을 규칙으로
+  옮겼다. 어느 액션이 `OnDuty` 를 요구하는지는 `actions.json` 이 정한다 — 이름을 박지 않았다.
+- **V13** — `npc_instances.json` 의 참조·id 중복·개체 단위 정원. 파일이 없으면 건너뛴다.
+  위반은 첫 5건만 낸다 — 5,000줄이 전부 깨지면 목록이 아니라 소음이다.
+- 생성기 둘이 `#:project` 로 `Npc.MasterData` 를 참조해 `DerivedArtifacts.Record` 를 부른다.
+  형식을 두 벌 관리하지 않는다. 재생성 결과는 바이트 동일이었다(결정론 확인).
+- 로더가 `StaleArtifacts` 를 실어 주고 호스트 기동 로그·`validate` 가 `WARN` 으로 낸다.
+  **기동을 막지 않는다** — 낡은 파생물로도 개발 중에는 돌려 봐야 하고 판정은 사람이 한다.
+- 테스트 34건 추가. 전체 1,331건 통과 · 경고 0.
+- **완료 조건 미달**: `npc scaffold archetype …` 한 줄로 7장 실습을 대체하는 것은 F-01 의
+  `npc` CLI 가 올 자리다. 라이브러리는 다 있고 껍질만 없다.
+
 ## 2026-09-10 14:35 KST · F-03 설명 생성기 `src/Npc.Narrative`
 
 `Npc.Narrate` 는 **명령 로그**를 일지로 바꿨다. 정의(아키타입·플랜·인터럽트·인스턴스) 자체를

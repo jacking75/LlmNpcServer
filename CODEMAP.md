@@ -34,6 +34,11 @@
 | **마스터데이터가 안 읽힌다** | `src/Npc.MasterData/MasterDataLoader.cs` → `MasterDataSet.cs` | `dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata` 로 먼저 재현 |
 | **정의가 무엇을 뜻하는지 알고 싶다** | `src/Npc.Narrative/{ArchetypeCard,PlanExplain,InterruptExplain,InstanceCard}.cs` · 껍질은 `Npc.Narrate card`·`explain` | 카드의 ✗ 는 3단 검증기와 **같은 판정**이다(`NarrativeTests`). 갈리면 둘 중 하나가 버그다 |
 | **표기(한국어 이름)를 고친다** | `src/Npc.Narrative/Lexicon.cs` | 표시 계층이다. 행동을 정하는 값은 여전히 `masterdata/` 가 원천 |
+| **다음 `code`·`bit` 를 알아야 한다** | `src/Npc.MasterData/Authoring/CodeAllocator.cs` | 비트는 **예약 구간을 먼저 채운다**. 재배치 API 는 없다 |
+| **가중치를 재배분한다** | `src/Npc.MasterData/Authoring/WeightRebalancer.cs` | 3안을 내고 **고르는 것은 사람**이다. 반올림 잔차까지 맞춰 V5 를 지킨다 |
+| **JSON 을 서식 보존으로 고친다** | `src/Npc.MasterData/Authoring/JsonSurgeon.cs` | 무변경 편집은 **바이트 동일**이어야 한다 |
+| **파생물이 낡았는지 본다** | `src/Npc.MasterData/Authoring/DerivedArtifacts.cs` · `masterdata/derived.lock.json` | 기록이 없으면 **낡은 것**이다. 생성기가 쓰고 로더가 경고한다 |
+| **무엇을 다시 해야 하는지 본다** | `src/Npc.MasterData/Authoring/ImpactAnalyzer.cs` | `PlanStoreValidator` 와 **같은 판정**이어야 한다(테스트가 강제) |
 
 ### 런타임 · 틱 루프
 

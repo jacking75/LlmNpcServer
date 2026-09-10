@@ -7,7 +7,7 @@ namespace Npc.Host.Commands;
 /// <summary>
 /// <c>Npc.Host validate --masterdata ./masterdata</c>. docs/11 §11.
 ///
-/// V1~V11 결과를 출력하고, 위반이 하나라도 있으면 비0으로 끝난다.
+/// V1~V13 결과를 출력하고, 위반이 하나라도 있으면 비0으로 끝난다.
 /// CI 와 기동 스크립트가 이 종료 코드를 본다 — 검증 실패는 기동 실패다.
 /// </summary>
 public static class ValidateCommand
@@ -111,6 +111,13 @@ public static class ValidateCommand
                     $"  OK   액션 {data.Actions.Count} · 아이템 {data.Items.Items.Length} · 존 {data.Zones.Count}"
                     + $" · POI {data.Pois.Count} · 아키타입 {data.Archetypes.Count} · 인터럽트 {data.Interrupts.Count}");
                 output.WriteLine($"  content_hash: {data.ContentHash}");
+
+                // 파생물 신선도 (F-04). 검증 실패로 세지 않는다 — 규칙 위반이 아니라
+                // "다시 만들어야 한다" 는 사실이고, 판정은 사람이 한다.
+                foreach (Npc.MasterData.Authoring.DerivedStatus stale in data.StaleArtifacts)
+                {
+                    output.WriteLine($"  WARN 파생물 {stale}");
+                }
             }
             catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException)
             {
@@ -118,7 +125,7 @@ public static class ValidateCommand
                 return 1;
             }
 
-            output.WriteLine($"검증 통과 (V1~V11, 건너뜀 {report.Skipped.Length}건)");
+            output.WriteLine($"검증 통과 (V1~V13, 건너뜀 {report.Skipped.Length}건)");
             return 0;
         }
 

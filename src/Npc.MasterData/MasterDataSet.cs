@@ -443,6 +443,16 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     public required ImmutableArray<FileHash> FileHashes { get; init; }
 
     /// <summary>
+    /// 낡은 파생물 (F-04). <c>derived.lock.json</c> 이 기록한 입력 해시와 지금 파일이 다른 것.
+    ///
+    /// <b>기동을 막지 않는다.</b> 개발 중에는 낡은 거리표로도 돌려 볼 수 있어야 하고,
+    /// 판정은 사람이 한다 — 호출부가 이 목록을 <b>경고로 낸다</b>.
+    /// 빈 배열이면 최신이거나 <c>derived.lock.json</c> 이 없다는 뜻이 아니다:
+    /// 기록이 없으면 낡은 것으로 본다 (<c>DerivedArtifacts.Check</c>).
+    /// </summary>
+    public ImmutableArray<Authoring.DerivedStatus> StaleArtifacts { get; init; } = [];
+
+    /// <summary>
     /// 전체 콘텐츠 해시. 이 값이 바뀌면 프리베이크된 플랜 스토어가 전량 무효다 (docs/01 §11).
     /// 같은 입력이면 언제 계산해도 같은 값이 나온다 — 시각도 난수도 섞지 않는다.
     /// </summary>

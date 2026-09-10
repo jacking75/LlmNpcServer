@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Npc.MasterData.Validation;
 
-/// <summary>검증 위반 하나. docs/01 §11 의 V1~V11.</summary>
+/// <summary>검증 위반 하나. docs/01 §11 의 V1~V13.</summary>
 /// <param name="Code">V1 ~ V11.</param>
 /// <param name="Detail">무엇이 어디서 어긋났는지. 사람이 읽고 고칠 수 있어야 한다.</param>
 /// <summary>
@@ -102,7 +102,7 @@ public sealed class MasterDataValidationException : Exception
 public sealed record MasterDataValidationOptions(int? PromptPrefixTokens = null);
 
 /// <summary>
-/// 마스터데이터 검증 V1~V11. docs/01 §11.
+/// 마스터데이터 검증 V1~V13. docs/01 §11.
 ///
 /// <b>원본 JSON 을 직접 읽는다.</b> 컴파일된 <see cref="MasterDataSet"/> 을 보지 않는 이유는,
 /// 로더가 중복 code 같은 것을 이미 예외로 걷어내 버려서 V1 을 확인할 수 없기 때문이다.
@@ -121,7 +121,7 @@ public static class MasterDataValidator
         }
     }
 
-    /// <summary>V1~V11 전부 실행. 위반을 모아서 돌려준다 (첫 실패에서 멈추지 않는다).</summary>
+    /// <summary>V1~V13 전부 실행. 위반을 모아서 돌려준다 (첫 실패에서 멈추지 않는다).</summary>
     public static MasterDataValidationReport Validate(
         string masterDataDirectory, MasterDataValidationOptions? options = null)
     {
@@ -174,6 +174,8 @@ public static class MasterDataValidator
             CheckV9(options, violations, skipped);
             CheckV10(ctx, violations);
             CheckV11(ctx, violations);
+            CheckV12(ctx, violations);
+            CheckV13(ctx, violations, skipped);
 
             fallbacks?.Dispose();
         }
@@ -732,6 +734,203 @@ public static class MasterDataValidator
             if (e.ValueKind == JsonValueKind.String)
             {
                 yield return e.GetString()!;
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- V12
+
+    /// <summary>
+    /// V12 — <c>duty_hours</c> 없이 <c>Guard</c>/<c>Patrol</c> 을 허용하지 않는다 (F-04).
+    ///
+    /// <b>CLAUDE.md §7 의 함정을 규칙으로 옮긴 것이다.</b> <c>OnDuty</c> 를 세우는 것은
+    /// <c>duty_hours</c> 뿐이라, 비어 있는데 근무 액션을 허용하면 그 액션의 전제조건이
+    /// 영원히 충족되지 않는다 — 인지 스캔이 매 틱 이탈로 읽어 재계획 큐가 포화된다.
+    /// 문서에만 적혀 있으면 다음 사람이 또 밟는다.
+    /// </summary>
+    private static void CheckV12(Context ctx, ImmutableArray<MasterDataViolation>.Builder violations)
+    {
+        // 어느 액션이 OnDuty 를 요구하는지는 actions.json 이 정한다 — 이름을 코드에 박지 않는다.
+        var dutyActions = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (JsonElement action in ctx.Array("actions.json", "actions"))
+        {
+            if (Strings(action, "requires").Contains("OnDuty", StringComparer.Ordinal))
+            {
+                dutyActions.Add(action.GetProperty("id").GetString()!);
+            }
+        }
+
+        if (dutyActions.Count == 0)
+        {
+            return;
+        }
+
+        foreach (JsonElement archetype in ctx.Array("archetypes.json", "archetypes"))
+        {
+            bool hasDuty = archetype.TryGetProperty("duty_hours", out JsonElement hours)
+                && hours.ValueKind == JsonValueKind.Array
+                && hours.GetArrayLength() > 0;
+
+            if (hasDuty)
+            {
+                continue;
+            }
+
+            string id = archetype.GetProperty("id").GetString()!;
+
+            ImmutableArray<string> offending =
+            [
+                .. Strings(archetype, "allowed_actions")
+                    .Where(dutyActions.Contains)
+                    .Order(StringComparer.Ordinal),
+            ];
+
+            if (!offending.IsEmpty)
+            {
+                violations.Add(new MasterDataViolation(
+                    "V12",
+                    $"archetypes.json: '{id}' 에 duty_hours 가 없는데 {string.Join(" · ", offending)} 을 허용한다. "
+                    + "OnDuty 가 서지 않아 전제조건이 영원히 충족되지 않는다.",
+                    "archetypes.json",
+                    $"/archetypes/{id}/allowed_actions"));
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- V13
+
+    /// <summary>
+    /// V13 — <c>npc_instances.json</c> 의 참조와 정원 (F-04).
+    ///
+    /// <b>생성물이지만 검증 대상이다.</b> 생성기를 고치거나 낡은 파일이 남으면 존재하지 않는
+    /// POI 를 가리키는 NPC 가 생기고, 그것은 기동 시점이 아니라 <b>그 NPC 가 움직일 때</b>
+    /// 터진다 — 5,000마리 중 한 마리라면 며칠 뒤에야 발견된다.
+    ///
+    /// <para>
+    /// 파일이 없으면 <b>건너뛴다</b>. 마스터데이터 검증은 <c>validate</c> 만 돌려도 성립해야 하고,
+    /// 인스턴스 생성은 그 뒤 단계다.
+    /// </para>
+    /// </summary>
+    private static void CheckV13(
+        Context ctx,
+        ImmutableArray<MasterDataViolation>.Builder violations,
+        ImmutableArray<SkippedRule>.Builder skipped)
+    {
+        string path = Path.Combine(ctx.Directory, "npc_instances.json");
+
+        if (!File.Exists(path))
+        {
+            skipped.Add(new SkippedRule("V13", "npc_instances.json 이 없다. tools/gen_npcs.cs 로 만든다."));
+            return;
+        }
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+
+        if (!document.RootElement.TryGetProperty("npcs", out JsonElement npcs)
+            || npcs.ValueKind != JsonValueKind.Array)
+        {
+            violations.Add(new MasterDataViolation(
+                "V13", "npc_instances.json: npcs 배열이 없다.", "npc_instances.json", "/npcs"));
+            return;
+        }
+
+        var archetypes = new HashSet<string>(StringComparer.Ordinal);
+        var zones = new HashSet<string>(StringComparer.Ordinal);
+        var pois = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (JsonElement a in ctx.Array("archetypes.json", "archetypes"))
+        {
+            archetypes.Add(a.GetProperty("id").GetString()!);
+        }
+
+        foreach (JsonElement z in ctx.Array("zones.json", "zones"))
+        {
+            zones.Add(z.GetProperty("id").GetString()!);
+        }
+
+        foreach (JsonElement p in ctx.Array("pois.json", "pois"))
+        {
+            pois[p.GetProperty("id").GetString()!] = p.GetProperty("capacity").GetInt32();
+        }
+
+        var occupancy = new Dictionary<string, int>(StringComparer.Ordinal);
+        var seenIds = new HashSet<int>();
+
+        // 위반은 첫 몇 건만 낸다 — 5,000줄이 전부 깨지면 목록이 아니라 소음이다.
+        const int MaxReported = 5;
+        int reported = 0;
+
+        foreach (JsonElement npc in npcs.EnumerateArray())
+        {
+            int id = npc.GetProperty("id").GetInt32();
+
+            if (!seenIds.Add(id) && reported++ < MaxReported)
+            {
+                violations.Add(new MasterDataViolation(
+                    "V13", $"npc_instances.json: id {id} 이 두 번 나온다.", "npc_instances.json", $"/npcs/{id}"));
+            }
+
+            string archetype = npc.GetProperty("archetype").GetString()!;
+
+            if (!archetypes.Contains(archetype) && reported++ < MaxReported)
+            {
+                violations.Add(new MasterDataViolation(
+                    "V13",
+                    $"npc_instances.json: NPC {id} 의 아키타입 '{archetype}' 이 archetypes.json 에 없다.",
+                    "npc_instances.json",
+                    $"/npcs/{id}/archetype"));
+            }
+
+            string zone = npc.GetProperty("zone").GetString()!;
+
+            if (!zones.Contains(zone) && reported++ < MaxReported)
+            {
+                violations.Add(new MasterDataViolation(
+                    "V13",
+                    $"npc_instances.json: NPC {id} 의 존 '{zone}' 이 zones.json 에 없다.",
+                    "npc_instances.json",
+                    $"/npcs/{id}/zone"));
+            }
+
+            foreach (string field in new[] { "home_poi", "workplace_poi" })
+            {
+                if (!npc.TryGetProperty(field, out JsonElement poi) || poi.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                string poiId = poi.GetString()!;
+
+                if (!pois.ContainsKey(poiId))
+                {
+                    if (reported++ < MaxReported)
+                    {
+                        violations.Add(new MasterDataViolation(
+                            "V13",
+                            $"npc_instances.json: NPC {id} 의 {field} '{poiId}' 가 pois.json 에 없다.",
+                            "npc_instances.json",
+                            $"/npcs/{id}/{field}"));
+                    }
+
+                    continue;
+                }
+
+                occupancy[poiId] = occupancy.GetValueOrDefault(poiId) + 1;
+            }
+        }
+
+        // 개체 단위 정원 초과. V10 은 합계를 보고 여기는 실제 배치를 본다 —
+        // 합계가 맞아도 한 곳에 몰려 있으면 그 POI 는 넘친다.
+        foreach (string poiId in occupancy.Keys.Order(StringComparer.Ordinal))
+        {
+            if (occupancy[poiId] > pois[poiId] && reported++ < MaxReported)
+            {
+                violations.Add(new MasterDataViolation(
+                    "V13",
+                    $"npc_instances.json: POI '{poiId}' 에 {occupancy[poiId]} 명이 배치됐는데 정원은 {pois[poiId]} 다.",
+                    "npc_instances.json",
+                    "/npcs"));
             }
         }
     }

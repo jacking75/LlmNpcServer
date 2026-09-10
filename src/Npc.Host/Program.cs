@@ -13,6 +13,7 @@ using Npc.Host.Persistence;
 using Npc.Host.Replan;
 using Npc.Llm;
 using Npc.MasterData;
+using Npc.MasterData.Authoring;
 using Npc.Planning;
 using Npc.Runtime;
 using Npc.Sim;
@@ -676,6 +677,13 @@ internal sealed class NpcHost : IAsyncDisposable
 
         string masterDataDir = options.ResolveMasterData();
         MasterDataSet data = MasterDataLoader.Load(masterDataDir);
+
+        // 파생물이 낡았으면 경고한다 (F-04). 기동을 막지 않는 이유는, 낡은 거리표로도
+        // 개발 중에는 돌려 봐야 하기 때문이다 — 다만 조용히 넘기면 그 상태를 아무도 모른다.
+        foreach (Npc.MasterData.Authoring.DerivedStatus stale in data.StaleArtifacts)
+        {
+            log.WriteLine($"경고 파생물 {stale}");
+        }
 
         string instancePath = Path.Combine(masterDataDir, "npc_instances.json");
         NpcInstanceTable instances = NpcInstanceTable.Load(instancePath, data);

@@ -1,3 +1,5 @@
+#:project ../src/Npc.MasterData/Npc.MasterData.csproj
+
 // masterdata/npc_instances.json 생성기. docs/01 §9 · docs/11 §8.
 //
 // .NET 10 파일 기반 앱이다. 추가 도구 설치 없이 그대로 돈다:
@@ -24,6 +26,7 @@
 using System.Buffers;
 using System.Globalization;
 using System.Text.Json;
+using Npc.MasterData.Authoring;
 
 // docs/01 §9 가 정한 인구. --population 으로 바꿀 수 있지만 masterdata/npc_instances.json 은
 // 이 값으로 유지한다 — P1 게이트와 docs/01 §9 가 5,000 을 인용한다.
@@ -145,14 +148,14 @@ int[] quota = Apportion(archetypes, population);
 
 // ---------------------------------------------------------------- 배정
 
-var npcs = new Npc[population];
+var npcs = new Assignment[population];
 int next = 0;
 
 foreach (Archetype archetype in archetypes)
 {
     for (int i = 0; i < quota[archetype.Code]; i++)
     {
-        npcs[next] = new Npc(next + 1, archetype, -1, -1);
+        npcs[next] = new Assignment(next + 1, archetype, -1, -1);
         next++;
     }
 }
@@ -187,7 +190,7 @@ for (int i = 0; i < npcs.Length; i++)
 
 // ---------------------------------------------------------------- 검증
 
-foreach (Npc npc in npcs)
+foreach (Assignment npc in npcs)
 {
     if (npc.Home < 0)
     {
@@ -204,7 +207,7 @@ for (int i = 0; i < pois.Length; i++)
 }
 
 var zonePopulation = new int[zones.Length];
-foreach (Npc npc in npcs)
+foreach (Assignment npc in npcs)
 {
     zonePopulation[pois[npc.Home].Zone]++;
 }
@@ -240,7 +243,7 @@ using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions
 
     writer.WriteStartArray("npcs");
 
-    foreach (Npc npc in npcs)
+    foreach (Assignment npc in npcs)
     {
         Poi home = pois[npc.Home];
 
@@ -292,6 +295,13 @@ using (var file = new FileStream(outPath, FileMode.Create, FileAccess.Write, Fil
 }
 
 Console.WriteLine($"{outPath}: NPC {npcs.Length}마리, seed {seed}, {buffer.WrittenCount + 1} bytes");
+
+// 기본 위치에 썼을 때만 잠금을 갱신한다 (F-04) — --out 으로 딴 데 쓴 것은 masterdata 의 파생물이 아니다.
+if (outArg is null)
+{
+    DerivedArtifacts.Record(masterData, "npc_instances.json");
+    Console.WriteLine($"{DerivedArtifacts.FileName}: npc_instances.json 기록");
+}
 
 for (int i = 0; i < zones.Length; i++)
 {
@@ -498,4 +508,4 @@ internal sealed record Archetype(
     double Weight,
     JsonElement Inventory);
 
-internal readonly record struct Npc(int Id, Archetype Archetype, int Home, int Workplace);
+internal readonly record struct Assignment(int Id, Archetype Archetype, int Home, int Workplace);

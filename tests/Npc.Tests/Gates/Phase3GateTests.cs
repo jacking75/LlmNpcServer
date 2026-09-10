@@ -8,6 +8,7 @@ using Npc.Host;
 using Npc.Host.Metrics;
 using Npc.Llm;
 using Npc.MasterData;
+using Npc.MasterData.Authoring;
 using Npc.Planning;
 using Npc.Prebake;
 
