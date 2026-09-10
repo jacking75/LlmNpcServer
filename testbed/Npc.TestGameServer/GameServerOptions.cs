@@ -98,6 +98,14 @@ public sealed record GameServerOptions
     /// </summary>
     public uint SessionEpoch { get; init; } = 1;
 
+    /// <summary>
+    /// 링크 HMAC 비밀 (A-06). 32바이트. 비어 있으면 인증하지 않는다.
+    ///
+    /// 대역도 값은 환경변수 <c>NPC_LINK_SECRET</c> 에서만 읽는다 — 실제 게임서버가 그래야 하고,
+    /// 대역이 다른 길을 열어 두면 그 길로 시험하게 된다.
+    /// </summary>
+    public byte[] LinkSecret { get; init; } = [];
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 

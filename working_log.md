@@ -1,5 +1,24 @@
 # 작업 로그
 
+## 2026-09-10 11:44 KST · A-06 링크 보안 — 상호 인증 · TLS/mTLS · 관리 API 토큰
+
+링크 포트에 붙기만 하면 누구나 NPC 명령 스트림을 관측하고 이벤트를 위조할 수 있었다.
+관리 API 에 인증이 없어 `0.0.0.0` 바인드가 구조적으로 불가능했다.
+
+- **신규** `src/Npc.Wire/V2/LinkAuth.cs` — HMAC-SHA256 상호 인증 · nonce 재사용 거절(`NonceCache`).
+  태그 재료에 협상 필드·해시 3종·nonce 를 전부 넣는다. 테스트가 필드별로 바꿔치기해 확인한다.
+- **신규** `src/Npc.Gateway/TlsStreamFactory.cs` — `--link-tls off|tls|mtls`.
+  `TcpGameServerLink` 본문을 건드리지 않고 연결 생성기 이음매에 `SslStream` 을 끼운다.
+- **신규** `src/Npc.Host/Api/AdminAuth.cs` — `Authorization: Bearer <NPC_ADMIN_TOKEN>`.
+  고정 시간 비교 · 분당 5회 실패 뒤 429. **보호 목록이 아니라 허용 목록의 반대**다 —
+  프로브·수집기만 빼고 나머지를 전부 막는다.
+- 비밀은 환경변수로만 온다(`NPC_LINK_SECRET`·`NPC_LINK_CERT_PASSWORD`·`NPC_ADMIN_TOKEN`).
+  인자는 `ps` 에 보이고 파일은 이미지에 굽힌다.
+- 거절에는 인증 태그를 싣지 않는다 — 신원을 모르는 상대에게 서명해 주면 그것이 오라클이다.
+- `docs/reference_link.html` §09 에 인증 4단계·암호화 절을 넣고 §13 "구현 필요" 를
+  "구현됨(v2)" 로 바꿨다.
+- 테스트 43건 추가. 전체 1,210건 통과 · 경고 0.
+
 ## 2026-09-10 11:30 KST · A-05 관측성 — OpenTelemetry · Prometheus · 구조화 로깅 · 경보 싱크
 
 계측기 13종이 `Meter` 에 만들어져 있는데 아무도 수집하지 않았다. 로그는 평문 한국어 한 줄이라

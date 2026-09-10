@@ -17,6 +17,7 @@ using Npc.Planning;
 using Npc.Runtime;
 using Npc.Sim;
 using Npc.Wire;
+using Npc.Wire.V2;
 
 // ASP.NET 의 Microsoft.Extensions.Hosting.HostOptions 와 이름이 겹친다. 우리 것을 쓴다.
 using HostOptions = Npc.Host.HostOptions;
@@ -191,6 +192,39 @@ if (options.NoDashboard)
 
     host.Report(Console.Out);
     return exitCode != 0 ? exitCode : probeOnly;
+}
+
+// ── 관리·질의 API 인증 (A-06) ──────────────────────────────────
+// 토큰이 설정돼 있으면 상태를 읽고 바꾸는 라우트에 Bearer 를 요구한다.
+// /healthz/* 와 /metrics/prometheus 는 무인증이다 — 오케스트레이터와 수집기가 토큰을
+// 들고 다니게 하면 그 토큰이 사방에 퍼지고, 그 둘은 상태를 바꾸지 않는다.
+var adminAuth = new AdminAuth(AdminAuth.TokenFromEnvironment());
+
+if (adminAuth.Enabled)
+{
+    app.Use(async (context, next) =>
+    {
+        if (!AdminAuth.IsProtected(context.Request.Path))
+        {
+            await next(context);
+            return;
+        }
+
+        int? status = adminAuth.Check(
+            context.Request.Headers.Authorization.ToString(),
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+
+        if (status is { } code)
+        {
+            context.Response.StatusCode = code;
+            await context.Response.WriteAsJsonAsync(new { error = "unauthorized" });
+            return;
+        }
+
+        await next(context);
+    });
+
+    Console.Out.WriteLine("admin-auth: Authorization: Bearer <NPC_ADMIN_TOKEN> 필요");
 }
 
 app.MapGet("/", () => Results.Redirect("/dashboard"));
@@ -519,8 +553,21 @@ internal sealed class NpcHost : IAsyncDisposable
     /// 우리가 안다. 게임서버가 하나라도 다른 값을 보내면 연결이 거절되고
     /// <c>Faulted</c> 로 간다 (docs/20 §5.5). <b>우회 옵션은 없다.</b>
     /// </summary>
-    private static TcpGameServerLink TcpLink(HostOptions options, MasterDataSet data, NpcRoster roster) =>
-        new(new TcpLinkOptions
+    private static TcpGameServerLink TcpLink(HostOptions options, MasterDataSet data, NpcRoster roster)
+    {
+        // 비밀·인증서 비밀번호는 환경변수로만 온다 (A-06). 인자는 ps 에 보이고
+        // 파일은 이미지에 굽힌다.
+        byte[] secret = [];
+
+        if (Environment.GetEnvironmentVariable("NPC_LINK_SECRET") is { Length: > 0 } hex)
+        {
+            if (!LinkAuth.TryParseSecret(hex, out secret, out string? secretError))
+            {
+                throw new ArgumentException($"NPC_LINK_SECRET: {secretError}", nameof(options));
+            }
+        }
+
+        var linkOptions = new TcpLinkOptions
         {
             Host = options.GameServerHost,
             Port = options.GameServerPort,
@@ -530,7 +577,20 @@ internal sealed class NpcHost : IAsyncDisposable
             MasterDataStructural = WireHash.FromHex(data.StructuralHash),
             MasterDataContent = WireHash.FromHex(data.ContentHash),
             Roster = WireHash.FromHex(roster.Hash),
-        });
+            Secret = secret,
+            RequireAuth = options.RequireLinkAuth,
+            Tls = options.LinkTls,
+            TlsHost = options.LinkTlsHost,
+            ClientCertificatePath = options.LinkCertificate,
+            ClientCertificatePassword = Environment.GetEnvironmentVariable("NPC_LINK_CERT_PASSWORD"),
+        };
+
+        // 평문이면 링크가 스스로 소켓을 연다. TLS 면 생성기를 끼운다 —
+        // 링크 본문은 스트림이 무엇인지 모른 채 그대로 돈다.
+        return options.LinkTls == LinkTlsMode.Off
+            ? new TcpGameServerLink(linkOptions)
+            : new TcpGameServerLink(linkOptions, new TlsStreamFactory(linkOptions).ConnectAsync);
+    }
 
     /// <summary>
     /// <c>--zone</c> 을 존 code 로 푼다. docs/20 §10.2.

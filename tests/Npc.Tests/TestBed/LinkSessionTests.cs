@@ -100,6 +100,41 @@ public sealed class LinkSessionTests
         Assert.Equal(LinkState.Faulted, bed.Link.State);
     }
 
+    /// <summary>A-06 완료 조건 — 같은 비밀이면 상호 인증에 성공하고 붙는다.</summary>
+    [Fact]
+    public async Task LinkSession_MutualAuthSucceedsWithTheSameSecret()
+    {
+        await using var bed = await Bed.StartAsync(npcs: 8, secret: Bed.SecretA);
+
+        Assert.True(bed.Connected);
+
+        LinkSession session = await bed.WaitForSessionAsync();
+
+        Assert.True(session.IsAccepted);
+        Assert.Equal(LinkRejectCode.None, bed.Link.RejectCode);
+    }
+
+    /// <summary>A-06 — 비밀이 다르면 <c>AuthFailed</c> 로 거절이다.</summary>
+    [Fact]
+    public async Task LinkSession_RejectsWrongSecret()
+    {
+        await using var bed = await Bed.StartAsync(npcs: 8, secret: Bed.SecretA, npcSecret: Bed.SecretB);
+
+        Assert.False(bed.Connected);
+        Assert.Equal(LinkRejectCode.AuthFailed, bed.Link.RejectCode);
+        Assert.Equal(LinkState.Faulted, bed.Link.State);
+    }
+
+    /// <summary>A-06 — NPC 서버만 비밀을 들고 있으면 태그가 없어 거절이다.</summary>
+    [Fact]
+    public async Task LinkSession_RejectsMissingAuthWhenSecretIsSet()
+    {
+        await using var bed = await Bed.StartAsync(npcs: 8, secret: [], npcSecret: Bed.SecretA);
+
+        Assert.False(bed.Connected);
+        Assert.Equal(LinkRejectCode.AuthFailed, bed.Link.RejectCode);
+    }
+
     /// <summary>B-01 완료 조건 — v1 게임서버가 v2 NPC 서버에 붙어 데모가 돈다.</summary>
     [Fact]
     public async Task LinkSession_V1GameServer_StillConnects()
@@ -507,6 +542,14 @@ public sealed class LinkSessionTests
             _clients = clients;
         }
 
+        /// <summary>시험용 비밀 A. 실제 비밀은 환경변수로만 온다 (A-06).</summary>
+        public static byte[] SecretA { get; } =
+            Convert.FromHexString(new string('1', 64));
+
+        /// <summary>시험용 비밀 B.</summary>
+        public static byte[] SecretB { get; } =
+            Convert.FromHexString(new string('2', 64));
+
         /// <summary>해시 한 글자를 바꾼다. "다른 마스터데이터" 를 재현하는 가장 싼 방법이다.</summary>
         private static string Flip(string hash) =>
             (hash[0] == '0' ? '1' : '0') + hash[1..];
@@ -531,7 +574,9 @@ public sealed class LinkSessionTests
             bool corruptRoster = false,
             int protocolVersion = 2,
             bool contentHashDrift = false,
-            bool structuralDrift = false)
+            bool structuralDrift = false,
+            byte[]? secret = null,
+            byte[]? npcSecret = null)
         {
             NpcRoster roster = NpcRoster.Select(s_instances, npcs);
             var options = new GameServerOptions
@@ -539,6 +584,7 @@ public sealed class LinkSessionTests
                 Npcs = npcs,
                 LinkPort = 0,
                 ProtocolVersion = protocolVersion,
+                LinkSecret = secret ?? [],
             };
             GameWorld world = GameWorld.Create(options, s_data, roster);
 
@@ -565,6 +611,9 @@ public sealed class LinkSessionTests
                 Roster = corruptRoster
                     ? WireHash.FromHex(NpcRoster.Select(s_instances, npcs + 1).Hash)
                     : WireHash.FromHex(roster.Hash),
+
+                // A-06 — 기본은 대역과 같은 비밀이다. 다르게 주면 거절 경로를 본다.
+                Secret = npcSecret ?? secret ?? [],
             };
 
             var clients = new List<TcpClient>();

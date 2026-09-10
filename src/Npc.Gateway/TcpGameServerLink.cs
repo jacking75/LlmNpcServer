@@ -70,6 +70,9 @@ public sealed class TcpGameServerLink : IGameServerLink
     private Task? _receiver;
     private LinkState _state = LinkState.Disconnected;
 
+    /// <summary>세션당 nonce 기억 (A-06). 재생 공격을 막는다.</summary>
+    private readonly NonceCache _nonces = new();
+
     private long _enqueued;
     private long _flushed;
     private long _framesSent;
@@ -455,6 +458,19 @@ public sealed class TcpGameServerLink : IGameServerLink
             return false;
         }
 
+        // 인증을 먼저 본다 (A-06). 해시·배속은 "같은 데이터를 보고 있는가" 이고,
+        // 인증은 "네가 누구인가" 다 — 신원을 모르는 상대에게 우리 마스터데이터 해시를
+        // 되돌려 주는 것부터가 정보 누출이다.
+        LinkRejectCode authReject = ValidateAuth(in hello);
+
+        if (authReject != LinkRejectCode.None)
+        {
+            NegotiationDetail = $"{negotiation.Detail} · 인증 실패";
+
+            await RejectV2Async(stream, authReject, ct).ConfigureAwait(false);
+            return false;
+        }
+
         LinkRejectCode reject = ValidateV2(in hello, out bool contentWarning);
 
         if (reject != LinkRejectCode.None)
@@ -478,7 +494,7 @@ public sealed class TcpGameServerLink : IGameServerLink
         await WriteFrameAsync(
             stream,
             LinkMessageKind.HelloAck,
-            AckV2Payload(accepted: true, LinkRejectCode.None, contentWarning),
+            AckV2Payload(accepted: true, LinkRejectCode.None, contentWarning, hello.Nonce),
             ct,
             (byte)negotiation.ProtocolVersion).ConfigureAwait(false);
 
@@ -488,6 +504,39 @@ public sealed class TcpGameServerLink : IGameServerLink
         SetState(LinkState.Connected);
 
         return true;
+    }
+
+    /// <summary>
+    /// 인증 태그를 검산한다 (A-06).
+    ///
+    /// 비밀이 설정되지 않았으면 검사하지 않는다 — v1 게임서버·개발 회차와 붙어야 한다.
+    /// <b>반드시 인증하려면 <see cref="TcpLinkOptions.RequireAuth"/> 를 켠다</b>,
+    /// 그러면 협상 단계가 <c>Auth</c> 기능 비트부터 요구한다.
+    /// </summary>
+    public LinkRejectCode ValidateAuth(in WireHelloV2 hello)
+    {
+        if (_options.Secret.Length == 0)
+        {
+            return LinkRejectCode.None;
+        }
+
+        if (hello.Nonce.IsZero)
+        {
+            return LinkRejectCode.AuthFailed;
+        }
+
+        // 태그가 맞아도 같은 nonce 를 두 번 받으면 거절이다. 태그는 "그때 이 비밀을 아는
+        // 누군가가 만들었다" 만 증명하지 "지금 만들었다" 를 증명하지 않는다.
+        if (!_nonces.TryRemember(in hello.Nonce))
+        {
+            return LinkRejectCode.AuthFailed;
+        }
+
+        WireHash expected = LinkAuth.ComputeHello(_options.Secret, in hello);
+
+        return LinkAuth.Verify(in expected, in hello.Auth)
+            ? LinkRejectCode.None
+            : LinkRejectCode.AuthFailed;
     }
 
     /// <summary>
@@ -880,8 +929,10 @@ public sealed class TcpGameServerLink : IGameServerLink
             RejectCode = (byte)reject,
         });
 
-    private byte[] AckV2Payload(bool accepted, LinkRejectCode reject, bool contentWarning) =>
-        MemoryPackSerializer.Serialize(new WireHelloAckV2
+    private byte[] AckV2Payload(
+        bool accepted, LinkRejectCode reject, bool contentWarning, WireNonce nonce = default)
+    {
+        var ack = new WireHelloAckV2
         {
             ProtocolVersion = NegotiatedVersion == 0 ? FrameCodec.MaxVersion : NegotiatedVersion,
             ContractMajor = ContractVersion.Major,
@@ -899,13 +950,25 @@ public sealed class TcpGameServerLink : IGameServerLink
             Accepted = accepted ? (byte)1 : (byte)0,
             RejectCode = (byte)reject,
             ContentHashWarning = contentWarning ? (byte)1 : (byte)0,
-        });
+        };
+
+        // 상호 인증 (A-06). 게임서버가 낸 nonce 를 되돌려 서명해야 "지금 이 세션에 대한 응답"
+        // 임이 증명된다 — 그러지 않으면 예전 응답을 그대로 재생할 수 있다.
+        if (_options.Secret.Length > 0 && !nonce.IsZero)
+        {
+            ack.Auth = LinkAuth.ComputeAck(_options.Secret, in ack, in nonce);
+        }
+
+        return MemoryPackSerializer.Serialize(ack);
+    }
 
     /// <summary>v2 거절. 응답도 v2 배치로 보낸다 — 상대가 v2 로 말을 걸었기 때문이다.</summary>
     private async Task RejectV2Async(Stream stream, LinkRejectCode reject, CancellationToken ct)
     {
         RejectCode = reject;
 
+        // 거절에는 인증 태그를 싣지 않는다. 상대의 신원을 모르는데 우리 비밀로 서명하면
+        // 그것이 곧 오라클이 된다.
         await WriteFrameAsync(
             stream,
             LinkMessageKind.HelloAck,

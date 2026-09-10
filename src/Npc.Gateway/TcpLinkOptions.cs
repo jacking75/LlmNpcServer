@@ -57,6 +57,26 @@ public sealed record TcpLinkOptions
     /// </summary>
     public bool RequireAuth { get; init; }
 
+    /// <summary>
+    /// 링크 HMAC 비밀 (A-06). 32바이트. 비어 있으면 인증하지 않는다.
+    ///
+    /// 값은 환경변수 <c>NPC_LINK_SECRET</c> 에서만 온다 — 파일에도 인자에도 두지 않는다.
+    /// 인자는 <c>ps</c> 에 보이고 파일은 이미지에 굽힌다.
+    /// </summary>
+    public byte[] Secret { get; init; } = [];
+
+    /// <summary>링크 암호화 모드 (A-06). 기본 <see cref="LinkTlsMode.Off"/>.</summary>
+    public LinkTlsMode Tls { get; init; } = LinkTlsMode.Off;
+
+    /// <summary>TLS SNI 이름. null 이면 <see cref="Host"/> 를 쓴다.</summary>
+    public string? TlsHost { get; init; }
+
+    /// <summary>클라이언트 인증서(pfx) 경로. <c>mtls</c> 에서만 쓴다.</summary>
+    public string? ClientCertificatePath { get; init; }
+
+    /// <summary>클라이언트 인증서 비밀번호. 환경변수 <c>NPC_LINK_CERT_PASSWORD</c> 에서 온다.</summary>
+    public string? ClientCertificatePassword { get; init; }
+
     /// <summary>내 NPC 로스터 해시 (docs/20 §10.2).</summary>
     public WireHash Roster { get; init; }
 

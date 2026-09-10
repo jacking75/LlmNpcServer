@@ -185,26 +185,37 @@ public sealed class LinkSession : IAsyncDisposable
     {
         // v2 로 말을 건다 (B-01). 범위 [1, 2] 를 보내므로 v1 NPC 서버와도 붙는다 —
         // 상대가 v1 이면 v1 배치의 HelloAck 가 돌아오고, 그것을 프레임 버전으로 가른다.
+        // 인증 (A-06). 비밀이 없으면 nonce 도 태그도 0 이고, NPC 서버는 검사하지 않는다.
+        WireNonce nonce = _options.LinkSecret.Length > 0 ? LinkAuth.NewNonce() : WireNonce.Zero;
+
+        var helloV2 = new WireHelloV2
+        {
+            ProtocolVersion = FrameCodec.MaxVersion,
+            MinProtocolVersion = FrameCodec.MinVersion,
+            ContractMajor = ContractVersion.Major,
+            ContractMinor = ContractVersion.Minor,
+            Features = _options.Features,
+            TickRate = GameWorld.TickRate,
+            TimeScale = _options.TimeScale,
+            NpcCount = _world.Roster.Count,
+            StartTick = _world.Now.Value,
+            StartGameMinuteOfDay = (ushort)_world.GameMinuteOfDay,
+            ShardId = 0,
+            ZoneMask = 0,
+            SessionEpoch = _options.SessionEpoch,
+            MasterDataStructural = WireHash.FromHex(_data.StructuralHash),
+            MasterDataContent = WireHash.FromHex(_data.ContentHash),
+            Roster = WireHash.FromHex(_world.Roster.Hash),
+            Nonce = nonce,
+        };
+
+        if (_options.LinkSecret.Length > 0)
+        {
+            helloV2.Auth = LinkAuth.ComputeHello(_options.LinkSecret, in helloV2);
+        }
+
         byte[] hello = _options.ProtocolVersion >= 2
-            ? MemoryPackSerializer.Serialize(new WireHelloV2
-            {
-                ProtocolVersion = FrameCodec.MaxVersion,
-                MinProtocolVersion = FrameCodec.MinVersion,
-                ContractMajor = ContractVersion.Major,
-                ContractMinor = ContractVersion.Minor,
-                Features = _options.Features,
-                TickRate = GameWorld.TickRate,
-                TimeScale = _options.TimeScale,
-                NpcCount = _world.Roster.Count,
-                StartTick = _world.Now.Value,
-                StartGameMinuteOfDay = (ushort)_world.GameMinuteOfDay,
-                ShardId = 0,
-                ZoneMask = 0,
-                SessionEpoch = _options.SessionEpoch,
-                MasterDataStructural = WireHash.FromHex(_data.StructuralHash),
-                MasterDataContent = WireHash.FromHex(_data.ContentHash),
-                Roster = WireHash.FromHex(_world.Roster.Hash),
-            })
+            ? MemoryPackSerializer.Serialize(helloV2)
             : MemoryPackSerializer.Serialize(new WireHello
             {
                 ProtocolVersion = FrameCodec.Version,
@@ -244,6 +255,21 @@ public sealed class LinkSession : IAsyncDisposable
             NegotiatedVersion = ack.ProtocolVersion;
             NegotiatedFeatures = ack.Features;
             ContentHashWarning = ack.ContentHashWarning == 1;
+
+            // 상호 인증 (A-06). 우리가 낸 nonce 로 서명됐는지 본다 —
+            // 한쪽만 검증하면 "가짜 NPC 서버가 게임서버에 붙는 것" 을 못 막는다.
+            if (accepted == 1 && _options.LinkSecret.Length > 0)
+            {
+                WireHash expected = LinkAuth.ComputeAck(_options.LinkSecret, in ack, in nonce);
+
+                if (!LinkAuth.Verify(in expected, in ack.Auth))
+                {
+                    RejectCode = LinkRejectCode.AuthFailed;
+                    await CloseAsync(LinkByeCode.HandshakeRejected, ct).ConfigureAwait(false);
+
+                    return false;
+                }
+            }
         }
         else
         {

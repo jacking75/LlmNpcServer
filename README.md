@@ -176,6 +176,18 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--alarm-webhook <url>` | 경보 웹훅 (Slack/Teams 호환 JSON) |
 | `--alarm-cooldown-s N` | 같은 경보의 재발화 간격 초 (기본 300) |
 | `--log-format text\|json` | 로그 형식 (기본 `text`. `--profile service` 는 `json`) |
+| `--link-tls off\|tls\|mtls` | 링크 암호화 (기본 `off`) |
+| `--link-cert <pfx>` | 클라이언트 인증서. `mtls` 전용 |
+| `--link-tls-host <name>` | TLS SNI 이름 (기본 `--gs-host`) |
+| `--require-link-auth` | 게임서버가 인증을 지원하지 않으면 거절한다 |
+
+**시크릿은 환경변수로만 온다** (A-06). 인자는 `ps` 에 보이고 파일은 이미지에 굽힌다.
+
+| 환경변수 | 무엇 |
+|---|---|
+| `NPC_LINK_SECRET` | 링크 HMAC 비밀. hex 64자(32바이트) |
+| `NPC_LINK_CERT_PASSWORD` | `--link-cert` pfx 비밀번호 |
+| `NPC_ADMIN_TOKEN` | 관리·질의 API `Bearer` 토큰. `--bind 0.0.0.0` 의 전제조건이다 |
 | `--max-speed` | 10Hz 페이싱 없이 최대 속도로. 부하·게이트 측정용 |
 | `--no-dashboard` | 웹 호스트를 띄우지 않는다 |
 | `--gs-host <host>` / `--gs-port N` | 게임서버 주소 (기본 `127.0.0.1:7010`). `--link tcp` 전용 |

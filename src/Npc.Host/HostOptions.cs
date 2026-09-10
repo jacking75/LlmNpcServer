@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using Npc.Gateway;
 using Npc.Host.Config;
 using Npc.Host.Observability;
 using Npc.Host.Persistence;
@@ -339,6 +340,23 @@ public sealed record HostOptions
     /// <summary>로그 형식 (A-05). 기본은 평문, <c>--profile service</c> 는 JSON.</summary>
     public LogFormat LogFormat { get; init; } = LogFormat.Text;
 
+    /// <summary>링크 암호화 모드 (A-06). 기본 <c>off</c>.</summary>
+    public LinkTlsMode LinkTls { get; init; } = LinkTlsMode.Off;
+
+    /// <summary>클라이언트 인증서(pfx) 경로. <c>--link-tls mtls</c> 에서만 쓴다.</summary>
+    public string? LinkCertificate { get; init; }
+
+    /// <summary>TLS SNI 이름. null 이면 <c>--gs-host</c> 를 쓴다.</summary>
+    public string? LinkTlsHost { get; init; }
+
+    /// <summary>
+    /// 링크 인증을 반드시 요구하는가 (A-06).
+    ///
+    /// 기본은 요구하지 않는다 — v1 게임서버·개발 회차와 붙어야 한다.
+    /// 켜면 게임서버가 <c>Auth</c> 기능 비트를 안 켠 회차를 <c>AuthFailed</c> 로 거절한다.
+    /// </summary>
+    public bool RequireLinkAuth { get; init; }
+
     /// <summary>도움말만 출력한다.</summary>
     public bool Help { get; init; }
 
@@ -387,6 +405,11 @@ public sealed record HostOptions
           --alarm-webhook <url>   경보 웹훅 (Slack/Teams 호환 JSON)
           --alarm-cooldown-s N    같은 경보의 재발화 간격 초 (기본 300)
           --log-format text|json  로그 형식 (기본 text · --profile service 는 json)
+          --link-tls off|tls|mtls 링크 암호화 (기본 off). 비밀은 NPC_LINK_SECRET 환경변수
+          --link-cert <pfx>       클라이언트 인증서. mtls 전용
+                                  (비밀번호는 NPC_LINK_CERT_PASSWORD 환경변수)
+          --link-tls-host <name>  TLS SNI 이름 (기본: --gs-host)
+          --require-link-auth     게임서버가 인증을 지원하지 않으면 거절한다
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
@@ -1029,6 +1052,42 @@ public sealed record HostOptions
                     result = result with { LogFormat = parsedFormat, LogFormatSpecified = true };
                     break;
 
+                case "--link-tls":
+                    if (!TryValue(args, ref i, arg, out string? tls, out error)
+                        || !Enum.TryParse(tls, ignoreCase: true, out LinkTlsMode tlsMode))
+                    {
+                        error ??= $"--link-tls 값이 잘못됐다: '{tls}'. off|tls|mtls 중 하나다.";
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { LinkTls = tlsMode };
+                    break;
+
+                case "--link-cert":
+                    if (!TryValue(args, ref i, arg, out string? cert, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { LinkCertificate = cert };
+                    break;
+
+                case "--link-tls-host":
+                    if (!TryValue(args, ref i, arg, out string? tlsHost, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { LinkTlsHost = tlsHost };
+                    break;
+
+                case "--require-link-auth":
+                    result = result with { RequireLinkAuth = true };
+                    break;
+
                 case "--tick-sync-stall-s":
                     if (!TryInt(args, ref i, arg, 0, 86_400, out int tickStall, out error))
                     {
@@ -1121,6 +1180,13 @@ public sealed record HostOptions
         if (result.Link == LinkKind.Replay && result.TracePath is null)
         {
             error = "--link replay 에는 --trace <path> 가 필요하다.";
+            options = result;
+            return false;
+        }
+
+        if (result.LinkTls == LinkTlsMode.Mtls && result.LinkCertificate is null)
+        {
+            error = "--link-tls mtls 에는 --link-cert <pfx> 가 필요하다.";
             options = result;
             return false;
         }
