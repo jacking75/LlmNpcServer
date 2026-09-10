@@ -176,19 +176,18 @@ public sealed class NpcStoreTests
         var buffer = default(RingBuffer8<RecentEvent>);
         var item = new RecentEvent(GameEventKind.NpcTransform, new Tick(1), 1, 10);
 
-        // JIT 티어 승격이 끝날 때까지 돌린다.
-        for (int i = 0; i < 30_000; i++)
+        // <b>여러 창의 최솟값을 본다.</b> 워밍업만으로는 부족하다 — 계층 JIT 재컴파일이
+        // 측정 창 안에 떨어지면 아무것도 할당하지 않아도 수 KB 가 잡힌다.
+        // 실제로 할당하는 코드는 모든 창에서 할당한다.
+        long bytes = AllocationProbe.MinimumBytes(() =>
         {
-            buffer.Add(item);
-        }
+            for (int i = 0; i < 10_000; i++)
+            {
+                buffer.Add(item);
+            }
+        });
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
-        {
-            buffer.Add(item);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, bytes);
     }
 
     [Fact]

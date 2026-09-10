@@ -277,12 +277,8 @@ public sealed class LodUpdaterTests
         NpcStore store = NewStore(2_000, zones: 8);
         var lod = new LodUpdater(store) { ZoneStates = new ZoneStateTable(s_data) };
 
-        Churn(lod, 5);
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        Churn(lod, 5);
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        // 여러 창의 최솟값을 본다 — 계층 JIT 재컴파일이 창 안에 떨어지면 잡음이 섞인다.
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() => Churn(lod, 5)));
 
         static void Churn(LodUpdater lod, int rounds)
         {
