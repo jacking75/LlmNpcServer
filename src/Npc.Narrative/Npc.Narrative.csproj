@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    정의 설명 생성기 (F-03). 아키타입·플랜·인터럽트·인스턴스를 사람이 읽는 한국어 카드로.
+
+    LLM 을 쓰지 않는다. 시각도 난수도 쓰지 않는다 — 같은 입력이면 바이트 동일이다.
+    터미널(Npc.Narrate·npc CLI) · Studio · MCP 가 같은 출력을 쓴다.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Narrative</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\Npc.MasterData\Npc.MasterData.csproj" />
+  </ItemGroup>
+
+</Project>

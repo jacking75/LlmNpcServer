@@ -286,6 +286,7 @@ src/
   Npc.Llm/          IChatClient 어댑터 · 프롬프트 조립 · 3-티어 라우터
   Npc.Wire/         링크의 전송 표현 (MemoryPack DTO + 프레임 코덱)
   Npc.Gateway/      IGameServerLink 구현체 (Loopback/Null/Recording/Replay/Tcp)
+  Npc.Narrative/    정의 설명 카드 (아키타입·플랜·인터럽트·인스턴스 → markdown)
   Npc.Sim/          헤드리스 월드 = 게임서버 대역
   Npc.Host/         ASP.NET 호스트 · 메트릭 · 대시보드
 testbed/            테스트 베드 — 단방향 잎(아무도 참조하지 않는다)  → testbed/README.md
@@ -295,7 +296,7 @@ testbed/            테스트 베드 — 단방향 잎(아무도 참조하지 �
   scenarios/             데모 시나리오 3종 · run_demo.ps1
 tools/
   Npc.Prebake/      프리베이크 CLI
-  Npc.Narrate/      플랜을 사람 말로 풀어 주는 도구
+  Npc.Narrate/      기록 → 하루 일지 · `card`·`explain` 서브커맨드(Npc.Narrative 껍질)
   *.cs              파일 기반 .NET 앱 (gen_npcs · gen_poi_distances · report_scale · …)
   *.ps1             측정·검수 스크립트 (run_load · run_weight_ab · review · pin_plan)
 masterdata/         마스터데이터 11종  → docs/reference_masterdata.html

@@ -6,6 +6,7 @@ using Npc.Contracts;
 using Npc.Core;
 using Npc.Gateway;
 using Npc.MasterData;
+using Npc.Narrative;
 
 namespace Npc.Narrate;
 
@@ -23,6 +24,14 @@ public static class Program
     /// <summary>진입점.</summary>
     public static int Main(string[] args)
     {
+        ArgumentNullException.ThrowIfNull(args);
+
+        // 정의 카드 (F-03). 기록이 아니라 masterdata 를 읽으므로 --trace 가 필요 없다.
+        if (args.Length > 0 && args[0] is CardCommand.Name or CardCommand.ExplainName)
+        {
+            return CardCommand.Run(args[0], args[1..], Console.Out);
+        }
+
         if (!NarrateOptions.TryParse(args, out NarrateOptions options, out string? error))
         {
             Console.Error.WriteLine(error);
@@ -108,7 +117,9 @@ public sealed record NarrateOptions(
     /// <summary>사용법.</summary>
     public const string Usage = """
         사용법:
-          Npc.Narrate --trace <link.jsonl> [옵션]
+          Npc.Narrate --trace <link.jsonl> [옵션]        기록 → 하루 일지
+          Npc.Narrate card archetype <id>                아키타입 카드 (F-03)
+          Npc.Narrate explain interrupts                 인터럽트 규칙 설명
 
           --trace <path>          --link record 가 만든 jsonl (필수)
           --masterdata <dir>      기본 ./masterdata

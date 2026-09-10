@@ -16,6 +16,9 @@ public sealed class ArchitectureTests
         ["Npc.Wire"] = ["Npc.Contracts"],
         ["Npc.MasterData"] = ["Npc.Core"],
         ["Npc.Planning"] = ["Npc.Core", "Npc.MasterData"],
+
+        // F-03. 정의 설명 생성기. Core·MasterData 만 본다 — 런타임도 LLM 도 모른다.
+        ["Npc.Narrative"] = ["Npc.Core", "Npc.MasterData"],
         ["Npc.Runtime"] = ["Npc.Contracts", "Npc.Core", "Npc.MasterData", "Npc.Planning"],
         ["Npc.Llm"] = ["Npc.Core", "Npc.MasterData"],
         ["Npc.Gateway"] = ["Npc.Contracts", "Npc.Wire"],

@@ -1,7 +1,9 @@
 using System.Collections.Frozen;
 using Npc.Core;
+using Npc.Core.Plan;
+using Npc.MasterData;
 
-namespace Npc.Narrate;
+namespace Npc.Narrative;
 
 /// <summary>
 /// id → 한국어 표기. docs/15 §6 의 서술은 사람이 읽는 것이라 id 를 그대로 쓸 수 없다.
@@ -15,7 +17,7 @@ namespace Npc.Narrate;
 /// </summary>
 public static class Lexicon
 {
-    /// <summary>아키타입 40종.</summary>
+    /// <summary>아키타입 표기. 추가하면 <c>Lexicon_CoversEveryId</c> 가 빠진 것을 알려 준다.</summary>
     public static readonly FrozenDictionary<string, string> Archetypes = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["blacksmith"] = "대장장이",
@@ -178,6 +180,45 @@ public static class Lexicon
         ["statue"] = "석상",
         ["map"] = "지도",
     }.ToFrozenDictionary(StringComparer.Ordinal);
+
+    /// <summary>성향 이름.</summary>
+    public static string Trait(TraitKind kind) => kind switch
+    {
+        TraitKind.Diligence => "근면",
+        TraitKind.Sociability => "사교",
+        TraitKind.Courage => "용기",
+        TraitKind.Greed => "탐욕",
+        _ => kind.ToString(),
+    };
+
+    /// <summary>액션 카테고리. 카드의 액션 묶음 제목이다.</summary>
+    public static string Of(ActionCategory category) => category switch
+    {
+        ActionCategory.Movement => "이동",
+        ActionCategory.Labor => "노동",
+        ActionCategory.Social => "사교",
+        ActionCategory.Needs => "생활",
+        ActionCategory.Combat => "전투",
+        ActionCategory.Items => "소지품",
+        ActionCategory.Misc => "기타",
+        _ => category.ToString(),
+    };
+
+    /// <summary>POI 심볼. <c>$workplace</c> 가 아니라 "일터" 로 읽는다.</summary>
+    public static string Of(PoiSymbol symbol) => symbol switch
+    {
+        PoiSymbol.None => "—",
+        PoiSymbol.Home => "집",
+        PoiSymbol.Workplace => "일터",
+        PoiSymbol.Market => "시장",
+        PoiSymbol.Tavern => "선술집",
+        PoiSymbol.Temple => "신전",
+        PoiSymbol.Gate => "성문",
+        PoiSymbol.NearestField => "가까운 밭",
+        PoiSymbol.NearestSafe => "가까운 안전지대",
+        PoiSymbol.NearestShelter => "가까운 대피소",
+        _ => PoiSymbols.ToText(symbol),
+    };
 
     /// <summary>지역 상태.</summary>
     public static string Of(RegionState state) => state switch

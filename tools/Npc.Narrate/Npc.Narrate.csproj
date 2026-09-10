@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Npc.Core\Npc.Core.csproj" />
     <ProjectReference Include="..\..\src\Npc.Gateway\Npc.Gateway.csproj" />
     <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Narrative\Npc.Narrative.csproj" />
   </ItemGroup>
 
 </Project>

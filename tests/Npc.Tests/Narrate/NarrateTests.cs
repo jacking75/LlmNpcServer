@@ -5,6 +5,7 @@ using Npc.Core;
 using Npc.Gateway;
 using Npc.MasterData;
 using Npc.Narrate;
+using Npc.Narrative;
 
 namespace Npc.Tests.Narrate;
 

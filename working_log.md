@@ -1,5 +1,28 @@
 # 작업 로그
 
+## 2026-09-10 14:35 KST · F-03 설명 생성기 `src/Npc.Narrative`
+
+`Npc.Narrate` 는 **명령 로그**를 일지로 바꿨다. 정의(아키타입·플랜·인터럽트·인스턴스) 자체를
+설명하는 것은 없었다 — 검수자가 `review.ps1` 에서 보는 것은 "허용 22종" 이라는 **개수**였고,
+어떤 22종인지·무엇이 빠졌는지·그 성향이면 어느 인터럽트에 걸리는지는 파일 여섯 개를 대조해야 했다.
+
+- **신규 프로젝트** `src/Npc.Narrative` — `Core`·`MasterData` 만 참조. LLM·시각·난수 없음.
+  `ArchetypeCard`·`PlanExplain`·`InterruptExplain`·`InstanceCard`·`Md`.
+  `Lexicon` 은 `tools/Npc.Narrate` 에서 **이동**했다.
+- 아키타입 카드: 인구/정원(V10 계산) · 근무 시간과 `OnDuty` 함의 · 성향 · 레시피 재료와 소요 ·
+  초기 소지품이 세우는 시작 플래그 · 카테고리별 허용/미허용 액션 · **걸릴 수 있는 인터럽트** ·
+  폴백 하루 트레이스 · 버킷 첨자 구간.
+- **플랜 트레이스가 3단 검증기와 같은 판정을 낸다.** 액션 `grants` + 도착 장소 플래그 +
+  수령 아이템 `grants` 세 가지를 다 더해야 일치한다 — 처음에 도착 grants 를 빼먹어서 멀쩡한
+  폴백이 전부 반려로 그려졌다. `PlanExplain_AgreesWithCoherenceValidator` 가 폴백 40 ×
+  버킷 72 = **2,880건**에서 같은 스텝·같은 코드를 요구한다.
+  자원 수지만 스텝 표에 그리지 않고 별도 표로 내며, 그 예외를 테스트가 고정한다.
+- `Npc.Narrate card archetype <id>` · `card npc <n>` · `card roster <id>` ·
+  `explain interrupts` · `explain fallback <id>`. **F-01 의 `npc` CLI 가 올 자리**이고
+  같은 함수를 부르므로 CLI 가 와도 출력이 바뀌지 않는다.
+- 아키텍처 테스트 허용 그래프에 `Npc.Narrative → Core, MasterData` 를 넣었다.
+- 테스트 13건 추가. 전체 1,297건 통과 · 경고 0.
+
 ## 2026-09-10 13:41 KST · F-05 `ArchetypeCount` 컴파일 상수 제거
 
 아키타입 하나 추가에 C# 상수 수정과 재빌드가 따라왔다. **파일이 41 인데 바이너리가 40 이면
