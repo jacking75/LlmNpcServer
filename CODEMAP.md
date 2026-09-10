@@ -32,7 +32,8 @@
 | **검증 규칙(V1~V15) 추가** | `src/Npc.MasterData/Validation/MasterDataValidator.cs` → **`Validation/FixHints.cs` 에 힌트도 같이** | 실패는 **기동 실패**다. 힌트를 빼먹으면 `FixHintTests` 가 깨진다 |
 | **검증 결과를 기계가 읽어야 한다** | `validate --format json` — `src/Npc.Host/Commands/ValidationJson.cs` · 사전 문서는 `hints --out` 이 생성한다 |
 | **마스터데이터가 안 읽힌다** | `src/Npc.MasterData/MasterDataLoader.cs` → `MasterDataSet.cs` | `dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata` 로 먼저 재현 |
-| **정의가 무엇을 뜻하는지 알고 싶다** | `src/Npc.Narrative/{ArchetypeCard,PlanExplain,InterruptExplain,InstanceCard}.cs` · 껍질은 `Npc.Narrate card`·`explain` | 카드의 ✗ 는 3단 검증기와 **같은 판정**이다(`NarrativeTests`). 갈리면 둘 중 하나가 버그다 |
+| **정의가 무엇을 뜻하는지 알고 싶다** | `src/Npc.Narrative/{ArchetypeCard,PlanExplain,InterruptExplain,InstanceCard}.cs` · 껍질은 `npc card`·`npc explain` | 카드의 ✗ 는 3단 검증기와 **같은 판정**이다(`NarrativeTests`). 갈리면 둘 중 하나가 버그다 |
+| **터미널에서 뭐든 한다** | `tools/Npc.Cli/` — `validate`·`explain`·`card`·`timeline`·`next-code`·`scaffold`·`diff`·`regen`·`plan`·`buckets`·`pin`·`hints` | **CLI 에 로직을 두지 않는다.** 인자를 읽고 코어를 부른다 — MCP(E-03)·Studio(F-02)가 같은 함수를 부른다 |
 | **표기(한국어 이름)를 고친다** | `src/Npc.Narrative/Lexicon.cs` | 표시 계층이다. 행동을 정하는 값은 여전히 `masterdata/` 가 원천 |
 | **다음 `code`·`bit` 를 알아야 한다** | `src/Npc.MasterData/Authoring/CodeAllocator.cs` | 비트는 **예약 구간을 먼저 채운다**. 재배치 API 는 없다 |
 | **가중치를 재배분한다** | `src/Npc.MasterData/Authoring/WeightRebalancer.cs` | 3안을 내고 **고르는 것은 사람**이다. 반올림 잔차까지 맞춰 V5 를 지킨다 |

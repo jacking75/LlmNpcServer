@@ -1,5 +1,36 @@
 # 작업 로그
 
+## 2026-09-10 16:14 KST · F-01 `npc` CLI (`tools/Npc.Cli`)
+
+서브커맨드가 `validate` 하나였다. F-03·F-04 의 라이브러리를 사람과 LLM 이 터미널에서 쓸
+껍질이 없었다.
+
+- **신규** `tools/Npc.Cli` (`AssemblyName` = `npc`). `Npc.Narrative` · `Npc.MasterData.Authoring` ·
+  검증 4단(`Npc.Core`·`Npc.Sim`)을 부른다. **CLI 에 로직을 두지 않았다** — MCP(E-03)와
+  Studio(F-02)가 같은 함수를 부르므로 여기만의 규칙을 만들면 세 껍질이 다르게 답한다.
+- `validate`(+`--json`) · `explain archetype|action|poi|item|flag|interrupt` ·
+  `card archetype|npc|roster` · `timeline archetype` · `hints` ·
+  `next-code` · `scaffold archetype` · `diff` · `regen`(+`--check`) ·
+  `plan validate|explain|narrate` · `buckets` · `pin`.
+- **F-04 완료 조건을 여기서 확인했다.** `npc scaffold archetype beekeeper --from shepherd
+  --weight 0.004` 가 재배분 3안·파급표·남은 일을 내고, `--apply` 가 서식을 보존해 고친다 —
+  diff 가 2줄 + 새 블록이고 가중치 합 1.0, 아키타입 41, 한글 escape 없음.
+- **버그 둘을 실측으로 잡았다.** ① 베낀 조각의 들여쓰기가 두 겹이 됐다(원문 들여쓰기를
+  먼저 벗겨야 했다). ② `desc` 가 `\uXXXX` 로 escape 됐다 — 파일의 다른 줄은 다 한글이라
+  도구가 넣은 줄만 표기가 달랐다.
+- `plan validate` 는 **플랜 스토어 봉투와 문서 둘 다** 받는다. 봉투의 `bucket` 을 읽으므로
+  `--bucket` 없이 `planstore/plans/*.json` 을 바로 줄 수 있다.
+- 아직 없는 명령(`repair`·`review`·`serve`)은 "모르는 명령" 이 아니라 **"아직 없다 — 어느
+  태스크를 기다린다"** 로 답한다. 오타와 미구현을 구별하지 못하면 사람이 헤맨다.
+- `ValidationJson` 을 `Npc.Host/Commands` → `Npc.MasterData/Validation` 으로 옮겼다.
+  두 껍질이 같은 JSON 을 내야 LLM 이 같은 것을 읽는다.
+- **인자 파서는 손으로 썼다.** 로드맵은 `System.CommandLine` 을 적었지만 2.0 이 아직
+  프리릴리스이고, 이 저장소의 다른 파서(`HostOptions`·`PrebakeOptions`)가 모두 수제다 —
+  도구 하나 때문에 프리릴리스를 중앙 패키지 목록에 넣지 않았다.
+- 테스트 25건 추가. 전체 1,356건 통과 · 경고 0.
+- **미달**: 튜토리얼 5·7·9장의 패치 스크립트를 `npc` 명령으로 전면 대체하는 개정은 하지
+  않았다. 7장 스크립트에 대체 명령을 주석으로 달아 두었다.
+
 ## 2026-09-10 15:22 KST · F-04 편집 안전장치 · 검증 V12/V13
 
 `code`/`bit` 를 손으로 정하고, 가중치 합을 손으로 맞추고, 거리표·인스턴스 재생성을 기억해야

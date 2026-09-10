@@ -318,3 +318,16 @@ public static class JsonSurgeon
         return Encoding.UTF8.GetString(utf8, 0, byteOffset).Length;
     }
 }
+
+/// <summary>
+/// <see cref="JsonSurgeon"/> 이 만드는 문자열 리터럴의 인코딩 옵션.
+///
+/// <b>한글을 escape 하지 않는다.</b> 마스터데이터는 사람이 읽고 고치는 파일이고
+/// 다른 줄은 전부 한글 그대로다 — 도구가 넣은 줄만 <c>\uXXXX</c> 면 그 파일이 두 가지 표기를 갖게 된다.
+/// </summary>
+public static class JsonSurgeonText
+{
+    /// <summary>직렬화 옵션.</summary>
+    public static JsonSerializerOptions Options { get; } =
+        new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+}

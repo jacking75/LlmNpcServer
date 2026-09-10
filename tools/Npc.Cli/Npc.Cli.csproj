@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    npc CLI (F-01). 사람과 LLM 이 터미널에서 쓰는 껍질.
+
+    코어는 다른 곳에 있다 — Npc.Narrative(설명) · Npc.MasterData.Authoring(편집 안전장치) ·
+    Npc.Core/Npc.Sim(검증 4단). MCP 서버(E-03)와 Studio(F-02)가 같은 함수를 부른다.
+
+    인자 파서는 손으로 쓴다. 이 저장소의 다른 파서(HostOptions · PrebakeOptions)가 그렇고,
+    System.CommandLine 2.0 은 여전히 프리릴리스다 — 도구 하나 때문에 프리릴리스 의존을
+    중앙 패키지 목록에 넣지 않는다.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Npc.Cli</RootNamespace>
+    <AssemblyName>npc</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Npc.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.Contracts\Npc.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Narrative\Npc.Narrative.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Planning\Npc.Planning.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Sim\Npc.Sim.csproj" />
+  </ItemGroup>
+
+</Project>

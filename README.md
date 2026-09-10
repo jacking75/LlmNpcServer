@@ -73,7 +73,7 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 
 | 구분 | 내용 |
 |---|---|
-| **실행 바이너리** | `Npc.Host`(NPC 서버 — 게임서버 대역·리플레이는 `--link` 로 갈아끼운다) · `Npc.Prebake`(플랜 생성 CLI) · `Npc.Narrate`(플랜을 사람 말로) · `Npc.TestGameServer`·`Npc.TestClient`(P6) |
+| **실행 바이너리** | `Npc.Host`(NPC 서버 — 게임서버 대역·리플레이는 `--link` 로 갈아끼운다) · `npc`(마스터데이터·플랜 CLI) · `Npc.Prebake`(플랜 생성 CLI) · `Npc.Narrate`(기록을 하루 일지로) · `Npc.TestGameServer`·`Npc.TestClient`(P6) |
 | **데이터 아티팩트** | 마스터데이터 11종 · **프리베이크 플랜 2,880개** · 골든 픽스처 50건 · 리플레이 로그 |
 | **관측** | 운영 대시보드 (단일 HTML) |
 | **테스트 베드** | `Npc.TestGameServer`(소켓 게임서버 대역) · `Npc.TestClient`(WinForms 뷰어) → [`testbed/`](testbed/README.md) |
@@ -295,6 +295,7 @@ testbed/            테스트 베드 — 단방향 잎(아무도 참조하지 �
   Npc.TestClient/        WinForms 클라이언트 (net10.0-windows)
   scenarios/             데모 시나리오 3종 · run_demo.ps1
 tools/
+  Npc.Cli/          `npc` CLI — 검증·설명·편집·플랜 (F-01)
   Npc.Prebake/      프리베이크 CLI
   Npc.Narrate/      기록 → 하루 일지 · `card`·`explain` 서브커맨드(Npc.Narrative 껍질)
   *.cs              파일 기반 .NET 앱 (gen_npcs · gen_poi_distances · report_scale · …)

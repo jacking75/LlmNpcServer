@@ -17,6 +17,8 @@
       ① items.json           honey 추가                         (5장과 같다)
       ② pois.json            apiary POI 둘 + allowed_archetypes
       ③ archetypes.json      beekeeper(code 40) · 가중치 재배분
+                           ← F-01 이후에는 이 한 줄로도 된다:
+                             npc scaffold archetype beekeeper --from shepherd --weight 0.004 --apply
       ④ context_buckets.json total_keys 2880 → 2952
       ⑤ fallback_plans.json  fb_beekeeper
       ⑥ gen_npcs 재실행      npc_instances.json 을 다시 만든다

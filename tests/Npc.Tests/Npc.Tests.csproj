@@ -32,6 +32,7 @@
     <!-- 프로젝트가 sln 밖에 있거나 참조가 없으면 dotnet test 가 완료 조건의 테스트를 아예 안 본다. -->
     <ProjectReference Include="..\..\tools\Npc.Prebake\Npc.Prebake.csproj" />
     <ProjectReference Include="..\..\tools\Npc.Narrate\Npc.Narrate.csproj" />
+    <ProjectReference Include="..\..\tools\Npc.Cli\Npc.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>

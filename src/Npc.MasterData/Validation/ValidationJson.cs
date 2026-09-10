@@ -1,9 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Npc.MasterData;
-using Npc.MasterData.Validation;
 
-namespace Npc.Host.Commands;
+namespace Npc.MasterData.Validation;
 
 /// <summary>기계가 읽는 위반 하나 (E-04).</summary>
 /// <param name="Code">검증 코드.</param>
