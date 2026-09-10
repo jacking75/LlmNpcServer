@@ -4,6 +4,7 @@ using Npc.Contracts;
 using Npc.Core;
 using Npc.MasterData;
 using Npc.MasterData.Authoring;
+using Npc.MasterData.Schema;
 using Npc.MasterData.Validation;
 using Npc.Narrative;
 
@@ -459,6 +460,33 @@ public static class HintsCommand
         ctx.Out.WriteLine(
             $"검증 코드 {FixHints.Codes.Count()}건. "
             + $"markdown 문서는 `npc hints --out {FixHintDocument.Path}` 가 만든다.");
+
+        return Program.Ok;
+    }
+}
+
+/// <summary>
+/// <c>npc schema [--out &lt;dir&gt;]</c> (F-01 · E-02).
+///
+/// <b>스키마는 생성물이다.</b> 손으로 관리하면 로더와 어긋나고, 어긋난 스키마는 없는 것보다
+/// 나쁘다 — LLM 과 에디터가 그것을 근거로 틀린 것을 만든다.
+/// </summary>
+public static class SchemaCommand
+{
+    /// <summary>돌린다.</summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("스키마 발행은 리플렉션을 쓴다. 도구 전용이다.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("스키마 발행은 리플렉션을 쓴다. 도구 전용이다.")]
+    public static int Run(CliContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+
+        string outDir = Program.Flag(ctx, "--out") ?? SchemaCatalog.Directory;
+        int count = SchemaCatalog.Write(outDir, ctx.Data);
+
+        ctx.Out.WriteLine($"{outDir} 에 스키마 {count}개를 썼다.");
+        ctx.Out.WriteLine(
+            "허용 값은 지금 마스터데이터의 것이다 — 정적 변형은 `*"
+            + SchemaCatalog.BaseSuffix + "` 다.");
 
         return Program.Ok;
     }

@@ -1,0 +1,244 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "문자열 id. 다른 파일이 이 값으로 참조한다 (V3)."
+          },
+          "code": {
+            "type": "integer",
+            "description": "파일 내 유일해야 한다 (V1). **재배치하지 않는다** — 프리베이크된 플랜이 깨진다."
+          },
+          "category": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "string"
+          },
+          "params": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "values": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "default": true,
+                "min": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "max": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "_comment": {
+                  "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+                }
+              }
+            }
+          },
+          "requires": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "requires_any": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "forbids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "grants": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "clears": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "duration": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "base_s": {
+                "type": "integer"
+              },
+              "per_meter_s": {
+                "type": "number"
+              },
+              "param": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "_comment": {
+                "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+              }
+            }
+          },
+          "cost": {
+            "type": "integer"
+          },
+          "default_timeout_s": {
+            "type": "integer"
+          },
+          "emits": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "command": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "map": {
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "_comment": {
+                  "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+                }
+              }
+            }
+          },
+          "completes_on": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "fails_on": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "_comment": {
+            "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+          }
+        }
+      }
+    },
+    "_comment": {
+      "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    },
+    "$schema": {
+      "description": "에디터용 스키마 경로. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "string"
+    },
+    "version": {
+      "description": "파일 형식 버전. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "integer"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "액션 카탈로그 — 40개 상한",
+  "$comment": "정적 변형 — 허용 값(enum)이 없다. 구조만 설명한다.",
+  "description": "actions.json 의 구조. **스키마는 검증기가 아니다** — 교차 제약(V5 가중치 합 · V6 total_keys · V10 정원 · V11 도달)은 여기서 표현할 수 없고 MasterDataValidator 가 판정한다. docs/reference_masterdata.html 이 전문이다."
+}

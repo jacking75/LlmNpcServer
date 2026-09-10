@@ -1,0 +1,158 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "version": {
+      "description": "파일 형식 버전. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "integer"
+    },
+    "plans": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "문자열 id. 다른 파일이 이 값으로 참조한다 (V3)."
+          },
+          "archetype": {
+            "type": "string",
+            "enum": [
+              "acolyte",
+              "alchemist",
+              "baker",
+              "banker",
+              "beggar",
+              "blacksmith",
+              "brewer",
+              "caravan_leader",
+              "carpenter",
+              "child",
+              "drunkard",
+              "elder",
+              "farmer",
+              "fisher",
+              "gate_guard",
+              "guard_captain",
+              "healer",
+              "herbalist",
+              "hunter",
+              "innkeeper",
+              "jeweler",
+              "mason",
+              "merchant",
+              "miner",
+              "noble",
+              "patrol_scout",
+              "peddler",
+              "priest",
+              "quest_giver",
+              "scholar",
+              "scribe",
+              "shepherd",
+              "stablemaster",
+              "tailor",
+              "tanner",
+              "town_guard",
+              "villager",
+              "wandering_bard",
+              "watchman",
+              "woodcutter"
+            ]
+          },
+          "goal": {
+            "type": "string"
+          },
+          "loop": {
+            "type": "boolean"
+          },
+          "on_step_fail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "Attack",
+                    "Bathe",
+                    "CallForHelp",
+                    "Cook",
+                    "Craft",
+                    "Defend",
+                    "Drink",
+                    "Drop",
+                    "Eat",
+                    "Emote",
+                    "Equip",
+                    "Farm",
+                    "Fish",
+                    "Flee",
+                    "Follow",
+                    "Gather",
+                    "Gossip",
+                    "Greet",
+                    "Guard",
+                    "Mine",
+                    "MoveTo",
+                    "Observe",
+                    "Patrol",
+                    "Perform",
+                    "PickUp",
+                    "Pray",
+                    "Repair",
+                    "Rest",
+                    "Retreat",
+                    "Sleep",
+                    "Store",
+                    "Talk",
+                    "Trade",
+                    "Wait",
+                    "Wander",
+                    "Withdraw",
+                    "Work"
+                  ]
+                },
+                "args": true,
+                "timeout_s": {
+                  "type": "integer"
+                },
+                "_comment": {
+                  "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+                }
+              }
+            }
+          },
+          "_comment": {
+            "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+          }
+        }
+      }
+    },
+    "_comment": {
+      "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    },
+    "$schema": {
+      "description": "에디터용 스키마 경로. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "폴백 플랜",
+  "$comment": "content_hash=27edd9b5ede3e80249a51f6c26b643691e98ac0854475f92100fc7fa9a0762f1 기준. 허용 값은 이 마스터데이터 상태의 것이다.",
+  "description": "fallback_plans.json 의 구조. **스키마는 검증기가 아니다** — 교차 제약(V5 가중치 합 · V6 total_keys · V10 정원 · V11 도달)은 여기서 표현할 수 없고 MasterDataValidator 가 판정한다. docs/reference_masterdata.html 이 전문이다."
+}

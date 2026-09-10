@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/zones.schema.json",
   "version": 1,
   "_comment": [
     "docs/01 §4. 존 12개. adjacent 는 대칭이며 그래프는 연결돼 있다 (V11).",

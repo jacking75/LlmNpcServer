@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/pois.schema.json",
   "version": 1,
   "_comment": [
     "docs/01 §4. POI 243개. type 8종 / subtype 27종.",

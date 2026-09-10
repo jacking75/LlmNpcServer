@@ -1,0 +1,109 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "values": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "game_hours": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "integer"
+              }
+            }
+          },
+          "world_flag": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "_comment": {
+            "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+          }
+        }
+      }
+    },
+    "total_keys": {
+      "type": "integer",
+      "description": "아키타입 수 × 72. **사람이 읽는 기록이다** — 코드는 이 값을 읽지 않고 V6 이 대조한다."
+    },
+    "prebake_priority": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "region_state": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "_comment": {
+            "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+          }
+        }
+      }
+    },
+    "_comment": {
+      "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    },
+    "$schema": {
+      "description": "에디터용 스키마 경로. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "string"
+    },
+    "version": {
+      "description": "파일 형식 버전. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "integer"
+    },
+    "key_format": {
+      "description": "설명용 필드. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    },
+    "key_example": {
+      "description": "설명용 필드. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    },
+    "index_formula": {
+      "description": "설명용 필드. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "버킷 차원",
+  "$comment": "정적 변형 — 허용 값(enum)이 없다. 구조만 설명한다.",
+  "description": "context_buckets.json 의 구조. **스키마는 검증기가 아니다** — 교차 제약(V5 가중치 합 · V6 total_keys · V10 정원 · V11 도달)은 여기서 표현할 수 없고 MasterDataValidator 가 판정한다. docs/reference_masterdata.html 이 전문이다."
+}

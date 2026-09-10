@@ -45,6 +45,12 @@ if (args.Length > 0 && args[0] == HintsCommand.Name)
     return HintsCommand.Run(args[1..], Console.Out);
 }
 
+// JSON Schema 발행 (E-02). 스키마도 생성물이다 — 손으로 두면 로더와 어긋난다.
+if (args.Length > 0 && args[0] == SchemaCommand.Name)
+{
+    return SchemaCommand.Run(args[1..], Console.Out);
+}
+
 // 설정은 세 겹이다 (A-04): CLI > 환경변수(NPC_*) > 설정 파일(npc.settings.json) > 기본값.
 // 배포 시스템이 ConfigMap·시크릿으로 넘길 길이 없으면 옵션 30개가 전부 손으로 친 명령줄이 된다.
 if (!HostOptions.TryParseLayered(args, env: null, out HostOptions options, out string? parseError))

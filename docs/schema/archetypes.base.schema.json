@@ -1,0 +1,166 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "archetypes": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "문자열 id. 다른 파일이 이 값으로 참조한다 (V3)."
+          },
+          "code": {
+            "type": "integer",
+            "description": "파일 내 유일해야 한다 (V1). **재배치하지 않는다** — 프리베이크된 플랜이 깨진다."
+          },
+          "name_key": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "string"
+          },
+          "allowed_actions": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "home_poi_type": {
+            "type": "string"
+          },
+          "workplace_poi_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "primary_recipes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "traits": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "diligence": {
+                "type": "integer"
+              },
+              "sociability": {
+                "type": "integer"
+              },
+              "courage": {
+                "type": "integer"
+              },
+              "greed": {
+                "type": "integer"
+              },
+              "_comment": {
+                "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+              }
+            }
+          },
+          "default_goals": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "initial_inventory": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "item": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "_comment": {
+                  "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+                }
+              }
+            }
+          },
+          "duty_hours": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": "근무 시간대. **비우면 OnDuty 가 서지 않는다** — Guard·Patrol 을 허용하려면 필요하다 (V12)."
+          },
+          "fallback_plan": {
+            "type": "string",
+            "description": "모든 아키타입에 있어야 한다 (V7). 허용 액션만으로 구성 (V8)."
+          },
+          "combat_capable": {
+            "type": "boolean"
+          },
+          "population_weight": {
+            "type": "number",
+            "description": "0..1. 전체 합이 정확히 1.0 ±0.001 이어야 한다 (V5)."
+          },
+          "_comment": {
+            "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+          }
+        }
+      }
+    },
+    "_comment": {
+      "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    },
+    "$schema": {
+      "description": "에디터용 스키마 경로. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "string"
+    },
+    "version": {
+      "description": "파일 형식 버전. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "integer"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "아키타입",
+  "$comment": "정적 변형 — 허용 값(enum)이 없다. 구조만 설명한다.",
+  "description": "archetypes.json 의 구조. **스키마는 검증기가 아니다** — 교차 제약(V5 가중치 합 · V6 total_keys · V10 정원 · V11 도달)은 여기서 표현할 수 없고 MasterDataValidator 가 판정한다. docs/reference_masterdata.html 이 전문이다."
+}

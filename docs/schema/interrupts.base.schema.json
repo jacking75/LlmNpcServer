@@ -1,0 +1,143 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "문자열 id. 다른 파일이 이 값으로 참조한다 (V3)."
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "when": {
+            "type": "object",
+            "properties": {
+              "any_flag": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "all_flag": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "none_flag": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "event": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "archetype_trait": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "combat_capable": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "_comment": {
+                "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string"
+              },
+              "params": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "_comment": {
+                "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+              }
+            }
+          },
+          "replan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "urgency": {
+                "type": "integer"
+              },
+              "_comment": {
+                "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+              }
+            }
+          },
+          "_comment": {
+            "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+          }
+        }
+      }
+    },
+    "_comment": {
+      "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    },
+    "$schema": {
+      "description": "에디터용 스키마 경로. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "string"
+    },
+    "version": {
+      "description": "파일 형식 버전. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "integer"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "인터럽트 규칙",
+  "$comment": "정적 변형 — 허용 값(enum)이 없다. 구조만 설명한다.",
+  "description": "interrupts.json 의 구조. **스키마는 검증기가 아니다** — 교차 제약(V5 가중치 합 · V6 total_keys · V10 정원 · V11 도달)은 여기서 표현할 수 없고 MasterDataValidator 가 판정한다. docs/reference_masterdata.html 이 전문이다."
+}

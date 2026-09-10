@@ -39,6 +39,7 @@
 | **가중치를 재배분한다** | `src/Npc.MasterData/Authoring/WeightRebalancer.cs` | 3안을 내고 **고르는 것은 사람**이다. 반올림 잔차까지 맞춰 V5 를 지킨다 |
 | **JSON 을 서식 보존으로 고친다** | `src/Npc.MasterData/Authoring/JsonSurgeon.cs` | 무변경 편집은 **바이트 동일**이어야 한다 |
 | **파생물이 낡았는지 본다** | `src/Npc.MasterData/Authoring/DerivedArtifacts.cs` · `masterdata/derived.lock.json` | 기록이 없으면 **낡은 것**이다. 생성기가 쓰고 로더가 경고한다 |
+| **스키마가 필요하다 (LLM·에디터)** | `npc schema` → `docs/schema/*.schema.json` · 생성기는 `src/Npc.MasterData/Schema/SchemaCatalog.cs` | **생성물이다.** 허용 값은 지금 마스터데이터에서 나온다 — `*.base.schema.json` 은 값 없는 정적 변형 |
 | **무엇을 다시 해야 하는지 본다** | `src/Npc.MasterData/Authoring/ImpactAnalyzer.cs` | `PlanStoreValidator` 와 **같은 판정**이어야 한다(테스트가 강제) |
 
 ### 런타임 · 틱 루프

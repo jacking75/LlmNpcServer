@@ -1,0 +1,132 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "version": {
+      "description": "파일 형식 버전. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "integer"
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "npcs": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "문자열 id. 다른 파일이 이 값으로 참조한다 (V3)."
+          },
+          "archetype": {
+            "type": "string",
+            "enum": [
+              "acolyte",
+              "alchemist",
+              "baker",
+              "banker",
+              "beggar",
+              "blacksmith",
+              "brewer",
+              "caravan_leader",
+              "carpenter",
+              "child",
+              "drunkard",
+              "elder",
+              "farmer",
+              "fisher",
+              "gate_guard",
+              "guard_captain",
+              "healer",
+              "herbalist",
+              "hunter",
+              "innkeeper",
+              "jeweler",
+              "mason",
+              "merchant",
+              "miner",
+              "noble",
+              "patrol_scout",
+              "peddler",
+              "priest",
+              "quest_giver",
+              "scholar",
+              "scribe",
+              "shepherd",
+              "stablemaster",
+              "tailor",
+              "tanner",
+              "town_guard",
+              "villager",
+              "wandering_bard",
+              "watchman",
+              "woodcutter"
+            ]
+          },
+          "zone": {
+            "type": "string",
+            "enum": [
+              "deepwood",
+              "farmlands",
+              "gate_east",
+              "gate_west",
+              "highland_pasture",
+              "mine_hills",
+              "riverside",
+              "town_center",
+              "town_east_market",
+              "town_north",
+              "town_south",
+              "town_west_crafts"
+            ]
+          },
+          "home_poi": {
+            "type": "string"
+          },
+          "workplace_poi": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spawn_pos": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              },
+              "_comment": {
+                "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+              }
+            }
+          },
+          "_comment": {
+            "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+          }
+        }
+      }
+    },
+    "_comment": {
+      "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    },
+    "$schema": {
+      "description": "에디터용 스키마 경로. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NPC 인스턴스 (생성물)",
+  "$comment": "content_hash=27edd9b5ede3e80249a51f6c26b643691e98ac0854475f92100fc7fa9a0762f1 기준. 허용 값은 이 마스터데이터 상태의 것이다.",
+  "description": "npc_instances.json 의 구조. **스키마는 검증기가 아니다** — 교차 제약(V5 가중치 합 · V6 total_keys · V10 정원 · V11 도달)은 여기서 표현할 수 없고 MasterDataValidator 가 판정한다. docs/reference_masterdata.html 이 전문이다."
+}

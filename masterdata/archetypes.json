@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/archetypes.schema.json",
   "version": 1,
   "_comment": [
     "docs/01 §5. 아키타입 40종.",

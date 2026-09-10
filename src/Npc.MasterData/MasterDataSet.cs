@@ -1218,4 +1218,9 @@ internal sealed record NpcInstanceDto(
 [JsonSerializable(typeof(PoisFile))]
 [JsonSerializable(typeof(BucketsFile))]
 [JsonSerializable(typeof(NpcInstancesFile))]
+
+// 스키마 발행 전용 (E-02). 로더는 쓰지 않지만 스키마는 이 모양에서 나온다 —
+// SchemaDtoTests 가 실제 파일과의 드리프트를 막는다.
+[JsonSerializable(typeof(WorldFlagsFile))]
+[JsonSerializable(typeof(FallbackPlansFile))]
 internal sealed partial class WorldJsonContext : JsonSerializerContext;

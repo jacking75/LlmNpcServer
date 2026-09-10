@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/interrupts.schema.json",
   "version": 1,
   "_comment": [
     "docs/01 §7. LLM 이 만들지 않는다 — 인터럽트는 반응 속도가 생명이라 결정론 규칙으로만 정의한다.",

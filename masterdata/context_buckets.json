@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/context_buckets.schema.json",
   "version": 1,
   "_comment": [
     "docs/01 §6. 플랜 캐시의 키 공간 정의.",

@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/items.schema.json",
   "version": 1,
   "_comment": [
     "docs/01 §3. grants 가 이 파일의 핵심이다.",

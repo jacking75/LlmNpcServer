@@ -37,6 +37,7 @@ public static class Program
           card archetype <id> | npc <첨자> | roster <id>
           timeline archetype <id>        24시간 띠 (근무·폴백 스텝)
           hints [--out <path>]           검증 오류 사전. --out 은 markdown 을 생성한다
+          schema [--out <dir>]           JSON Schema 발행 (기본 docs/schema)
 
         편집
           next-code items|pois|actions|archetypes|zones|flags
@@ -111,6 +112,7 @@ public static class Program
             "card" => CardCommand.Run(ctx),
             "timeline" => TimelineCommand.Run(ctx),
             "hints" => HintsCommand.Run(ctx),
+            "schema" => SchemaCommand.Run(ctx),
             "next-code" => NextCodeCommand.Run(ctx),
             "scaffold" => ScaffoldCommand.Run(ctx),
             "diff" => DiffCommand.Run(ctx),

@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/world_flags.schema.json",
   "version": 1,
   "_comment": [
     "docs/01 §1. 플랜의 전제조건·효과, 인지 스캔의 이탈 판정이 전부 이 64비트 위에서 돈다.",

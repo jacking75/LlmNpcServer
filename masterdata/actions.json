@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/actions.schema.json",
   "version": 1,
   "_comment": [
     "docs/01 §2. LLM 이 조합할 수 있는 유일한 원자 단위이며, 이 파일이 곧 프롬프트 프리픽스의 본문이 된다.",

@@ -380,6 +380,7 @@ npc --help
 | `card npc <첨자>` · `card roster <id>` | 개체 카드(집·일터·거리·근무 허가) · 아키타입별 인스턴스 구간 | — |
 | `timeline archetype <id>` | 24시간 띠. 근무 시간과 폴백 스텝을 **같은 축에** 놓는다 | — |
 | `hints [--out <path>]` | 검증 오류 사전 41건. `--out` 은 `docs/llm/VALIDATION.md` 를 **생성**한다 | — |
+| `schema [--out <dir>]` | JSON Schema 발행 (E-02). **허용 값은 지금 마스터데이터에서 나온다** — 정적 변형(`*.base.schema.json`)도 같이 낸다 | — |
 | `next-code items\|pois\|actions\|archetypes\|zones\|flags` | 다음 번호. **비트는 예약 구간부터 채운다.** 재배치 API 는 없다 | ✓ |
 | `scaffold archetype <id> --from <id> --weight <w>` | 새 아키타입 초안 + **가중치 재배분 3안** + 파급표. 기본 dry-run, `--apply` 로 반영 | — |
 | `diff [--base <rev>]` | 바뀐 파일 → 사람 말 파급(무효화·프리픽스·구조 해시·재생성) | — |

@@ -1,4 +1,5 @@
 {
+  "$schema": "../docs/schema/fallback_plans.schema.json",
   "version": 1,
   "_comment": [
     "docs/01 §8 · docs/11 §7. LLM·캐시가 전부 실패했을 때 쓰는 최후 보루. 아키타입당 1개.",

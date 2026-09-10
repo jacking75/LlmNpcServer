@@ -1,5 +1,32 @@
 # 작업 로그
 
+## 2026-09-11 09:40 KST · E-02 JSON Schema 발행
+
+LLM 이 마스터데이터를 만들 때 필드 이름·타입·허용 값을 **추측**했다. 사람도 에디터
+자동완성이 없었다. 스키마를 손으로 쓰면 로더와 어긋나므로 **로더의 DTO 에서 뽑는다**.
+
+- **신규** `src/Npc.MasterData/Schema/SchemaCatalog.cs` — `JsonSchemaExporter` 로 구조를 뽑고
+  **허용 값(enum)은 지금 마스터데이터에서** 채운다. 파일 10종 × (동적·정적) = **20개**.
+  `npc schema` · `Npc.Host schema` 둘 다 같은 것을 낸다.
+- **`required` 를 싣지 않는다.** DTO 생성자 인자가 전부 required 로 나오는데 실제 파일은
+  선택 필드를 생략한다(`duty_hours`) — 스키마가 필수 판정을 흉내 내면 멀쩡한 파일에 빨간
+  줄이 그어지고 사람이 스키마를 꺼 버린다. 필수는 로더와 V1~V13 이 안다.
+- **허용 값은 (파일, 필드) 쌍으로 정한다.** 같은 이름이 파일마다 다른 뜻이다 —
+  `pois.type` 은 POI 종류이고 `actions.params.*.type` 은 파라미터 타입이다.
+  이름만 보고 붙였다가 액션 33종이 전부 떨어졌다.
+- 로더가 무시하는 필드(`version`·`_comment`·`$schema`·`exclusive_groups`·`key_format` …)를
+  스키마가 허용한다. 거절하면 파일에 `$schema` 를 못 붙이고 에디터가 스키마를 못 찾는다.
+- **드리프트 방지 둘.** ① `SchemaCatalogTests` — 커밋된 마스터데이터가 스키마를 통과하고,
+  고의 오류(타입 불일치·없는 액션)는 걸리며, **교차 제약(V5)은 못 잡는다는 것까지** 단언한다.
+  ② `SchemaDtoTests` — `world_flags`·`fallback_plans` 는 로더 DTO 가 없어 스키마 전용 DTO 를
+  뒀는데, 실제 파일을 훑어 **DTO 가 모르는 필드가 있으면 깨진다**.
+- 마스터데이터 10종에 `"$schema"` 를 붙였다. content hash 가 바뀌어 파생물 2건이 낡았고,
+  **F-04 의 신선도 검사가 그것을 그대로 잡았다** — 재생성했다.
+- `JsonSchemaExporter` 는 원시 타입까지 메타데이터를 요구해 소스 생성 컨텍스트로는 안 된다.
+  경고를 억제하지 않고 `[RequiresUnreferencedCode]`/`[RequiresDynamicCode]` 로 **표시**했다 —
+  실수로 서버 기동 경로에 들어오면 빌드가 알려 준다.
+- 테스트 38건 추가. 전체 1,391건 통과 · 경고 0.
+
 ## 2026-09-10 20:31 KST · README 기능 목록·도구·LLM 지시 절 · 검증 JSON 을 snake_case 로
 
 README 에 "이 서버가 무엇을 할 수 있는가" 와 "LLM 에게 어떻게 시키는가" 가 없었다.
