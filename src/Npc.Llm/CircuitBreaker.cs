@@ -156,4 +156,30 @@ public sealed class CircuitBreaker
 
     /// <summary>강제로 닫는다. 테스트와 운영 수동 복구용.</summary>
     public void Reset() => RecordSuccess();
+
+    /// <summary>
+    /// 강제로 연다 (C-08). <b>호출 실패가 아니라 바깥의 판정으로 차단할 때</b> 쓴다 —
+    /// 로컬 추론 프로세스가 죽은 것을 헬스 프로브가 먼저 알았을 때가 그렇다.
+    ///
+    /// <para>
+    /// <b>연속 실패 계수는 건드리지 않는다.</b> 그 숫자는 "호출이 몇 번 연달아 실패했나" 이고,
+    /// 여기서 올리면 프로브가 브레이커의 자기 계측을 오염시킨다.
+    /// </para>
+    ///
+    /// <para>이미 열려 있으면 타이머를 밀지 않는다 — 프로브가 60초마다 부르면 영원히 안 풀린다.</para>
+    /// </summary>
+    /// <param name="now">지금 틱.</param>
+    /// <returns>이번 호출로 열렸으면 true. 이미 열려 있었으면 false.</returns>
+    public bool ForceOpen(Tick now)
+    {
+        if (StateAt(now) == CircuitState.Open)
+        {
+            return false;
+        }
+
+        Volatile.Write(ref _openedAt, now.Value);
+        Interlocked.Increment(ref _opens);
+
+        return true;
+    }
 }

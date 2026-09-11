@@ -49,6 +49,7 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     private long _spilloverDeferred;
     private long _failovers;
     private long _spillovers;
+    private long _localOutageSpillovers;
 
     /// <summary>라우터를 만든다. 기동 시 1회.</summary>
     /// <param name="local">T1 — 로컬 엔진 컴파일러.</param>
@@ -148,6 +149,29 @@ public sealed class TieredPlanCompiler : IPlanCompiler
     public bool HasT2 { get; init; } = true;
 
     /// <summary>
+    /// 로컬 추론 프로세스가 살아 있는가 (C-08). null 이면 항상 살아 있다고 본다.
+    ///
+    /// <para>
+    /// <b>죽었으면 T1 요청을 T2 로 흘린다.</b> 큐 폭주 스필오버(<see cref="SpilloverThreshold"/>)와
+    /// 같은 장치이고 이유도 같다 — "늦게 오는 것보다 비싸게 오는 게 낫다". 다른 점은 원인이
+    /// 우리 쪽 적체가 아니라 <b>사이드카가 죽은 것</b>이라 사람이 알아야 한다는 것뿐이다
+    /// (<see cref="LocalEngineProbe.OnChange"/> 가 알린다).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>킬스위치와 다르다.</b> 킬스위치는 사람이 끊은 것이고 이것은 프로세스가 죽은 것이다 —
+    /// 섞으면 <c>/status</c> 의 킬스위치 목록이 "누가 끊었나" 에 답하지 못한다.
+    /// </para>
+    /// </summary>
+    public Func<bool>? LocalHealthy { get; init; }
+
+    /// <summary>
+    /// 로컬 엔진이 죽어 T2 로 흘린 요청 수 (C-08).
+    /// <b>0 이 아니면 사이드카가 죽어 있었다</b> — 그동안 T1 단가로 살 것을 T2 단가로 샀다.
+    /// </summary>
+    public long LocalOutageSpillovers => Interlocked.Read(ref _localOutageSpillovers);
+
+    /// <summary>
     /// 이 티어를 지금 쓸 수 있는가. <b>킬스위치만 본다</b> —
     /// 브레이커는 일시적 차단이라 선택 시점이 아니라 호출 직전에 보고(<see cref="CircuitBreaker.TryEnter"/>)
     /// 단락 횟수를 센다. 여기서 같이 보면 그 계수가 사라진다.
@@ -177,6 +201,13 @@ public sealed class TieredPlanCompiler : IPlanCompiler
         // 프리베이크와 런타임 미스가 같은 값이라 여기서 갈리지 않는다 (§4 표 1·2행).
         if (request.Quality == PlanQuality.Archetype)
         {
+            return Tier.T2;
+        }
+
+        // C-08 — 로컬 프로세스가 죽었으면 T1 으로 보내 봐야 타임아웃뿐이다. T2 로 흘린다.
+        if (LocalHealthy is { } healthy && !healthy() && Available(Tier.T2))
+        {
+            Interlocked.Increment(ref _localOutageSpillovers);
             return Tier.T2;
         }
 

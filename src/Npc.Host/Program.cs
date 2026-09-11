@@ -1818,6 +1818,11 @@ internal sealed class NpcHost : IAsyncDisposable
 /// <param name="Reloads">성공한 무중단 리로드 수 (A-07).</param>
 /// <param name="ReloadFailures">거절된 리로드 수. <b>0 이 아니면 디스크에 못 올릴 것이 있다.</b></param>
 /// <param name="LastReload">마지막 리로드 결과 한 줄. 아직 없으면 "아직 없음".</param>
+/// <param name="LocalEngine">
+/// 로컬 추론 프로세스 상태 (C-08). 감시하지 않으면 "감시 없음".
+///
+/// <b>"감시 없음" 은 "정상" 이 아니다</b> — T1 에 로컬 엔진이 없거나 티어가 꺼진 것이다.
+/// </param>
 /// <param name="Link">링크 통계.</param>
 internal readonly record struct HostSnapshot(
     string Version,

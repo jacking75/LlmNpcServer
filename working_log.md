@@ -1,5 +1,24 @@
 # 작업 로그
 
+## 2026-09-11 22:20 KST · C-08 로컬 추론 프로세스 감독
+
+dotLLM·llama.cpp 는 별도 프로세스(GPLv3 경계)다. 죽으면 T1 이 사라지는데 NPC 서버는
+요청이 타임아웃될 때까지 알 방법이 없었다 — 그동안 재계획 큐는 계속 찬다.
+
+- `LocalEngineProbe` — 30초 주기 `/v1/models`. HTTP 를 직접 알지 않는다(읽기 동작 주입).
+- 죽으면 `TieredPlanCompiler.LocalHealthy` 를 통해 **T1 요청이 T2 로 우회**한다.
+- `model_sha256` 대조 — **경고이지 차단이 아니다.** 막으면 사람이 검사를 꺼 버린다.
+- `deploy/compose.yaml --profile local` — dotllm + dcgm-exporter 사이드카.
+
+**재시작은 안 한다.** NPC 서버가 남의 프로세스를 되살리면 오케스트레이터의 restart 정책과
+둘이 싸운다 — 되살리는 것은 오케스트레이터, 알아채고 비켜 가는 것은 NPC 서버다.
+
+**`nvidia-smi` 를 폴링하지 않는다.** 컨테이너 안에서 드라이버를 보려면 런타임 설정이 필요하고,
+그것을 틱 루프가 도는 프로세스에 붙일 이유가 없다.
+
+GPU 실측은 미실시 — GPU 와 nvidia-container-toolkit 이 있는 호스트가 필요하다.
+빌드 경고 0 · 테스트 1,656건 통과.
+
 ## 2026-09-11 22:06 KST · C-05 결정론 자동 수선 · few-shot 확장
 
 검증 실패 22~32% 중 V3.PRECONDITION_UNMET 이 47.9%, 그중 스텝 1번이 271건이었다 —

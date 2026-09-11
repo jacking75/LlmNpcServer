@@ -57,10 +57,22 @@ public sealed record LlmEngineOptions(
     float Temperature = 0.4f,
     int MaxOutputTokens = 1024,
     bool ForceJsonSchema = false,
-    int TimeoutSeconds = 600)
+    int TimeoutSeconds = 600,
+    string ModelSha256 = "")
 {
     /// <summary>로컬 엔진인가. 로컬은 캐시 적중을 토큰이 아니라 prefill 시간으로 판정한다.</summary>
     public bool IsLocal => Kind != LlmEngineKind.External;
+
+    /// <summary>
+    /// 모델 파일이 바뀌었는지 보는 기준 (C-08). 비어 있으면 대조하지 않는다.
+    ///
+    /// <b>모델 파일이 조용히 바뀌면 플랜 품질도 조용히 바뀐다</b> — 같은 프롬프트·같은
+    /// 프리픽스 SHA 인데 통과율만 달라지고, 원인을 찾을 좌표가 없다. <c>/v1/models</c> 응답의
+    /// 모델 id 에 이 값이 들어 있는지로 본다.
+    ///
+    /// <b>불일치는 경고이지 차단이 아니다.</b> 막으면 사람이 이 검사를 꺼 버린다.
+    /// </summary>
+    public bool ChecksModelHash => ModelSha256.Length > 0;
 
     /// <summary>키가 필요한데 환경변수가 비어 있으면 이 엔진은 쓸 수 없다.</summary>
     public bool IsConfigured =>
@@ -264,7 +276,8 @@ public sealed class LlmOptions
         float? Temperature,
         int? MaxOutputTokens,
         bool ForceJsonSchema,
-        int? TimeoutSeconds)
+        int? TimeoutSeconds,
+        string? ModelSha256 = null)
     {
         public LlmEngineOptions ToOptions() => new(
             Id,
@@ -281,7 +294,8 @@ public sealed class LlmOptions
             Temperature ?? 0.4f,
             MaxOutputTokens ?? 1024,
             ForceJsonSchema,
-            TimeoutSeconds ?? 600);
+            TimeoutSeconds ?? 600,
+            ModelSha256 ?? string.Empty);
     }
 }
 

@@ -14,3 +14,12 @@ scrape_configs:
       - targets: ["npc:5080"]
         labels:
           service: npc-server
+
+  # GPU 메트릭 (C-08). `--profile local` 로만 뜬다 — 없으면 대상이 down 으로 남는다.
+  # <b>nvidia-smi 를 NPC 서버가 폴링하지 않는다.</b> 컨테이너 안에서 드라이버를 보려면
+  # 런타임 설정이 필요하고, 그것을 틱 루프가 도는 프로세스에 붙일 이유가 없다.
+  - job_name: gpu
+    static_configs:
+      - targets: ["dcgm-exporter:9400"]
+        labels:
+          service: gpu

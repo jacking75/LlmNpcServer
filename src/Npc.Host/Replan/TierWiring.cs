@@ -46,6 +46,14 @@ internal sealed class TierWiring : IAsyncDisposable
     /// <summary>개체 스필오버 서브 쿼터 (C-07). 대시보드·계측이 읽는다.</summary>
     public SpilloverQuota? Quota { get; private set; }
 
+    /// <summary>
+    /// 로컬 추론 프로세스 감독 (C-08). T1 에 로컬 엔진이 없으면 null 이다.
+    ///
+    /// <b>프로브가 죽었다고 판정하면 T1 요청이 T2 로 우회한다</b> — 라우터의
+    /// <c>LocalHealthy</c> 가 이것을 읽는다.
+    /// </summary>
+    public LocalEngineProbe? LocalProbe { get; private set; }
+
     /// <summary>개별 재계획 공급원 (T1).</summary>
     public IndividualReplanSource? Individual { get; private set; }
 
@@ -178,6 +186,12 @@ internal sealed class TierWiring : IAsyncDisposable
             $"budget: 일일 {limits.DailyTokenCap:N0} tok · "
             + $"개체 몫 {options.BudgetIndividualShare:P0} ({quota.IndividualCap:N0} tok)");
 
+        // C-08 — 로컬 추론 프로세스 감독. T1 자리에 진짜 로컬 엔진이 있을 때만 만든다:
+        // T1 자리가 외부 엔진으로 메꿔진 회차에서 /v1/models 를 두드릴 이유가 없다.
+        LocalEngineProbe? probe = t1 is null
+            ? null
+            : BuildProbe(llm, options.T1Engine ?? FirstLocalEngineId(llm), sink, log);
+
         var router = new TieredPlanCompiler(t1 ?? t2!, t2 ?? t1!, budget, () => clock.Current)
         {
             LocalQueueDepth = () => queue.Count,
@@ -186,6 +200,9 @@ internal sealed class TierWiring : IAsyncDisposable
             Switches = switches ?? KillSwitchState.None,
             HasT1 = t1 is not null,
             HasT2 = t2 is not null,
+
+            // 프로브가 없으면 항상 살아 있다고 본다 — 감시하지 않는 것이 죽은 것은 아니다.
+            LocalHealthy = probe is null ? null : () => probe.Healthy,
         };
 
         var wiring = new TierWiring(options.Tier)
@@ -195,7 +212,10 @@ internal sealed class TierWiring : IAsyncDisposable
             Router = router,
             Breaker = breaker,
             Quota = quota,
+            LocalProbe = probe,
         };
+
+        probe?.Start();
 
         if (t1 is not null)
         {
@@ -278,10 +298,73 @@ internal sealed class TierWiring : IAsyncDisposable
     {
         await StopAsync().ConfigureAwait(false);
 
+        if (LocalProbe is { } probe)
+        {
+            await probe.DisposeAsync().ConfigureAwait(false);
+        }
+
         foreach (ReplanWorker worker in _workers)
         {
             worker.Dispose();
         }
+    }
+
+    /// <summary>
+    /// 로컬 엔진 프로브를 만든다 (C-08). 로컬 엔진이 아니면 null 이다.
+    ///
+    /// <b>여기서 시작하지 않는다</b> — 조립이 끝난 뒤에 <c>Start</c> 를 부른다.
+    /// 반쯤 조립된 라우터를 프로브가 먼저 건드리면 그 창을 재현하기 어렵다.
+    /// </summary>
+    private static LocalEngineProbe? BuildProbe(
+        LlmOptions llm, string? engineId, IAlarmSink alarms, TextWriter log)
+    {
+        LlmEngineOptions engine;
+
+        try
+        {
+            engine = llm.Engine(engineId);
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+
+        if (!engine.IsLocal || string.IsNullOrWhiteSpace(engine.Endpoint))
+        {
+            return null;
+        }
+
+        var client = new HttpClient { BaseAddress = EndpointOf(engine.Endpoint) };
+
+        var probe = new LocalEngineProbe(engine.Id, LocalEngineProbe.HttpReader(client))
+        {
+            ExpectedModelSha256 = engine.ModelSha256,
+            OnChange = (healthy, detail) =>
+            {
+                log.WriteLine($"local-engine: {detail}");
+
+                // 죽음은 경보, 복귀는 정보다. 복귀까지 경보로 올리면 야간에 두 번 깨운다.
+                alarms.Raise(new AlarmPayload(
+                    AlarmKind.LocalEngineDown,
+                    healthy ? AlarmSeverity.Info : AlarmSeverity.Critical,
+                    engine.Id,
+                    detail));
+            },
+        };
+
+        log.WriteLine(
+            $"local-engine: {engine.Id} 감시 시작 ({LocalEngineProbe.DefaultIntervalSeconds}초 주기"
+            + (engine.ChecksModelHash ? " · 모델 해시 대조" : string.Empty) + ")");
+
+        return probe;
+    }
+
+    /// <summary><c>/v1/chat/completions</c> 같은 경로가 붙어 있어도 기준 주소만 남긴다.</summary>
+    private static Uri EndpointOf(string endpoint)
+    {
+        string text = endpoint.EndsWith('/') ? endpoint : endpoint + "/";
+
+        return new Uri(text, UriKind.Absolute);
     }
 
     /// <summary>기록만 남긴다 — 워커 스레드에서 불리므로 블록하지 않는다.</summary>
