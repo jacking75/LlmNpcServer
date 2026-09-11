@@ -31,6 +31,7 @@
 | `docs/testbed_guide.html` | 테스트 베드 · 게임서버 연동 시험 |
 | `docs/FAQ.html` | 도입·행동 플랜·전투 반응·대화 확장 |
 | **`docs/llm/`** | **LLM 온보딩 팩 — `SKILL.md` · `CONTEXT.md`(3,000토큰 압축) · `RECIPES/`(작업별 절차 11) · `ANTIPATTERNS.md` · `GLOSSARY.md` · `PROMPTS.md` · `VALIDATION.md`(생성물)** |
+| `docs/openapi.json` | **관리·질의 API 명세 (생성물).** 툴 러너가 이것으로 호출을 만든다 — 손으로 고치지 않는다 |
 | `docs/wire/` | **이기종 구현용 — 오프셋 표(생성물) · 골든 바이트 벡터 · C++/파이썬 참조 코덱.** 표를 손으로 고치지 않는다 |
 | `docs/security/` | 위협 모델 · 시크릿(목록·회전·유출 대응) · 개인정보. **"미실시" 표시를 지우지 않는다** |
 | `docs/legal/` | dotLLM GPLv3 배포 경계 · 모델 약관. **법무 확인은 미실시**다 |

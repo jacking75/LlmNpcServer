@@ -93,6 +93,7 @@
 <tr><td><code>GET /npc/{id}/context</code></td><td>대화·진단용 최소 맥락. <b>전부 id·enum</b> (B-08)</td><td>대화 서비스(D-01)가 읽는다</td></tr>
 <tr><td><code>GET /buckets?state=missing|pinned|filled</code></td><td>플랜 스토어 상태. <b>줄은 <code>state</code> 를 줬을 때만</b> (B-08)</td><td>무엇이 비었나</td></tr>
 <tr><td><code>GET /stream/npcs?ids=1,2,3</code></td><td>변경분 SSE. <b>1Hz · 바뀐 것만</b> (B-08)</td><td>몇 마리를 계속 본다</td></tr>
+<tr><td><code>GET /openapi/v1.json</code></td><td>이 API 의 OpenAPI 3.1 명세 (E-05)</td><td>툴 러너·에이전트에 물릴 때</td></tr>
 <tr><td><code>GET /heatmap.csv</code></td><td>버킷 조회 히트맵</td><td>무엇을 구울지 정할 때</td></tr>
 <tr><td><code>GET /dashboard</code></td><td>단일 HTML 대시보드</td><td>그래프로</td></tr>
 <tr><td><code>POST /control/killswitch?target=…</code></td><td>T2·T1·PlanStore 차단</td><td><b><code>--dev-control</code> 필요</b>. 없으면 404</td></tr>

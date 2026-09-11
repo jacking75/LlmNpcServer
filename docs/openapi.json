@@ -1,0 +1,388 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LlmNpcServer 관리·질의 API",
+    "version": "docs",
+    "description": "읽기 전용 질의(B-08)와 관리(A-11) API. 생성물이다 — 손으로 고치지 않는다. 런타임 게임 로직이 이 API 에 의존하면 안 된다: 게임서버와의 경계는 링크이고, 명령은 fire-and-forget 이다(N1). 이 API 는 도구·대화 서비스·운영 진단 전용이다."
+  },
+  "components": {
+    "securitySchemes": {
+      "adminToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "NPC_ADMIN_TOKEN 환경변수의 값 (A-06)"
+      }
+    },
+    "schemas": {
+      "BucketReport": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer" },
+          "filled": { "type": "integer" },
+          "pinned": { "type": "integer" },
+          "missing": { "type": "integer" },
+          "returned": { "type": "integer" },
+          "buckets": { "type": "array", "items": { "$ref": "#/components/schemas/BucketRow" } }
+        }
+      },
+      "BucketRow": {
+        "type": "object",
+        "properties": {
+          "bucket": { "type": "string" },
+          "state": { "type": "string" }
+        }
+      },
+      "HostSnapshot": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "string" },
+          "tick": { "type": "integer" },
+          "gameDay": { "type": "integer" },
+          "gameHour": { "type": "integer" },
+          "timeOfDay": { "type": "string" },
+          "npcs": { "type": "integer" },
+          "ticksProcessed": { "type": "integer" },
+          "eventsDrained": { "type": "integer" },
+          "commandsEmitted": { "type": "integer" },
+          "stepsAdvanced": { "type": "integer" },
+          "timeoutsSynthesized": { "type": "integer" },
+          "scanPerTick": { "type": "integer" },
+          "deviations": { "type": "integer" },
+          "interruptsForced": { "type": "integer" },
+          "hostilityEvents": { "type": "integer" },
+          "playerTargetedCommands": { "type": "integer" },
+          "replanQueued": { "type": "integer" },
+          "eventBacklogs": { "type": "integer" },
+          "llmCalls": { "type": "integer" },
+          "linkState": { "type": "string" },
+          "linkReject": { "type": "string" },
+          "linkNegotiation": { "type": "string" },
+          "killSwitches": { "$ref": "#/components/schemas/IReadOnlyList`1" },
+          "ticksBehind": { "type": "integer" },
+          "tickSyncStalled": { "type": "boolean" },
+          "contractVersion": { "type": "string" },
+          "lastSnapshotTick": { "type": "integer" },
+          "snapshotFailures": { "type": "integer" },
+          "restoredFromTick": { "type": "integer" },
+          "link": { "$ref": "#/components/schemas/LinkStats" }
+        }
+      },
+      "IReadOnlyList`1": {
+        "type": "object",
+        "properties": {
+          "item": { "type": "string" }
+        }
+      },
+      "LinkStats": {
+        "type": "object",
+        "properties": {
+          "commandsEnqueued": { "type": "integer" },
+          "commandsFlushed": { "type": "integer" },
+          "commandsDropped": { "type": "integer" },
+          "eventsReceived": { "type": "integer" },
+          "eventGapsDetected": { "type": "integer" },
+          "pendingCommands": { "type": "integer" }
+        }
+      },
+      "NpcContext": {
+        "type": "object",
+        "properties": {
+          "found": { "type": "boolean" },
+          "npc": { "type": "integer" },
+          "tick": { "type": "integer" },
+          "archetype": { "type": "string" },
+          "zone": { "type": "string" },
+          "poi": { "type": "string" },
+          "goal": { "type": "string" },
+          "action": { "type": "string" },
+          "stepIndex": { "type": "integer" },
+          "stepCount": { "type": "integer" },
+          "stepStatus": { "type": "string" },
+          "flags": { "type": "array", "items": { "type": "string" } },
+          "inventory": { "type": "array", "items": { "type": "string" } },
+          "recent": { "type": "array", "items": { "$ref": "#/components/schemas/TraceEvent" } }
+        }
+      },
+      "NpcListPage": {
+        "type": "object",
+        "properties": {
+          "tick": { "type": "integer" },
+          "total": { "type": "integer" },
+          "matched": { "type": "integer" },
+          "returned": { "type": "integer" },
+          "nextCursor": { "type": "integer" },
+          "npcs": { "type": "array", "items": { "$ref": "#/components/schemas/NpcSummary" } }
+        }
+      },
+      "NpcSummary": {
+        "type": "object",
+        "properties": {
+          "npc": { "type": "integer" },
+          "archetype": { "type": "string" },
+          "zone": { "type": "string" },
+          "poi": { "type": "string" },
+          "action": { "type": "string" },
+          "lod": { "type": "integer" },
+          "stepStatus": { "type": "string" },
+          "planKind": { "type": "string" }
+        }
+      },
+      "NpcTrace": {
+        "type": "object",
+        "properties": {
+          "found": { "type": "boolean" },
+          "npc": { "type": "integer" },
+          "tick": { "type": "integer" },
+          "archetype": { "type": "string" },
+          "zone": { "type": "string" },
+          "poi": { "type": "string" },
+          "homePoi": { "type": "string" },
+          "workPoi": { "type": "string" },
+          "lod": { "type": "integer" },
+          "hp": { "type": "integer" },
+          "stamina": { "type": "integer" },
+          "stepStatus": { "type": "string" },
+          "planId": { "type": "integer" },
+          "planKind": { "type": "string" },
+          "planGoal": { "type": "string" },
+          "planBucket": { "type": "string" },
+          "planLoop": { "type": "boolean" },
+          "planAgeTicks": { "type": "integer" },
+          "pendingPlanId": { "type": "integer" },
+          "pendingUrgency": { "type": "integer" },
+          "flags": { "type": "array", "items": { "type": "string" } },
+          "inventory": { "type": "array", "items": { "type": "string" } },
+          "steps": { "type": "array", "items": { "$ref": "#/components/schemas/TraceStep" } },
+          "recent": { "type": "array", "items": { "$ref": "#/components/schemas/TraceEvent" } }
+        }
+      },
+      "TraceEvent": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string" },
+          "at": { "type": "integer" },
+          "agoTicks": { "type": "integer" },
+          "subject": { "type": "integer" },
+          "salience": { "type": "integer" }
+        }
+      },
+      "TraceStep": {
+        "type": "object",
+        "properties": {
+          "index": { "type": "integer" },
+          "action": { "type": "string" },
+          "poi": { "type": "string" },
+          "count": { "type": "integer" },
+          "timeoutSeconds": { "type": "integer" },
+          "current": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/status": {
+      "get": {
+        "operationId": "get_status",
+        "summary": "서버 요약",
+        "description": "틱·게임 시각·링크 상태·계기 한 장. \"돌고 있나\" 에 답한다.",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HostSnapshot" }
+              }
+            }
+          },
+          "401": { "description": "관리 토큰이 없거나 틀렸다" }
+        }
+      }
+    },
+    "/npcs": {
+      "get": {
+        "operationId": "list_npcs",
+        "summary": "NPC 벌크 요약",
+        "description": "존·아키타입·플래그·상태로 거르고 커서로 넘긴다. Matched 는 필터에 걸린 총수이고 Returned 는 이 쪽에 실린 수다 — 둘은 다르다.",
+        "security": [{ "adminToken": [] }],
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "query",
+            "required": false,
+            "description": "존 id. 모르는 값이면 0건이다",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "archetype",
+            "in": "query",
+            "required": false,
+            "description": "아키타입 id",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "flag",
+            "in": "query",
+            "required": false,
+            "description": "월드 플래그 이름. 그 플래그가 선 NPC 만",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "스텝 상태 — Ready·Waiting·Done·Unspawned·Completed·Failed",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "한 쪽 크기. 1~1000, 기본 100",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "이 슬롯부터. 앞 응답의 nextCursor 를 넣는다",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NpcListPage" }
+              }
+            }
+          },
+          "401": { "description": "관리 토큰이 없거나 틀렸다" }
+        }
+      }
+    },
+    "/npc/{id}": {
+      "get": {
+        "operationId": "get_npc",
+        "summary": "NPC 한 마리의 속사정",
+        "description": "플랜·스텝·플래그·인벤토리·최근 사건. \"왜 저기로 가는가\" 에 답한다.",
+        "security": [{ "adminToken": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "NPC 슬롯 첨자",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NpcTrace" }
+              }
+            }
+          },
+          "401": { "description": "관리 토큰이 없거나 틀렸다" }
+        }
+      }
+    },
+    "/npc/{id}/context": {
+      "get": {
+        "operationId": "get_npc_context",
+        "summary": "대화·진단용 최소 맥락",
+        "description": "전부 id·enum·숫자다. 플레이어가 쓴 문자열은 들어 있지 않다 — 이 응답이 그대로 프롬프트에 실릴 수 있기 때문이다.",
+        "security": [{ "adminToken": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "NPC 슬롯 첨자",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NpcContext" }
+              }
+            }
+          },
+          "401": { "description": "관리 토큰이 없거나 틀렸다" }
+        }
+      }
+    },
+    "/buckets": {
+      "get": {
+        "operationId": "list_buckets",
+        "summary": "플랜 스토어 상태",
+        "description": "집계는 항상 준다. 줄은 state 를 줬을 때만 — 2,880줄을 기본으로 뱉지 않는다.",
+        "security": [{ "adminToken": [] }],
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "missing·pinned·filled. 비우면 집계만",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BucketReport" }
+              }
+            }
+          },
+          "401": { "description": "관리 토큰이 없거나 틀렸다" }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "get_metrics",
+        "summary": "계기 전체",
+        "description": "패널 7종의 수치. 대시보드가 폴링하는 것과 같은 자료다.",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": {
+            "description": "성공"
+          },
+          "401": { "description": "관리 토큰이 없거나 틀렸다" }
+        }
+      }
+    },
+    "/healthz/live": {
+      "get": {
+        "operationId": "get_live",
+        "summary": "살아 있는가",
+        "description": "틱 루프 하트비트. **무인증이다** — 오케스트레이터가 토큰을 들고 다니게 하지 않는다.",
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        }
+      }
+    },
+    "/healthz/ready": {
+      "get": {
+        "operationId": "get_ready",
+        "summary": "받을 준비가 됐는가",
+        "description": "링크·플랜 스토어·복원 판정까지 끝났는가. **무인증이다.**",
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        }
+      }
+    }
+  }
+}

@@ -260,6 +260,11 @@ app.MapGet(QueryEndpoints.ListRoute, (
     host.QueryNpcs(zone, archetype, flag, status, limit ?? QueryEndpoints.DefaultLimit, cursor ?? 0));
 
 app.MapGet(QueryEndpoints.ContextRoute, (int id) => host.Context(id));
+
+// 명세 (E-05). 툴 러너가 여기서 받아 이 서버를 부른다.
+// docs/openapi.json 과 같은 내용이고, 그쪽은 OpenApiTests 가 만들고 대조한다.
+app.MapGet(OpenApiCatalog.Route, () => Results.Text(
+    OpenApiCatalog.Render(host.Version), "application/json; charset=utf-8"));
 app.MapGet(QueryEndpoints.BucketsRoute, (string? state) => host.Buckets(state));
 
 // 변경 스트림 (SSE). 1Hz · 바뀐 것만.
