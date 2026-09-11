@@ -69,6 +69,9 @@ public sealed partial class SimWorld
         };
     }
 
+    /// <summary>축소 월드의 유일한 NPC 가 쓰는 전역 id (A-08). 0 은 "없음" 이라 쓸 수 없다.</summary>
+    public const int MinimalGlobalId = 1;
+
     private int _startHour;
 
     /// <summary>드라이런 시계의 시작 시각(게임 시). 버킷의 시간대에서 나온다.</summary>
@@ -83,7 +86,9 @@ public sealed partial class SimWorld
         ArchetypeDef def = _data.Archetypes[archetype];
 
         PoiId home = FirstOfType(PoiType.Home, archetype);
-        Place(0, archetype, home);
+
+        // A-08 — 축소 월드의 유일한 NPC 에게 전역 id 1 을 준다. 0 은 "없음" 이라 쓸 수 없다.
+        Place(0, MinimalGlobalId, archetype, home);
         _spawned[0] = true;
 
         Span<int> inventory = InventoryOf(0);

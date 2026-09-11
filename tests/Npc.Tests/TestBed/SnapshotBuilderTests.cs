@@ -178,7 +178,9 @@ public sealed class SnapshotBuilderTests
             new NpcCommand
             {
                 Kind = NpcCommandKind.MoveTo,
-                Npc = new NpcId(npc),
+
+                // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다.
+                Npc = world.World.NpcIdOf(npc),
                 IssuedAt = start,
                 Correlation = new CorrelationId(1),
                 Priority = CommandPriority.Normal,

@@ -75,7 +75,7 @@ public sealed class HostilityTests
             Kind = GameEventKind.PlayerProximity,
             Sequence = 2,
             OccurredAt = new Tick(20),
-            Npc = new NpcId(0),
+            Npc = new NpcId(1),   // 슬롯 0 의 전역 id
             Player = new PlayerId(Attacker),
             Amount = 250,
             Code = (byte)ProximityChange.Leave,
@@ -207,7 +207,8 @@ public sealed class HostilityTests
         Kind = GameEventKind.PlayerHostility,
         Sequence = sequence,
         OccurredAt = new Tick(10 + sequence),
-        Npc = new NpcId(npc),
+        // A-08 — 와이어의 NpcId 는 전역 id 다. 이 하네스는 슬롯 i 에 id i+1 을 앉힌다.
+        Npc = new NpcId(npc + 1),
         Player = new PlayerId(player),
         Code = (byte)hostility,
     };

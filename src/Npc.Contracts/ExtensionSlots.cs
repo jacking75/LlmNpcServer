@@ -19,7 +19,7 @@ public enum ExtSlot : byte
 ///
 /// <para>
 /// 슬롯을 쓰려면 여기에 줄을 추가하고 <c>docs/reference_link.html</c> 의 표를
-/// <b>같은 커밋에서</b> 고친다. 지금 등록된 것은 <c>NpcSpawned.ExtA</c> 하나다 (B-05).
+/// <b>같은 커밋에서</b> 고친다. <b>지금 등록된 슬롯은 없다.</b>
 /// </para>
 ///
 /// <para>
@@ -38,14 +38,14 @@ public static class ExtensionSlots
     /// <summary>
     /// 이벤트 쪽 등록부.
     ///
-    /// <b><c>NpcSpawned.ExtA</c> = 인스턴스 정의 id</b> (B-05). 런타임 스폰에서 게임서버가
-    /// "이 슬롯에 누구를 앉혀라" 를 알리는 유일한 통로다 — <c>Npc</c> 필드는 슬롯 번호이고,
-    /// 슬롯과 인스턴스는 동적 로스터에서 1:1 이 아니다.
+    /// <para>
+    /// <b>비어 있다.</b> B-05 는 <c>NpcSpawned.ExtA</c> 에 인스턴스 정의 id 를 실었다 —
+    /// 그때는 <c>Npc</c> 가 슬롯 번호였고 슬롯만으로는 "누가 앉았는가" 를 알 수 없었기 때문이다.
+    /// A-08 에서 <c>Npc</c> 자체가 전역 인스턴스 id 가 되면서 그 통로는 <b>같은 값을 두 번
+    /// 싣는 것</b>이 됐고, 두 번 실은 값은 언젠가 어긋난다. 그래서 등록을 지웠다.
+    /// </para>
     /// </summary>
-    private static readonly (GameEventKind Kind, ExtSlot Slot, string Meaning)[] EventSlots =
-    [
-        (GameEventKind.NpcSpawned, ExtSlot.A, "인스턴스 정의 id (npc_instances.json). 0 = 그대로 둬라"),
-    ];
+    private static readonly (GameEventKind Kind, ExtSlot Slot, string Meaning)[] EventSlots = [];
 
     /// <summary>이 명령 종류의 이 슬롯에 의미가 정해져 있는가.</summary>
     public static bool IsDefined(NpcCommandKind kind, ExtSlot slot)

@@ -108,7 +108,7 @@ public sealed class NeedsSim
             Kind = GameEventKind.NpcVitalsChanged,
             Sequence = 0,
             OccurredAt = now,
-            Npc = new NpcId(npc),
+            Npc = _world.NpcIdOf(npc),
             Hp = _hp[npc],
             Stamina = _stamina[npc],
         });

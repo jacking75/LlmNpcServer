@@ -356,6 +356,7 @@ testbed/Npc.TestClient         MasterData, Protocol           <span class="c">�
 <tr><td><code>-Npcs N</code></td><td>300</td><td>게임서버와 NPC 서버에 <strong>같은 값</strong>이 간다</td></tr>
 <tr><td><code>-TimeScale N</code></td><td>60</td><td>데모 시나리오의 틱 좌표가 60 기준이다</td></tr>
 <tr><td><code>-Tier none|t1|t2|all</code></td><td><code>none</code></td><td>재계획 티어. <code>blackout</code> 을 <code>t2</code> 로 돌리면 T2→T1 차단이 실제로 보인다</td></tr>
+<tr><td><code>-Shards N</code></td><td>1</td><td>샤딩 데모 (A-08). <strong>샤드마다 게임서버 + NPC 서버 한 쌍</strong>을 띄우고 포트를 +10 씩 민다 — <strong>1 프로세스 = 1 샤드 = 1 링크</strong>가 이 설계의 규칙이라 대역도 그것을 따른다. 존 분할은 <code>deploy/shards.json</code>. 뷰어는 첫 샤드에만 붙는다</td></tr>
 <tr><td><code>-NoBuild</code></td><td>—</td><td>빌드를 건너뛴다. 두 번째 실행부터 쓴다</td></tr>
 </table>
 

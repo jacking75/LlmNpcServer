@@ -36,7 +36,8 @@ public sealed class InterruptMatcherTests
         Kind = GameEventKind.CombatStarted,
         Sequence = 1,
         OccurredAt = new Tick(10),
-        Npc = new NpcId(npc),
+        // A-08 — 와이어의 NpcId 는 전역 id 다. 이 하네스는 슬롯 i 에 id i+1 을 앉힌다.
+        Npc = new NpcId(npc + 1),
         OtherNpc = new NpcId(attacker),
     };
 
@@ -117,7 +118,7 @@ public sealed class InterruptMatcherTests
             Kind = GameEventKind.NpcTransform,
             Sequence = 1,
             OccurredAt = new Tick(1),
-            Npc = new NpcId(0),
+            Npc = new NpcId(1),   // 슬롯 0 의 전역 id (A-08)
         };
 
         Assert.False(r.Matcher.Handle(in quiet, new Tick(1), r.Executor, r.H.Link, r.Queue));
@@ -150,7 +151,7 @@ public sealed class InterruptMatcherTests
             Kind = GameEventKind.PlayerInteracted,
             Sequence = 1,
             OccurredAt = new Tick(5),
-            Npc = new NpcId(0),
+            Npc = new NpcId(1),   // 슬롯 0 의 전역 id (A-08)
             Player = new PlayerId(3),
         };
 

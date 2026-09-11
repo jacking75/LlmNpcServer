@@ -80,7 +80,7 @@ public sealed class TransformEmitter
                 Kind = GameEventKind.NpcTransform,
                 Sequence = 0,
                 OccurredAt = now,
-                Npc = new NpcId(npc),
+                Npc = _world.NpcIdOf(npc),
                 Pos = Interpolate(npc, now),
                 Heading = 0,
             });

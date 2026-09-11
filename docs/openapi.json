@@ -121,6 +121,7 @@
         "type": "object",
         "properties": {
           "npc": { "type": "integer" },
+          "slot": { "type": "integer" },
           "archetype": { "type": "string" },
           "zone": { "type": "string" },
           "poi": { "type": "string" },

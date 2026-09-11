@@ -50,6 +50,10 @@ public sealed class NpcServerLoopTests
         for (int i = 0; i < npcs; i++)
         {
             applier.Seed(i, home, s_data.Pois[home].Zone, smith.Code, home, work);
+
+            // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 이 픽스처는 슬롯 i 에
+            // id i+1 을 앉힌다 (0 은 "없음" 이라 쓸 수 없다).
+            store.Bind(i, i + 1);
             store.StepStatus[i] = (byte)StepStatus.Ready;
         }
 
@@ -180,7 +184,7 @@ public sealed class NpcServerLoopTests
             Kind = GameEventKind.CombatStarted,
             Sequence = 1,
             OccurredAt = new Tick(1),
-            Npc = new NpcId(0),
+            Npc = new NpcId(1),   // A-08 — 슬롯 0 의 전역 id
             OtherNpc = new NpcId(9),
         });
         r.Link.Push(new GameEvent

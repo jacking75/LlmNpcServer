@@ -108,6 +108,15 @@ public sealed class EventApplier
     public long RosterRejections { get; private set; }
 
     /// <summary>
+    /// 모르는 전역 <c>NpcId</c> 로 온 이벤트 수 (A-08).
+    ///
+    /// <b>0 이 아니면 게임서버가 우리 샤드가 아닌 NPC 를 보내고 있다.</b> 라우팅이 틀렸거나
+    /// 로스터가 어긋난 것이고, 둘 다 조용히 넘기면 안 된다 — 넘기면 "게임서버에는 있는데
+    /// 우리에겐 없는 NPC" 가 아무 흔적 없이 생긴다.
+    /// </summary>
+    public long UnknownNpcEvents { get; private set; }
+
+    /// <summary>
     /// 적대 판정을 반영한 횟수 (B-06). <b>0 이면 적대 경로가 한 번도 안 돌았다</b> —
     /// 게임서버가 <c>PlayerHostility</c> 를 안 내고 있다는 뜻이다.
     /// </summary>
@@ -159,8 +168,13 @@ public sealed class EventApplier
                 break;
         }
 
-        int npc = ev.Npc.Value;
-        if ((uint)npc >= (uint)_store.Count)
+        // ── A-08: 전역 id → 슬롯 ─────────────────────────────────
+        //
+        // <b>와이어의 NpcId 는 npc_instances.json 의 id 다.</b> 슬롯은 우리 안쪽 사정이라
+        // 게임서버가 알 이유가 없다. 배열 조회 한 번이라 할당 0 이다.
+        int npc = _store.SlotOf(ev.Npc.Value);
+
+        if (npc < 0 && !TrySeat(in ev, out npc))
         {
             return;
         }
@@ -177,18 +191,8 @@ public sealed class EventApplier
         switch (ev.Kind)
         {
             case GameEventKind.NpcSpawned:
-                // B-05 — 동적 로스터면 빈 슬롯에 인스턴스를 먼저 앉힌다.
-                // 인스턴스 정의 id 는 ExtA 로 온다 (B-02 예약 슬롯. ExtensionSlots 에 등록돼 있다).
-                //
-                // <b>ExtA 가 0 이면 "그대로 둬라" 다.</b> 이미 앉아 있는 슬롯의 재스폰이거나
-                // 확장 슬롯을 안 켠 게임서버이고, 둘 다 오늘의 동작이 맞다.
-                if (Roster is { } roster && ev.ExtA != 0
-                    && !roster.TryActivate(npc, (int)ev.ExtA, ev.OccurredAt))
-                {
-                    RosterRejections++;
-                    return;
-                }
-
+                // A-08 — 자리 잡기는 위의 TrySeat 가 이미 했다. 여기 오는 스폰은
+                // <b>이미 앉아 있는 NPC 의 재스폰</b>이므로 위치·상태만 갱신한다 (N7 멱등).
                 _store.Pos[npc] = ev.Pos;
                 if (ev.Poi.Value != 0)
                 {
@@ -206,7 +210,11 @@ public sealed class EventApplier
 
                 // B-05 — 동적 로스터면 슬롯을 비운다. 비우지 않으면 다음 거주자가
                 // 이전 거주자의 인벤토리·플래그·플랜을 물려받는다.
-                Roster?.Deactivate(npc);
+                //
+                // <b>정적 로스터에서는 비우지 않는다.</b> 비우면 그 전역 id 의 슬롯이 사라져
+                // 이후 이벤트가 전부 UnknownNpcEvents 로 떨어지고, 게임서버가 다시 스폰해도
+                // 앉을 자리를 못 찾는다 — 정적 회차에서 디스폰은 "잠깐 없다" 이지 "사라졌다" 가 아니다.
+                Roster?.Deactivate(_store.Occupant[npc]);
                 break;
 
             case GameEventKind.NpcTransform:
@@ -463,6 +471,38 @@ public sealed class EventApplier
         {
             _store.HostilePlayer[npc] = 0;
         }
+    }
+
+    /// <summary>
+    /// 아직 자리가 없는 전역 id 에 슬롯을 잡아 준다 (A-08).
+    ///
+    /// <para>
+    /// <b>스폰일 때만 잡는다.</b> 이동·완료 이벤트가 자리를 만들면 게임서버의 라우팅 실수가
+    /// 조용히 정상으로 보인다 — "우리 샤드가 아닌 NPC 가 여기서 살기 시작" 하는 것이다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>정적 로스터면 잡지 않는다.</b> 기동 시 로스터 전원이 이미 묶여 있으므로,
+    /// 모르는 id 는 정말로 모르는 NPC 다.
+    /// </para>
+    /// </summary>
+    private bool TrySeat(in GameEvent ev, out int npc)
+    {
+        npc = -1;
+
+        if (ev.Kind != GameEventKind.NpcSpawned || Roster is not { } roster)
+        {
+            UnknownNpcEvents++;
+            return false;
+        }
+
+        if (!roster.TryActivate(ev.Npc.Value, ev.OccurredAt, out npc))
+        {
+            RosterRejections++;
+            return false;
+        }
+
+        return true;
     }
 
     private void ApplyTimeOfDay(TimeOfDay time)

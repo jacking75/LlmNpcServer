@@ -298,6 +298,8 @@ curl -XPOST -H "Authorization: Bearer $NPC_ADMIN_TOKEN"   "localhost:5080/admin/
 | `--no-dashboard` | 웹 호스트를 띄우지 않는다 |
 | `--gs-host <host>` / `--gs-port N` | 게임서버 주소 (기본 `127.0.0.1:7010`). `--link tcp` 전용 |
 | `--zone <id>[,<id>]` | 로스터 존 필터. **게임서버와 같아야 한다** (다르면 핸드셰이크 거절) |
+| `--shard N` | 맡을 샤드 (A-08). 0=단일. `--zone` 보다 우선하며 `deploy/shards.json` 이 존 목록을 정한다 |
+| `--shards <path>` | 샤드 정의 파일 (기본 `deploy/shards.json`) |
 | `--planstore <dir>` | 프리베이크된 플랜 스토어 (기본 `./planstore`). 없으면 폴백 40개로 돈다 |
 | `--weights A\|B\|C\|D` | 재계획 점수 가중치 세트 (기본 B. A/B 결과는 `reference_metrics.html` §11) |
 | `--scan-cap N` | 인지 스캔 틱당 상한. 0=해제. **측정 전용** |
@@ -704,7 +706,7 @@ docs/               설계 사양 (아래)
 - 게임 클라이언트 / 렌더링 — 대시보드와 로그로만 관측
 - NPC 대사 자연어 생성 — `Speak(DialogueId)`로 ID만 송출
 - 전투 AI · 패스파인딩 — 게임서버 소관. 명령만 발행
-- 멀티 월드 / 샤딩 — 단일 월드 5,000 NPC
+- 멀티 월드 — 단일 월드 5,000 NPC. **샤딩은 1단계(정적)까지 구현됐다** (A-08 · `--shard N` · `deploy/shards.json`). 존 간 핸드오프(2단계)는 미구현
 
 ---
 

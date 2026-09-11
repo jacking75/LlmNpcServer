@@ -67,6 +67,10 @@ public sealed class PendingPlanHandoffTests
         for (int i = 0; i < npcs; i++)
         {
             applier.Seed(i, new PoiId(1), new ZoneId(1), new ArchetypeId(1), new PoiId(1), new PoiId(2));
+
+            // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 이 픽스처는 슬롯 i 에
+            // id i+1 을 앉힌다 (0 은 "없음" 이라 쓸 수 없다).
+            store.Bind(i, i + 1);
             store.StepStatus[i] = (byte)StepStatus.Ready;
             executor.AssignPlan(i, new PlanId(PlanStore.IdlePlanId));
         }

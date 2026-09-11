@@ -4,6 +4,7 @@ using Npc.Gateway;
 using Npc.Host.Config;
 using Npc.Host.Observability;
 using Npc.Host.Persistence;
+using Npc.MasterData;
 
 namespace Npc.Host;
 
@@ -165,6 +166,24 @@ public sealed record HostOptions
     /// (docs/20 §5.5). 그게 의도된 동작이다: 첨자가 어긋난 채로 도는 것보다 낫다.
     /// </summary>
     public ImmutableArray<string> Zones { get; init; } = [];
+
+    /// <summary>
+    /// 맡을 샤드 번호 (A-08). 0 = 단일 샤드(오늘과 같다).
+    ///
+    /// <para>
+    /// <b>1 프로세스 = 1 샤드 = 1 링크다.</b> 프로세스 안에서 링크를 여러 개 만들지 않는다 —
+    /// 틱 루프의 "<c>await</c> 는 <c>link.FlushAsync</c> 하나" 규칙을 지키기 쉽고 장애가 격리된다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><see cref="Zones"/> 보다 우선한다.</b> 둘 다 주면 <c>--zone</c> 은 무시된다 —
+    /// 샤드 정의가 존 목록을 이미 담고 있고, 두 곳에서 존을 정하면 어긋나는 날이 온다.
+    /// </para>
+    /// </summary>
+    public int Shard { get; init; }
+
+    /// <summary>샤드 정의 파일 (A-08). 기본 <c>deploy/shards.json</c>.</summary>
+    public string ShardsPath { get; init; } = ShardTable.DefaultPath;
 
     /// <summary>대시보드·메트릭 포트.</summary>
     public int Port { get; init; } = DefaultPort;
@@ -448,6 +467,8 @@ public sealed record HostOptions
           --gs-host <host>        게임서버 호스트 (기본 127.0.0.1). --link tcp 전용
           --gs-port N             게임서버 링크 포트 (기본 7010)
           --zone <id>[,<id>]      로스터 존 필터. 게임서버와 같아야 한다
+          --shard N               맡을 샤드 (A-08). 0=단일. --zone 보다 우선한다
+          --shards <path>         샤드 정의 파일 (기본 deploy/shards.json)
           --dev-control           POST /control/* 을 연다 (기본 꺼짐). 데모용이다
           --watch                 planstore/·masterdata/ 를 감시해 자동 리로드 (A-07). 개발용이다
           --npcs N                NPC 수 (기본 500)
@@ -546,6 +567,41 @@ public sealed record HostOptions
         }
 
         throw new DirectoryNotFoundException($"마스터데이터 폴더를 찾지 못했다: {MasterData}");
+    }
+
+    /// <summary>
+    /// 샤드 정의 파일을 실제 경로로 푼다 (A-08).
+    ///
+    /// <see cref="ResolveMasterData"/> 와 같은 이유로 위로 올라가며 찾는다 —
+    /// <c>dotnet run --project src/Npc.Host</c> 는 작업 폴더를 프로젝트 폴더로 잡는다.
+    /// <b>못 찾으면 준 경로를 그대로 돌려준다</b> — 그래야 오류 메시지에 사람이 준 값이 나온다.
+    /// </summary>
+    public string ResolveShards()
+    {
+        if (File.Exists(ShardsPath))
+        {
+            return ShardsPath;
+        }
+
+        if (Path.IsPathRooted(ShardsPath))
+        {
+            return ShardsPath;
+        }
+
+        foreach (string from in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            for (var dir = new DirectoryInfo(from); dir is not null; dir = dir.Parent)
+            {
+                string candidate = Path.Combine(dir.FullName, ShardsPath);
+
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return ShardsPath;
     }
 
     /// <summary>
@@ -921,6 +977,26 @@ public sealed record HostOptions
                         Zones = [.. zones!.Split(',',
                             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)],
                     };
+                    break;
+
+                case "--shard":
+                    if (!TryInt(args, ref i, arg, 0, ushort.MaxValue, out int shard, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { Shard = shard };
+                    break;
+
+                case "--shards":
+                    if (!TryValue(args, ref i, arg, out string? shardsPath, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { ShardsPath = shardsPath! };
                     break;
 
                 case "--trace":

@@ -257,6 +257,11 @@ public static class FixHints
             + "게임서버가 Auth 기능 비트를 켰는지 본다.",
             "docs/reference_link.html#handshake");
 
+        Add(builder, "ShardMismatch",
+            "샤드가 다르다. --shard 를 양쪽에서 같게 주고, deploy/shards.json 이 같은 파일인지 본다. "
+            + "존 마스크까지 완전 일치여야 한다 — 겹치면 같은 NPC 를 두 프로세스가 움직인다.",
+            "docs/reference_link.html#handshake");
+
         return builder.ToImmutable();
     }
 

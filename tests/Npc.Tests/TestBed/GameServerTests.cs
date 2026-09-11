@@ -71,7 +71,9 @@ public sealed class GameServerTests
         var command = new NpcCommand
         {
             Kind = NpcCommandKind.Stop,
-            Npc = new NpcId(3),
+
+            // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 슬롯 3 의 거주자를 쓴다.
+            Npc = server.World.World.NpcIdOf(3),
             IssuedAt = new Tick(1),
             Correlation = new CorrelationId(77),
             Priority = CommandPriority.Normal,
@@ -87,6 +89,7 @@ public sealed class GameServerTests
         int got = server.Mirror.ReadCommands(cursor, commands);
 
         Assert.Equal(1, got);
+        // 미러는 뷰어가 쓰는 슬롯으로 남긴다 (A-08).
         Assert.Equal(3, commands[0].Npc);
         Assert.Equal((byte)NpcCommandKind.Stop, commands[0].Kind);
         Assert.Equal(77u, commands[0].Correlation);

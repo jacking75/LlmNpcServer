@@ -366,7 +366,9 @@ public sealed class LinkSessionTests
         var filler = new NpcCommand
         {
             Kind = NpcCommandKind.Stop,
-            Npc = new NpcId(0),
+
+            // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다.
+            Npc = bed.World.World.NpcIdOf(0),
             IssuedAt = default,
             Correlation = default,
             Priority = CommandPriority.Normal,
@@ -459,7 +461,7 @@ public sealed class LinkSessionTests
                 Kind = GameEventKind.NpcArrived,
                 Sequence = 0,
                 OccurredAt = new Tick(1),
-                Npc = new NpcId(i % bed.World.Roster.Count),
+                Npc = bed.World.World.NpcIdOf(i % bed.World.Roster.Count),
             });
         }
 
@@ -505,7 +507,7 @@ public sealed class LinkSessionTests
                 Kind = GameEventKind.NpcArrived,
                 Sequence = 0,
                 OccurredAt = new Tick(1),
-                Npc = new NpcId(i % bed.World.Roster.Count),
+                Npc = bed.World.World.NpcIdOf(i % bed.World.Roster.Count),
             });
         }
 
@@ -666,7 +668,7 @@ public sealed class LinkSessionTests
                 var command = new NpcCommand
                 {
                     Kind = NpcCommandKind.Stop,
-                    Npc = new NpcId(i % Math.Max(1, World.Roster.Count)),
+                    Npc = World.World.NpcIdOf(i % Math.Max(1, World.Roster.Count)),
                     IssuedAt = new Tick(1),
                     Correlation = new CorrelationId((uint)(i + 1)),
                     Priority = CommandPriority.Normal,

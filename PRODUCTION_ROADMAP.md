@@ -58,7 +58,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 - [x] **A-05** 관측성: OpenTelemetry 익스포터 · Prometheus 엔드포인트 · 구조화 로깅 · 알람 싱크 — P0 · M · 의존 A-04
 - [x] **A-06** 링크 보안: 핸드셰이크 인증(HMAC+nonce) · TLS/mTLS · 관리 API 인증 — P0 · M · 의존 B-01
 - [x] **A-07** 핫 리로드: 플랜 스토어 · 인터럽트 · 폴백 · ~~few-shot~~ (구조 변경은 재기동) — P1 · L · 의존 A-01, B-04 — **완료. few-shot 은 콜드로 정정했다**(프리픽스에 실려 SHA 가 바뀐다 — C-03). 리플레이에 리로드 시점을 기록하는 것은 미구현
-- [ ] **A-08** 전역 `NpcId` · 샤드 식별 · 다중 링크 세션 (샤딩 1단계) — P1 · L · 의존 B-01, B-05
+- [x] **A-08** 전역 `NpcId` · 샤드 식별 · ~~다중 링크 세션~~ (샤딩 1단계) — P1 · L · 의존 B-01, B-05 — **1단계 완료.** 게임서버 대역이 세션 N개를 받는 것은 미착수 — **1 프로세스 = 1 샤드 = 1 링크**를 대역에도 적용해 데모가 프로세스 쌍 2개가 된다. 존 간 핸드오프(2단계)는 미구현
 - [x] **A-09** 배포: Dockerfile · compose(테스트베드 포함) · ~~CI 파이프라인~~ · 중앙 패키지 관리 · 릴리스 버저닝 — P0 · M · 의존 없음
   - **CI 워크플로 파일은 만들지 않기로 했다** (2026-09-10 결정). 제공자를 고르지 않았고, 파이프라인의 내용은
     `build.ps1` · `npc validate` · `npc regen --check` 세 명령으로 이미 정의되어 있다.
@@ -677,24 +677,31 @@ TLS 와 토큰이 필요하다"(`docs/reference_link.html` §13)고 적었다. �
   `--zone` 옵션은 유지(호환)하되 `--shard` 가 있으면 무시.
 - **2단계(범위 밖, 문서만).** 존 간 핸드오프 — `NpcHandoff` 이벤트로 소유권 이관 + 상태 직렬화(A-01 형식 재사용). 이 문서에는 설계 메모만 남긴다.
 
-**구현 절차.**
+**구현 절차.** (실제로 한 것)
 
-1. `src/Npc.MasterData/NpcRoster.cs` — `Select(instances, shard)` 오버로드. 로스터 해시에 전역 id 포함.
-2. `src/Npc.Runtime/NpcStore.cs` — `GlobalId`·`LocalOf`. `EventApplier.Apply` 진입에서 `LocalOf[ev.Npc.Value]` 로 변환, -1 이면 무시 + 카운터.
-3. `src/Npc.Runtime/CommandEmitter.cs` — 발행 시 `GlobalId[i]`.
-4. `src/Npc.Wire/LinkMessages.cs` v2 — `ShardId`·`ZoneMask`. `src/Npc.Gateway/TcpGameServerLink.cs` 핸드셰이크 반영.
-5. `src/Npc.Runtime/PoiBinder.cs` — 후보 집합을 샤드 존으로 제한(비트마스크 검사, 할당 0).
-6. `testbed/Npc.TestGameServer/Link/LinkListener.cs` — 세션 N개, `ShardId` 별 라우팅 테이블. `PlayerRegistry` 근접 이벤트를 존→샤드로.
-7. `src/Npc.Host/Api/NpcTraceEndpoint.cs` — `/npc/{id}` 는 전역 id 로.
-8. `testbed/run_demo.ps1 -Shards 2`.
+1. `src/Npc.Core/GlobalIdMap.cs` — 전역 id → 슬롯. **역방향만 들고 있다** — 슬롯 → 전역은 `NpcStore.Occupant`(B-05)와 `SimWorld.DefinitionOf` 가 이미 갖고 있고, 두 벌을 들면 어긋나는 날이 온다. 기동 시 한 번 잡고 자라지 않는다(§2.1).
+2. `src/Npc.Runtime/NpcStore.cs` — `Bind`·`SlotOf`·`GlobalOf`·`FreeSlot`·`RebuildIds`. `Occupant` 가 그대로 전역 id 라 새 배열이 없다. 복원은 파생물인 역방향 표를 다시 세운다.
+3. 경계는 **셋뿐이다** — `EventApplier.Apply`(전역→슬롯, 모르면 `UnknownNpcEvents`) · `InterruptMatcher.TryMatch`·`Handle` · `PlanExecutor.ContextOf`(슬롯→전역). `CommandEmitter` 는 `EmitContext.Npc` 가 이미 전역이라 안 바뀐다.
+4. `src/Npc.Runtime/DynamicRoster.cs` — **슬롯 배정이 뒤집혔다.** 게임서버가 전역 id 만 말하고 슬롯은 우리가 고른다(`FreeSlot`). B-05 가 `NpcSpawned.ExtA` 로 싣던 인스턴스 id 는 같은 값을 두 번 싣는 것이 되어 `ExtensionSlots` 등록을 지웠다.
+5. `WireHelloV2.ShardId`·`ZoneMask` 는 B-01 이 미리 뚫어 뒀다. `TcpGameServerLink.ValidateV2` 가 완전 일치를 요구하고, 어긋나면 새 `LinkRejectCode.ShardMismatch` 다.
+6. `deploy/shards.json` + `src/Npc.MasterData/ShardTable.cs` — **V15**(겹침·모르는 존·code 63 초과·번호 중복은 로드 실패). `--shard N` · `--shards <path>`.
+7. `src/Npc.Runtime/PoiBinder.cs` — `ZoneMask` 로 후보를 거른다. 비트 연산 하나라 할당 0. **0 = 전체**라 단일 샤드는 오늘과 같다.
+8. `src/Npc.Sim/SimWorld.cs` — 대역도 경계에서 한 번 바꾼다. **안쪽은 전부 슬롯 공간**이다(`ApplyLocal`) — 두 공간이 섞이면 "어떤 명령은 맞고 어떤 명령은 배열 밖" 이 된다.
+9. `/npc/{id}`·`/npc/{id}/context`·`/stream/npcs?ids=` 는 전역 id 를 받는다. `NpcSummary` 에 `Slot` 을 같이 싣는다 — 페이지네이션 커서가 슬롯 공간이라 둘을 잇는 값이 필요하다.
+10. `testbed/run_demo.ps1 -Shards 2` — 샤드마다 게임서버 + NPC 서버 한 쌍, 포트 +10.
+
+**정정 — 게임서버 대역의 다중 세션은 안 만들었다.** `SimWorld.Events` 가 단일 독자 채널이라 팬아웃이 아니고, 세션마다 존으로 거른 큐를 주려면 시퀀스 스트림도 세션별로 갈라야 한다. 그보다 **"1 프로세스 = 1 샤드 = 1 링크" 를 대역에도 그대로 적용**하는 쪽이 이 설계와 일관되고, 실제 배치(게임서버 1 + NPC 서버 N)와 다른 점은 대역이 하나 더 뜨는 것뿐이다.
 
 **계약·문서 변경.** `Npc.Contracts` 무변경(`NpcId` 의미가 "인스턴스 id" 로 명확해질 뿐 — `Ids.cs:8` 주석은 이미 그렇게 적혀 있다).
 `docs/reference_link.html` §09 에 `ShardId`·`ZoneMask`, §13 "샤딩 — 1단계 구현됨/2단계 핸드오프 미구현".
 
-**테스트.** `Runtime/GlobalIdTests` — 왕복·미지 id 무시. `TestBed/MultiShardTests` — 샤드 2개 + 게임서버 대역 1개 · 각 샤드가 자기 존 이벤트만 받음 ·
-두 샤드 합산 명령 수 == 단일 회차. `Determinism` — 샤드 분할이 각 샤드 내 결정론을 깨지 않음. `MasterData` V15.
+**테스트.** `Runtime/GlobalIdTests` 6건 — 왕복 · 0/용량 밖 거절 · 조회 할당 0 · 두 방향이 같이 움직임 · 빈 슬롯 선택의 결정론 · 복원 시 역방향 재구성 · **로스터 id 가 듬성듬성하다**(용량 산정의 근거).
+`MasterData/ShardTableTests` 6건 — 저장소의 `shards.json` 이 존을 빠짐없이·겹치지 않게 나눈다 · 겹침/모르는 존/샤드 0/중복/빈 샤드는 로드 실패 · `Covers(0, …)` 는 전체.
+기존 1,600여 건이 전부 전역 id 경로로 다시 돈다 — 슬롯을 그대로 실으면 **깨진다**는 것이 이 회차에서 확인됐다(33건 → 0건).
 
-**완료 조건.** 존 12개를 2샤드로 나눠 NPC 5,000 을 두 프로세스로 돌리고 뷰어에서 둘 다 보인다. 전역 id 충돌 0.
+**미실시.** 샤드 2개로 NPC 5,000 을 **실제로 두 프로세스에 올려** 뷰어로 확인하는 회차는 돌리지 않았다 — `-Shards 2` 가 그 경로를 만들지만 이 저장소에서 GUI 뷰어 회차를 자동으로 돌릴 수 없다.
+
+**완료 조건.** 존 12개를 2샤드로 나눠 두 프로세스로 돌린다. 전역 id 충돌 0. <b>샤드별 단일 프로세스 회차는 확인했다</b>(`--shard 1` 존 7개 mask 0xfe · `--shard 2` 존 5개 mask 0x1f00 · 둘 다 `bytesPerTick` 0 · 오버런 0).
 
 **규칙 충돌 확인.** §2.1 할당 0(배열 변환). §2.3 샤드 내부 결정론 유지.
 

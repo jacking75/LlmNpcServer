@@ -41,18 +41,21 @@ public sealed class DynamicRosterTests
 
         Assert.False(rig.Store.IsOccupied(Active));
 
-        Assert.True(rig.Roster.TryActivate(Active, def.Id, new Tick(100)));
+        // A-08 — 슬롯은 우리가 고른다. 게임서버는 전역 id 만 말한다.
+        Assert.True(rig.Roster.TryActivate(def.Id, new Tick(100), out int slot));
 
-        Assert.True(rig.Store.IsOccupied(Active));
-        Assert.Equal(def.Id, rig.Store.Occupant[Active]);
-        Assert.Equal(def.Archetype.Value, rig.Store.ArchetypeCode[Active]);
-        Assert.Equal(def.Home.Value, rig.Store.HomePoi[Active]);
-        Assert.Equal(def.Workplace.Value, rig.Store.WorkPoi[Active]);
-        Assert.Equal(def.Zone.Value, rig.Store.ZoneCode[Active]);
-        Assert.Equal((byte)StepStatus.Ready, rig.Store.StepStatus[Active]);
+        Assert.Equal(Active, slot);
+        Assert.True(rig.Store.IsOccupied(slot));
+        Assert.Equal(def.Id, rig.Store.Occupant[slot]);
+        Assert.Equal(slot, rig.Store.SlotOf(def.Id));
+        Assert.Equal(def.Archetype.Value, rig.Store.ArchetypeCode[slot]);
+        Assert.Equal(def.Home.Value, rig.Store.HomePoi[slot]);
+        Assert.Equal(def.Workplace.Value, rig.Store.WorkPoi[slot]);
+        Assert.Equal(def.Zone.Value, rig.Store.ZoneCode[slot]);
+        Assert.Equal((byte)StepStatus.Ready, rig.Store.StepStatus[slot]);
 
         // 폴백 플랜이 붙어야 계획 없이도 산다 (CLAUDE.md §2.6).
-        Assert.NotEqual(0, rig.Store.PlanId[Active]);
+        Assert.NotEqual(0, rig.Store.PlanId[slot]);
     }
 
     /// <summary>
@@ -73,26 +76,27 @@ public sealed class DynamicRosterTests
         rig.Store.InventoryOf(0)[1] = 7;
         rig.Store.Flags[0] |= WorldFlags.PlayerNearby;
 
-        Assert.True(rig.Roster.Deactivate(0));
+        Assert.True(rig.Roster.Deactivate(def.Id));
 
         Assert.False(rig.Store.IsOccupied(0));
         Assert.Equal(0, rig.Store.Occupant[0]);
+        Assert.Equal(GlobalIdMap.NotFound, rig.Store.SlotOf(def.Id));
         Assert.Equal((byte)StepStatus.Unspawned, rig.Store.StepStatus[0]);
         Assert.Equal(0, rig.Store.InventoryOf(0)[1]);
         Assert.Equal(default, rig.Store.Flags[0]);
         Assert.Equal(0, rig.Store.PlanId[0]);
         Assert.Equal(NpcStore.InactiveLod, rig.Store.Lod[0]);
 
-        // 같은 인스턴스를 다른 슬롯에 다시 앉힌다.
-        const int Elsewhere = Active + 2;
+        // 같은 인스턴스를 다시 앉힌다. 빈 자리가 슬롯 0 이므로 거기로 돌아온다 —
+        // <b>어느 슬롯인지는 우리 사정이고, 게임서버는 알 필요가 없다</b> (A-08).
+        Assert.True(rig.Roster.TryActivate(def.Id, new Tick(200), out int again));
 
-        Assert.True(rig.Roster.TryActivate(Elsewhere, def.Id, new Tick(200)));
+        Assert.Equal(def.Id, rig.Store.Occupant[again]);
+        Assert.Equal(def.Archetype.Value, rig.Store.ArchetypeCode[again]);
+        Assert.Equal(again, rig.Store.SlotOf(def.Id));
 
-        Assert.Equal(def.Id, rig.Store.Occupant[Elsewhere]);
-        Assert.Equal(def.Archetype.Value, rig.Store.ArchetypeCode[Elsewhere]);
-
-        // 옛 슬롯은 그대로 비어 있다.
-        Assert.False(rig.Store.IsOccupied(0));
+        // 물건은 안 따라왔다.
+        Assert.Equal(0, rig.Store.InventoryOf(again)[1]);
     }
 
     /// <summary>
@@ -105,11 +109,11 @@ public sealed class DynamicRosterTests
         Rig rig = Rig.Build();
         NpcInstanceDef def = rig.Instances[Active + 1];
 
-        Assert.True(rig.Roster.TryActivate(Active, def.Id, new Tick(100)));
+        Assert.True(rig.Roster.TryActivate(def.Id, new Tick(100), out _));
 
         ulong once = rig.Store.StateHash();
 
-        Assert.True(rig.Roster.TryActivate(Active, def.Id, new Tick(101)));
+        Assert.True(rig.Roster.TryActivate(def.Id, new Tick(101), out _));
 
         Assert.Equal(once, rig.Store.StateHash());
         Assert.Equal(1, rig.Roster.Activated);
@@ -122,11 +126,13 @@ public sealed class DynamicRosterTests
     {
         Rig rig = Rig.Build();
 
-        Assert.True(rig.Roster.Deactivate(1));
+        int id = rig.Instances[1].Id;
+
+        Assert.True(rig.Roster.Deactivate(id));
 
         ulong once = rig.Store.StateHash();
 
-        Assert.False(rig.Roster.Deactivate(1));
+        Assert.False(rig.Roster.Deactivate(id));
         Assert.Equal(once, rig.Store.StateHash());
         Assert.Equal(1, rig.Roster.Deactivated);
     }
@@ -140,10 +146,19 @@ public sealed class DynamicRosterTests
     {
         Rig rig = Rig.Build();
 
-        Assert.False(rig.Roster.TryActivate(Capacity, rig.Instances[0].Id, new Tick(100)));
-        Assert.False(rig.Roster.TryActivate(-1, rig.Instances[0].Id, new Tick(100)));
-        Assert.Equal(2, rig.Roster.Rejected);
-        Assert.Equal(0, rig.Roster.Activated);
+        // 여유 슬롯 4칸을 채운다.
+        for (int i = 0; i < Capacity - Active; i++)
+        {
+            Assert.True(rig.Roster.TryActivate(rig.Instances[Active + i].Id, new Tick(100), out _));
+        }
+
+        Assert.Equal(Capacity, rig.Store.OccupiedSlots());
+
+        // 한 마리 더. 배열을 늘릴 수 없으므로 거절하고 <b>센다</b>.
+        Assert.False(rig.Roster.TryActivate(rig.Instances[Capacity].Id, new Tick(100), out int slot));
+
+        Assert.Equal(-1, slot);
+        Assert.Equal(1, rig.Roster.Rejected);
     }
 
     /// <summary>
@@ -155,14 +170,17 @@ public sealed class DynamicRosterTests
     {
         Rig rig = Rig.Build();
 
-        Assert.False(rig.Roster.TryActivate(Active, 999_999, new Tick(100)));
-        Assert.False(rig.Roster.TryActivate(Active, 0, new Tick(100)));
+        Assert.False(rig.Roster.TryActivate(999_999, new Tick(100), out _));
+        Assert.False(rig.Roster.TryActivate(0, new Tick(100), out _));
         Assert.Equal(2, rig.Roster.Rejected);
         Assert.False(rig.Store.IsOccupied(Active));
     }
 
     /// <summary>
-    /// <c>NpcSpawned</c> 가 <c>ExtA</c> 로 온 id 를 그대로 쓴다 — 이벤트 경로가 이어져 있는가.
+    /// <c>NpcSpawned</c> 의 <c>Npc</c> 가 전역 id 다 (A-08) — 이벤트 경로가 이어져 있는가.
+    ///
+    /// <b>B-05 는 이 값을 <c>ExtA</c> 로 따로 실었다.</b> <c>Npc</c> 가 슬롯 번호였기 때문인데,
+    /// 이제는 같은 값을 두 번 싣는 것이 되어 <c>ExtA</c> 등록을 지웠다.
     /// </summary>
     [Fact]
     public void EventApplier_ActivatesFromNpcSpawned()
@@ -175,13 +193,16 @@ public sealed class DynamicRosterTests
             Kind = GameEventKind.NpcSpawned,
             Sequence = 1,
             OccurredAt = new Tick(10),
-            Npc = new NpcId(Active + 1),
+            Npc = new NpcId(def.Id),
             Pos = new WorldPos(1, 2, 3),
-            ExtA = (uint)def.Id,
         });
 
-        Assert.Equal(def.Id, rig.Store.Occupant[Active + 1]);
-        Assert.Equal((byte)StepStatus.Ready, rig.Store.StepStatus[Active + 1]);
+        int slot = rig.Store.SlotOf(def.Id);
+
+        Assert.True(slot >= Active, $"여유 슬롯에 앉아야 한다: {slot}");
+        Assert.Equal(def.Id, rig.Store.Occupant[slot]);
+        Assert.Equal((byte)StepStatus.Ready, rig.Store.StepStatus[slot]);
+        Assert.Equal(new WorldPos(1, 2, 3), rig.Store.Pos[slot]);
     }
 
     /// <summary><c>NpcDespawned</c> 가 슬롯을 비운다.</summary>
@@ -189,39 +210,63 @@ public sealed class DynamicRosterTests
     public void EventApplier_DeactivatesOnDespawn()
     {
         Rig rig = Rig.Build();
+        int id = rig.Instances[2].Id;
 
         rig.Applier.Apply(new GameEvent
         {
             Kind = GameEventKind.NpcDespawned,
             Sequence = 1,
             OccurredAt = new Tick(10),
-            Npc = new NpcId(2),
+            Npc = new NpcId(id),
         });
 
         Assert.False(rig.Store.IsOccupied(2));
         Assert.Equal(0, rig.Store.Occupant[2]);
+        Assert.Equal(GlobalIdMap.NotFound, rig.Store.SlotOf(id));
     }
 
     /// <summary>
-    /// <b><c>ExtA</c> 가 0 이면 슬롯을 건드리지 않는다.</b> 확장 슬롯을 안 켠 게임서버의
-    /// 스폰이거나 이미 앉아 있는 슬롯의 재스폰이고, 둘 다 오늘의 동작이 맞다.
+    /// <b>이미 앉아 있는 NPC 의 재스폰은 자리를 안 옮긴다</b> (N7 멱등).
+    /// 재접속 뒤의 로스터 재발행이 이 경로다.
     /// </summary>
     [Fact]
-    public void EventApplier_LeavesSlotAloneWhenExtAIsZero()
+    public void EventApplier_KeepsTheSlotOnRespawn()
     {
         Rig rig = Rig.Build();
-        int before = rig.Store.Occupant[1];
+        int id = rig.Store.Occupant[1];
 
         rig.Applier.Apply(new GameEvent
         {
             Kind = GameEventKind.NpcSpawned,
             Sequence = 1,
             OccurredAt = new Tick(10),
-            Npc = new NpcId(1),
+            Npc = new NpcId(id),
         });
 
-        Assert.Equal(before, rig.Store.Occupant[1]);
+        Assert.Equal(id, rig.Store.Occupant[1]);
+        Assert.Equal(1, rig.Store.SlotOf(id));
         Assert.Equal(0, rig.Roster.Rejected);
+        Assert.Equal(Active, rig.Store.OccupiedSlots());
+    }
+
+    /// <summary>
+    /// <b>모르는 전역 id 로 온 이벤트는 버리고 <b>센다</b></b> (A-08).
+    /// 조용히 넘기면 라우팅 실수가 아무 흔적도 안 남긴다.
+    /// </summary>
+    [Fact]
+    public void EventApplier_CountsEventsForUnknownIds()
+    {
+        Rig rig = Rig.Build();
+
+        rig.Applier.Apply(new GameEvent
+        {
+            Kind = GameEventKind.NpcArrived,
+            Sequence = 1,
+            OccurredAt = new Tick(10),
+            Npc = new NpcId(999_999),
+        });
+
+        Assert.Equal(1, rig.Applier.UnknownNpcEvents);
     }
 
     /// <summary>
@@ -238,18 +283,18 @@ public sealed class DynamicRosterTests
         // 예열.
         for (int i = 0; i < 4; i++)
         {
-            rig.Roster.Deactivate(i % Capacity);
-            rig.Roster.TryActivate(i % Capacity, ids[i % Capacity], new Tick(i));
+            rig.Roster.Deactivate(ids[i % Capacity]);
+            rig.Roster.TryActivate(ids[i % Capacity], new Tick(i), out _);
         }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
 
         for (int i = 0; i < 64; i++)
         {
-            int slot = i % Capacity;
+            int id = ids[i % Capacity];
 
-            rig.Roster.Deactivate(slot);
-            rig.Roster.TryActivate(slot, ids[slot], new Tick(100 + i));
+            rig.Roster.Deactivate(id);
+            rig.Roster.TryActivate(id, new Tick(100 + i), out _);
         }
 
         long delta = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -267,11 +312,11 @@ public sealed class DynamicRosterTests
 
         Assert.Equal(Active, rig.Store.OccupiedSlots());
 
-        rig.Roster.Deactivate(0);
+        rig.Roster.Deactivate(rig.Instances[0].Id);
 
         Assert.Equal(Active - 1, rig.Store.OccupiedSlots());
 
-        rig.Roster.TryActivate(Active, rig.Instances[Active].Id, new Tick(1));
+        rig.Roster.TryActivate(rig.Instances[Active].Id, new Tick(1), out _);
 
         Assert.Equal(Active, rig.Store.OccupiedSlots());
     }
@@ -292,13 +337,27 @@ public sealed class DynamicRosterTests
 
         public required NpcInstanceTable Instances { get; init; }
 
+        /// <summary>인스턴스 표의 가장 큰 id. 전역 id 역방향 표의 용량이다 (A-08).</summary>
+        private static int MaxId(NpcInstanceTable instances)
+        {
+            int max = 0;
+
+            for (int i = 0; i < instances.Count; i++)
+            {
+                max = Math.Max(max, instances[i].Id);
+            }
+
+            return max;
+        }
+
         public static Rig Build()
         {
             NpcInstanceTable instances = NpcInstanceTable.Load(
                 Path.Combine(TestPaths.MasterData, "npc_instances.json"), s_data);
 
             var store = new NpcStore();
-            store.Allocate(Capacity, s_data.Items.MaxCode + 1);
+            // A-08 — 전역 id 역방향 표의 용량은 인스턴스 표 전체 기준이다.
+            store.Allocate(Capacity, s_data.Items.MaxCode + 1, MaxId(instances));
 
             var clock = new GameClock(s_data.Buckets, 600);
             var correlations = new CorrelationTable(Capacity);
@@ -331,7 +390,7 @@ public sealed class DynamicRosterTests
                 NpcInstanceDef def = instances[i];
 
                 applier.Seed(i, def.Home, def.Zone, def.Archetype, def.Home, def.Workplace);
-                store.Occupant[i] = def.Id;
+                store.Bind(i, def.Id);
                 store.StepStatus[i] = (byte)StepStatus.Ready;
                 executor.AssignPlan(i, new PlanId(fallbackOf[def.Archetype.Value]));
             }

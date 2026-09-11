@@ -206,8 +206,9 @@ public sealed class LinkSession : IAsyncDisposable
             NpcCount = _world.Roster.Count,
             StartTick = _world.Now.Value,
             StartGameMinuteOfDay = (ushort)_world.GameMinuteOfDay,
-            ShardId = 0,
-            ZoneMask = 0,
+            // A-08 — 우리가 맡은 샤드. NPC 서버가 다르면 ShardMismatch 로 거절한다.
+            ShardId = (ushort)_options.Shard,
+            ZoneMask = _options.ZoneMask,
             SessionEpoch = _options.SessionEpoch,
             MasterDataStructural = WireHash.FromHex(_data.StructuralHash),
             MasterDataContent = WireHash.FromHex(_data.ContentHash),
@@ -497,7 +498,9 @@ public sealed class LinkSession : IAsyncDisposable
                 Kind = GameEventKind.NpcSpawned,
                 Sequence = 0,
                 OccurredAt = now,
-                Npc = new NpcId(i),
+                // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 슬롯 번호가 아니다.
+                // B-05 가 ExtA 로 따로 싣던 "누가 앉았는가" 가 이제 이 칸 자체다.
+                Npc = world.NpcIdOf(i),
                 Poi = world.PoiOf(i),
                 Zone = world.ZoneOf(i),
                 Pos = world.PositionOf(i),
@@ -505,9 +508,6 @@ public sealed class LinkSession : IAsyncDisposable
                 // B-02 — 재동기화 스폰도 인스턴스를 실어야 한다. NPC 서버가 인스턴스를
                 // 아는 경로는 NpcSpawned 하나뿐이고, 세션 전 이벤트는 위에서 버려진다.
                 Instance = world.InstanceOf(i),
-
-                // B-05 — 누가 앉았는지도 같이. 동적 로스터의 NPC 서버가 이것으로 시드한다.
-                ExtA = (uint)world.DefinitionOf(i),
             });
         }
 

@@ -23,7 +23,8 @@ public sealed class InteractionSimTests
     private static NpcCommand Interact(int npc, ItemId item, int amount) => new()
     {
         Kind = NpcCommandKind.Interact,
-        Npc = new NpcId(npc),
+        // A-08 — 와이어의 NpcId 는 전역 id 다. 이 픽스처는 슬롯 i 에 id i+1 을 앉힌다.
+        Npc = new NpcId(npc + 1),
         IssuedAt = new Tick(0),
         Correlation = new CorrelationId(11),
         Priority = CommandPriority.Normal,
@@ -120,7 +121,7 @@ public sealed class InteractionSimTests
         var eat = new NpcCommand
         {
             Kind = NpcCommandKind.InventoryChange,
-            Npc = new NpcId(0),
+            Npc = new NpcId(1),   // 슬롯 0 의 전역 id
             IssuedAt = new Tick(1),
             Correlation = new CorrelationId(5),
             Priority = CommandPriority.Normal,
@@ -147,7 +148,7 @@ public sealed class InteractionSimTests
         var eat = new NpcCommand
         {
             Kind = NpcCommandKind.InventoryChange,
-            Npc = new NpcId(0),
+            Npc = new NpcId(1),   // 슬롯 0 의 전역 id
             IssuedAt = new Tick(1),
             Correlation = new CorrelationId(5),
             Priority = CommandPriority.Normal,
@@ -179,11 +180,11 @@ public sealed class InteractionSimTests
                 var attack = new NpcCommand
                 {
                     Kind = NpcCommandKind.CombatAction,
-                    Npc = new NpcId(0),
+                    Npc = new NpcId(1),   // 슬롯 0 의 전역 id
                     IssuedAt = new Tick(tick),
                     Correlation = new CorrelationId((uint)tick),
                     Priority = CommandPriority.Critical,
-                    TargetNpc = new NpcId(1),
+                    TargetNpc = new NpcId(2),
                     Flags = (byte)CombatActionKind.MeleeAttack,
                 };
 

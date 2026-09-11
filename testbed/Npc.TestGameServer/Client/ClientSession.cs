@@ -266,11 +266,11 @@ public sealed class ClientSession : IAsyncDisposable
 
                 case ClientMessageKind.Interact:
                     // 사거리(30m) 판정은 등록기가 한다. 밖이면 조용히 무시되고 카운터만 오른다.
-                    _players.TryInteract(Player, new NpcId(action.Npc), now);
+                    _players.TryInteract(Player, action.Npc, now);
                     break;
 
                 case ClientMessageKind.Attack:
-                    _players.TryAttack(Player, new NpcId(action.Npc), action.Amount, now);
+                    _players.TryAttack(Player, action.Npc, action.Amount, now);
                     break;
 
                 case ClientMessageKind.Select:

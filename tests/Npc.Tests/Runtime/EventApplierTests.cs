@@ -29,6 +29,10 @@ public sealed class EventApplierTests
         for (int i = 0; i < npcs; i++)
         {
             applier.Seed(i, home, s_data.Pois[home].Zone, smith.Code, home, work);
+
+            // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 이 하네스는 슬롯 i 에 id i+1 을 앉힌다
+            // (0 은 "없음" 이라 쓸 수 없다).
+            store.Bind(i, i + 1);
         }
 
         return new Harness(store, clock, correlations, applier);
@@ -39,7 +43,7 @@ public sealed class EventApplierTests
         Kind = kind,
         Sequence = sequence,
         OccurredAt = new Tick(sequence * 10),
-        Npc = new NpcId(npc),
+        Npc = new NpcId(npc + 1),
     };
 
     /// <summary>N7 — 동일 이벤트 2회 주입 → 상태 해시 동일.</summary>

@@ -618,6 +618,13 @@ public sealed class TcpGameServerLink : IGameServerLink
             return LinkRejectCode.MasterDataMismatch;
         }
 
+        // A-08 — 샤드가 같아야 한다. <b>1 프로세스 = 1 샤드 = 1 링크</b>이므로
+        // 게임서버가 다른 샤드로 붙었다면 그쪽 세션이 잘못 라우팅된 것이다.
+        if (hello.ShardId != _options.ShardId || hello.ZoneMask != _options.ZoneMask)
+        {
+            return LinkRejectCode.ShardMismatch;
+        }
+
         if (hello.Roster != _options.Roster)
         {
             return LinkRejectCode.RosterMismatch;

@@ -127,14 +127,14 @@ public sealed class EndToEndTests
         Assert.NotEqual(0, player.Value);
 
         // 붙기 전에는 관측 대상이 아니다.
-        Assert.True(bed.Host.Trace(Watched).Lod > 0, bed.Describe());
+        Assert.True(bed.Host.Trace(bed.GlobalOf(Watched)).Lod > 0, bed.Describe());
 
         await bed.DriveUntilAsync(
-            () => bed.Host.Trace(Watched).Lod == 0,
+            () => bed.Host.Trace(bed.GlobalOf(Watched)).Lod == 0,
             maxTicks: 200,
             beforeTick: () => bed.Follow(player, Watched));
 
-        Assert.Equal(0, bed.Host.Trace(Watched).Lod);
+        Assert.Equal(0, bed.Host.Trace(bed.GlobalOf(Watched)).Lod);
     }
 
     /// <summary>
@@ -160,7 +160,7 @@ public sealed class EndToEndTests
             beforeTick: () =>
             {
                 bed.Follow(player, Watched);
-                bed.Server.Players.TryInteract(player, new NpcId(Watched), new Tick(bed.Now));
+                bed.Server.Players.TryInteract(player, Watched, new Tick(bed.Now));
             });
 
         Assert.True(bed.Server.Players.Interacts > 0, bed.Describe());
@@ -169,7 +169,7 @@ public sealed class EndToEndTests
         // 근접 판정은 5틱마다다. 상호작용이 닿았으면 그 사이에 이미 들어와 있어야 한다.
         Assert.Contains(
             nameof(WorldFlags.PlayerNearby),
-            bed.Host.Trace(Watched).Flags,
+            bed.Host.Trace(bed.GlobalOf(Watched)).Flags,
             StringComparer.Ordinal);
     }
 
@@ -415,7 +415,7 @@ public sealed class EndToEndTests
 
     private static bool Saw(Bed bed, int npc, GameEventKind kind)
     {
-        foreach (TraceEvent recent in bed.Host.Trace(npc).Recent)
+        foreach (TraceEvent recent in bed.Host.Trace(bed.GlobalOf(npc)).Recent)
         {
             if (string.Equals(recent.Kind, kind.ToString(), StringComparison.Ordinal))
             {
@@ -601,6 +601,15 @@ public sealed class EndToEndTests
         /// <summary>플레이어를 그 NPC 위로 옮긴다. 근접·상호작용 사거리 판정의 기준이 위치뿐이다.</summary>
         public void Follow(PlayerId player, int npc) =>
             Server.Players.Teleport(player, Server.World.Transforms.Interpolate(npc, new Tick(Now)));
+
+        /// <summary>
+        /// 슬롯의 전역 NPC id (A-08). <c>/npc/{id}</c>·<c>Host.Trace</c> 가 받는 값이다.
+        ///
+        /// <b>두 서버는 같은 로스터를 같은 순서로 뽑는다</b>(docs/20 §10.2)이라 슬롯이 같고,
+        /// 그 슬롯의 거주자 id 도 같다.
+        /// </summary>
+        /// <param name="slot">슬롯 첨자.</param>
+        public int GlobalOf(int slot) => Server.World.World.NpcIdOf(slot).Value;
 
         /// <summary>실패 메시지에 붙일 한 줄. <b>숫자가 없으면 왜 실패했는지 알 수 없다.</b></summary>
         public string Describe()

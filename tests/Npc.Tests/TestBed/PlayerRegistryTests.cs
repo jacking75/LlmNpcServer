@@ -165,7 +165,7 @@ public sealed class PlayerRegistryTests
         registry.Teleport(player, Offset(target, PlayerRegistry.InteractRange + 1f));
         Drain(world);
 
-        Assert.False(registry.TryInteract(player, new NpcId(npc), now));
+        Assert.False(registry.TryInteract(player, npc, now));
         Assert.Equal(0, Count(world, GameEventKind.PlayerInteracted));
         Assert.Equal(1, registry.InteractsOutOfRange);
         Assert.Equal(0, registry.Interacts);
@@ -174,7 +174,7 @@ public sealed class PlayerRegistryTests
         registry.Teleport(player, Offset(target, PlayerRegistry.InteractRange - 1f));
         Drain(world);
 
-        Assert.True(registry.TryInteract(player, new NpcId(npc), now));
+        Assert.True(registry.TryInteract(player, npc, now));
         Assert.Equal(1, Count(world, GameEventKind.PlayerInteracted));
         Assert.Equal(1, registry.Interacts);
     }
@@ -205,7 +205,7 @@ public sealed class PlayerRegistryTests
         registry.Teleport(player, Offset(target, PlayerRegistry.InteractRange + 1f));
         Drain(world);
 
-        Assert.False(registry.TryAttack(player, new NpcId(npc), Damage, now));
+        Assert.False(registry.TryAttack(player, npc, Damage, now));
         Assert.Equal(before, world.Needs.HpOf(npc));
         Assert.Equal(1, registry.AttacksOutOfRange);
 
@@ -213,7 +213,7 @@ public sealed class PlayerRegistryTests
         registry.Teleport(player, Offset(target, 10f));
         Drain(world);
 
-        Assert.True(registry.TryAttack(player, new NpcId(npc), Damage, now));
+        Assert.True(registry.TryAttack(player, npc, Damage, now));
         Assert.Equal(before - Damage, world.Needs.HpOf(npc));
 
         // CombatStarted → DamageTaken → NpcVitalsChanged 순이다.
@@ -221,7 +221,7 @@ public sealed class PlayerRegistryTests
 
         while (world.World.Events.TryRead(out GameEvent ev))
         {
-            if (ev.Npc.Value == npc)
+            if (world.World.SlotOf(ev.Npc.Value) == npc)
             {
                 kinds.Add(ev.Kind);
             }
@@ -374,7 +374,8 @@ public sealed class PlayerRegistryTests
     {
         while (world.World.Events.TryRead(out GameEvent ev))
         {
-            if (ev.Kind == GameEventKind.PlayerProximity && ev.Npc.Value == npc)
+            // A-08 — 이벤트의 NpcId 는 전역 id 다. 슬롯으로 되돌려 비교한다.
+            if (ev.Kind == GameEventKind.PlayerProximity && world.World.SlotOf(ev.Npc.Value) == npc)
             {
                 into.Add(((ProximityChange)ev.Code, ev.Amount));
             }

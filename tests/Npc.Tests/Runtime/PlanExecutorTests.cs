@@ -44,6 +44,10 @@ public sealed class PlanExecutorTests
         for (int i = 0; i < npcs; i++)
         {
             applier.Seed(i, home, s_data.Pois[home].Zone, def.Code, home, work);
+
+            // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 이 하네스는 슬롯 i 에 id i+1 을 앉힌다
+            // (0 은 "없음" 이라 쓸 수 없다).
+            store.Bind(i, i + 1);
             store.StepStatus[i] = (byte)StepStatus.Ready;
         }
 
@@ -328,7 +332,7 @@ public sealed class PlanExecutorTests
             Kind = GameEventKind.NpcActionCompleted,
             Sequence = tick,
             OccurredAt = new Tick(tick),
-            Npc = new NpcId(npc),
+            Npc = new NpcId(h.Store.GlobalOf(npc)),
             Correlation = h.Correlations.Current(npc),
         };
 
@@ -342,7 +346,7 @@ public sealed class PlanExecutorTests
             Kind = GameEventKind.NpcActionFailed,
             Sequence = tick,
             OccurredAt = new Tick(tick),
-            Npc = new NpcId(npc),
+            Npc = new NpcId(h.Store.GlobalOf(npc)),
             Correlation = h.Correlations.Current(npc),
             Code = (byte)reason,
         };

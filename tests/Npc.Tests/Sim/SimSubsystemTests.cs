@@ -41,7 +41,7 @@ public sealed class SimSubsystemTests
             var move = new NpcCommand
             {
                 Kind = NpcCommandKind.MoveTo,
-                Npc = new NpcId(npc),
+                Npc = new NpcId(npc + 1),   // A-08 — 전역 id
                 IssuedAt = new Tick(0),
                 Correlation = new CorrelationId(1),
                 Priority = CommandPriority.Normal,
@@ -74,7 +74,7 @@ public sealed class SimSubsystemTests
         Assert.True(transforms.Emitted > 0);
         Assert.All(
             SimWorldTests.Drain(world).Where(e => e.Kind == GameEventKind.NpcTransform),
-            e => Assert.True(e.Npc.Value is 0 or 1));
+            e => Assert.True(world.SlotOf(e.Npc.Value) is 0 or 1));
     }
 
     /// <summary>NPC 5,000 에서 이벤트/초 ≤ 3,000.</summary>
@@ -97,7 +97,7 @@ public sealed class SimSubsystemTests
             var move = new NpcCommand
             {
                 Kind = NpcCommandKind.MoveTo,
-                Npc = new NpcId(npc),
+                Npc = new NpcId(npc + 1),   // A-08 — 전역 id
                 IssuedAt = new Tick(0),
                 Correlation = new CorrelationId(1),
                 Priority = CommandPriority.Normal,

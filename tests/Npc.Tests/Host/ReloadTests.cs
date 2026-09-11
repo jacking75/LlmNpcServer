@@ -258,7 +258,9 @@ public sealed class ReloadTests
             {
                 int done = 0;
 
-                while (host.Loop.TicksProcessed == 0)
+                // 루프가 돌기 시작할 때까지. <b>상한을 둔다</b> — 무한 대기는 회차가 끝난 뒤에도
+                // 스레드를 잡고 있어 테스트 호스트가 안 죽는다.
+                for (int spin = 0; spin < 10_000 && host.Loop.TicksProcessed == 0; spin++)
                 {
                     await Task.Yield();
                 }

@@ -11,6 +11,7 @@
     순서가 어긋나도 죽지는 않는다. 몇 초 늦게 붙을 뿐이다.
 
     포트: 7010 링크 · 7020 클라이언트 · 5080 NPC 서버 HTTP (docs/20 §12).
+    -Shards 2 면 두 벌을 띄운다 — 샤드마다 포트가 +10 씩 밀린다.
 
 .PARAMETER Scenario
     day | siege | blackout. testbed/scenarios/demo_<이름>.jsonl 을 쓴다 (docs/20 §11).
@@ -29,6 +30,13 @@
     NPC 서버의 재계획 티어. 기본 none (LLM 을 부르지 않는다).
     demo_blackout 을 t2 로 돌리면 T2 → T1 차단이 실제로 보인다 (docs/20 §11.4).
 
+.PARAMETER Shards
+    띄울 샤드 수 (A-08). 1 이면 오늘과 같다.
+
+    2 이상이면 deploy/shards.json 의 샤드마다 게임서버 + NPC 서버 한 쌍을 띄운다 —
+    1 프로세스 = 1 샤드 = 1 링크가 이 설계의 규칙이고, 대역도 그것을 따른다.
+    클라이언트는 첫 샤드에만 붙는다 (뷰어는 한 세계만 그린다).
+
 .PARAMETER NoBuild
     dotnet build 를 건너뛴다. 방금 빌드했을 때만 쓴다.
 
@@ -37,6 +45,9 @@
 
 .EXAMPLE
     ./testbed/run_demo.ps1 -Scenario blackout -Tier t2
+
+.EXAMPLE
+    ./testbed/run_demo.ps1 -Shards 2
 #>
 [CmdletBinding()]
 param(
@@ -51,6 +62,9 @@ param(
 
     [ValidateSet('none', 't1', 't2', 'all')]
     [string] $Tier = 'none',
+
+    [ValidateRange(1, 8)]
+    [int] $Shards = 1,
 
     [switch] $NoBuild
 )
@@ -158,40 +172,56 @@ Assert-Exe 'NPC 서버' $NpcServerExe
 Assert-Exe '클라이언트' $ClientExe
 
 Write-Host ''
-Write-Host ('데모: {0}   npcs {1}   time-scale {2}   tier {3}' -f $Scenario, $Npcs, $TimeScale, $Tier) -ForegroundColor White
+Write-Host ('데모: {0}   npcs {1}   time-scale {2}   tier {3}   샤드 {4}' -f $Scenario, $Npcs, $TimeScale, $Tier, $Shards) -ForegroundColor White
 Write-Host ('볼 것: {0}' -f $Watch[$Scenario]) -ForegroundColor Gray
 Write-Host ''
 
 try {
-    Start-Part '게임서버' $GameServerExe @(
-        '--npcs', $Npcs,
-        '--time-scale', $TimeScale,
-        '--link-port', $LinkPort,
-        '--client-port', $ClientPort,
-        '--scenario', (Format-Arg $ScenarioPath)
-    )
+    # A-08 — 샤드마다 게임서버 + NPC 서버 한 쌍. 1 프로세스 = 1 샤드 = 1 링크다.
+    # 포트는 샤드마다 +10 밀어 겹치지 않게 한다.
+    for ($shard = 0; $shard -lt $Shards; $shard++) {
+        $offset = $shard * 10
+        $shardId = if ($Shards -eq 1) { 0 } else { $shard + 1 }
+        $label = if ($Shards -eq 1) { '' } else { (' (샤드 {0})' -f $shardId) }
 
-    Start-Sleep -Milliseconds 800
+        $gsArgs = @(
+            '--npcs', $Npcs,
+            '--time-scale', $TimeScale,
+            '--link-port', ($LinkPort + $offset),
+            '--client-port', ($ClientPort + $offset),
+            '--scenario', (Format-Arg $ScenarioPath)
+        )
 
-    # --dev-control 이 있어야 제어 패널의 킬스위치 버튼이 먹는다 (docs/20 §11.4).
-    # 없으면 라우트 자체가 없어서 404 이고, 화면에는 "미연결" 로만 나온다.
-    #
-    # --scenario 를 여기에도 준다. NPC 서버는 KillSwitch 줄만 본다 —
-    # 이벤트 주입은 게임서버의 일이고, 여기서 같이 내면 세계가 두 번 밀린다.
-    Start-Part 'NPC 서버' $NpcServerExe @(
-        '--link', 'tcp',
-        '--gs-port', $LinkPort,
-        '--npcs', $Npcs,
-        '--time-scale', $TimeScale,
-        '--days', '0',
-        '--tier', $Tier,
-        '--planstore', './planstore',
-        '--port', $HttpPort,
-        '--dev-control',
-        '--scenario', (Format-Arg $ScenarioPath)
-    )
+        if ($shardId -ne 0) { $gsArgs += @('--shard', $shardId) }
 
-    Start-Sleep -Milliseconds 800
+        Start-Part ('게임서버' + $label) $GameServerExe $gsArgs
+
+        Start-Sleep -Milliseconds 800
+
+        # --dev-control 이 있어야 제어 패널의 킬스위치 버튼이 먹는다 (docs/20 §11.4).
+        # 없으면 라우트 자체가 없어서 404 이고, 화면에는 "미연결" 로만 나온다.
+        #
+        # --scenario 를 여기에도 준다. NPC 서버는 KillSwitch 줄만 본다 —
+        # 이벤트 주입은 게임서버의 일이고, 여기서 같이 내면 세계가 두 번 밀린다.
+        $npcArgs = @(
+            '--link', 'tcp',
+            '--gs-port', ($LinkPort + $offset),
+            '--npcs', $Npcs,
+            '--time-scale', $TimeScale,
+            '--days', '0',
+            '--tier', $Tier,
+            '--planstore', './planstore',
+            '--port', ($HttpPort + $offset),
+            '--dev-control',
+            '--scenario', (Format-Arg $ScenarioPath)
+        )
+
+        if ($shardId -ne 0) { $npcArgs += @('--shard', $shardId) }
+
+        Start-Part ('NPC 서버' + $label) $NpcServerExe $npcArgs
+
+        Start-Sleep -Milliseconds 800
+    }
 
     Start-Part '클라이언트' $ClientExe @(
         '--host', '127.0.0.1',

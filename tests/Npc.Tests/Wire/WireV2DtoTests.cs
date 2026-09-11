@@ -222,33 +222,37 @@ public sealed class WireV2DtoTests
     }
 
     /// <summary>
-    /// <b>등록된 슬롯은 값이 있어도 깨끗하다</b> (B-05).
+    /// <b>등록부가 비어 있다</b> (A-08).
     ///
-    /// <c>NpcSpawned.ExtA</c> = 인스턴스 정의 id 가 지금 유일한 등록 항목이다.
-    /// 이 단언이 깨지면 등록부가 지워진 것이고, 그러면 동적 로스터가 조용히 멈춘다 —
-    /// 스폰 이벤트의 "누구인가" 가 규약 위반으로 읽히기 때문이다.
+    /// <para>
+    /// B-05 는 <c>NpcSpawned.ExtA</c> 에 인스턴스 정의 id 를 실었다 — 그때는 <c>Npc</c> 가
+    /// 슬롯 번호였고 슬롯만으로는 "누가 앉았는가" 를 알 수 없었다. A-08 에서 <c>Npc</c> 자체가
+    /// 전역 인스턴스 id 가 되면서 그 통로는 <b>같은 값을 두 번 싣는 것</b>이 됐고,
+    /// 두 번 실은 값은 언젠가 어긋난다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>이 단언은 "지금 아무도 예약 슬롯을 쓰지 않는다" 를 못 박는다.</b> 누군가 등록 없이
+    /// 쓰기 시작하면 <c>Ext_ZeroForUndefinedKinds</c> 가 먼저 깨지고, 등록하면 여기가 깨진다 —
+    /// 둘 중 하나는 반드시 깨지므로 <c>docs/reference_link.html</c> 의 표를 같이 고치게 된다.
+    /// </para>
     /// </summary>
     [Fact]
-    public void Ext_NpcSpawnedSlotAIsRegistered()
+    public void Ext_NoSlotIsRegistered()
     {
-        Assert.True(ExtensionSlots.IsDefined(GameEventKind.NpcSpawned, ExtSlot.A));
-        Assert.Contains(
-            "인스턴스",
-            ExtensionSlots.MeaningOf(GameEventKind.NpcSpawned, ExtSlot.A),
-            StringComparison.Ordinal);
+        Assert.False(ExtensionSlots.IsDefined(GameEventKind.NpcSpawned, ExtSlot.A));
+        Assert.False(ExtensionSlots.IsDefined(GameEventKind.NpcSpawned, ExtSlot.B));
+        Assert.Null(ExtensionSlots.MeaningOf(GameEventKind.NpcSpawned, ExtSlot.A));
 
         var spawned = new GameEvent
         {
             Kind = GameEventKind.NpcSpawned,
             Sequence = 1,
             OccurredAt = new Tick(1),
-            ExtA = 1234,
         };
 
         Assert.True(ExtensionSlots.IsClean(in spawned));
-
-        // B 는 여전히 등록되지 않았다.
-        Assert.False(ExtensionSlots.IsDefined(GameEventKind.NpcSpawned, ExtSlot.B));
+        Assert.False(ExtensionSlots.IsClean(spawned with { ExtA = 1 }));
         Assert.False(ExtensionSlots.IsClean(spawned with { ExtB = 1 }));
     }
 

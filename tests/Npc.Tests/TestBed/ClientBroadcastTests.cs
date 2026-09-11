@@ -185,7 +185,9 @@ public sealed class ClientBroadcastTests
             var command = new NpcCommand
             {
                 Kind = NpcCommandKind.Stop,
-                Npc = new NpcId(Selected),
+
+                // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다.
+                Npc = bed.Server.World.World.NpcIdOf(Selected),
                 IssuedAt = new Tick(bed.Server.Tick),
                 Correlation = new CorrelationId((uint)(i + 1)),
                 Priority = CommandPriority.Normal,
@@ -233,7 +235,7 @@ public sealed class ClientBroadcastTests
             var command = new NpcCommand
             {
                 Kind = NpcCommandKind.Stop,
-                Npc = new NpcId(npc),
+                Npc = bed.Server.World.World.NpcIdOf(npc),
                 IssuedAt = new Tick(bed.Server.Tick),
                 Correlation = new CorrelationId(correlation++),
                 Priority = CommandPriority.Normal,

@@ -56,6 +56,14 @@ public enum LinkRejectCode : byte
 
     /// <summary>인증에 실패했다 (A-06).</summary>
     AuthFailed,
+
+    /// <summary>
+    /// 샤드 번호나 존 마스크가 다르다 (A-08).
+    ///
+    /// <b>게임서버가 이 프로세스를 다른 샤드로 알고 붙었다.</b> 그대로 두면 우리가 안 맡은
+    /// 존의 NPC 에게 명령이 가고, 겹치는 쪽은 두 프로세스가 같은 NPC 를 움직인다.
+    /// </summary>
+    ShardMismatch,
 }
 
 /// <summary>연결 종료 사유. docs/20 §5.4.</summary>

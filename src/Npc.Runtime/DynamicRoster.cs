@@ -7,9 +7,10 @@ namespace Npc.Runtime;
 /// 런타임 스폰·디스폰을 받는 쪽 (B-05).
 ///
 /// <para>
-/// <b>슬롯 배정은 게임서버가 한다.</b> 우리는 "그 슬롯에 이 인스턴스를 앉혀라" 를 받아
-/// 시드하고, 디스폰이 오면 비운다. 슬롯을 우리가 고르면 같은 슬롯 번호가 두 쪽에서 다른 NPC 를
-/// 가리키게 되고, 그 순간 명령이 엉뚱한 NPC 에게 간다.
+/// <b>슬롯 배정은 우리가 한다</b> (A-08 에서 뒤집혔다). 게임서버는 <b>전역 id</b> 만 말하고
+/// — <c>npc_instances.json</c> 의 <c>id</c>, 곧 와이어의 <c>NpcId</c> — 그것을 어느 배열 칸에
+/// 앉힐지는 이쪽 사정이다. 게임서버가 우리 첨자를 고르면 샤드마다 다른 첨자 공간을
+/// 게임서버가 관리해야 하고, 그 관리가 어긋나는 날 명령이 엉뚱한 NPC 에게 간다.
 /// </para>
 ///
 /// <para>
@@ -21,18 +22,18 @@ namespace Npc.Runtime;
 public interface IDynamicRoster
 {
     /// <summary>
-    /// 빈 슬롯에 인스턴스를 앉힌다.
+    /// 빈 슬롯에 인스턴스를 앉힌다 (A-08 — 슬롯은 여기서 고른다).
     /// </summary>
-    /// <param name="slot">게임서버가 고른 슬롯.</param>
-    /// <param name="instanceId"><c>npc_instances.json</c> 의 id. 0 이면 "모른다" 다.</param>
+    /// <param name="instanceId">전역 id = <c>npc_instances.json</c> 의 id. 0 이면 "모른다" 다.</param>
     /// <param name="now">현재 틱.</param>
-    /// <returns>앉혔으면 true. 모르는 인스턴스거나 슬롯이 범위 밖이면 false.</returns>
-    bool TryActivate(int slot, int instanceId, Tick now);
+    /// <param name="slot">앉힌 슬롯. 실패하면 -1.</param>
+    /// <returns>앉혔으면 true. 모르는 인스턴스거나 빈 슬롯이 없으면 false.</returns>
+    bool TryActivate(int instanceId, Tick now, out int slot);
 
     /// <summary>슬롯을 비운다. 이미 비어 있으면 아무 일도 하지 않는다 (N7).</summary>
-    /// <param name="slot">비울 슬롯.</param>
+    /// <param name="instanceId">비울 NPC 의 전역 id.</param>
     /// <returns>실제로 비웠으면 true.</returns>
-    bool Deactivate(int slot);
+    bool Deactivate(int instanceId);
 }
 
 /// <summary>
@@ -106,16 +107,11 @@ public sealed class DynamicRoster : IDynamicRoster
     public long AlreadyActive { get; private set; }
 
     /// <inheritdoc/>
-    public bool TryActivate(int slot, int instanceId, Tick now)
+    public bool TryActivate(int instanceId, Tick now, out int slot)
     {
-        if ((uint)slot >= (uint)_store.Count)
-        {
-            // 용량을 넘었다. 늘릴 수 없으므로 무시하고 센다.
-            Rejected++;
-            return false;
-        }
+        slot = _store.SlotOf(instanceId);
 
-        if (_store.Occupant[slot] == instanceId && instanceId != 0)
+        if (slot >= 0)
         {
             AlreadyActive++;
             return true;   // 멱등이다. 같은 스폰을 두 번 받아도 상태가 같다 (N7)
@@ -129,18 +125,21 @@ public sealed class DynamicRoster : IDynamicRoster
             return false;
         }
 
-        // 다른 인스턴스가 앉아 있으면 먼저 비운다. 안 그러면 인벤토리·플래그를 물려받는다.
-        if (_store.Occupant[slot] != 0)
+        slot = _store.FreeSlot();
+
+        if (slot < 0)
         {
-            _store.ClearSlot(slot);
-            Deactivated++;
+            // 용량을 넘었다. 틱 루프에서 배열을 늘릴 수 없으므로 무시하고 센다
+            // (CLAUDE.md §2.1). --npc-capacity 가 모자란 것이다.
+            Rejected++;
+            return false;
         }
 
         NpcInstanceDef def = _instances[index];
 
         _applier.Seed(slot, def.Home, def.Zone, def.Archetype, def.Home, def.Workplace);
 
-        _store.Occupant[slot] = def.Id;
+        _store.Bind(slot, def.Id);
         _store.StepStatus[slot] = (byte)StepStatus.Ready;
         _store.PlanAssignedTick[slot] = now.Value;
 
@@ -152,9 +151,11 @@ public sealed class DynamicRoster : IDynamicRoster
     }
 
     /// <inheritdoc/>
-    public bool Deactivate(int slot)
+    public bool Deactivate(int instanceId)
     {
-        if ((uint)slot >= (uint)_store.Count || _store.Occupant[slot] == 0)
+        int slot = _store.SlotOf(instanceId);
+
+        if (slot < 0)
         {
             return false;   // 이미 비어 있다. 멱등이다 (N7)
         }

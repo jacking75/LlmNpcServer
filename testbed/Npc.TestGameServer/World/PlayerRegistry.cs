@@ -345,9 +345,9 @@ public sealed class PlayerRegistry
     /// "플레이어 근접이 인지 LOD 를 바꾼다" 는 검증이 무의미해진다.
     /// </summary>
     /// <returns>이벤트가 나갔으면 true.</returns>
-    public bool TryInteract(PlayerId player, NpcId npc, Tick now)
+    public bool TryInteract(PlayerId player, int slot, Tick now)
     {
-        if (!InRange(player, npc, now, out PlayerState state))
+        if (!InRange(player, slot, now, out PlayerState state))
         {
             InteractsOutOfRange++;
             return false;
@@ -358,7 +358,9 @@ public sealed class PlayerRegistry
             Kind = GameEventKind.PlayerInteracted,
             Sequence = 0,
             OccurredAt = now,
-            Npc = npc,
+
+            // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다.
+            Npc = _world.World.NpcIdOf(slot),
             Player = player,
             Zone = state.Zone,
         });
@@ -375,9 +377,9 @@ public sealed class PlayerRegistry
     /// HP 를 여기서 따로 들면 <c>NpcVitalsChanged</c> 와 어긋난 두 벌의 진실이 생긴다.
     /// </summary>
     /// <returns>이벤트가 나갔으면 true.</returns>
-    public bool TryAttack(PlayerId player, NpcId npc, int amount, Tick now)
+    public bool TryAttack(PlayerId player, int slot, int amount, Tick now)
     {
-        if (!InRange(player, npc, now, out _))
+        if (!InRange(player, slot, now, out _))
         {
             AttacksOutOfRange++;
             return false;
@@ -390,7 +392,7 @@ public sealed class PlayerRegistry
             Kind = GameEventKind.CombatStarted,
             Sequence = 0,
             OccurredAt = now,
-            Npc = npc,
+            Npc = _world.World.NpcIdOf(slot),
             Player = player,
         });
 
@@ -399,13 +401,13 @@ public sealed class PlayerRegistry
             Kind = GameEventKind.DamageTaken,
             Sequence = 0,
             OccurredAt = now,
-            Npc = npc,
+            Npc = _world.World.NpcIdOf(slot),
             Player = player,
             Amount = damage,
         });
 
         // NpcVitalsChanged 는 여기서 나간다. 순서가 CombatStarted → DamageTaken → Vitals 다.
-        _world.Needs.Restore(npc.Value, -damage, 0, now);
+        _world.Needs.Restore(slot, -damage, 0, now);
 
         Attacks++;
 
@@ -458,19 +460,19 @@ public sealed class PlayerRegistry
     /// <b>거절 사유를 나누지 않는다.</b> 클라이언트에 "왜 안 됐는지" 를 돌려주면 그것으로
     /// 화면 밖 NPC 의 존재를 알아낼 수 있고, 그건 사거리 제한을 두는 이유와 어긋난다.
     /// </summary>
-    private bool InRange(PlayerId player, NpcId npc, Tick now, out PlayerState state)
+    private bool InRange(PlayerId player, int slot, Tick now, out PlayerState state)
     {
         if (!TryGet(player, out state))
         {
             return false;
         }
 
-        if (!_world.World.IsSpawned(npc.Value))
+        if (!_world.World.IsSpawned(slot))
         {
             return false;
         }
 
-        float distance = Distance(_world.Transforms.Interpolate(npc.Value, now), state.Pos);
+        float distance = Distance(_world.Transforms.Interpolate(slot, now), state.Pos);
 
         return distance <= InteractRange;
     }
@@ -602,7 +604,7 @@ public sealed class PlayerRegistry
                 Kind = GameEventKind.PlayerProximity,
                 Sequence = 0,
                 OccurredAt = now,
-                Npc = new NpcId(npc),
+                Npc = world.NpcIdOf(npc),
                 Player = nearest,
                 Amount = float.IsFinite(distance) ? (int)distance : int.MaxValue,
                 Code = (byte)(observed ? ProximityChange.Enter : ProximityChange.Leave),
@@ -621,7 +623,7 @@ public sealed class PlayerRegistry
                     Kind = GameEventKind.PlayerHostility,
                     Sequence = 0,
                     OccurredAt = now,
-                    Npc = new NpcId(npc),
+                    Npc = world.NpcIdOf(npc),
                     Player = nearest,
                     Code = (byte)Hostility.Hostile,
                 });

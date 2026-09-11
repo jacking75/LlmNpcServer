@@ -115,7 +115,7 @@ public sealed class PlayerBots
                 Kind = GameEventKind.PlayerProximity,
                 Sequence = 0,
                 OccurredAt = now,
-                Npc = new NpcId(npc),
+                Npc = _world.NpcIdOf(npc),
                 Player = new PlayerId(bot + 1),
                 Amount = distance,
                 Code = (byte)(observed ? ProximityChange.Enter : ProximityChange.Leave),
@@ -134,7 +134,7 @@ public sealed class PlayerBots
                     Kind = GameEventKind.PlayerHostility,
                     Sequence = 0,
                     OccurredAt = now,
-                    Npc = new NpcId(npc),
+                    Npc = _world.NpcIdOf(npc),
                     Player = new PlayerId(bot + 1),
                     Code = (byte)Hostility.Hostile,
                 });

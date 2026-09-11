@@ -1,5 +1,28 @@
 # 작업 로그
 
+## 2026-09-11 21:24 KST · A-08 전역 NpcId · 샤딩 1단계
+
+계약은 처음부터 `NpcId` 를 "npc_instances.json 의 id" 로 적어 뒀지만 런타임은 슬롯 첨자를
+그대로 실어 보내고 있었다. 존을 나눠 두 NPC 서버를 띄우면 양쪽의 슬롯 7번이 서로 다른 NPC 다.
+
+- `GlobalIdMap` — 전역 id → 슬롯. **역방향만** 든다 (`Occupant` 가 이미 정방향이다).
+- 경계는 셋뿐이다 — `EventApplier.Apply` · `InterruptMatcher` · `PlanExecutor.ContextOf`.
+  대역(`SimWorld`)도 `ApplyLocal` 한 곳에서 바꾸고 **안쪽은 전부 슬롯 공간**이다.
+- `deploy/shards.json` + `ShardTable`(V15) · `--shard N` · `ZoneMask` 로 POI 후보 제한 ·
+  핸드셰이크 `ShardMismatch`.
+- `run_demo.ps1 -Shards 2` — 샤드마다 게임서버 + NPC 서버 한 쌍.
+
+**슬롯 배정이 뒤집혔다.** B-05 는 게임서버가 슬롯을 골랐고 `NpcSpawned.ExtA` 로 "누가 앉는가" 를
+따로 실었다. 이제 `Npc` 자체가 전역 id 라 같은 값을 두 번 싣는 것이 되어 `ExtensionSlots`
+등록을 지우고, 빈 슬롯은 `DynamicRoster` 가 고른다.
+
+**게임서버 대역의 다중 세션은 안 만들었다.** `SimWorld.Events` 가 단일 독자 채널이다.
+대신 "1 프로세스 = 1 샤드 = 1 링크" 를 대역에도 적용했다 — 데모가 프로세스 쌍 2개가 된다.
+존 간 핸드오프(2단계)는 미구현이다.
+
+기존 테스트가 슬롯을 그대로 싣던 곳 33건이 깨졌고 전부 고쳤다. 빌드 경고 0 · 테스트 1,626건 통과.
+`--shard 1`(존 7 · mask 0xfe) · `--shard 2`(존 5 · mask 0x1f00) 회차 확인 · 둘 다 bytesPerTick 0.
+
 ## 2026-09-11 19:48 KST · A-07 무중단 리로드
 
 고친 플랜을 올리려고 프로세스를 내리는 것이 문제였다. 재기동은 상태 손실 창과 게임서버

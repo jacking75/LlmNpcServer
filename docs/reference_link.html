@@ -272,6 +272,7 @@ public readonly record struct Tick(long Value);
 // 게임서버 규약에 맞춰 교체 가능하도록 별도 타입으로 둔다.
 public readonly record struct WorldPos(float X, float Y, float Z);</code></pre>
       <div class="callout"><strong>ID 번호는 마스터데이터가 소유한다</strong><p><code>PoiId</code>·<code>ItemId</code>·<code>ArchetypeId</code>의 실제 번호는 <code>masterdata/</code>가 단일 원천이다. 양쪽 프로세스가 같은 마스터데이터를 보고 있는지는 핸드셰이크에서 해시로 검증한다 (§09).</p></div>
+      <div class="callout"><strong><code>NpcId</code> 는 전역 인스턴스 id 다 <span class="chip">A-08</span></strong><p><code>npc_instances.json</code> 의 <code>id</code>(1..N)이고, <strong>런타임 슬롯 첨자가 아니다.</strong> 슬롯은 NPC 서버 안쪽 사정이라 게임서버가 알 이유가 없다 — 존을 나눠 두 NPC 서버를 띄우면 양쪽의 슬롯 7번은 서로 다른 NPC 이고, 그 상태로 명령이 오가면 <strong>대장장이에게 밭을 갈라고 명령</strong>하게 된다. 변환은 양쪽 경계에서 배열 첨자 한 번이라 <strong>할당 0</strong> 이다(<code>Npc.Core/GlobalIdMap.cs</code>). 게임서버는 <code>Features</code> 의 <code>GlobalIds</code> 비트로 이것을 확인한다.</p></div>
     </section>
 
     <section class="card" id="cmd">
@@ -392,7 +393,7 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
           <tr><td><code>ZoneStateChanged</code></td><td><code>Zone, Code</code>(RegionState)</td><td><strong>버킷 키 변경 → 존 전체 플랜 스왑.</strong> War·Disaster면 그 존 전체를 LOD 1로 승격</td></tr>
           <tr><td><code>WeatherChanged</code></td><td><code>Zone, Code</code>(Climate)</td><td>동일</td></tr>
           <tr><td><code>PlayerHostility</code></td><td><code>Npc, Player, Code</code>(<code>Hostility</code>), <code>Faction</code></td><td><strong>적대 판정. 게임서버가 한다</strong>(세력·PK 상태·퀘스트) — NPC 서버는 결과만 받아 <code>HostilePlayerNearby</code> 를 세운다. 발행 규약은 근접과 같다: <strong>NPC 당 1건 · 에지 트리거 · 히스테리시스</strong> (B-06)</td></tr>
-          <tr><td colspan="3"><strong>모든 이벤트 공통 (v2 · B-02)</strong> — <code>Instance</code> · <code>Faction</code> · <code>ExtA</code>/<code>ExtB</code>. <strong><code>NpcSpawned</code>의 <code>Instance</code>가 NPC 서버가 인스턴스를 아는 유일한 경로다</strong> — 재동기화 스폰에도 실어야 한다</td></tr>
+          <tr><td colspan="3"><strong>모든 이벤트 공통 (v2 · B-02)</strong> — <code>Instance</code> · <code>Faction</code> · <code>ExtA</code>/<code>ExtB</code>(지금은 항상 0). <strong><code>NpcSpawned</code>의 <code>Instance</code>가 NPC 서버가 인스턴스를 아는 유일한 경로다</strong> — 재동기화 스폰에도 실어야 한다</td></tr>
         </tbody>
       </table></div>
       <h3>인지 LOD — 거리가 등급이 되는 지점</h3>
@@ -514,7 +515,7 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
         <tbody>
           <tr><td><code>Instance</code></td><td><code>InstanceId</code>(ushort)</td><td>채널·인스턴스 던전·레이어. <strong>0 = 기본 월드.</strong> 게임서버가 <code>NpcSpawned</code>로 알려주고 NPC 서버는 그 NPC로 나가는 <strong>모든 명령에 그대로 찍는다</strong> — 값을 해석하지 않는다</td></tr>
           <tr><td><code>Faction</code></td><td><code>FactionId</code>(ushort)</td><td>명령은 <code>SetAggro</code>·<code>CombatAction</code>의 대상 세력, 이벤트는 관련 플레이어·NPC의 세력. <strong>0 = 미지정.</strong> 세력 테이블은 아직 없다(D-04) — 지금은 값이 통과만 한다</td></tr>
-          <tr><td><code>ExtA</code>, <code>ExtB</code></td><td><code>uint</code></td><td><strong>예약 슬롯.</strong> Kind별 의미를 <code>ExtensionSlots</code>에 등록해야 쓸 수 있고, <strong>등록되지 않은 Kind에서는 0이어야 한다</strong>(<code>Ext_ZeroForUndefinedKinds</code>). 등록된 것은 <strong><code>NpcSpawned.ExtA</code> = 인스턴스 정의 id</strong> 하나다 (B-05)</td></tr>
+          <tr><td><code>ExtA</code>, <code>ExtB</code></td><td><code>uint</code></td><td><strong>예약 슬롯.</strong> Kind별 의미를 <code>ExtensionSlots</code>에 등록해야 쓸 수 있고, <strong>등록되지 않은 Kind에서는 0이어야 한다</strong>(<code>Ext_ZeroForUndefinedKinds</code>). <strong>지금 등록된 것은 없다</strong> — B-05 의 <code>NpcSpawned.ExtA</code>(인스턴스 정의 id)는 A-08 이 <code>Npc</code> 자체를 전역 id 로 바꾸면서 같은 값을 두 번 싣는 것이 되어 지웠다</td></tr>
           <tr><td><code>Reserved</code></td><td><code>uint</code></td><td>꼬리 정렬을 명시한 것. <strong>항상 0.</strong> 계약에는 대응물이 없다</td></tr>
         </tbody>
       </table></div>
@@ -607,6 +608,7 @@ public enum LinkByeCode : byte
           <tr><td><code>ContractMinor</code> 불일치</td><td><strong>수락.</strong> 낮은 쪽 기준으로 돈다 — 높은 쪽이 상대가 모르는 Kind 를 보내지 않고, 드롭을 <strong>세면서</strong> 버린다</td><td>—</td></tr>
           <tr><td>구조 해시 불일치</td><td>거절 (B-04)</td><td><code>MasterDataMismatch</code></td></tr>
           <tr><td>내용 해시 불일치</td><td><strong>경고 후 수락</strong> (B-04). <code>HelloAck.ContentHashWarning = 1</code></td><td>—</td></tr>
+          <tr><td><code>ShardId</code>·<code>ZoneMask</code> 불일치</td><td>거절 (A-08)</td><td><code>ShardMismatch</code></td></tr>
         </tbody>
       </table></div>
 
@@ -626,6 +628,20 @@ public enum LinkByeCode : byte
           <tr><td>인증 요구했는데 <code>Auth</code> 비트가 꺼짐</td><td>거절 (A-06)</td><td><code>AuthFailed</code></td></tr>
         </tbody>
       </table></div>
+
+      <h3>샤딩 (A-08 · 1단계)</h3>
+      <p><strong>1 프로세스 = 1 샤드 = 1 링크다.</strong> 프로세스 안에서 링크를 여러 개 만들지 않는다 — 틱 루프의 "<code>await</code> 는 <code>link.FlushAsync</code> 하나" 규칙(CLAUDE.md §2.1)을 지키기 쉽고 장애가 격리된다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>필드</th><th>타입</th><th>뜻</th></tr></thead>
+        <tbody>
+          <tr><td><code>Hello.ShardId</code></td><td><code>ushort</code></td><td>이 세션이 맡는 샤드. <strong>0 = 단일 샤드</strong></td></tr>
+          <tr><td><code>Hello.ZoneMask</code></td><td><code>ulong</code></td><td>그 샤드가 맡는 존 비트마스크 (<code>1UL &lt;&lt; zoneCode</code> 의 OR). <strong>0 = 전체.</strong> 존 code 는 63 을 넘을 수 없다 — 넘으면 B-02 확장 슬롯으로 옮긴다</td></tr>
+        </tbody>
+      </table></div>
+      <p>둘 다 <strong>완전 일치</strong>를 요구한다. 부분 일치를 허용하면 "어느 쪽이 맡는지 아무도 모르는 존" 이 생기고, 겹치면 같은 NPC 를 두 프로세스가 움직인다 — 증상은 "가끔 NPC 가 두 곳에 있는 것처럼 보인다" 라 원인 추적이 매우 어렵다.</p>
+      <p>샤드 정의는 <code>deploy/shards.json</code> 이다. <strong>마스터데이터가 아니다</strong> — 배포 토폴로지이지 콘텐츠가 아니라 <code>content_hash</code> 에 들어가지 않는다. 대신 <code>ZoneMask</code> 가 핸드셰이크에 실려 어긋나면 그 자리에서 거절된다. 겹침·모르는 존·code 63 초과·샤드 번호 중복은 <strong>로드 실패</strong>다 (V15).</p>
+      <p>1단계에서 <strong>NPC 는 자기 샤드의 존 안에서만 산다.</strong> <code>$nearest_market</code> 같은 심볼 바인딩이 샤드 밖 POI 를 고르지 않도록 후보를 마스크로 거른다 — 안 거르면 그 NPC 는 우리가 이벤트를 받지 못하는 곳으로 걸어가 <code>timeout_s</code> 가 만료될 때까지 멈춘다.</p>
+      <div class="callout"><strong>2단계(존 간 핸드오프)는 미구현이다</strong><p>NPC 가 샤드 경계를 넘어 이동하려면 소유권 이관(<code>NpcHandoff</code>)과 상태 직렬화가 필요하다. 지금은 존 그래프가 샤드 안에서 연결돼 있다고 가정한다.</p></div>
 
       <h3>상호 인증 (A-06)</h3>
       <p>예전 핸드셰이크가 검증하는 것은 <strong>"같은 데이터를 보고 있는가"</strong>였지 <strong>"네가 누구인가"</strong>가 아니었다. 링크 포트에 붙기만 하면 누구나 NPC 명령 스트림을 관측하고 이벤트를 위조할 수 있었다.</p>
@@ -741,11 +757,11 @@ public enum LinkByeCode : byte
         <tbody>
           <tr><td>로스터 해시</td><td><strong>"초기 활성 집합" 이 아니라 "누가 존재할 수 있는가"</strong> — <code>npc_instances.json</code> 전체의 해시다. 활성 집합은 핸드셰이크 뒤 <code>NpcSpawned</code> 재발행으로 동기화된다</td></tr>
           <tr><td>켜는 방법</td><td>NPC 서버 <code>--dynamic-roster</code> · 게임서버도 같은 스위치. <strong>한쪽만 켜면 해시가 어긋나 <code>RosterMismatch</code> 로 거절된다</strong> — 기능 협상은 핸드셰이크 중에 끝나므로 해시를 협상 결과로 고를 수 없다. 어긋난 채 붙는 것보다 거절이 싸다</td></tr>
-          <tr><td>슬롯 배정</td><td><strong>게임서버가 한다.</strong> <code>NpcSpawned.Npc</code> 가 슬롯 번호, <code>ExtA</code> 가 그 슬롯에 앉을 <strong>인스턴스 정의 id</strong> 다. 슬롯을 NPC 서버가 고르면 같은 번호가 두 쪽에서 다른 NPC 를 가리키고, 그 순간 명령이 엉뚱한 NPC 에게 간다</td></tr>
+          <tr><td>슬롯 배정 <span class="chip">A-08 에서 뒤집혔다</span></td><td><strong>NPC 서버가 한다.</strong> <code>NpcSpawned.Npc</code> 는 <strong>전역 인스턴스 id</strong> 이고, 그것을 어느 배열 칸에 앉힐지는 NPC 서버 사정이다. B-05 는 <code>Npc</code> 가 슬롯 번호였기 때문에 <code>ExtA</code> 로 인스턴스 id 를 따로 실었는데, A-08 이후로는 <strong>같은 값을 두 번 싣는 것</strong>이 되어 그 등록을 지웠다. 게임서버가 NPC 서버의 첨자를 고르면 샤드마다 다른 첨자 공간을 게임서버가 관리해야 한다</td></tr>
           <tr><td>용량</td><td>NPC 서버가 <code>--npc-capacity</code>(기본 로스터 × 1.2)만큼 <strong>기동 시</strong> 슬롯을 잡는다. 틱 루프에서 배열을 늘릴 수 없다. <strong>넘는 스폰은 무시하고 센다</strong></td></tr>
           <tr><td>디스폰</td><td>슬롯을 비운다 — 인벤토리·플래그·플랜까지. 비우지 않으면 <strong>다음 거주자가 이전 거주자의 물건을 들고 시작한다</strong></td></tr>
           <tr><td>멱등 (N7)</td><td>같은 스폰을 두 번 받으면 두 번째는 아무 일도 하지 않는다. 디스폰도 같다</td></tr>
-          <tr><td><code>ExtA</code> = 0</td><td><strong>"그대로 둬라" 다.</strong> 확장 슬롯을 안 켠 게임서버의 스폰이거나 이미 앉아 있는 슬롯의 재스폰이다</td></tr>
+          <tr><td>모르는 <code>NpcId</code></td><td>스폰이면 빈 슬롯을 잡아 앉히고, 스폰이 아니면 <strong>버리고 센다</strong>(<code>/status</code> 의 <code>unknownNpcEvents</code>). 이동·완료 이벤트가 자리를 만들면 게임서버의 라우팅 실수가 조용히 정상으로 보인다</td></tr>
         </tbody>
       </table></div>
       <div class="callout warn"><strong>인스턴스 테이블에 없는 id 는 1단계에서 지원하지 않는다</strong><p>게임서버가 즉석에서 만든 NPC 는 아키타입을 알 방법이 없어 시드할 수 없다 — <strong>거절하고 센다.</strong> 2단계(템플릿 스폰)는 <code>ExtB</code> 에 아키타입 code 를 실어 허용하는 것이고, 그때 이 표에 줄이 하나 늘어난다.</p></div>
@@ -851,7 +867,7 @@ public enum LinkByeCode : byte
         <tbody>
           <tr><td>이기종 엔디언·패딩</td><td><span class="badge ok">구현됨 (v2)</span></td><td><strong>v2 배치는 필드별 리틀엔디언 쓰기</strong>다 (<code>Npc.Wire/V2/WireWriter.cs</code>, B-03) — 원시 복사를 전제하지 않는다. 오프셋 표는 <code>docs/wire/layout_v2.md</code>(생성물), 골든 바이트는 <code>docs/wire/vectors_v2/</code>, 참조 코덱은 <code>docs/wire/reference/npc_wire.h</code>(C++17)·<code>npc_wire.py</code> 다. <strong>v1 배치는 여전히 원시 복사</strong>이고 그것이 v1 의 의미다 — 다른 런타임과 붙을 때는 v2 로 협상한다</td></tr>
           <tr><td>인증·암호화</td><td><span class="badge ok">구현됨 (v2)</span></td><td>HMAC-SHA256 상호 인증 + nonce 재사용 거절 + TLS/mTLS (A-06). 비밀은 <code>NPC_LINK_SECRET</code> 환경변수로만. 관리 API 는 <code>Authorization: Bearer &lt;NPC_ADMIN_TOKEN&gt;</code> — <code>/healthz/*</code>와 <code>/metrics/prometheus</code>만 무인증이다. 상세는 §09</td></tr>
-          <tr><td>샤딩</td><td><span class="badge warn">구현 필요</span></td><td>링크 하나가 게임서버 하나에 붙는다. 월드를 여러 프로세스로 쪼개면 존별 라우팅이 필요하다</td></tr>
+          <tr><td>샤딩</td><td><span class="badge ok">1단계 구현됨</span> / <span class="badge warn">2단계 미구현</span></td><td><strong>1단계 — 정적 샤딩.</strong> 전역 <code>NpcId</code>(= 인스턴스 id) · <code>deploy/shards.json</code> · <code>--shard N</code> · <code>Hello.ShardId</code>·<code>ZoneMask</code> 검증(<code>ShardMismatch</code>) · POI 바인딩을 샤드 존으로 제한. <strong>1 프로세스 = 1 샤드 = 1 링크</strong>라 게임서버 대역도 샤드 하나를 맡는다 — 한 게임서버 프로세스가 세션 N 개를 받는 것은 아직 없다(<code>SimWorld.Events</code> 가 단일 독자 채널이다). <strong>2단계 — 존 간 핸드오프</strong>(<code>NpcHandoff</code> + 상태 이관)는 미구현이다. 상세는 §09</td></tr>
         </tbody>
       </table></div>
       <div class="callout"><strong>소켓 경로에서는 결정론이 성립하지 않는다</strong><p>리플레이 100% 일치는 <strong>루프백 경로의 성질이다.</strong> 소켓에서는 명령이 몇 틱 늦게 도착할 수 있고 그것이 스텝 경계를 바꾼다. <strong>결함이 아니라 사실이다</strong> — 실제 게임서버에 붙으면 원래 그렇다. 재현이 필요하면 기록 링크로 이벤트 열을 남겨 재생 링크로 되민다. 그 경로는 결정론이다.</p></div>

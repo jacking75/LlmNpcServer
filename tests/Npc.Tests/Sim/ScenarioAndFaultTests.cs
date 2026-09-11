@@ -166,7 +166,7 @@ public sealed class ScenarioAndFaultTests
             var move = new NpcCommand
             {
                 Kind = NpcCommandKind.MoveTo,
-                Npc = new NpcId(npc),
+                Npc = new NpcId(npc + 1),   // A-08 — 전역 id
                 IssuedAt = new Tick(1),
                 Correlation = new CorrelationId((uint)(npc + 1)),
                 Priority = CommandPriority.Normal,
@@ -201,7 +201,7 @@ public sealed class ScenarioAndFaultTests
             var move = new NpcCommand
             {
                 Kind = NpcCommandKind.MoveTo,
-                Npc = new NpcId(npc),
+                Npc = new NpcId(npc + 1),   // A-08 — 전역 id
                 IssuedAt = new Tick(1),
                 Correlation = new CorrelationId((uint)(npc + 1)),
                 Priority = CommandPriority.Normal,
@@ -235,7 +235,7 @@ public sealed class ScenarioAndFaultTests
                 var command = new NpcCommand
                 {
                     Kind = NpcCommandKind.MoveTo,
-                    Npc = new NpcId(npc),
+                    Npc = new NpcId(npc + 1),   // A-08 — 전역 id
                     IssuedAt = new Tick(1),
                     Correlation = new CorrelationId((uint)(npc + 1)),
                     Priority = CommandPriority.Normal,
@@ -266,7 +266,7 @@ public sealed class ScenarioAndFaultTests
             var move = new NpcCommand
             {
                 Kind = NpcCommandKind.MoveTo,
-                Npc = new NpcId(npc),
+                Npc = new NpcId(npc + 1),   // A-08 — 전역 id
                 IssuedAt = new Tick(1),
                 Correlation = new CorrelationId((uint)(npc + 1)),
                 Priority = CommandPriority.Normal,

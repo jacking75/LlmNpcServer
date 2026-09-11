@@ -28,11 +28,17 @@ public sealed class NpcTraceTests
                     "--max-speed", "--no-dashboard"),
             TextWriter.Null);
 
+        // A-08 — /npc/{id} 는 전역 id 를 받는다. 로스터는 균등 간격으로 뽑으므로
+        // 슬롯 7 의 거주자 id 는 7 이 아니다.
+        int watched = host.Store.Occupant[7];
+
+        Assert.True(watched > 0, "슬롯 7 이 비어 있다");
+
         // 기동 직후 — 아직 한 틱도 안 돌았다.
-        NpcTrace before = host.Trace(7);
+        NpcTrace before = host.Trace(watched);
 
         Assert.True(before.Found);
-        Assert.Equal(7, before.Npc);
+        Assert.Equal(watched, before.Npc);
         Assert.NotEmpty(before.Archetype);
         Assert.NotEmpty(before.PlanGoal);
         Assert.NotEmpty(before.Flags);
@@ -40,7 +46,7 @@ public sealed class NpcTraceTests
 
         await host.RunAsync(CancellationToken.None);
 
-        NpcTrace after = host.Trace(7);
+        NpcTrace after = host.Trace(watched);
 
         Assert.True(after.Found);
         Assert.True(after.Tick > before.Tick, "틱이 진행되지 않았다.");
@@ -58,7 +64,12 @@ public sealed class NpcTraceTests
         }
     }
 
-    /// <summary>없는 첨자는 <c>Found=false</c> 다. 예외를 던지면 대시보드가 통째로 멈춘다.</summary>
+    /// <summary>
+    /// 모르는 id 는 <c>Found=false</c> 다. 예외를 던지면 대시보드가 통째로 멈춘다.
+    ///
+    /// <b><c>/npc/{id}</c> 는 전역 id 를 받는다</b> (A-08) — 로스터는 균등 간격으로 뽑으므로
+    /// 40마리를 골라도 id 는 1..40 이 아니다. 슬롯 첨자를 넣으면 대부분 못 찾는다.
+    /// </summary>
     [Fact]
     public async Task Trace_ReportsMissingNpc()
     {
@@ -67,11 +78,19 @@ public sealed class NpcTraceTests
                     "--max-speed", "--no-dashboard"),
             TextWriter.Null);
 
-        Assert.False(host.Trace(9_999).Found);
+        int first = host.Store.Occupant[0];
+        int last = host.Store.Occupant[host.Store.Count - 1];
+
+        Assert.True(first > 0 && last > 0, "로스터가 안 앉았다");
+
+        Assert.False(host.Trace(9_999_999).Found);
         Assert.False(host.Trace(-1).Found);
-        Assert.True(host.Trace(0).Found);
-        Assert.True(host.Trace(39).Found);
-        Assert.False(host.Trace(40).Found);
+        Assert.False(host.Trace(0).Found);   // 0 은 "없음" 이다
+        Assert.True(host.Trace(first).Found);
+        Assert.True(host.Trace(last).Found);
+
+        // 돌려주는 id 는 물어본 id 그대로여야 한다 — 슬롯을 되돌려주면 다음 호출이 어긋난다.
+        Assert.Equal(first, host.Trace(first).Npc);
     }
 
     /// <summary>
@@ -115,7 +134,9 @@ public sealed class NpcTraceTests
                     {
                         while (!stop.IsCancellationRequested)
                         {
-                            Assert.True(host.Trace((int)(polls % host.Npcs)).Found);
+                            // 전역 id 로 물어본다 (A-08). 슬롯을 넣으면 대부분 못 찾는다.
+                            Assert.True(
+                                host.Trace(host.Store.Occupant[(int)(polls % host.Npcs)]).Found);
                             polls++;
 
                             await Task.Yield();

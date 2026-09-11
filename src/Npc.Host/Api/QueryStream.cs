@@ -76,14 +76,15 @@ internal static class QueryStream
     /// </summary>
     /// <param name="http">응답.</param>
     /// <param name="host">호스트.</param>
-    /// <param name="ids">쉼표로 이은 NPC 첨자. 비어 있으면 아무것도 안 보낸다.</param>
+    /// <param name="ids">쉼표로 이은 전역 NPC id. 비어 있으면 아무것도 안 보낸다.</param>
     /// <param name="ct">취소.</param>
     public static async Task RunAsync(HttpContext http, NpcHost host, string? ids, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(host);
 
-        int[] watched = QueryEndpoints.ParseIds(ids, host.SlotCount, MaxIds);
+        // A-08 — ids 는 전역 NPC id 다. 슬롯 번호가 아니다.
+        int[] watched = QueryEndpoints.ParseIds(ids, host.GlobalIdSpace, MaxIds);
 
         http.Response.Headers.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";

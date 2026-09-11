@@ -11,7 +11,14 @@ namespace Npc.Host.Api;
 /// <summary>
 /// 벌크 조회 한 줄 (B-08). <b>전부 id·enum 이다</b> — 플레이어가 쓴 문자열은 없다 (§2.5).
 /// </summary>
-/// <param name="Npc">NPC 첨자.</param>
+/// <param name="Npc">
+/// 전역 NPC id = <c>npc_instances.json</c> 의 <c>id</c> (A-08). <c>/npc/{id}</c> 가 받는 값이다.
+/// 비어 있는 슬롯이면 0.
+/// </param>
+/// <param name="Slot">
+/// 런타임 슬롯 첨자. <b><see cref="NpcListPage.NextCursor"/> 와 같은 공간이다</b> —
+/// 페이지네이션이 이 값으로 돌기 때문에 같이 싣는다.
+/// </param>
 /// <param name="Archetype">아키타입 id.</param>
 /// <param name="Zone">존 id.</param>
 /// <param name="Poi">현재 POI id.</param>
@@ -21,6 +28,7 @@ namespace Npc.Host.Api;
 /// <param name="PlanKind">플랜 출처 — <c>bucket</c>·<c>individual</c>·<c>fallback</c>.</param>
 public readonly record struct NpcSummary(
     int Npc,
+    int Slot,
     string Archetype,
     string Zone,
     string Poi,
@@ -233,14 +241,17 @@ internal static class QueryEndpoints
         ArgumentNullException.ThrowIfNull(plans);
         ArgumentNullException.ThrowIfNull(data);
 
-        NpcTrace trace = NpcTraceEndpoint.Snapshot(npc, store, plans, data, now);
+        // A-08 — 밖에서 오는 id 는 전역이다. 슬롯은 우리 안쪽 사정이라 URL 에 넣지 않는다.
+        int slot = store.SlotOf(npc);
 
-        if (!trace.Found)
+        NpcTrace trace = NpcTraceEndpoint.Snapshot(slot, store, plans, data, now);
+
+        if (slot < 0 || !trace.Found)
         {
             return new NpcContext { Found = false, Npc = npc, Tick = now.Value };
         }
 
-        int step = store.StepIndex[npc];
+        int step = store.StepIndex[slot];
 
         return new NpcContext(
             Found: true,
@@ -250,7 +261,7 @@ internal static class QueryEndpoints
             Zone: trace.Zone,
             Poi: trace.Poi,
             Goal: trace.PlanGoal,
-            Action: ActionOf(store, plans, data, npc),
+            Action: ActionOf(store, plans, data, slot),
             StepIndex: Math.Min(step, Math.Max(0, trace.Steps.Length - 1)),
             StepCount: trace.Steps.Length,
             StepStatus: trace.StepStatus,
@@ -312,11 +323,11 @@ internal static class QueryEndpoints
     }
 
     /// <summary>
-    /// <c>ids=1,2,3</c> 를 슬롯 배열로. <b>모르는 값은 버린다</b> — 스트림은 진단용이라
-    /// 오타 하나로 연결이 끊기는 것보다 조용히 빠지는 편이 낫다.
+    /// <c>ids=1,2,3</c> 를 <b>전역 NPC id</b> 배열로 (A-08). <b>모르는 값은 버린다</b> —
+    /// 스트림은 진단용이라 오타 하나로 연결이 끊기는 것보다 조용히 빠지는 편이 낫다.
     /// </summary>
-    /// <param name="ids">쉼표로 이은 첨자들.</param>
-    /// <param name="count">슬롯 총수.</param>
+    /// <param name="ids">쉼표로 이은 전역 id.</param>
+    /// <param name="count">받아 줄 수 있는 가장 큰 id + 1.</param>
     /// <param name="max">받아 줄 최대 개수.</param>
     public static int[] ParseIds(string? ids, int count, int max)
     {
@@ -353,7 +364,8 @@ internal static class QueryEndpoints
         bool live = plans.TryPeekFor(npc, planId, out CompiledPlan plan);
 
         return new NpcSummary(
-            Npc: npc,
+            Npc: store.GlobalOf(npc),
+            Slot: npc,
             Archetype: data.Archetypes[new ArchetypeId(store.ArchetypeCode[npc])].Id,
             Zone: NameOfZone(data, store.ZoneCode[npc]),
             Poi: store.CurrentPoi[npc] == 0 ? string.Empty : data.Pois[new PoiId(store.CurrentPoi[npc])].Id,

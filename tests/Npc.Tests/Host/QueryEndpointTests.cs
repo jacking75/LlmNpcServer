@@ -42,7 +42,10 @@ public sealed class QueryEndpointTests
         NpcListPage second = host.QueryNpcs(limit: 40, cursor: first.NextCursor!.Value);
 
         Assert.Equal(40, second.Returned);
-        Assert.Equal(40, second.Npcs[0].Npc);
+
+        // A-08 — 커서는 슬롯 공간이고 Npc 는 전역 id 다. 둘을 같이 싣는 이유가 이것이다.
+        Assert.Equal(40, second.Npcs[0].Slot);
+        Assert.NotEqual(0, second.Npcs[0].Npc);
 
         // 마지막 쪽에는 다음 커서가 없다.
         NpcListPage last = host.QueryNpcs(limit: 1_000);
@@ -116,7 +119,7 @@ public sealed class QueryEndpointTests
         {
             NpcListPage page = host.QueryNpcs(flag: time, limit: 1_000);
 
-            Assert.All(page.Npcs, n => Assert.True(n.Npc >= 0));
+            Assert.All(page.Npcs, n => Assert.True(n.Npc > 0 && n.Slot >= 0));
 
             total += page.Matched;
         }
@@ -168,7 +171,8 @@ public sealed class QueryEndpointTests
     {
         await using NpcHost host = await RunAsync();
 
-        NpcContext context = host.Context(0);
+        // A-08 — /npc/{id}/context 는 전역 id 를 받는다.
+        NpcContext context = host.Context(host.Store.Occupant[0]);
 
         Assert.True(context.Found);
         Assert.NotEmpty(context.Archetype);

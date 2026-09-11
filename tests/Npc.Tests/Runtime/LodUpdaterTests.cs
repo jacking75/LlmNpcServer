@@ -22,6 +22,9 @@ public sealed class LodUpdaterTests
         {
             store.StepStatus[npc] = (byte)StepStatus.Ready;
             store.ZoneCode[npc] = (ushort)((npc % zones) + 1);
+
+            // A-08 — 슬롯 i 에 전역 id i+1 을 앉힌다. 0 은 "없음" 이라 쓸 수 없다.
+            store.Bind(npc, npc + 1);
         }
 
         return store;
@@ -244,7 +247,7 @@ public sealed class LodUpdaterTests
             Kind = GameEventKind.PlayerProximity,
             Sequence = 1,
             OccurredAt = new Tick(1),
-            Npc = new NpcId(0),
+            Npc = new NpcId(1),   // 슬롯 0 의 전역 id (A-08)
             Player = new PlayerId(1),
             Code = (byte)ProximityChange.Enter,
             Amount = 10,

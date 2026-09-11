@@ -180,7 +180,7 @@ public sealed class PlanSwapperTests
             Kind = GameEventKind.NpcActionCompleted,
             Sequence = tick,
             OccurredAt = new Tick(tick),
-            Npc = new NpcId(0),
+            Npc = new NpcId(1),   // A-08 — 슬롯 0 의 전역 id
             Correlation = correlation,
         };
 

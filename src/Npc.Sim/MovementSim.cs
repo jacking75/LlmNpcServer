@@ -150,7 +150,7 @@ public sealed class MovementSim
                 Kind = GameEventKind.NpcArrived,
                 Sequence = 0,
                 OccurredAt = now,
-                Npc = new NpcId(npc),
+                Npc = _world.NpcIdOf(npc),
                 Correlation = correlation,
                 Poi = poi,
                 Zone = _world.ZoneOf(npc),

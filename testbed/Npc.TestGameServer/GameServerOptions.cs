@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using Npc.Contracts;
+using Npc.MasterData;
 
 namespace Npc.TestGameServer;
 
@@ -41,6 +42,26 @@ public sealed record GameServerOptions
     /// <b>NPC 서버의 <c>--zone</c> 과 같아야 한다</b> — 다르면 로스터 해시가 어긋난다.
     /// </summary>
     public ImmutableArray<string> Zones { get; init; } = [];
+
+    /// <summary>
+    /// 맡을 샤드 번호 (A-08). 0 = 단일 샤드.
+    ///
+    /// <b>NPC 서버의 <c>--shard</c> 와 같아야 한다</b> — 다르면 <c>ShardMismatch</c> 로 거절된다.
+    /// <see cref="Zones"/> 보다 우선한다.
+    ///
+    /// <para>
+    /// <b>대역도 1 프로세스 = 1 샤드다.</b> 한 프로세스가 세션 N 개를 받는 것은 아직 없다 —
+    /// <c>SimWorld.Events</c> 가 단일 독자 채널이라 팬아웃이 아니고, 세션마다 존으로 거른 큐를
+    /// 주려면 시퀀스 스트림도 세션별로 갈라야 한다. 샤드 2개 데모는 프로세스 쌍 2개다.
+    /// </para>
+    /// </summary>
+    public int Shard { get; init; }
+
+    /// <summary>샤드 정의 파일 (A-08). 기본 <c>deploy/shards.json</c>.</summary>
+    public string ShardsPath { get; init; } = ShardTable.DefaultPath;
+
+    /// <summary>이 샤드가 맡는 존 비트마스크 (A-08). 조립 시 채워진다. 0 = 전체.</summary>
+    public ulong ZoneMask { get; init; }
 
     /// <summary>시간 압축. 1=실시간, 60=1초당 게임 1분. <b>NPC 서버와 같아야 한다.</b></summary>
     public int TimeScale { get; init; } = 60;
@@ -127,6 +148,8 @@ public sealed record GameServerOptions
           --client-port N        클라이언트 수신 포트 (기본 7020). 0=자동 할당
           --npcs N               NPC 수 (기본 300)
           --zone <id>[,<id>]     이 존의 NPC 만 뽑는다 (기본 전체). NPC 서버와 같아야 한다
+          --shard N              맡을 샤드 (A-08). 0=단일. NPC 서버와 같아야 한다
+          --shards <path>        샤드 정의 파일 (기본 deploy/shards.json)
           --time-scale N         시간 압축 (기본 60). NPC 서버와 같아야 한다
           --masterdata <dir>     마스터데이터 디렉터리 (기본 ./masterdata)
           --scenario <jsonl>     이벤트 주입. KillSwitch 줄은 무시한다
@@ -285,6 +308,26 @@ public sealed record GameServerOptions
                         Zones = [.. zones!.Split(',',
                             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)],
                     };
+                    break;
+
+                case "--shard":
+                    if (!TryInt(args, ref i, arg, 0, ushort.MaxValue, out int shard, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { Shard = shard };
+                    break;
+
+                case "--shards":
+                    if (!TryValue(args, ref i, arg, out string? shardsPath, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { ShardsPath = shardsPath! };
                     break;
 
                 case "--time-scale":

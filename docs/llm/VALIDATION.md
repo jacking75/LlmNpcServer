@@ -68,5 +68,6 @@
 | `MasterDataMismatch` | 구조 해시가 다르다. id·code·bit·POI 좌표 중 하나가 어긋났다 — 양쪽에 같은 masterdata 를 배포한다. 내용만 다른 것은 경고로 수락된다. | `docs/reference_link.html#handshake` |
 | `ProtocolVersion` | 와이어 프로토콜 교집합이 없다. 양쪽 중 오래된 쪽을 올린다 — v1 게임서버는 v2 NPC 서버와 붙는다. | `docs/reference_link.html#handshake` |
 | `RosterMismatch` | 로스터 해시가 다르다. --zone 필터나 --npcs 가 양쪽에서 같은지 본다. | `docs/reference_link.html#handshake` |
+| `ShardMismatch` | 샤드가 다르다. --shard 를 양쪽에서 같게 주고, deploy/shards.json 이 같은 파일인지 본다. 존 마스크까지 완전 일치여야 한다 — 겹치면 같은 NPC 를 두 프로세스가 움직인다. | `docs/reference_link.html#handshake` |
 | `TimeScaleMismatch` | 배속이 다르다. --time-scale 을 양쪽에서 같게 준다. | `docs/reference_link.html#handshake` |
 

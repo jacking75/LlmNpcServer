@@ -190,7 +190,9 @@ public sealed class ConformanceBedTests
             var command = new NpcCommand
             {
                 Kind = NpcCommandKind.MoveTo,
-                Npc = new NpcId(i),
+
+                // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 슬롯 첨자가 아니다.
+                Npc = new NpcId(instance.Id),
                 IssuedAt = new Tick(tick),
                 Correlation = new CorrelationId(++correlation),
                 Priority = CommandPriority.Normal,

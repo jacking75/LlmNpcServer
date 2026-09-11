@@ -192,7 +192,18 @@ public sealed class GameServer : IAsyncDisposable
         NpcInstanceTable instances = NpcInstanceTable.Load(
             Path.Combine(masterDataDir, "npc_instances.json"), data);
 
-        ZoneId[] zoneFilter = ZoneFilter(options, data);
+        // A-08 — 샤드가 있으면 존 목록·비트마스크가 여기서 온다.
+        ShardDef? shard = ShardOf(options, data);
+        ZoneId[] zoneFilter = ZoneFilter(options, data, shard);
+
+        if (shard is { } shardDef)
+        {
+            options = options with { ZoneMask = shardDef.Mask };
+
+            log.WriteLine(
+                $"shard {shardDef.Shard}: 존 {shardDef.Zones.Length}개 · mask 0x{shardDef.Mask:x}");
+        }
+
         NpcRoster roster = NpcRoster.Select(instances, options.Npcs, zoneFilter);
 
         if (roster.Count == 0)
@@ -591,7 +602,8 @@ public sealed class GameServer : IAsyncDisposable
     /// </summary>
     private void ObserveCommand(in NpcCommand command, Tick now)
     {
-        _mirror.Record(in command, now);
+        // A-08 — 뷰어는 슬롯으로 본다. 와이어의 전역 id 를 여기서 되돌린다.
+        _mirror.Record(in command, _world.World.SlotOf(command.Npc.Value), now);
 
         if (command.IssuedAt.Value > _npcServerTick)
         {
@@ -607,7 +619,7 @@ public sealed class GameServer : IAsyncDisposable
     /// </summary>
     private void ObserveEvent(in GameEvent ev)
     {
-        _mirror.Record(in ev);
+        _mirror.Record(in ev, _world.World.SlotOf(ev.Npc.Value));
 
         int zone = ev.Zone.Value;
 
@@ -666,8 +678,58 @@ public sealed class GameServer : IAsyncDisposable
     /// <b>모르는 id 는 기동 실패다.</b> <c>Npc.Host</c> 와 같은 판단이다 (docs/20 §10.3) —
     /// 한쪽만 조용히 넘기면 로스터가 어긋나고, 증상은 핸드셰이크 거절 하나로만 나타난다.
     /// </summary>
-    private static ZoneId[] ZoneFilter(GameServerOptions options, MasterDataSet data)
+    /// <summary>
+    /// <c>--shard</c> 를 샤드 정의로 푼다 (A-08). 0 이면 null — 단일 샤드다.
+    /// <b>모르는 샤드 번호는 기동 실패다.</b>
+    /// </summary>
+    private static ShardDef? ShardOf(GameServerOptions options, MasterDataSet data)
     {
+        if (options.Shard == 0)
+        {
+            return null;
+        }
+
+        string path = options.ShardsPath;
+
+        if (!File.Exists(path))
+        {
+            for (var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+                 dir is not null;
+                 dir = dir.Parent)
+            {
+                string candidate = Path.Combine(dir.FullName, options.ShardsPath);
+
+                if (File.Exists(candidate))
+                {
+                    path = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException(
+                $"--shard {options.Shard} 인데 샤드 정의가 없다: {options.ShardsPath}", options.ShardsPath);
+        }
+
+        ShardTable table = ShardTable.Load(path, data);
+
+        return table.TryGet((ushort)options.Shard)
+            ?? throw new ArgumentException(
+                $"--shard {options.Shard} 가 {path} 에 없다. "
+                + $"있는 것: {string.Join(", ", table.Shards.Select(sd => sd.Shard))}",
+                nameof(options));
+    }
+
+    private static ZoneId[] ZoneFilter(GameServerOptions options, MasterDataSet data, ShardDef? shard)
+    {
+        // A-08 — 샤드가 존 목록을 이미 담고 있다. --zone 은 무시한다.
+        if (shard is { } def)
+        {
+            return [.. def.Zones];
+        }
+
         if (options.Zones.IsDefaultOrEmpty)
         {
             return [];

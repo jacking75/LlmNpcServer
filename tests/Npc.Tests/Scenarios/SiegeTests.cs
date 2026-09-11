@@ -126,6 +126,10 @@ public sealed class SiegeTests
             Assert.True(s_data.Archetypes.TryGet(Watched[i % Watched.Length], out ArchetypeDef def));
 
             applier.Seed(i, home, center.Code, def.Code, home, home);
+
+            // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 이 픽스처는 슬롯 i 에
+            // id i+1 을 앉힌다 (0 은 "없음" 이라 쓸 수 없다).
+            store.Bind(i, i + 1);
             store.StepStatus[i] = (byte)StepStatus.Ready;
             executor.AssignPlan(i, new PlanId(fallbackOf[def.Code.Value]));
         }

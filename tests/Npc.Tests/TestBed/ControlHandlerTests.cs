@@ -117,7 +117,9 @@ public sealed class ControlHandlerTests
             new NpcCommand
             {
                 Kind = NpcCommandKind.MoveTo,
-                Npc = new NpcId(npc),
+
+                // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다.
+                Npc = world.World.NpcIdOf(npc),
                 IssuedAt = now,
                 Correlation = new CorrelationId(1),
                 Priority = CommandPriority.Normal,
@@ -173,7 +175,7 @@ public sealed class ControlHandlerTests
 
         GameEvent ev = Single(world, GameEventKind.NpcDespawned);
 
-        Assert.Equal(npc, ev.Npc.Value);
+        Assert.Equal(world.World.NpcIdOf(npc), ev.Npc);
         Assert.False(world.World.IsSpawned(npc));
 
         // 두 번째는 거절이다 — 이미 없는 NPC 다.
@@ -250,7 +252,7 @@ public sealed class ControlHandlerTests
                 new NpcCommand
                 {
                     Kind = NpcCommandKind.MoveTo,
-                    Npc = new NpcId(i % world.Roster.Count),
+                    Npc = world.World.NpcIdOf(i % world.Roster.Count),
                     IssuedAt = now,
                     Correlation = new CorrelationId((uint)i + 1),
                     Priority = CommandPriority.Normal,
@@ -270,7 +272,7 @@ public sealed class ControlHandlerTests
             new NpcCommand
             {
                 Kind = NpcCommandKind.Stop,
-                Npc = new NpcId(0),
+                Npc = world.World.NpcIdOf(0),
                 IssuedAt = now,
                 Correlation = new CorrelationId(9_999),
                 Priority = CommandPriority.Normal,

@@ -302,7 +302,8 @@ public sealed class ControlHandler
             new NpcCommand
             {
                 Kind = NpcCommandKind.Spawn,
-                Npc = new NpcId(npc),
+                // A-08 — ApplyCommand 는 전역 id 로 슬롯을 되찾는다.
+                Npc = _world.World.NpcIdOf(npc),
                 IssuedAt = now,
                 Correlation = default,
                 Priority = CommandPriority.Critical,
@@ -325,7 +326,8 @@ public sealed class ControlHandler
             new NpcCommand
             {
                 Kind = NpcCommandKind.Despawn,
-                Npc = new NpcId(npc),
+                // A-08 — ApplyCommand 는 전역 id 로 슬롯을 되찾는다.
+                Npc = _world.World.NpcIdOf(npc),
                 IssuedAt = now,
                 Correlation = default,
                 Priority = CommandPriority.Critical,

@@ -77,7 +77,8 @@ public sealed class InterruptMatcher
     /// </summary>
     public bool TryMatch(in GameEvent ev, out InterruptRule rule)
     {
-        int npc = ev.Npc.Value;
+        // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 배열 조회 한 번이라 할당 0 이다.
+        int npc = _store.SlotOf(ev.Npc.Value);
 
         if ((uint)npc >= (uint)_store.Count)
         {
@@ -130,7 +131,7 @@ public sealed class InterruptMatcher
         ArgumentNullException.ThrowIfNull(executor);
         ArgumentNullException.ThrowIfNull(link);
 
-        int npc = ev.Npc.Value;
+        int npc = _store.SlotOf(ev.Npc.Value);
 
         if (!TryMatch(in ev, out InterruptRule rule))
         {
@@ -204,7 +205,10 @@ public sealed class InterruptMatcher
 
             // 그 NPC 를 지목한 사본으로 평가한다. 규칙은 대부분 플래그를 보므로
             // 이벤트 종류보다 "지금 이 NPC 의 상태" 가 판정의 실체다 (docs/01 §7).
-            GameEvent scoped = ev with { Npc = new NpcId(npc) };
+            //
+            // A-08 — 지목은 <b>전역 id</b> 로 한다. Handle 이 다시 슬롯으로 되돌리므로
+            // 슬롯 번호를 넣으면 엉뚱한 NPC 가 평가되거나 아무도 안 걸린다.
+            GameEvent scoped = ev with { Npc = new NpcId(_store.GlobalOf(npc)) };
 
             if (Handle(in scoped, tick, executor, link, queue))
             {

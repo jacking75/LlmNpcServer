@@ -202,21 +202,32 @@ public sealed class GameWorld : IAsyncDisposable
 
         // PlayerBots 는 0 이다. 대역의 플레이어는 PlayerRegistry 가 돌린다 (docs/20 §7.3) —
         // 둘 다 ObservedByPlayer 에 쓰면 서로의 근접 판정을 덮어쓴다.
-        var world = new SimWorld(data, roster.Count, new SimOptions(
-            Seed: options.Seed,
-            TimeScale: options.TimeScale,
-            FailRate: options.FailRate,
-            DropRate: options.DropRate,
-            PlayerBots: 0));
+        // A-08 — 전역 id 의 최댓값은 로스터가 아니라 인스턴스 표 전체가 정한다 —
+        // 런타임 스폰(B-05)이 로스터 밖의 id 를 나중에 않힐 수 있다.
+        int maxGlobalId = 0;
+
+        for (int i = 0; i < instances.Count; i++)
+        {
+            maxGlobalId = Math.Max(maxGlobalId, instances[i].Id);
+        }
+
+        var world = new SimWorld(
+            data,
+            roster.Count,
+            new SimOptions(
+                Seed: options.Seed,
+                TimeScale: options.TimeScale,
+                FailRate: options.FailRate,
+                DropRate: options.DropRate,
+                PlayerBots: 0),
+            maxGlobalId);
 
         ImmutableArray<NpcInstanceDef> npcs = roster.Npcs;
 
         for (int i = 0; i < npcs.Length; i++)
         {
-            world.Place(i, npcs[i].Archetype, npcs[i].Home);
-
-            // B-05 — 슬롯에 앉은 인스턴스 정의 id. NpcSpawned 가 이 값을 싣는다.
-            world.SetDefinition(i, npcs[i].Id);
+            // A-08 — 전역 id 를 같이 준다. 와이어의 NpcId 가 이 값이다.
+            world.Place(i, npcs[i].Id, npcs[i].Archetype, npcs[i].Home);
         }
 
         var movement = new MovementSim(world);
@@ -235,7 +246,9 @@ public sealed class GameWorld : IAsyncDisposable
             var spawn = new NpcCommand
             {
                 Kind = NpcCommandKind.Spawn,
-                Npc = new NpcId(i),
+
+                // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다.
+                Npc = new NpcId(npcs[i].Id),
                 IssuedAt = default,
                 Correlation = default,
                 Priority = CommandPriority.Critical,

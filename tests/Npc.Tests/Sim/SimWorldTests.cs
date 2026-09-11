@@ -18,16 +18,21 @@ public sealed class SimWorldTests
 
         for (int npc = 0; npc < capacity; npc++)
         {
-            world.Place(npc, smith.Code, home);
+            // A-08 — 전역 id 는 1 부터다. 0 은 "없음" 이라 쓸 수 없다.
+            world.Place(npc, npc + 1, smith.Code, home);
         }
 
         return world;
     }
 
+    /// <summary>
+    /// 슬롯 번호로 명령을 만든다. <b><c>Npc</c> 에는 전역 id 를 싣는다</b> (A-08) —
+    /// 이 픽스처는 슬롯 i 에 id i+1 을 앉힌다. 0 은 "없음" 이라 쓸 수 없다.
+    /// </summary>
     internal static NpcCommand Command(NpcCommandKind kind, int npc, uint correlation = 1) => new()
     {
         Kind = kind,
-        Npc = new NpcId(npc),
+        Npc = new NpcId(npc + 1),
         IssuedAt = new Tick(1),
         Correlation = new CorrelationId(correlation),
         Priority = CommandPriority.Normal,
@@ -57,7 +62,7 @@ public sealed class SimWorldTests
         GameEvent ev = Assert.Single(Drain(world));
 
         Assert.Equal(GameEventKind.NpcSpawned, ev.Kind);
-        Assert.Equal(new NpcId(2), ev.Npc);
+        Assert.Equal(new NpcId(3), ev.Npc);   // A-08 — 슬롯 2 의 전역 id
         Assert.Equal(new CorrelationId(42), ev.Correlation);
         Assert.Equal(10, ev.OccurredAt.Value);
         Assert.Equal(world.PoiOf(2), ev.Poi);

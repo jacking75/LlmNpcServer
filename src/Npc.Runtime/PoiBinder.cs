@@ -45,6 +45,21 @@ public sealed class PoiBinder
     /// <summary>POI 표를 물고 있는 바인더. 기동 시 1회 만들고 이후 불변이다.</summary>
     public PoiBinder(PoiTable pois) => _pois = pois;
 
+    /// <summary>
+    /// 이 샤드가 맡는 존 비트마스크 (A-08). <b>0 = 전체</b>라 단일 샤드는 오늘과 같다.
+    ///
+    /// <para>
+    /// <b>1단계에서 NPC 는 자기 샤드의 존 안에서만 산다.</b> 마스크가 없으면
+    /// <c>$nearest_market</c> 이 옆 샤드의 시장을 고르고, 그 NPC 는 우리가 이벤트를 받지 못하는
+    /// 곳으로 걸어가 <c>timeout_s</c> 가 만료될 때까지 멈춘다 — 증상은 "가끔 NPC 가 굳는다" 다.
+    /// </para>
+    ///
+    /// <para>
+    /// 기동 시 한 번 쓰고 이후 읽기만 한다. 후보 판정은 비트 연산 하나라 <b>할당 0</b> 이다.
+    /// </para>
+    /// </summary>
+    public ulong ZoneMask { get; init; }
+
     /// <summary>심볼 → 실제 POI. 바인딩에 실패하면 false (런타임은 ActionFailed(Unreachable) 로 간다).</summary>
     public bool TryBind(PoiSymbol symbol, in PoiBindContext ctx, out PoiId poi)
     {
@@ -128,6 +143,12 @@ public sealed class PoiBinder
 
             // 일터·채집지는 근무 허가를 본다. 시장·선술집·신전·성문은 공공장소라 누구나 간다.
             if (!def.CanEnter(ctx.Archetype))
+            {
+                continue;
+            }
+
+            // A-08 — 샤드 밖 POI 는 후보가 아니다. 마스크가 0 이면 전체라 이 검사는 언제나 통과다.
+            if (!ShardTable.Covers(ZoneMask, def.Zone))
             {
                 continue;
             }

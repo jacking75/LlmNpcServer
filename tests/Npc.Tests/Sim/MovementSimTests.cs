@@ -23,7 +23,8 @@ public sealed class MovementSimTests
     private static NpcCommand Move(int npc, PoiId target, MoveSpeed speed = MoveSpeed.Walk) => new()
     {
         Kind = NpcCommandKind.MoveTo,
-        Npc = new NpcId(npc),
+        // A-08 — 와이어의 NpcId 는 전역 id 다. 이 픽스처는 슬롯 i 에 id i+1 을 앉힌다.
+        Npc = new NpcId(npc + 1),
         IssuedAt = new Tick(0),
         Correlation = new CorrelationId(7),
         Priority = CommandPriority.Normal,
@@ -166,7 +167,8 @@ public sealed class MovementSimTests
             {
                 if (ev.Kind == GameEventKind.NpcArrived)
                 {
-                    arrived[ev.Npc.Value] = ev.OccurredAt.Value;
+                    // A-08 — 이벤트의 NpcId 는 전역 id 다. 슬롯으로 되돌려 센다.
+                    arrived[r.World.SlotOf(ev.Npc.Value)] = ev.OccurredAt.Value;
                 }
             }
         }

@@ -33,7 +33,7 @@ public sealed class MirrorLogTests
 
         for (int i = 0; i < Written; i++)
         {
-            log.Record(Command(i), new Tick(i));
+            log.Record(Command(i), slot: i, new Tick(i));
         }
 
         Assert.Equal(Written, log.CommandsWritten);
@@ -71,7 +71,7 @@ public sealed class MirrorLogTests
 
         for (int i = 0; i < 10; i++)
         {
-            log.Record(Event(i));
+            log.Record(Event(i), slot: i);
         }
 
         // 늦게 붙은 세션은 <b>지금 꼬리</b>에서 시작한다 — 과거를 쏟지 않는다.
@@ -85,7 +85,7 @@ public sealed class MirrorLogTests
         // 다시 읽으면 새 것만 나온다. a 가 읽었다고 b 가 못 읽지 않는다.
         for (int i = 10; i < 15; i++)
         {
-            log.Record(Event(i));
+            log.Record(Event(i), slot: i);
         }
 
         Assert.Equal(5, log.ReadEvents(a, into));
@@ -119,8 +119,8 @@ public sealed class MirrorLogTests
         // 워밍업. 계층형 JIT 승격이 측정 창 안에서 일어나면 그것이 할당으로 잡힌다.
         for (int i = 0; i < 1_000; i++)
         {
-            log.Record(Command(i), new Tick(i));
-            log.Record(Event(i));
+            log.Record(Command(i), slot: i, new Tick(i));
+            log.Record(Event(i), slot: i);
             log.ReadCommands(cursor, into);
         }
 
@@ -128,8 +128,8 @@ public sealed class MirrorLogTests
 
         for (int i = 0; i < Rounds; i++)
         {
-            log.Record(Command(i), new Tick(i));
-            log.Record(Event(i));
+            log.Record(Command(i), slot: i, new Tick(i));
+            log.Record(Event(i), slot: i);
             log.ReadCommands(cursor, into);
         }
 

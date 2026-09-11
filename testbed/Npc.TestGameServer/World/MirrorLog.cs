@@ -92,14 +92,25 @@ public sealed class MirrorLog
         Event = EventsWritten,
     };
 
-    /// <summary>명령 한 줄을 남긴다. <b>틱 스레드에서 부른다.</b> 할당 0.</summary>
-    public void Record(in NpcCommand command, Tick now)
+    /// <summary>
+    /// 명령 한 줄을 남긴다. <b>틱 스레드에서 부른다.</b> 할당 0.
+    ///
+    /// <para>
+    /// <b><paramref name="slot"/> 을 따로 받는다</b> (A-08). 뷰어 프로토콜의 엔티티 id 는
+    /// 슬롯이고 와이어의 <c>NpcId</c> 는 전역 인스턴스 id 다 — 둘을 섞으면 뷰어의 AOI 필터가
+    /// 로그 줄을 전부 버리고, 증상은 "로그가 비어 있다" 다.
+    /// </para>
+    /// </summary>
+    /// <param name="command">명령.</param>
+    /// <param name="slot">그 NPC 의 슬롯. 뷰어가 쓰는 번호다.</param>
+    /// <param name="now">현재 틱.</param>
+    public void Record(in NpcCommand command, int slot, Tick now)
     {
         long tail = _commandTail;
 
         _commands[tail & Mask] = new LoggedCommand(
             now.Value,
-            command.Npc.Value,
+            slot,
             (byte)command.Kind,
             command.TargetPoi.Value,
             command.Correlation.Value);
@@ -108,14 +119,19 @@ public sealed class MirrorLog
         Volatile.Write(ref _commandTail, tail + 1);
     }
 
-    /// <summary>이벤트 한 줄을 남긴다. <b>틱 스레드에서 부른다.</b> 할당 0.</summary>
-    public void Record(in GameEvent ev)
+    /// <summary>
+    /// 이벤트 한 줄을 남긴다. <b>틱 스레드에서 부른다.</b> 할당 0.
+    /// <paramref name="slot"/> 은 뷰어가 쓰는 번호다 (A-08).
+    /// </summary>
+    /// <param name="ev">이벤트.</param>
+    /// <param name="slot">그 NPC 의 슬롯. NPC 를 지목하지 않는 이벤트면 -1.</param>
+    public void Record(in GameEvent ev, int slot)
     {
         long tail = _eventTail;
 
         _events[tail & Mask] = new LoggedEvent(
             ev.OccurredAt.Value,
-            ev.Npc.Value,
+            slot,
             (byte)ev.Kind,
             ev.Code,
             ev.Amount);

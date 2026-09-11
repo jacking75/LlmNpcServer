@@ -347,8 +347,14 @@ public sealed class PlanExecutor
         _store.StepIssuedTick[npc] = tick.Value;
     }
 
+    /// <summary>
+    /// 발행 맥락. <b><see cref="EmitContext.Npc"/> 는 전역 id 다</b> (A-08) —
+    /// 와이어로 나가는 값이고, 슬롯 번호는 우리 안쪽 사정이라 게임서버가 알 이유가 없다.
+    /// POI 지터의 씨앗도 이 값이다: 슬롯을 씨앗으로 쓰면 같은 슬롯에 다시 앉은 NPC 가
+    /// 이전 거주자의 POI 취향을 물려받는다 (B-05 의 동적 로스터에서 실제로 생긴다).
+    /// </summary>
     private EmitContext ContextOf(int npc, Tick tick, CorrelationId correlation) => new(
-        new NpcId(npc),
+        new NpcId(_store.GlobalOf(npc)),
         new ArchetypeId(_store.ArchetypeCode[npc]),
         tick,
         correlation,

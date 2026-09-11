@@ -697,7 +697,7 @@ internal sealed class NpcHost : IAsyncDisposable
     /// <c>Faulted</c> 로 간다 (docs/20 §5.5). <b>우회 옵션은 없다.</b>
     /// </summary>
     private static TcpGameServerLink TcpLink(
-        HostOptions options, MasterDataSet data, string rosterHash, int npcCount)
+        HostOptions options, MasterDataSet data, string rosterHash, int npcCount, ulong zoneMask)
     {
         // 비밀·인증서 비밀번호는 환경변수로만 온다 (A-06). 인자는 ps 에 보이고
         // 파일은 이미지에 굽힌다.
@@ -727,6 +727,10 @@ internal sealed class NpcHost : IAsyncDisposable
             TlsHost = options.LinkTlsHost,
             ClientCertificatePath = options.LinkCertificate,
             ClientCertificatePassword = Environment.GetEnvironmentVariable("NPC_LINK_CERT_PASSWORD"),
+
+            // A-08 — 게임서버가 다른 샤드로 붙으면 거절한다. 0/0 이면 단일 샤드라 오늘과 같다.
+            ShardId = (ushort)options.Shard,
+            ZoneMask = zoneMask,
         };
 
         // 평문이면 링크가 스스로 소켓을 연다. TLS 면 생성기를 끼운다 —
@@ -737,14 +741,70 @@ internal sealed class NpcHost : IAsyncDisposable
     }
 
     /// <summary>
+    /// <c>--shard</c> 를 샤드 정의로 푼다 (A-08). 0 이면 null — 단일 샤드다.
+    ///
+    /// <b>모르는 샤드 번호는 기동 실패다.</b> 조용히 전체로 떨어지면 두 프로세스가 같은 NPC 를
+    /// 움직이게 되고, 그 사고는 "가끔 NPC 가 두 곳에 있는 것처럼 보인다" 로만 나타난다.
+    /// </summary>
+    private static ShardDef? ShardOf(HostOptions options, MasterDataSet data)
+    {
+        if (options.Shard == 0)
+        {
+            return null;
+        }
+
+        string path = options.ResolveShards();
+
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException(
+                $"--shard {options.Shard} 인데 샤드 정의가 없다: {path}. "
+                + "--shards 로 경로를 주거나 deploy/shards.json 을 만든다.", path);
+        }
+
+        ShardTable table = ShardTable.Load(path, data);
+
+        return table.TryGet((ushort)options.Shard)
+            ?? throw new ArgumentException(
+                $"--shard {options.Shard} 가 {path} 에 없다. "
+                + $"있는 것: {string.Join(", ", table.Shards.Select(sd => sd.Shard))}",
+                nameof(options));
+    }
+
+    /// <summary>
+    /// 인스턴스 표의 가장 큰 id (A-08). 전역 id 역방향 표의 용량이다.
+    ///
+    /// <b><c>Count</c> 로 대신하지 않는다.</b> id 는 1 부터이고 연속이라고 가정하지 않는다 —
+    /// 생성기가 언젠가 구멍을 남기면 그때 조용히 범위 밖 접근이 된다.
+    /// </summary>
+    private static int MaxInstanceId(NpcInstanceTable instances)
+    {
+        int max = 0;
+
+        for (int i = 0; i < instances.Count; i++)
+        {
+            max = Math.Max(max, instances[i].Id);
+        }
+
+        return max;
+    }
+
+    /// <summary>
     /// <c>--zone</c> 을 존 code 로 푼다. docs/20 §10.2.
     ///
     /// <b>모르는 id 는 기동 실패다.</b> 조용히 무시하면 필터가 없는 것처럼 로스터가 커지고,
     /// 그 사고는 <b>핸드셰이크 거절로만</b> 나타난다 — 원인이 멀어져
     /// "새로 만든 게임서버가 이상하다" 로 오해하기 쉽다 (docs/20 §5.5).
     /// </summary>
-    private static ZoneId[] ZoneFilter(HostOptions options, MasterDataSet data)
+    private static ZoneId[] ZoneFilter(HostOptions options, MasterDataSet data, ShardDef? shard)
     {
+        // A-08 — 샤드가 존 목록을 이미 담고 있다. --zone 은 무시한다: 두 곳에서 존을 정하면
+        // 어긋나는 날이 오고, 어긋난 쪽이 로스터 해시를 바꿔 핸드셰이크에서만 드러난다.
+        if (shard is { } def)
+        {
+            return [.. def.Zones];
+        }
+
         if (options.Zones.IsEmpty)
         {
             return [];
@@ -796,7 +856,18 @@ internal sealed class NpcHost : IAsyncDisposable
         // <b>할당보다 먼저 뽑는다.</b> --zone 이 걸리면 실제 마릿수가 --npcs 보다 작아지는데,
         // 그 값을 모른 채 NpcStore·CorrelationTable·ReplanQueue 를 잡으면 뒤쪽이 영원히
         // 비어 있는 배열이 되고, 무엇보다 로스터 해시가 게임서버와 어긋나 연결이 거절된다.
-        ZoneId[] zoneFilter = ZoneFilter(options, data);
+        // A-08 — 샤드가 있으면 존 목록·비트마스크가 여기서 온다. 없으면 오늘과 같다.
+        ShardDef? shard = ShardOf(options, data);
+        ZoneId[] zoneFilter = ZoneFilter(options, data, shard);
+        ulong zoneMask = shard?.Mask ?? ShardTable.MaskOf(zoneFilter);
+
+        if (shard is { } shardDef)
+        {
+            log.WriteLine(
+                $"shard {shardDef.Shard}: 존 {shardDef.Zones.Length}개 · mask 0x{shardDef.Mask:x}"
+                + (shardDef.Description.Length == 0 ? string.Empty : $" — {shardDef.Description}"));
+        }
+
         NpcRoster roster = NpcRoster.Select(instances, options.Npcs, zoneFilter);
         int npcs = roster.Count;
 
@@ -844,14 +915,19 @@ internal sealed class NpcHost : IAsyncDisposable
         }
 
         var store = new NpcStore();
-        store.Allocate(capacity, data.Items.MaxCode + 1);
+
+        // A-08 — 전역 id 역방향 표의 용량. <b>로스터가 아니라 인스턴스 표 전체</b>가 기준이다:
+        // 동적 로스터면 아직 안 앉은 id 가 나중에 오고, 샤드를 나누면 우리 로스터의 id 는
+        // 1..N 이 아니라 듬성듬성하다.
+        store.Allocate(capacity, data.Items.MaxCode + 1, MaxInstanceId(instances));
 
         var clock = new GameClock(data.Buckets, options.TimeScale);
         var correlations = new CorrelationTable(capacity);
         var zoneStates = new ZoneStateTable(data);
         var lodUpdater = new LodUpdater(store) { ZoneStates = zoneStates };
         var applier = new EventApplier(data, store, clock, correlations, lodUpdater);
-        var emitter = new CommandEmitter(data, new PoiBinder(data.Pois));
+        // A-08 — 바인딩 후보를 샤드 존으로 제한한다. 0 이면 전체라 단일 샤드는 오늘과 같다.
+        var emitter = new CommandEmitter(data, new PoiBinder(data.Pois) { ZoneMask = zoneMask });
         var swapper = new PlanSwapper(store);
         var replanQueue = new ReplanQueue(capacity);
         var snapshots = new ReplanSnapshots(capacity);
@@ -912,7 +988,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
             // B-05 — 슬롯 거주자를 기록한다. 정적 회차에서도 채운다: 경로를 갈라 두면
             // 한쪽만 나는 버그가 생긴다.
-            store.Occupant[i] = def.Id;
+            store.Bind(i, def.Id);
             store.StepStatus[i] = (byte)StepStatus.Ready;
             executor.AssignPlan(i, new PlanId(fallbackOf[def.Archetype.Value]));
         }
@@ -962,7 +1038,7 @@ internal sealed class NpcHost : IAsyncDisposable
             case LinkKind.Tcp:
                 // 대역을 만들지 않는다 — Replay 와 같은 경로다. 세계를 미는 것은 게임서버이고
                 // 우리는 이벤트를 받아 명령을 낼 뿐이다 (docs/20 §10.3).
-                link = tcp = TcpLink(options, data, rosterHash, roster.Count);
+                link = tcp = TcpLink(options, data, rosterHash, roster.Count, zoneMask);
                 break;
 
             case LinkKind.Record:
@@ -973,7 +1049,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
                 if (options.UsesGameServer)
                 {
-                    inner = tcp = TcpLink(options, data, rosterHash, roster.Count);
+                    inner = tcp = TcpLink(options, data, rosterHash, roster.Count, zoneMask);
                 }
                 else
                 {
@@ -1303,8 +1379,18 @@ internal sealed class NpcHost : IAsyncDisposable
     /// <summary>
     /// NPC 한 마리의 추적 스냅샷 (T4-21). <b>틱 루프를 막지 않는다</b> — 읽기와 값 복사뿐이다.
     /// </summary>
-    public NpcTrace Trace(int npc) =>
-        NpcTraceEndpoint.Snapshot(npc, _store, _plans, _data, _clock.Current);
+    /// <summary>
+    /// NPC 하나 추적 (T4-21). <paramref name="npc"/> 는 <b>전역 id</b> 다 (A-08).
+    /// </summary>
+    /// <param name="npc">전역 NPC id = <c>npc_instances.json</c> 의 id.</param>
+    public NpcTrace Trace(int npc)
+    {
+        NpcTrace trace = NpcTraceEndpoint.Snapshot(
+            _store.SlotOf(npc), _store, _plans, _data, _clock.Current);
+
+        // 물어본 id 를 그대로 돌려준다. 슬롯을 돌려주면 다음 호출이 어긋난다.
+        return trace with { Npc = npc };
+    }
 
     /// <summary>
     /// 벌크 조회 (B-08). <b>도구·대화·운영 전용이다</b> — 런타임 게임 로직이 여기에 의존하면
@@ -1339,13 +1425,20 @@ internal sealed class NpcHost : IAsyncDisposable
     /// <summary>
     /// 스트림이 볼 요약 한 줄 (B-08). SSE 루프가 부른다.
     /// </summary>
-    /// <param name="npc">NPC 첨자.</param>
+    /// <param name="npc">전역 NPC id (A-08).</param>
     public NpcSummary Summary(int npc) =>
-        QueryEndpoints.List(_store, _plans, _data, _clock.Current, limit: 1, cursor: npc)
-            .Npcs is [var only, ..] ? only : default;
+        _store.SlotOf(npc) is int slot && slot >= 0
+            ? QueryEndpoints.List(_store, _plans, _data, _clock.Current, limit: 1, cursor: slot)
+                .Npcs is [var only, ..] ? only : default
+            : default;
 
-    /// <summary>슬롯 총수. 스트림이 id 범위를 거르는 데 쓴다.</summary>
+    /// <summary>슬롯 총수. 페이지네이션 커서의 상한이다.</summary>
     public int SlotCount => _store.Count;
+
+    /// <summary>
+    /// 받아 줄 수 있는 가장 큰 전역 id + 1 (A-08). 스트림이 <c>ids</c> 를 거르는 데 쓴다.
+    /// </summary>
+    public int GlobalIdSpace => _store.Ids.MaxGlobalId + 1;
 
     /// <summary>
     /// 버킷 히트맵 원자료 CSV (T4-22). W12 보고서 §6 "발견" 의 원자료다 (T5-18 이 읽는다).
@@ -1814,17 +1907,30 @@ internal sealed class SimDriver : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(data);
 
-        var world = new SimWorld(data, npcs.Length, new SimOptions(
-            Seed: options.Seed,
-            TimeScale: options.TimeScale,
-            FailRate: options.FailRate,
-            DropRate: options.DropRate,
-            PlayerBots: options.PlayerBots,
-            HostileBots: options.HostileBots));
+        // A-08 — 로스터는 균등 간격으로 뽑으므로 전역 id 가 듬성듬성하다. 수용량으로 잡으면
+        // 대부분이 역방향 표 밖으로 나가고, 그 NPC 의 명령이 통째로 버려진다.
+        int maxGlobalId = 0;
+
+        foreach (NpcInstanceDef def in npcs)
+        {
+            maxGlobalId = Math.Max(maxGlobalId, def.Id);
+        }
+
+        var world = new SimWorld(
+            data,
+            npcs.Length,
+            new SimOptions(
+                Seed: options.Seed,
+                TimeScale: options.TimeScale,
+                FailRate: options.FailRate,
+                DropRate: options.DropRate,
+                PlayerBots: options.PlayerBots,
+                HostileBots: options.HostileBots),
+            maxGlobalId);
 
         for (int i = 0; i < npcs.Length; i++)
         {
-            world.Place(i, npcs[i].Archetype, npcs[i].Home);
+            world.Place(i, npcs[i].Id, npcs[i].Archetype, npcs[i].Home);
         }
 
         var movement = new MovementSim(world);
@@ -1842,7 +1948,9 @@ internal sealed class SimDriver : IAsyncDisposable
             var spawn = new NpcCommand
             {
                 Kind = NpcCommandKind.Spawn,
-                Npc = new NpcId(i),
+
+                // A-08 — 와이어의 NpcId 는 전역 인스턴스 id 다. 슬롯 번호가 아니다.
+                Npc = new NpcId(npcs[i].Id),
                 IssuedAt = default,
                 Correlation = default,
                 Priority = CommandPriority.Critical,

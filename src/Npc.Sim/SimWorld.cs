@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using Npc.Contracts;
+using Npc.Core;
 using Npc.MasterData;
 
 namespace Npc.Sim;
@@ -48,13 +49,21 @@ public sealed partial class SimWorld : IAsyncDisposable
     private readonly ushort[] _instance;
 
     /// <summary>
-    /// 슬롯에 앉은 인스턴스 정의 id (B-05). 0 = 모른다.
+    /// 슬롯에 앉은 전역 인스턴스 id (A-08). 0 = 비어 있다.
     ///
-    /// <b>런타임 스폰에서 NPC 서버가 "누구인가" 를 아는 유일한 통로다</b> —
-    /// <c>NpcSpawned.ExtA</c> 로 실어 보낸다. 슬롯 번호만으로는 동적 로스터에서
-    /// 누가 앉았는지 알 수 없다.
+    /// <b>와이어로 나가는 <c>NpcId</c> 가 이 값이다.</b> B-05 에서는 <c>NpcSpawned.ExtA</c> 로
+    /// 따로 실었지만, A-08 이 <c>Npc</c> 자체를 전역 id 로 바꾸면서 그 통로는 같은 값을
+    /// 두 번 싣는 것이 됐다.
     /// </summary>
     private readonly int[] _definition;
+
+    /// <summary>
+    /// 전역 id → 슬롯 (A-08). <see cref="_definition"/> 의 역방향이다.
+    ///
+    /// <b>게임서버 대역이 진짜 게임서버처럼 동작하려면 이것이 있어야 한다</b> —
+    /// 와이어의 <c>NpcId</c> 는 인스턴스 id 이고, 대역의 배열 첨자는 대역 사정이다.
+    /// </summary>
+    private readonly GlobalIdMap _ids;
 
     private readonly int[] _inventory;
     private readonly int _stride;
@@ -64,7 +73,14 @@ public sealed partial class SimWorld : IAsyncDisposable
     /// <param name="data">마스터데이터.</param>
     /// <param name="capacity">NPC 수용량.</param>
     /// <param name="options">설정.</param>
-    public SimWorld(MasterDataSet data, int capacity, SimOptions? options = null)
+    /// <param name="maxGlobalId">
+    /// 받아 줄 수 있는 가장 큰 전역 NPC id (A-08). 0 이면 <paramref name="capacity"/> × 2 로 잡는다.
+    ///
+    /// <b>로스터는 균등 간격으로 뽑는다</b> — 5,000 중 16마리를 고르면 id 가 1·313·626… 이라
+    /// 수용량으로 잡으면 대부분이 표 밖으로 나간다. 그러면 그 NPC 의 명령이 통째로
+    /// 버려지고, 증상은 "NPC 가 timeout_s 를 다 기다린 뒤에야 움직인다" 다.
+    /// </param>
+    public SimWorld(MasterDataSet data, int capacity, SimOptions? options = null, int maxGlobalId = 0)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentOutOfRangeException.ThrowIfNegative(capacity);
@@ -81,6 +97,8 @@ public sealed partial class SimWorld : IAsyncDisposable
         });
 
         _spawned = new bool[capacity];
+
+        _ids = new GlobalIdMap(maxGlobalId > 0 ? maxGlobalId : Math.Max(capacity, 1) * 2);
         _poi = new ushort[capacity];
         _zone = new ushort[capacity];
         _archetype = new ushort[capacity];
@@ -151,8 +169,34 @@ public sealed partial class SimWorld : IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfNegative(npc);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(npc, Capacity);
 
+        if (_definition[npc] != 0 && _definition[npc] != definitionId)
+        {
+            _ids.Unbind(_definition[npc]);
+        }
+
         _definition[npc] = definitionId;
+
+        if (!_ids.Bind(definitionId, npc))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(definitionId),
+                $"전역 id {definitionId} 가 역방향 표(최대 {_ids.MaxGlobalId})를 넘는다. "
+                + "SimWorld 를 만들 때 maxGlobalId 를 인스턴스 표의 최대 id 로 준다 (A-08).");
+        }
     }
+
+    /// <summary>
+    /// 이 슬롯의 와이어용 <c>NpcId</c> (A-08). 곧 전역 인스턴스 id 다.
+    ///
+    /// <b>슬롯 번호를 그대로 싣지 않는다.</b> 실으면 NPC 서버가 자기 첨자로 읽어
+    /// 엉뚱한 NPC 에게 명령이 간다 — 존을 나눠 맡는 순간 반드시 그렇게 된다.
+    /// </summary>
+    /// <param name="npc">슬롯.</param>
+    public NpcId NpcIdOf(int npc) => new(_definition[npc]);
+
+    /// <summary>전역 id 의 슬롯 (A-08). 모르면 -1.</summary>
+    /// <param name="globalId">전역 id.</param>
+    public int SlotOf(int globalId) => _ids.SlotOf(globalId);
 
     /// <summary>
     /// 되돌아온 명령의 인스턴스가 스폰 때 알려준 값과 달랐던 횟수 (B-02).
@@ -165,6 +209,12 @@ public sealed partial class SimWorld : IAsyncDisposable
 
     /// <summary>인스턴스를 실제로 대조한 명령 수 (B-02).</summary>
     public long InstanceEchoChecked { get; private set; }
+
+    /// <summary>
+    /// 모르는 전역 <c>NpcId</c> 로 온 명령 수 (A-08).
+    /// <b>0 이 아니면 NPC 서버가 우리가 모르는 NPC 를 움직이려 하고 있다.</b>
+    /// </summary>
+    public long UnknownNpcCommands { get; private set; }
 
     /// <summary>
     /// NPC 를 채널·인스턴스에 넣는다 (B-02). <b>스폰 전에 부른다.</b>
@@ -183,9 +233,23 @@ public sealed partial class SimWorld : IAsyncDisposable
     /// <summary>이 NPC 의 인벤토리.</summary>
     public Span<int> InventoryOf(int npc) => _inventory.AsSpan(npc * _stride, _stride);
 
-    /// <summary>NPC 를 미리 배치한다. 스폰 이벤트는 Spawn 명령을 받았을 때 나간다.</summary>
-    public void Place(int npc, ArchetypeId archetype, PoiId poi)
+    /// <summary>
+    /// NPC 를 미리 배치한다. 스폰 이벤트는 Spawn 명령을 받았을 때 나간다.
+    ///
+    /// <para>
+    /// <b><paramref name="definitionId"/> 를 같이 받는다</b> (A-08). 따로 두면 그것을 안 부른
+    /// 경로가 생기고, 그 경로의 이벤트는 <c>NpcId=0</c> 으로 나간다 — NPC 서버는 그것을
+    /// "모르는 NPC" 로 버리므로 증상이 "아무 일도 안 일어난다" 다.
+    /// </para>
+    /// </summary>
+    /// <param name="npc">슬롯.</param>
+    /// <param name="definitionId">전역 id = <c>npc_instances.json</c> 의 id.</param>
+    /// <param name="archetype">아키타입.</param>
+    /// <param name="poi">시작 POI.</param>
+    public void Place(int npc, int definitionId, ArchetypeId archetype, PoiId poi)
     {
+        SetDefinition(npc, definitionId);
+
         _archetype[npc] = archetype.Value;
         _poi[npc] = poi.Value;
         _zone[npc] = poi.Value == 0 ? (ushort)0 : _data.Pois[poi].Zone.Value;
@@ -206,12 +270,30 @@ public sealed partial class SimWorld : IAsyncDisposable
     {
         CommandsHandled++;
 
-        int npc = command.Npc.Value;
-        if ((uint)npc >= (uint)Capacity)
+        // ── A-08: 경계는 여기 하나다 ───────────────────────────────
+        //
+        // 와이어의 NpcId 는 전역 인스턴스 id 다. 대역 안쪽(하위 시뮬 · Complete · Fail)은
+        // <b>전부 슬롯 공간</b>이므로 여기서 한 번 바꿔 넣는다 — 두 공간이 섞이면
+        // "어떤 명령은 맞고 어떤 명령은 배열 밖" 이 되고, 그 증상은 IndexOutOfRange 다.
+        //
+        // readonly record struct 라 with 는 스택 복사다. 힙 할당이 없다 (CLAUDE.md §2.1).
+        int slot = _ids.SlotOf(command.Npc.Value);
+
+        if (slot < 0 || (uint)slot >= (uint)Capacity)
         {
+            UnknownNpcCommands++;
             return;
         }
 
+        ApplyLocal(command with { Npc = new NpcId(slot) }, slot, now);
+    }
+
+    /// <summary>
+    /// 슬롯 공간으로 바뀐 명령을 실제로 처리한다 (A-08).
+    /// <b>이 안쪽에서 <c>command.Npc</c> 는 슬롯이다.</b>
+    /// </summary>
+    private void ApplyLocal(in NpcCommand command, int npc, Tick now)
+    {
         // B-02 — 되돌아온 인스턴스를 대조한다. Spawn 은 제외다: 그 명령이 나갈 때
         // NPC 서버는 아직 NpcSpawned 를 못 받았으므로 인스턴스를 모른다.
         if (command.Kind != NpcCommandKind.Spawn && _instance[npc] != 0 && _spawned[npc])
@@ -243,7 +325,9 @@ public sealed partial class SimWorld : IAsyncDisposable
                     Kind = GameEventKind.NpcSpawned,
                     Sequence = 0,
                     OccurredAt = now,
-                    Npc = command.Npc,
+
+                    // A-08 — 나가는 이벤트는 다시 전역 id 다.
+                    Npc = NpcIdOf(npc),
                     Correlation = command.Correlation,
                     Poi = new PoiId(_poi[npc]),
                     Zone = new ZoneId(_zone[npc]),
@@ -252,10 +336,6 @@ public sealed partial class SimWorld : IAsyncDisposable
                     // B-02 — 인스턴스는 게임서버가 정한다. NPC 서버는 이 값을 기억했다가
                     // 이후 명령에 되돌려준다.
                     Instance = new InstanceId(_instance[npc]),
-
-                    // B-05 — 누가 앉았는지. 동적 로스터의 NPC 서버가 이 값으로 시드한다.
-                    // ExtensionSlots 에 등록된 의미다.
-                    ExtA = (uint)_definition[npc],
                 });
                 return;
 
@@ -266,7 +346,7 @@ public sealed partial class SimWorld : IAsyncDisposable
                     Kind = GameEventKind.NpcDespawned,
                     Sequence = 0,
                     OccurredAt = now,
-                    Npc = command.Npc,
+                    Npc = NpcIdOf(npc),
                     Correlation = command.Correlation,
                 });
                 return;
@@ -312,23 +392,33 @@ public sealed partial class SimWorld : IAsyncDisposable
         EventsEmitted++;
     }
 
-    /// <summary>액션이 즉시 완료됐다고 알린다.</summary>
+    /// <summary>
+    /// 액션이 즉시 완료됐다고 알린다.
+    /// <b><paramref name="command"/> 는 슬롯 공간이다</b> (A-08) — 나가는 이벤트는 전역 id 로 되돌린다.
+    /// </summary>
+    /// <param name="command">슬롯 공간의 명령.</param>
+    /// <param name="now">현재 틱.</param>
     public void Complete(in NpcCommand command, Tick now) => Emit(new GameEvent
     {
         Kind = GameEventKind.NpcActionCompleted,
         Sequence = 0,
         OccurredAt = now,
-        Npc = command.Npc,
+        Npc = NpcIdOf(command.Npc.Value),
         Correlation = command.Correlation,
     });
 
-    /// <summary>액션이 실패했다고 알린다.</summary>
+    /// <summary>
+    /// 액션이 실패했다고 알린다. <b><paramref name="command"/> 는 슬롯 공간이다</b> (A-08).
+    /// </summary>
+    /// <param name="command">슬롯 공간의 명령.</param>
+    /// <param name="now">현재 틱.</param>
+    /// <param name="reason">실패 사유.</param>
     public void Fail(in NpcCommand command, Tick now, ActionFailReason reason) => Emit(new GameEvent
     {
         Kind = GameEventKind.NpcActionFailed,
         Sequence = 0,
         OccurredAt = now,
-        Npc = command.Npc,
+        Npc = NpcIdOf(command.Npc.Value),
         Correlation = command.Correlation,
         Code = (byte)reason,
     });

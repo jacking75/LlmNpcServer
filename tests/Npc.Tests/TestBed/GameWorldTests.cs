@@ -161,7 +161,7 @@ public sealed class GameWorldTests
         Assert.True(world.Inbox.TryEnqueue(new NpcCommand
         {
             Kind = NpcCommandKind.MoveTo,
-            Npc = new NpcId(0),
+            Npc = world.World.NpcIdOf(0),   // A-08 — 전역 id
             IssuedAt = new Tick(1),
             Correlation = new CorrelationId(1),
             Priority = CommandPriority.Normal,
@@ -209,7 +209,7 @@ public sealed class GameWorldTests
     private static NpcCommand Noop(int npc) => new()
     {
         Kind = NpcCommandKind.Stop,
-        Npc = new NpcId(npc),
+        Npc = new NpcId(npc),   // 부르는 쪽이 이미 전역 id 를 준다
         IssuedAt = default,
         Correlation = default,
         Priority = CommandPriority.Normal,

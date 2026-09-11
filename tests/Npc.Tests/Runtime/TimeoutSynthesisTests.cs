@@ -108,7 +108,7 @@ public sealed class TimeoutSynthesisTests
             Kind = GameEventKind.NpcArrived,
             Sequence = 1_000,
             OccurredAt = new Tick(1 + budget + 5),
-            Npc = new NpcId(0),
+            Npc = new NpcId(1),   // A-08 — 슬롯 0 의 전역 id
             Correlation = dropped,
             Poi = new PoiId(h.Store.WorkPoi[0]),
         };

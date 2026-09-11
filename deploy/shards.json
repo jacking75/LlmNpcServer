@@ -1,0 +1,46 @@
+{
+  "_comment": [
+    "샤드 정의 (A-08 · 1단계 = 정적 샤딩).",
+    "",
+    "1 프로세스 = 1 샤드 = 1 링크다. 한 프로세스 안에서 링크를 여러 개 만들지 않는다 —",
+    "틱 루프의 'await 는 link.FlushAsync 하나' 규칙을 지키기 쉽고 장애가 격리된다.",
+    "",
+    "존은 겹치지 않게 나눈다. 겹치면 같은 NPC 를 두 프로세스가 움직이려 하고,",
+    "그 증상은 '가끔 NPC 가 두 곳에 있는 것처럼 보인다' 라 원인을 찾기가 매우 어렵다.",
+    "",
+    "1단계에서 NPC 는 자기 샤드의 존 안에서만 산다. 존 간 이동(핸드오프)은 2단계이고",
+    "아직 없다 — POI 바인딩이 샤드 밖 후보를 고르지 않도록 제한하는 것으로 막는다.",
+    "",
+    "이 파일은 masterdata 가 아니다. 배포 토폴로지이지 콘텐츠가 아니므로 content_hash 에",
+    "들어가지 않는다. 대신 ZoneMask 가 핸드셰이크에 실려, 게임서버와 다르면 거절된다.",
+    "",
+    "존 code 는 63 을 넘을 수 없다 — ZoneMask 가 u64 다. 넘으면 B-02 확장 슬롯으로 옮긴다."
+  ],
+  "version": 1,
+  "shards": [
+    {
+      "shard": 1,
+      "desc": "마을 안쪽. 인구가 몰리는 쪽이라 NPC 수가 많다",
+      "zones": [
+        "town_center",
+        "town_north",
+        "town_south",
+        "town_east_market",
+        "town_west_crafts",
+        "gate_east",
+        "gate_west"
+      ]
+    },
+    {
+      "shard": 2,
+      "desc": "성 밖. 농지·강가·광산·숲·고원",
+      "zones": [
+        "farmlands",
+        "riverside",
+        "mine_hills",
+        "deepwood",
+        "highland_pasture"
+      ]
+    }
+  ]
+}

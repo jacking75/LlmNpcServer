@@ -129,6 +129,19 @@ public sealed class NpcStore
     public int[] Occupant = [];
 
     /// <summary>
+    /// 전역 id → 슬롯 (A-08). <see cref="Occupant"/> 의 역방향이다.
+    ///
+    /// <para>
+    /// <b>와이어의 <c>NpcId</c> 는 전역 id 다</b> — <c>npc_instances.json</c> 의 <c>id</c>.
+    /// 슬롯은 우리 안쪽 사정이라 게임서버가 알 이유가 없고, 존을 나눠 맡는 순간
+    /// 양쪽의 슬롯 7번은 서로 다른 NPC 가 된다.
+    /// </para>
+    ///
+    /// <para><b><see cref="Bind"/>·<see cref="ClearSlot"/> 로만 바꾼다.</b> 직접 쓰면 두 방향이 어긋난다.</para>
+    /// </summary>
+    public GlobalIdMap Ids { get; private set; } = new(0);
+
+    /// <summary>
     /// 채널·인스턴스 던전·레이어 (B-02). 0 = 기본 월드.
     ///
     /// <b>게임서버가 정하고 우리는 되돌려 준다.</b> <c>NpcSpawned</c> 가 실어 주고,
@@ -199,13 +212,19 @@ public sealed class NpcStore
     /// </summary>
     /// <param name="capacity">NPC 수.</param>
     /// <param name="inventoryStride">아이템 code 최대값 + 1.</param>
-    public void Allocate(int capacity, int inventoryStride)
+    /// <param name="maxGlobalId">
+    /// 받아 줄 수 있는 가장 큰 전역 id (A-08). 보통 <c>npc_instances.json</c> 의 최대 id 다.
+    /// 0 이면 <paramref name="capacity"/> 로 잡는다 — 슬롯 하나당 전역 id 하나인 회차다.
+    /// </param>
+    public void Allocate(int capacity, int inventoryStride, int maxGlobalId = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(capacity);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(inventoryStride);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxGlobalId);
 
         Count = capacity;
         InventoryStride = inventoryStride;
+        Ids = new GlobalIdMap(maxGlobalId > 0 ? maxGlobalId : capacity);
 
         Flags = new WorldFlags[capacity];
         PlanId = new int[capacity];
@@ -342,6 +361,10 @@ public sealed class NpcStore
         Array.Copy(buffer.StepRetries, StepRetries, Count);
 
         Array.Clear(PendingPlanId);
+
+        // A-08 — 전역 id 역방향 표는 파생물이라 스냅샷에 담지 않는다. 담으면 Occupant 와
+        // 어긋난 스냅샷이 존재할 수 있게 된다. 여기서 다시 세운다.
+        RebuildIds();
     }
 
     /// <summary>
@@ -371,6 +394,90 @@ public sealed class NpcStore
 
     /// <summary>이 슬롯에 인스턴스가 앉아 있는가 (B-05).</summary>
     public bool IsOccupied(int slot) => (uint)slot < (uint)Count && Occupant[slot] != 0;
+
+    /// <summary>
+    /// 슬롯에 전역 id 를 묶는다 (A-08). <b>두 방향을 같이 쓴다.</b>
+    ///
+    /// 이미 다른 id 가 앉아 있으면 그쪽을 먼저 푼다 — 안 그러면 옛 id 로 온 이벤트가
+    /// 새 거주자에게 간다.
+    /// </summary>
+    /// <param name="slot">슬롯.</param>
+    /// <param name="globalId">전역 id. 0 은 "없음" 이라 묶을 수 없다.</param>
+    /// <returns>묶었으면 true.</returns>
+    public bool Bind(int slot, int globalId)
+    {
+        if ((uint)slot >= (uint)Count)
+        {
+            return false;
+        }
+
+        if (Occupant[slot] != 0 && Occupant[slot] != globalId)
+        {
+            Ids.Unbind(Occupant[slot]);
+        }
+
+        if (!Ids.Bind(globalId, slot))
+        {
+            return false;
+        }
+
+        Occupant[slot] = globalId;
+
+        return true;
+    }
+
+    /// <summary>
+    /// 전역 id 의 슬롯 (A-08). 모르면 <see cref="GlobalIdMap.NotFound"/>.
+    /// <b>할당 0</b> — 이벤트 배수 구간에서 이벤트마다 돈다.
+    /// </summary>
+    /// <param name="globalId">전역 id.</param>
+    public int SlotOf(int globalId) => Ids.SlotOf(globalId);
+
+    /// <summary>
+    /// 이 슬롯의 전역 id (A-08). 비어 있으면 0.
+    /// <b>명령 발행 경로가 매 스텝 부른다.</b>
+    /// </summary>
+    /// <param name="slot">슬롯.</param>
+    public int GlobalOf(int slot) => (uint)slot < (uint)Count ? Occupant[slot] : 0;
+
+    /// <summary>
+    /// <see cref="Occupant"/> 에서 역방향 표를 다시 세운다 (A-08).
+    ///
+    /// <b>스냅샷 복원이 부른다.</b> 스냅샷은 <see cref="Occupant"/> 를 담지만 역방향은
+    /// 파생물이라 담지 않는다 — 담으면 둘이 어긋난 스냅샷이 존재할 수 있게 된다.
+    /// </summary>
+    public void RebuildIds()
+    {
+        Ids.Clear();
+
+        for (int slot = 0; slot < Count; slot++)
+        {
+            if (Occupant[slot] != 0)
+            {
+                Ids.Bind(Occupant[slot], slot);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 비어 있는 첫 슬롯 (A-08). 없으면 -1.
+    ///
+    /// <b>슬롯 배정은 우리 몫이다.</b> 게임서버는 전역 id 만 말하고, 그것을 어느 배열 칸에
+    /// 앉힐지는 이쪽 사정이다 — 게임서버가 우리 첨자를 고르면 샤드마다 다른 첨자 공간을
+    /// 게임서버가 관리해야 한다.
+    /// </summary>
+    public int FreeSlot()
+    {
+        for (int slot = 0; slot < Count; slot++)
+        {
+            if (Occupant[slot] == 0)
+            {
+                return slot;
+            }
+        }
+
+        return -1;
+    }
 
     /// <summary>지금 앉아 있는 슬롯 수 (B-05). 메트릭용이다 — 틱 루프에서 부르지 않는다.</summary>
     public int OccupiedSlots()
@@ -404,6 +511,7 @@ public sealed class NpcStore
         ArgumentOutOfRangeException.ThrowIfNegative(slot);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(slot, Count);
 
+        Ids.Unbind(Occupant[slot]);
         Occupant[slot] = 0;
         HostilePlayer[slot] = 0;
         Flags[slot] = default;

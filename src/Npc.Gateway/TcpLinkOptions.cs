@@ -105,6 +105,22 @@ public sealed record TcpLinkOptions
     /// </summary>
     public bool StrictNpcCount { get; init; }
 
+    /// <summary>
+    /// 이 프로세스가 맡은 샤드 번호 (A-08). 0 = 단일 샤드.
+    ///
+    /// <b>게임서버가 다른 샤드라고 말하면 거절한다.</b> 그 상태로 돌면 우리가 안 맡은 존의
+    /// NPC 에게 명령을 내리게 되고, 겹치는 쪽은 두 프로세스가 같은 NPC 를 움직인다.
+    /// </summary>
+    public ushort ShardId { get; init; }
+
+    /// <summary>
+    /// 이 샤드가 맡는 존 비트마스크 (A-08). 0 = 전체.
+    ///
+    /// <b>완전 일치를 요구한다.</b> 존 분할은 양쪽이 같은 파일을 봐야 성립하고,
+    /// 부분 일치를 허용하면 "어느 쪽이 맡는지 아무도 모르는 존" 이 생긴다.
+    /// </summary>
+    public ulong ZoneMask { get; init; }
+
     /// <summary>하트비트 주기. docs/20 §5.6 의 1초.</summary>
     public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromSeconds(1);
 

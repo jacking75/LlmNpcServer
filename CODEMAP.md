@@ -119,6 +119,8 @@
 | **NPC 하나를 추적하고 싶다** | `src/Npc.Host/Api/NpcTraceEndpoint.cs` |
 | **컨테이너·릴리스** | `deploy/` (Dockerfile · compose · k8s · Grafana) · 버전은 `src/Npc.Host/HostVersion.cs` · 패키지 버전은 `Directory.Packages.props` 한 곳 |
 | **CI 파이프라인을 짠다** | 워크플로 파일을 두지 않는다 — `build.ps1` · `npc validate` · `npc regen --check` 세 명령이 파이프라인의 내용이다 |
+| **NPC id 가 슬롯인가 인스턴스 id 인가** | 와이어는 **전역 인스턴스 id** 다 (A-08) — `src/Npc.Core/GlobalIdMap.cs`(역방향 표) · `src/Npc.Runtime/NpcStore.cs`(`Bind`·`SlotOf`·`GlobalOf`) · 경계는 `EventApplier.Apply` 와 `PlanExecutor.ContextOf` 두 곳뿐이다 |
+| **월드를 여러 프로세스로 쪼갠다 (샤딩)** | `deploy/shards.json` · `src/Npc.MasterData/ShardTable.cs`(V15 검증) · `--shard N` · POI 제한은 `src/Npc.Runtime/PoiBinder.cs`(`ZoneMask`) · 핸드셰이크 검증은 `src/Npc.Gateway/TcpGameServerLink.cs`(`ShardMismatch`) |
 | **재기동하면 게임 시각이 새벽 6시로 돌아간다** | `src/Npc.Runtime/GameClock.cs`(`RequestOrigin`·`TryApplyPendingOrigin`) — 값은 핸드셰이크가 싣는다 · 정지 감시는 `src/Npc.Host/TickSyncWatchdog.cs` |
 | **종료가 지저분하다 · SIGTERM 을 안 받는다** | `src/Npc.Host/HostShutdown.cs` (신호 등록 · 6단계 시퀀스) · `Bye` 송신은 `src/Npc.Gateway/TcpGameServerLink.cs`(`SendByeAsync`) |
 | **상태를 저장·복구한다** | `src/Npc.Host/Persistence/` — `SnapshotFile`(형식·CRC) · `SnapshotWriter`(주기 쓰기) · `SnapshotRestorer`(조건 판정) · 틱 루프 쪽 통로는 `src/Npc.Runtime/NpcStoreSnapshot.cs` |
