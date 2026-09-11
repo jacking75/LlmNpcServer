@@ -7,6 +7,12 @@ namespace Npc.Tests.Prebake;
 ///
 /// 스크립트 자체의 상호작용은 사람이 돌린다. 여기서 지키는 것은 <b>돌아가기는 하는가</b>다 —
 /// BOM 이 없으면 Windows PowerShell 5.1 이 ANSI 로 읽어 파서 오류가 나고, 그때는 아무것도 못 한다.
+///
+/// <para>
+/// <b><c>review.ps1</c> 은 지웠다</b> (F-06). 검수는 <c>npc review</c> 가 하고 그쪽은
+/// <c>ReviewTests</c> 가 지킨다 — 같은 일을 하는 도구가 둘이면 한쪽이 반드시 낡는다.
+/// 승격 스크립트(<c>pin_plan.ps1</c>)는 남겼다: 검수 기록에서 골라 일괄 승격하는 배치 경로다.
+/// </para>
 /// </summary>
 public sealed class ReviewToolTests
 {
@@ -17,7 +23,6 @@ public sealed class ReviewToolTests
     /// (<c>W1_env.md §4.6</c>). P3·P4 의 신규 스크립트 전부에 적용된다.
     /// </summary>
     [Theory]
-    [InlineData("review.ps1")]
     [InlineData("pin_plan.ps1")]
     public void ReviewScripts_AreUtf8WithBom(string name)
     {
@@ -44,7 +49,6 @@ public sealed class ReviewToolTests
     /// T3-17 — 도움말이 파서 오류 없이 나온다. 주석 기반 도움말 블록과 param 블록이 있어야 한다.
     /// </summary>
     [Theory]
-    [InlineData("review.ps1")]
     [InlineData("pin_plan.ps1")]
     public void ReviewScripts_HaveHelpAndParamBlock(string name)
     {
@@ -59,30 +63,6 @@ public sealed class ReviewToolTests
 
         // StrictMode 를 켜 둔다 — 없는 속성을 조용히 $null 로 읽으면 판정이 조용히 틀린다.
         Assert.Contains("Set-StrictMode", text, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// T3-17 — 표본 추출이 시드 고정이다. 검수 대상이 실행마다 바뀌면 재현이 안 된다.
-    /// </summary>
-    [Fact]
-    public void ReviewScript_SamplesWithFixedSeed()
-    {
-        string text = File.ReadAllText(TestPaths.At("tools", "review.ps1"), Encoding.UTF8);
-
-        Assert.Contains("$Seed = 20260726", text, StringComparison.Ordinal);
-        Assert.Contains("New-Object System.Random($Seed)", text, StringComparison.Ordinal);
-
-        // 파일 순서를 이름으로 고정해야 시드가 의미를 갖는다.
-        Assert.Contains("Sort-Object -Property Name", text, StringComparison.Ordinal);
-
-        // 검수 소요 시간을 자동 계측한다. 이 값이 절감률의 분자다.
-        Assert.Contains("Stopwatch", text, StringComparison.Ordinal);
-        Assert.Contains("TotalMinutes", text, StringComparison.Ordinal);
-
-        // 판정은 3종이고 기록은 jsonl 이다 (docs/13 §5).
-        Assert.Contains("'accept'", text, StringComparison.Ordinal);
-        Assert.Contains("'edit'", text, StringComparison.Ordinal);
-        Assert.Contains("'reject'", text, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "acolyte@Noon.War.Storm",
+  "archetype": "acolyte",
+  "version": 1,
+  "origin": "Pinned",
+  "plan": {"schema":1,"goal":"shelter_and_pray_during_storm","steps":[{"action":"MoveTo","args":{"poi":"$temple","speed":"run"},"timeout_s":600},{"action":"Pray","args":{"duration_s":1800},"timeout_s":3600},{"action":"Rest","args":{"duration_s":1800},"timeout_s":3600},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

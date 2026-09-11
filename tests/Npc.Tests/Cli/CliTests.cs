@@ -70,8 +70,6 @@ public sealed class CliTests
     /// 둘은 다른 말이고, 오타와 미구현을 구별하지 못하면 사람이 헤맨다.
     /// </summary>
     [Theory]
-    [InlineData("repair", "C-05")]
-    [InlineData("review", "F-06")]
     [InlineData("serve", "B-08")]
     public void Cli_PendingCommandsSayWhichTaskTheyWaitFor(string command, string task)
     {

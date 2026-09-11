@@ -446,7 +446,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
     /// <summary>
     /// 항목 9 — 검수 40건의 채택률(accept + edit)이 80% 이상이다.
     ///
-    /// <b>이 검수는 사람이 한다.</b> <c>tools/review.ps1</c> 이 만드는
+    /// <b>이 검수는 사람이 한다.</b> <c>npc review</c> (F-06)가 만드는
     /// <c>docs/measurements/review_W8.jsonl</c> 이 근거이고, 여기서 나오는 채택률과 검수 시간이
     /// R&amp;D 결론의 원자료다 (docs/13 §5).
     /// </summary>
@@ -458,7 +458,7 @@ public sealed class Phase3GateTests(Xunit.Abstractions.ITestOutputHelper output)
 
         Assert.True(
             File.Exists(path),
-            $"검수 기록이 없다: {path}. 사람이 tools/review.ps1 로 40건을 검수해야 한다 (T3-17·T3-18).");
+            $"검수 기록이 없다: {path}. 사람이 `npc review --sample 40` 으로 40건을 검수해야 한다 (F-06).");
 
         string[] lines = [.. File.ReadAllLines(path).Where(l => !string.IsNullOrWhiteSpace(l))];
 

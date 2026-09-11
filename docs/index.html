@@ -2278,7 +2278,7 @@ dotnet run -c Release --project tools/Npc.Prebake -- <span class="flag">--only</
 
 <h3>11.3 생성된 플랜을 사람이 고치고 고정하기</h3>
 <div class="codewrap"><button class="copy" type="button">복사</button><pre><code><span class="cmt"># 1. 검수 도구로 플랜을 훑는다</span>
-.\tools\review.ps1
+npc review --sample 40
 
 <span class="cmt"># 2. planstore/plans/ 아래 JSON을 직접 연다. 사람이 읽을 수 있는 형식이다.</span>
 

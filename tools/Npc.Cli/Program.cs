@@ -51,6 +51,10 @@ public static class Program
           plan explain <파일> | narrate <파일>
           buckets [--archetype <id>] [--state missing|fallback|pinned|generated]
           pin <버킷>
+          review [--sample 40] [--seed N] [--archetype <id>] [--out <jsonl>]
+                 [--list]                      무엇을 검수하게 되는지 미리 본다
+                 [--bucket <키> --verdict accept|edit|reject --reason 1..4
+                  --plan <파일> --note "…" --minutes N]   비대화 판정 (--apply 로 저장)
 
         옵션
           --masterdata <dir>   기본 ./masterdata
@@ -60,7 +64,7 @@ public static class Program
           --population <n>     인구표 기준 NPC 수 (기본 5000)
 
         미구현 — 의존 태스크를 기다린다
-          review (F-06) · serve (B-08) · plan dryrun 은 validate 에 포함
+          serve (B-08) · plan dryrun 은 validate 에 포함
         """;
 
     /// <summary>진입점.</summary>
@@ -121,10 +125,9 @@ public static class Program
             "plan" => PlanCommand.Run(ctx),
             "buckets" => BucketsCommand.Run(ctx),
             "pin" => PinCommand.Run(ctx),
+            "review" => Review.ReviewCommand.Run(ctx),
 
             // 의존 태스크가 없다. "지원하지 않는다" 와 "아직 없다" 는 다른 말이라 구별해 낸다.
-            "repair" => Pending(error, command, "C-05 검증 실패율 개선"),
-            "review" => Pending(error, command, "F-06 검수 워크플로 v2"),
             "serve" => Pending(error, command, "B-08 읽기 전용 질의 API"),
 
             _ => Unknown(command, output, error),
