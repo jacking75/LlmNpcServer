@@ -47,6 +47,7 @@ public static class Program
 
         플랜
           plan validate <파일> [--bucket <키>]
+          plan repair <파일> [--bucket <키>]   결정론 자동 수선. 고친 JSON 을 낸다 (C-05)
           plan explain <파일> | narrate <파일>
           buckets [--archetype <id>] [--state missing|fallback|pinned|generated]
           pin <버킷>
@@ -59,7 +60,7 @@ public static class Program
           --population <n>     인구표 기준 NPC 수 (기본 5000)
 
         미구현 — 의존 태스크를 기다린다
-          plan repair (C-05) · review (F-06) · serve (B-08) · plan dryrun 은 validate 에 포함
+          review (F-06) · serve (B-08) · plan dryrun 은 validate 에 포함
         """;
 
     /// <summary>진입점.</summary>

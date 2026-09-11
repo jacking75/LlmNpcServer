@@ -85,6 +85,7 @@
 | **프롬프트 서픽스에 값 추가** | `src/Npc.Llm/PlanRequestSuffix.cs` | **300 토큰 상한.** `SuffixBudgetTests` 가 막고, 문자열은 `PromptIsolationTests` 가 막는다 |
 | **`reasoning` 이 이상한 것을 담고 있다** | `src/Npc.Llm/ReasoningSanitizer.cs` · 금칙어는 `masterdata/prompt/blocklist.txt` | 플랜 자체는 건드리지 않는다 |
 | **프리픽스가 안 고정된다 · 캐시 미적중** | `src/Npc.Llm/PromptPrefix.cs` | SHA 유니크 2개 이상이면 경보. 기동 시 1회 조립 |
+| **LLM 호스트가 이 저장소의 도구를 부르게 한다** | `.mcp.json`(호스트 설정) · `tools/Npc.Mcp/Program.cs` · 툴은 `tools/Npc.Mcp/Tools/*.cs` · 목록은 `McpToolSet` | **툴은 로직을 갖지 않는다** — `Npc.Cli` 의 같은 함수를 부른다. 쓰기 툴은 `--allow-write` 없이는 **목록에 뜨지 않는다** |
 | **NPC 가 플레이어를 기억하게 한다** | `src/Npc.Memory/`(`IMemoryStore`·`InMemoryStore`·`FileMemoryStore`) · 밴드는 `src/Npc.Core/Memory/RelationshipBand.cs` · 붙는 곳은 `src/Npc.Host/Replan/ReplanWorker.cs` 의 `BuildRequestAsync` · 쓰는 예시는 `testbed/Npc.TestGameServer/World/PlayerRegistry.cs` | **NPC 서버는 읽기만 한다** — 쓰기 주체는 게임서버·대화 서비스다. 서픽스에 나가는 것은 3단 enum 하나이고 호감도 원값·플레이어 id 는 나가지 않는다 |
 | **플레이어 탈퇴 처리 · 기억 삭제** | `DELETE /admin/memory/forget?player=N` → `IMemoryStore.ForgetPlayerAsync` · 문서는 `docs/security/privacy.md` | 관계·기억·평판 **셋 다** 지운다. 하나라도 남으면 "지웠다" 가 아니다. 감사 로그에 줄 수가 남는다 |
 | **개체 파라미터를 하나 더 만든다** | `masterdata/npc_overrides.json` 스키마 → `NpcInstanceDef` → `NpcInstanceTable.Merge` → `NpcStore` 콜드 배열 → `EventApplier.Seed` → 읽는 쪽 | **서픽스에 실리는가 먼저 본다** (CLAUDE.md §8). 바인딩 전용이면 300토큰 예산과 무관하다 |

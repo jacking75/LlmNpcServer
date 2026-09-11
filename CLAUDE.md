@@ -243,10 +243,14 @@ testbed/Npc.TestClient        ←  MasterData, Protocol   (net10.0-windows · �
   기동 경로에 편집 기능이 들어갈 이유가 없다. 예외는 `DerivedArtifacts` 하나로,
   로더가 파생물 신선도를 읽어 `MasterDataSet.StaleArtifacts` 에 싣는다.
 
-도구는 전부 잎이다.
+도구는 전부 잎이다. **간선이 둘 있다** — `Npc.Eval → Npc.Prebake`(C-04)와
+`Npc.Mcp → Npc.Cli`(E-03). 둘 다 같은 이유다: **코어를 두 벌로 쓰지 않으려고** 껍질이
+다른 껍질을 부른다. MCP 툴이 CLI 와 다른 답을 내면 그중 하나는 틀린 답이고,
+틀린 쪽을 보는 것은 사람이 아니라 모델이다.
 
 ```
 tools/Npc.Cli       ←  Contracts, Core, MasterData, Narrative, Planning, Sim   (npc 명령)
+tools/Npc.Mcp       ←  Npc.Cli, Narrative (+ ModelContextProtocol)   ← 두 번째 도구 간 간선 (E-03)
 tools/Npc.Conformance ← Contracts, Gateway, MasterData, Wire   (게임서버 적합성 키트)
 tools/Npc.Prebake   ←  Core, MasterData, Planning, Llm, Sim
 tools/Npc.Narrate   ←  Contracts, Core, Gateway, MasterData, Narrative

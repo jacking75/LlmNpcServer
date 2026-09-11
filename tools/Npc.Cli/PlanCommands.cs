@@ -28,8 +28,7 @@ public static class PlanCommand
 
         if (args.Length < 2)
         {
-            ctx.Out.WriteLine("사용법: npc plan validate|explain|narrate <파일> [--bucket <키>]");
-            ctx.Out.WriteLine("  repair 는 아직 없다 — C-05 를 기다린다.");
+            ctx.Out.WriteLine("사용법: npc plan validate|explain|narrate|repair <파일> [--bucket <키>]");
             return Program.BadUsage;
         }
 
@@ -51,6 +50,7 @@ public static class PlanCommand
             "validate" => Validate(ctx, json, bucket),
             "explain" => Explain(ctx, json, bucket),
             "narrate" => Explain(ctx, json, bucket),
+            "repair" => Repair(ctx, json, bucket),
             _ => Unknown(ctx, verb),
         };
     }
@@ -58,7 +58,7 @@ public static class PlanCommand
     private static int Unknown(CliContext ctx, string verb)
     {
         ctx.Out.WriteLine($"모르는 하위 명령: {verb}");
-        ctx.Out.WriteLine("사용법: npc plan validate|explain|narrate <파일> [--bucket <키>]");
+        ctx.Out.WriteLine("사용법: npc plan validate|explain|narrate|repair <파일> [--bucket <키>]");
         return Program.BadUsage;
     }
 
@@ -179,6 +179,99 @@ public static class PlanCommand
         }
 
         return Program.Failed;
+    }
+
+    /// <summary>
+    /// 결정론 자동 수선 (C-05). <b>검증을 건너뛰지 않는다</b> — 고친 문서를 1단부터 다시 지난다.
+    ///
+    /// <para>
+    /// 여기서 하는 일은 "모델이 한 번 더 시도하면 고쳤을 실수" 를 토큰 없이 고치는 것뿐이다.
+    /// 고쳐진 JSON 을 그대로 낸다 — <b>파일을 덮어쓰지 않는다</b>(그것은 사람이 보고 정한다).
+    /// </para>
+    /// </summary>
+    private static int Repair(CliContext ctx, string json, BucketKey bucket)
+    {
+        ctx.Out.WriteLine($"버킷  {bucket.Format(ctx.Data.Archetypes[bucket.A].Id)}");
+
+        ValidationResult result = SchemaValidator.Validate(json, out PlanDocument? document);
+
+        if (!result.IsValid || document is null)
+        {
+            // 1단은 수선 대상이 아니다. JSON 이 깨진 것은 모델이 다시 내야 한다.
+            return Report(ctx, result, 1);
+        }
+
+        int rounds = 0;
+
+        for (; rounds < PlanRepair.MaxRounds; rounds++)
+        {
+            result = Check(ctx, document, bucket, out int stage);
+
+            if (result.IsValid)
+            {
+                break;
+            }
+
+            RepairResult repair = PlanRepair.TryRepair(document, result, ctx.Data, bucket.A);
+
+            if (!repair.Repaired)
+            {
+                ctx.Out.WriteLine($"  FAIL {stage}단 {result.Code} — 수선 불가");
+                ctx.Out.WriteLine($"       {repair.Detail}");
+                return Program.Failed;
+            }
+
+            ctx.Out.WriteLine($"  수선 {rounds + 1}  {repair.Rule}  {repair.Detail}");
+            document = repair.Document;
+        }
+
+        if (!result.IsValid)
+        {
+            ctx.Out.WriteLine($"  FAIL {PlanRepair.MaxRounds}회 수선해도 통과하지 못했다: {result.Code}");
+            return Program.Failed;
+        }
+
+        ctx.Out.WriteLine(rounds == 0 ? "  OK   수선할 것이 없었다" : $"  OK   {rounds}회 수선 후 4단 통과");
+        ctx.Out.WriteLine();
+        ctx.Out.WriteLine(JsonSerializer.Serialize(
+            document, PlanJsonContext.Default.PlanDocument));
+
+        return Program.Ok;
+    }
+
+    /// <summary>2~4단을 순서대로. 통과하면 <c>IsValid</c> 다.</summary>
+    private static ValidationResult Check(
+        CliContext ctx, PlanDocument document, BucketKey bucket, out int stage)
+    {
+        stage = 2;
+        ValidationResult result = VocabularyValidator.Validate(document, bucket.A, ctx.Data);
+
+        if (!result.IsValid)
+        {
+            return result;
+        }
+
+        stage = 3;
+        result = CoherenceValidator.Validate(document, bucket, bucket.A, ctx.Data);
+
+        if (!result.IsValid)
+        {
+            return result;
+        }
+
+        stage = 4;
+
+        try
+        {
+            CompiledPlan plan = PlanCompiler.Compile(
+                document, bucket, new PlanId(0), ctx.Data, PlanOrigin.Runtime);
+
+            return new DryRunValidator(ctx.Data).Validate(plan);
+        }
+        catch (PlanCompilationException ex)
+        {
+            return ValidationResult.Fail(ValidationStage.Coherence, "V3.COMPILE", -1, ex.Message);
+        }
     }
 
     /// <summary>플랜을 사람 말로. 트레이스·수지·소요가 다 들어 있다 (F-03).</summary>

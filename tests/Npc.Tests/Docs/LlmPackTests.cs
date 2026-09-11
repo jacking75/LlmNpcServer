@@ -129,6 +129,9 @@ public sealed partial class LlmPackTests
             "--check", "--state", "--archetype", "--budget-usd", "--limit",
             "--concurrency", "--resume", "--seed", "--trace", "--npc", "--url",
             "--headless", "--format", "--help",
+
+            // E-03 — MCP 서버의 플래그. 호스트 옵션표에도 CLI 에도 없다.
+            "--allow-write", "--root",
         };
 
         foreach (string file in Files())

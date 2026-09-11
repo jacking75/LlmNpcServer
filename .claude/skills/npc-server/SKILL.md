@@ -13,6 +13,27 @@ description: LlmNpcServer 저장소에서 MMO NPC 콘텐츠(마스터데이터·
 - "우리 게임서버에 붙일 계획을 세워 줘"
 - 마스터데이터 검증이 실패했을 때
 
+## MCP 가 붙어 있으면 **부른다** <span>E-03</span>
+
+호스트에 `npc-server` MCP 가 붙어 있으면 아래 명령 대신 툴을 부른다 — **같은 코어를 부르므로
+답이 같고**, 파일을 직접 읽는 것보다 정확하다(파생 정보가 같이 나온다).
+
+| 하려는 일 | 툴 |
+|---|---|
+| 지금 상태 확인 | `masterdata_validate` · `masterdata_explain` |
+| 번호 정하기 | `masterdata_next_code` |
+| 새 정의 초안 | `masterdata_scaffold` → (쓰기) `masterdata_apply` |
+| 파급 확인 | `masterdata_diff` · `masterdata_regen_check` |
+| 플랜 검증·수선·설명 | `plan_validate` · `plan_repair` · `plan_narrate` |
+| 버킷 상태 | `bucket_status` |
+| 돌고 있는 서버 | `server_status` · `server_metrics` · `server_npc` · `server_npcs` |
+| 규칙·문서 찾기 | `docs_search` · 리소스 `npc://context`·`npc://rules`·`npc://codemap` |
+
+**고친 뒤에는 반드시 `masterdata_validate` 를 부른다.** 순서는 아래 "작업 순서" 와 같다.
+
+**쓰기 툴은 보통 없다.** `masterdata_apply`·`server_admin`·`prebake_run` 은 서버를
+`--allow-write` 로 띄웠을 때만 목록에 뜬다. 없으면 초안을 내고 **사람에게 적용을 넘긴다**.
+
 ## 먼저 읽는다
 
 1. `docs/llm/CONTEXT.md` — 3,000토큰 압축 컨텍스트. **이것부터 읽는다**

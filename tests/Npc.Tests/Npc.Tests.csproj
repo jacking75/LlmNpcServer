@@ -37,6 +37,7 @@
     <ProjectReference Include="..\..\tools\Npc.Narrate\Npc.Narrate.csproj" />
     <ProjectReference Include="..\..\tools\Npc.Cli\Npc.Cli.csproj" />
     <ProjectReference Include="..\..\tools\Npc.Conformance\Npc.Conformance.csproj" />
+    <ProjectReference Include="..\..\tools\Npc.Mcp\Npc.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

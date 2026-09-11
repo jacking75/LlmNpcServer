@@ -1,0 +1,24 @@
+{
+  "$comment": [
+    "MCP 서버 등록 (E-03). Claude Code 가 저장소 루트의 이 파일을 자동으로 읽는다.",
+    "",
+    "쓰기 툴은 기본으로 꺼져 있다 — masterdata_apply · server_admin · prebake_run 은",
+    "목록에 뜨지도 않는다. 켜려면 args 에 \"--allow-write\" 를 더한다.",
+    "'있는데 거절' 이 아니라 '없다' 여야 모델이 우회를 시도하지 않는다.",
+    "",
+    "먼저 빌드한다: dotnet build -c Release tools/Npc.Mcp"
+  ],
+  "mcpServers": {
+    "npc-server": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "-c",
+        "Release",
+        "--project",
+        "tools/Npc.Mcp",
+        "--"
+      ]
+    }
+  }
+}

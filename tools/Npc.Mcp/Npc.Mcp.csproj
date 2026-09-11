@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    MCP 서버 (E-03). LLM 호스트(Claude Code · Cursor · 사내 에이전트)가 이 저장소의
+    검증·설명·스캐폴드·서버 질의를 **부를** 수 있게 한다.
+
+    스킬 문서는 "읽으라" 는 것이고 툴은 "부르라" 는 것이다. LLM 이 마스터데이터를
+    잘못 고치는 원인은 지식 부족보다 "확인할 방법이 없어서 추측한다" 이므로,
+    추측을 확인으로 바꾸는 도구를 먼저 준다.
+
+    <b>CLI 와 같은 코어를 두 껍질로 쓴다</b> (F-01). 툴 구현은 Npc.Cli 의 명령을
+    그대로 부른다 — 두 벌로 쓰면 반드시 어긋나고, 어긋난 쪽이 LLM 이 보는 쪽이 된다.
+
+    도구는 잎이다. 아무도 이 프로젝트를 참조하지 않는다.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Npc.Mcp</RootNamespace>
+    <AssemblyName>Npc.Mcp</AssemblyName>
+
+    <!--
+      stdio 전송이라 <b>표준출력이 프로토콜이다</b>. 부주의한 Console.WriteLine 하나가
+      JSON-RPC 스트림을 깨뜨린다 — 로그는 전부 표준오류로 간다 (Program.cs 주석).
+    -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Npc.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      CLI 를 참조한다. C-04 의 Npc.Eval → Npc.Prebake 에 이은 <b>두 번째 도구 간 간선</b>이고,
+      CLAUDE.md §3 에 적어 두었다. 이유는 위와 같다 — 같은 코어를 두 껍질로 쓰기 위해서다.
+    -->
+    <ProjectReference Include="..\Npc.Cli\Npc.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Narrative\Npc.Narrative.csproj" />
+  </ItemGroup>
+
+</Project>

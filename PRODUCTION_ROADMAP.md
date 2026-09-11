@@ -98,7 +98,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 
 - [x] **E-01** LLM 온보딩 팩 `docs/llm/` (SKILL · CONTEXT · RECIPES · ANTIPATTERNS · GLOSSARY) — P1 · M · 의존 없음
 - [x] **E-02** JSON Schema 발행 (마스터데이터 10종 · 플랜 · 시나리오 · 스냅샷) — 코드에서 생성 — P1 · M · 의존 없음
-- [ ] **E-03** MCP 서버 `tools/Npc.Mcp` (검증·설명·스캐폴드·플랜 검증·서버 질의) — P1 · L · 의존 E-02, F-01, F-03
+- [x] **E-03** MCP 서버 `tools/Npc.Mcp` (검증·설명·스캐폴드·플랜 검증·서버 질의) — P1 · L · 의존 E-02, F-01, F-03 — **완료. 단 `masterdata_apply` 는 JSON Patch 가 아니라 스캐폴드 적용이다** — 임의 편집은 사람이 에디터에서 한다
 - [x] **E-04** 기계가 읽는 검증 출력 (`--format json` + `fix_hint` 사전) — P1 · S · 의존 없음
 - [x] **E-05** OpenAPI 명세 + 툴 정의 (관리·질의 API) — P2 · S · 의존 B-08 — **완료. `Microsoft.AspNetCore.OpenApi` 를 쓰지 않았다 — 근거는 아래**
 - [ ] **E-06** LLM 에이전트 벤치마크 (과제 10종 · 자동 채점) — P2 · M · 의존 E-01, E-03
@@ -1786,6 +1786,21 @@ docs/llm/
 **완료 조건.** Claude Code 에서 "양봉가 추가" 를 시켰을 때 에이전트가 `masterdata_next_code → masterdata_scaffold → masterdata_apply(dry_run) → masterdata_validate` 순으로 부르는 것이 로그로 확인된다(E-06).
 
 **크기·의존.** L. 의존 E-02, F-01, F-03.
+
+**구현 결과.** `tools/Npc.Mcp/` — stdio 전송, 읽기 툴 15개 + 쓰기 툴 3개 + 리소스 8종. `.mcp.json` 이 저장소 루트에 있어 Claude Code 가 자동 인식한다. `docs/llm/SKILL.md` 에 "MCP 가 붙어 있으면 부른다" 절을 넣었다.
+
+- **툴은 로직을 갖지 않는다.** 전부 `Npc.Cli` 의 같은 함수를 부른다(`CliShell`). 두 벌로 쓰면 반드시 어긋나고, **어긋난 쪽을 보는 것은 사람이 아니라 모델이다**. 그래서 `Npc.Mcp → Npc.Cli` 간선을 만들었다 — C-04 의 `Npc.Eval → Npc.Prebake` 에 이은 두 번째이고 CLAUDE.md §3 에 적었다.
+- **쓰기 툴은 `--allow-write` 없이는 목록에 뜨지 않는다.** "있는데 거절" 이 아니라 "없다" 여야 한다 — 있는데 거절하면 모델이 우회를 시도한다. `.mcp.json` 의 기본은 꺼짐이다.
+- **`prebake_run` 의 예산 상한은 코드가 자른다**(1.00 USD). 인자로 큰 값을 줘도 `Math.Clamp` 를 지난다 (CLAUDE.md §2.7). `only` 없이 부르면 거절한다 — 전량 회차는 사람이 터미널에서 돌린다.
+- **리소스 이름으로 저장소 밖을 읽을 수 없다.** 이름은 호스트가 주는 값이라, 막지 않으면 MCP 서버가 파일 유출 통로가 된다. `Resources_RefuseDirectoryEscape` 가 지킨다.
+- **표준출력이 프로토콜이다.** 기본 콘솔 로거가 stdout 으로 가면 첫 로그 줄에서 JSON-RPC 가 깨진다 — 로거를 비우고 stderr 로만 낸다.
+- 겸사겸사 **`npc plan repair` 를 CLI 에 넣었다** (C-05 가 끝났는데 CLI 는 "미구현" 이라고 적고 있었다). MCP 의 `plan_repair` 가 그것을 부른다.
+
+**미구현 — 로드맵 표와 다른 점.** `masterdata_apply` 는 JSON Patch 가 아니라 **스캐폴드 적용**이다 — 임의 패치를 받는 문법을 새로 만드는 것보다, 이미 안전장치(`JsonSurgeon`·파급표)를 지나는 경로 하나를 여는 쪽이 낫다. 임의 편집은 사람이 에디터에서 한다.
+
+**완료 조건 확인.** 호스트에서의 호출 순서 로그는 **E-06(LLM 에이전트 벤치마크)의 측정 항목**이다 — 여기서는 툴이 그 순서를 밟도록 설명을 쓰고(각 툴 설명이 다음 단계를 지목한다), 실제 로그는 E-06 이 낸다.
+
+**테스트.** `tests/Npc.Tests/Mcp/McpToolTests.cs`(15). 툴 이름·설명·쓰기 분리·경로 탈출·예산 상한·`.mcp.json` 을 본다. stdio 왕복은 수동으로 확인했다 — `initialize`·`tools/list`·`resources/list`·`tools/call` 셋(`masterdata_validate`·`masterdata_next_code`·`docs_search`) 전부 정상 응답.
 
 ---
 

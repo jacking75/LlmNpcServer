@@ -47,6 +47,15 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
   </ItemGroup>
 
+  <!--
+    MCP 서버 (E-03). LLM 호스트가 이 저장소의 도구를 "부를" 수 있게 한다.
+    <b>도구 전용이다</b> — 서버 기동 경로(Npc.Host)는 이 패키지를 모른다.
+  -->
+  <ItemGroup Label="MCP (E-03)">
+    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+  </ItemGroup>
+
   <ItemGroup Label="테스트">
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
