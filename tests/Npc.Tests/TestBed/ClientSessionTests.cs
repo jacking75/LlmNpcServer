@@ -259,7 +259,7 @@ public sealed class ClientSessionTests
             };
 
             NpcRoster roster = NpcRoster.Select(s_instances, npcs);
-            GameWorld world = GameWorld.Create(options, s_data, roster);
+            GameWorld world = GameWorld.Create(options, s_data, roster, s_instances);
             var players = new PlayerRegistry(world, s_data, options);
             var listener = new ClientListener(world, s_data, players, options);
 

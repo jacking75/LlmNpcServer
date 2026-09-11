@@ -119,6 +119,9 @@ public sealed class ControlHandler
             case ControlKind.Despawn:
                 return Despawn(control.Amount, now);
 
+            case ControlKind.Spawn:
+                return Spawn(control.Amount, now);
+
             default:
                 // 낡은 클라이언트가 모르는 값을 보냈다. 게임서버는 계속 돈다.
                 Ignored++;
@@ -251,6 +254,35 @@ public sealed class ControlHandler
     ///
     /// NPC 서버 쪽에서는 그 NPC 를 상대로 하던 플랜 스텝이 실패하고 재계획이 걸려야 한다.
     /// </summary>
+    /// <summary>
+    /// 슬롯을 다시 spawn 한다 (B-05).
+    ///
+    /// <b>이미 스폰돼 있으면 거절한다.</b> 같은 슬롯에 두 번 스폰하면 NPC 서버는 그것을
+    /// 멱등하게 무시하지만(N7), 여기서 세는 편이 "제어가 먹혔는가" 를 보는 데 낫다.
+    /// </summary>
+    private bool Spawn(int npc, Tick now)
+    {
+        if ((uint)npc >= (uint)_world.World.Capacity || _world.World.IsSpawned(npc))
+        {
+            Rejected++;
+            return false;
+        }
+
+        _world.World.ApplyCommand(
+            new NpcCommand
+            {
+                Kind = NpcCommandKind.Spawn,
+                Npc = new NpcId(npc),
+                IssuedAt = now,
+                Correlation = default,
+                Priority = CommandPriority.Critical,
+            },
+            now);
+
+        Applied++;
+        return true;
+    }
+
     private bool Despawn(int npc, Tick now)
     {
         if (!_world.World.IsSpawned(npc))

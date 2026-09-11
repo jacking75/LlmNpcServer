@@ -94,6 +94,20 @@ public sealed class EventApplier
     public long StaleResponsesIgnored { get; private set; }
 
     /// <summary>
+    /// 런타임 스폰·디스폰을 받는 곳 (B-05). <b>null 이면 정적 로스터다</b> —
+    /// 그때는 스폰이 슬롯을 새로 배정하지 않고 오늘처럼 상태만 <c>Ready</c> 로 바꾼다.
+    ///
+    /// <para>
+    /// <b>속성으로 둔 이유는 조립 순서다.</b> 이 적용기는 <c>PlanExecutor</c> 보다 먼저
+    /// 만들어지는데 동적 로스터는 실행기를 필요로 한다.
+    /// </para>
+    /// </summary>
+    public IDynamicRoster? Roster { get; set; }
+
+    /// <summary>동적 로스터가 스폰을 거절한 횟수 (B-05). <b>0 이 아니면 경보다.</b></summary>
+    public long RosterRejections { get; private set; }
+
+    /// <summary>
     /// 이벤트 하나를 반영한다. <b>할당 0.</b> 틱 루프의 배수 구간에서 돈다.
     /// </summary>
     public void Apply(in GameEvent ev)
@@ -157,6 +171,18 @@ public sealed class EventApplier
         switch (ev.Kind)
         {
             case GameEventKind.NpcSpawned:
+                // B-05 — 동적 로스터면 빈 슬롯에 인스턴스를 먼저 앉힌다.
+                // 인스턴스 정의 id 는 ExtA 로 온다 (B-02 예약 슬롯. ExtensionSlots 에 등록돼 있다).
+                //
+                // <b>ExtA 가 0 이면 "그대로 둬라" 다.</b> 이미 앉아 있는 슬롯의 재스폰이거나
+                // 확장 슬롯을 안 켠 게임서버이고, 둘 다 오늘의 동작이 맞다.
+                if (Roster is { } roster && ev.ExtA != 0
+                    && !roster.TryActivate(npc, (int)ev.ExtA, ev.OccurredAt))
+                {
+                    RosterRejections++;
+                    return;
+                }
+
                 _store.Pos[npc] = ev.Pos;
                 if (ev.Poi.Value != 0)
                 {
@@ -171,6 +197,10 @@ public sealed class EventApplier
 
             case GameEventKind.NpcDespawned:
                 _store.StepStatus[npc] = (byte)StepStatus.Unspawned;
+
+                // B-05 — 동적 로스터면 슬롯을 비운다. 비우지 않으면 다음 거주자가
+                // 이전 거주자의 인벤토리·플래그·플랜을 물려받는다.
+                Roster?.Deactivate(npc);
                 break;
 
             case GameEventKind.NpcTransform:

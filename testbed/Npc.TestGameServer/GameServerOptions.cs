@@ -89,6 +89,15 @@ public sealed record GameServerOptions
     public int ProtocolVersion { get; init; } = 2;
 
     /// <summary>대역이 지원한다고 알릴 기능 비트 (B-01).</summary>
+    /// <summary>
+    /// 동적 로스터 (B-05). 켜면 <b>로스터 해시가 인스턴스 테이블 전체의 것</b>이 된다.
+    ///
+    /// <b>NPC 서버도 <c>--dynamic-roster</c> 로 켜야 한다.</b> 기능 협상은 핸드셰이크 중에
+    /// 끝나므로 해시를 협상 결과로 고를 수 없다 — 한쪽만 켜면 <c>RosterMismatch</c> 로
+    /// 거절되고, 그것이 의도된 동작이다.
+    /// </summary>
+    public bool DynamicRoster { get; init; }
+
     public ulong Features { get; init; } =
         (ulong)(LinkFeatures.GlobalIds | LinkFeatures.ExtSlots | LinkFeatures.DynamicRoster
                 | LinkFeatures.Hostility | LinkFeatures.SessionEpoch);
@@ -123,6 +132,7 @@ public sealed record GameServerOptions
           --scenario <jsonl>     이벤트 주입. KillSwitch 줄은 무시한다
           --fail-rate <0~1>      액션 실패 주입
           --drop-rate <0~1>      명령 유실 주입
+          --dynamic-roster       런타임 스폰·디스폰 (B-05). NPC 서버도 켜야 붙는다
           --bots N               가상 플레이어 (기본 0)
           --seed N               시드 (기본 20260725)
           --player-speed F       걷기 속도, 게임m/게임초 (기본 2.5)
@@ -295,6 +305,10 @@ public sealed record GameServerOptions
                     }
 
                     result = result with { MasterData = masterData! };
+                    break;
+
+                case "--dynamic-roster":
+                    result = result with { DynamicRoster = true };
                     break;
 
                 case "--scenario":

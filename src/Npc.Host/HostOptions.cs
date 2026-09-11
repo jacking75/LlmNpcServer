@@ -195,6 +195,27 @@ public sealed record HostOptions
     public int ScanCap { get; init; } = -1;
 
     /// <summary>
+    /// 동적 로스터 (B-05). 게임서버가 런타임에 NPC 를 스폰·디스폰할 수 있게 한다.
+    ///
+    /// <para>
+    /// <b>양쪽이 같이 켜야 한다.</b> 켜면 핸드셰이크의 로스터 해시가 "초기 활성 집합" 에서
+    /// <b>"누가 존재할 수 있는가"(인스턴스 테이블 전체)</b> 로 바뀐다 — 한쪽만 켜면 해시가
+    /// 어긋나 <c>RosterMismatch</c> 로 거절된다. 그것이 의도된 동작이다: 기능 협상은
+    /// 핸드셰이크 중에 끝나므로 해시를 협상 결과로 고를 수 없고, 어긋난 채 붙는 것보다
+    /// 거절이 싸다.
+    /// </para>
+    /// </summary>
+    public bool DynamicRoster { get; init; }
+
+    /// <summary>
+    /// <c>NpcStore</c> 슬롯 수 (B-05). 0 이면 동적 로스터일 때 로스터 × 1.2, 아니면 로스터 수다.
+    ///
+    /// <b>틱 루프에서 배열을 늘릴 수 없다</b> (CLAUDE.md §2.1) — 여유 슬롯은 기동 시 잡는다.
+    /// 넘는 스폰은 무시하고 센다.
+    /// </summary>
+    public int NpcCapacity { get; init; }
+
+    /// <summary>
     /// 10Hz 실시간 페이싱을 끄고 최대 속도로 돈다. 부하·게이트 측정용.
     /// 켜면 벽시계를 보지만 <b>게임 로직은 여전히 Tick 만 본다</b> — 리플레이는 깨지지 않는다.
     /// </summary>
@@ -435,6 +456,8 @@ public sealed record HostOptions
                                   개체 재계획이 쓸 T2 예산의 몫 (기본 0.20).
                                   넘으면 거절이 아니라 T1 대기다
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
+          --dynamic-roster        런타임 스폰·디스폰 허용 (B-05). 게임서버도 켜야 한다
+          --npc-capacity N        NpcStore 슬롯 수. 0=동적이면 로스터×1.2 (B-05)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
           --no-dashboard          웹 호스트를 띄우지 않는다 (헬스 라우트는 계속 뜬다)
@@ -1185,6 +1208,20 @@ public sealed record HostOptions
                     }
 
                     result = result with { Weights = weights };
+                    break;
+
+                case "--dynamic-roster":
+                    result = result with { DynamicRoster = true };
+                    break;
+
+                case "--npc-capacity":
+                    if (!TryInt(args, ref i, arg, 0, 1_000_000, out int capacity, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { NpcCapacity = capacity };
                     break;
 
                 case "--scan-cap":

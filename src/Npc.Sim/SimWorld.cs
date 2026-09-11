@@ -40,6 +40,15 @@ public sealed partial class SimWorld : IAsyncDisposable
     /// <summary>NPC 가 속한 채널·인스턴스 (B-02). 0 = 기본 월드.</summary>
     private readonly ushort[] _instance;
 
+    /// <summary>
+    /// 슬롯에 앉은 인스턴스 정의 id (B-05). 0 = 모른다.
+    ///
+    /// <b>런타임 스폰에서 NPC 서버가 "누구인가" 를 아는 유일한 통로다</b> —
+    /// <c>NpcSpawned.ExtA</c> 로 실어 보낸다. 슬롯 번호만으로는 동적 로스터에서
+    /// 누가 앉았는지 알 수 없다.
+    /// </summary>
+    private readonly int[] _definition;
+
     private readonly int[] _inventory;
     private readonly int _stride;
     private long _sequence;
@@ -69,6 +78,7 @@ public sealed partial class SimWorld : IAsyncDisposable
         _zone = new ushort[capacity];
         _archetype = new ushort[capacity];
         _instance = new ushort[capacity];
+        _definition = new int[capacity];
         _inventory = new int[(long)capacity * _stride <= int.MaxValue
             ? capacity * _stride
             : throw new ArgumentOutOfRangeException(nameof(capacity), "인벤토리 배열이 int 범위를 넘는다.")];
@@ -117,6 +127,25 @@ public sealed partial class SimWorld : IAsyncDisposable
 
     /// <summary>이 NPC 가 속한 채널·인스턴스 (B-02).</summary>
     public InstanceId InstanceOf(int npc) => new(_instance[npc]);
+
+    /// <summary>이 슬롯의 인스턴스 정의 id (B-05). 0 = 모른다.</summary>
+    public int DefinitionOf(int npc) => _definition[npc];
+
+    /// <summary>
+    /// 슬롯에 인스턴스 정의 id 를 붙인다 (B-05). <b>스폰 전에 부른다.</b>
+    ///
+    /// 게임서버가 슬롯 배정을 소유하므로 여기서 정해진다 — NPC 서버는 이 값을 받아
+    /// <c>npc_instances.json</c> 에서 집·일터·아키타입을 찾는다.
+    /// </summary>
+    /// <param name="npc">슬롯.</param>
+    /// <param name="definitionId"><c>npc_instances.json</c> 의 id.</param>
+    public void SetDefinition(int npc, int definitionId)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(npc);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(npc, Capacity);
+
+        _definition[npc] = definitionId;
+    }
 
     /// <summary>
     /// 되돌아온 명령의 인스턴스가 스폰 때 알려준 값과 달랐던 횟수 (B-02).
@@ -216,6 +245,10 @@ public sealed partial class SimWorld : IAsyncDisposable
                     // B-02 — 인스턴스는 게임서버가 정한다. NPC 서버는 이 값을 기억했다가
                     // 이후 명령에 되돌려준다.
                     Instance = new InstanceId(_instance[npc]),
+
+                    // B-05 — 누가 앉았는지. 동적 로스터의 NPC 서버가 이 값으로 시드한다.
+                    // ExtensionSlots 에 등록된 의미다.
+                    ExtA = (uint)_definition[npc],
                 });
                 return;
 

@@ -211,7 +211,7 @@ public sealed class GameServer : IAsyncDisposable
             log.WriteLine($"warn: {pool} {roster.Count} 로 줄였다.");
         }
 
-        GameWorld world = GameWorld.Create(options, data, roster);
+        GameWorld world = GameWorld.Create(options, data, roster, instances);
         var mirror = new MirrorLog();
         var players = new PlayerRegistry(world, data, options);
 

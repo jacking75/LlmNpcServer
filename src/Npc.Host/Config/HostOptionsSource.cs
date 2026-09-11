@@ -88,6 +88,8 @@ public static class HostOptionsSource
         new("--billing-reset-hour", true),
         new("--budget-individual-share", true),
         new("--weights", true),
+        new("--dynamic-roster", false),
+        new("--npc-capacity", true),
         new("--scan-cap", true),
         new("--max-speed", false),
         new("--no-dashboard", false),

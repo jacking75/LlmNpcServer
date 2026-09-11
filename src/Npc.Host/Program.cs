@@ -602,7 +602,8 @@ internal sealed class NpcHost : IAsyncDisposable
     /// 우리가 안다. 게임서버가 하나라도 다른 값을 보내면 연결이 거절되고
     /// <c>Faulted</c> 로 간다 (docs/20 §5.5). <b>우회 옵션은 없다.</b>
     /// </summary>
-    private static TcpGameServerLink TcpLink(HostOptions options, MasterDataSet data, NpcRoster roster)
+    private static TcpGameServerLink TcpLink(
+        HostOptions options, MasterDataSet data, string rosterHash, int npcCount)
     {
         // 비밀·인증서 비밀번호는 환경변수로만 온다 (A-06). 인자는 ps 에 보이고
         // 파일은 이미지에 굽힌다.
@@ -621,11 +622,11 @@ internal sealed class NpcHost : IAsyncDisposable
             Host = options.GameServerHost,
             Port = options.GameServerPort,
             TimeScale = options.TimeScale,
-            NpcCount = roster.Count,
+            NpcCount = npcCount,
             MasterData = WireHash.FromHex(data.ContentHash),
             MasterDataStructural = WireHash.FromHex(data.StructuralHash),
             MasterDataContent = WireHash.FromHex(data.ContentHash),
-            Roster = WireHash.FromHex(roster.Hash),
+            Roster = WireHash.FromHex(rosterHash),
             Secret = secret,
             RequireAuth = options.RequireLinkAuth,
             Tls = options.LinkTls,
@@ -723,19 +724,43 @@ internal sealed class NpcHost : IAsyncDisposable
             log.WriteLine($"warn: {pool} {npcs} 로 줄였다.");
         }
 
+        // ── 로스터 해시 ───────────────────────────────────────────
+        //
+        // B-05 — 동적 로스터면 "초기 활성 집합" 이 아니라 <b>"누가 존재할 수 있는가"</b> 를
+        // 해시한다. 활성 집합은 핸드셰이크 뒤 NpcSpawned 재발행으로 동기화되므로 해시로
+        // 못 박을 것이 아니다 — 못 박으면 런타임 스폰이 그 순간 해시를 어긋나게 만든다.
+        //
+        // <b>양쪽이 같이 켜야 한다.</b> 기능 협상은 핸드셰이크 중에 끝나므로 해시를 협상
+        // 결과로 고를 수 없다. 한쪽만 켜면 RosterMismatch 로 거절되고, 그것이 의도다.
+        string rosterHash = options.DynamicRoster
+            ? NpcRoster.HashOf(instances.Instances)
+            : roster.Hash;
+
         // ── 런타임 ────────────────────────────────────────────────
+        //
+        // B-05 — 동적 로스터면 여유 슬롯을 미리 잡는다. 틱 루프에서 배열을 늘릴 수 없으므로
+        // (CLAUDE.md §2.1) 런타임 스폰이 앉을 자리는 기동 시에만 만들 수 있다.
+        int capacity = options.NpcCapacity > 0
+            ? Math.Max(npcs, options.NpcCapacity)
+            : options.DynamicRoster ? (int)Math.Ceiling(npcs * 1.2) : npcs;
+
+        if (capacity > npcs)
+        {
+            log.WriteLine($"roster: 슬롯 {capacity}개 (활성 {npcs} · 여유 {capacity - npcs})");
+        }
+
         var store = new NpcStore();
-        store.Allocate(npcs, data.Items.MaxCode + 1);
+        store.Allocate(capacity, data.Items.MaxCode + 1);
 
         var clock = new GameClock(data.Buckets, options.TimeScale);
-        var correlations = new CorrelationTable(npcs);
+        var correlations = new CorrelationTable(capacity);
         var zoneStates = new ZoneStateTable(data);
         var lodUpdater = new LodUpdater(store) { ZoneStates = zoneStates };
         var applier = new EventApplier(data, store, clock, correlations, lodUpdater);
         var emitter = new CommandEmitter(data, new PoiBinder(data.Pois));
         var swapper = new PlanSwapper(store);
-        var replanQueue = new ReplanQueue(npcs);
-        var snapshots = new ReplanSnapshots(npcs);
+        var replanQueue = new ReplanQueue(capacity);
+        var snapshots = new ReplanSnapshots(capacity);
         var individualPool = new IndividualPlanPool();
 
         PlanStore plans = BuildPlanStore(options, data, masterDataDir, log, out int[] fallbackOf);
@@ -776,8 +801,21 @@ internal sealed class NpcHost : IAsyncDisposable
             NpcInstanceDef def = roster.Npcs[i];
 
             applier.Seed(i, def.Home, def.Zone, def.Archetype, def.Home, def.Workplace);
+
+            // B-05 — 슬롯 거주자를 기록한다. 정적 회차에서도 채운다: 경로를 갈라 두면
+            // 한쪽만 나는 버그가 생긴다.
+            store.Occupant[i] = def.Id;
             store.StepStatus[i] = (byte)StepStatus.Ready;
             executor.AssignPlan(i, new PlanId(fallbackOf[def.Archetype.Value]));
+        }
+
+        // B-05 — 런타임 스폰·디스폰을 받는 곳. 켜지 않으면 null 이라 오늘의 동작 그대로다.
+        DynamicRoster? dynamicRoster = null;
+
+        if (options.DynamicRoster)
+        {
+            dynamicRoster = new DynamicRoster(instances, store, applier, executor, fallbackOf);
+            applier.Roster = dynamicRoster;
         }
 
         // ── 스냅샷 복원 (A-01) ────────────────────────────────────
@@ -788,7 +826,7 @@ internal sealed class NpcHost : IAsyncDisposable
             options.Restore,
             options.Restore == RestoreMode.File ? options.RestorePath! : options.ResolveSnapshotDir(),
             data.ContentHash,
-            roster.Hash,
+            rosterHash,
             PromptPrefix.Build(data, masterDataDir).Sha256,
             log);
 
@@ -816,7 +854,7 @@ internal sealed class NpcHost : IAsyncDisposable
             case LinkKind.Tcp:
                 // 대역을 만들지 않는다 — Replay 와 같은 경로다. 세계를 미는 것은 게임서버이고
                 // 우리는 이벤트를 받아 명령을 낼 뿐이다 (docs/20 §10.3).
-                link = tcp = TcpLink(options, data, roster);
+                link = tcp = TcpLink(options, data, rosterHash, roster.Count);
                 break;
 
             case LinkKind.Record:
@@ -827,7 +865,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
                 if (options.UsesGameServer)
                 {
-                    inner = tcp = TcpLink(options, data, roster);
+                    inner = tcp = TcpLink(options, data, rosterHash, roster.Count);
                 }
                 else
                 {
@@ -946,7 +984,7 @@ internal sealed class NpcHost : IAsyncDisposable
                     zoneStates.Capacity,
                     port.Buffer.NextCorrelation,
                     data.ContentHash,
-                    roster.Hash,
+                    rosterHash,
                     prefixHash),
                 () => IndividualPlanCapture.From(store, individualPool, port.Buffer.Tick),
                 result =>

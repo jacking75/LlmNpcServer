@@ -306,7 +306,7 @@ public sealed class ControlHandlerTests
             ClientPort = 0,
         };
 
-        return GameWorld.Create(options, s_data, NpcRoster.Select(s_instances, npcs));
+        return GameWorld.Create(options, s_data, NpcRoster.Select(s_instances, npcs), s_instances);
     }
 
     private static void Drain(GameWorld world)

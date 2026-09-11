@@ -586,7 +586,7 @@ public sealed class LinkSessionTests
                 ProtocolVersion = protocolVersion,
                 LinkSecret = secret ?? [],
             };
-            GameWorld world = GameWorld.Create(options, s_data, roster);
+            GameWorld world = GameWorld.Create(options, s_data, roster, s_instances);
 
             var listener = new LinkListener(world, s_data, options);
 

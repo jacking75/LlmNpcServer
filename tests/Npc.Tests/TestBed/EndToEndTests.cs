@@ -276,6 +276,68 @@ public sealed class EndToEndTests
         }
     }
 
+    /// <summary>
+    /// B-05 완료 조건 — <b>디스폰했다가 다시 스폰하면 살아난다.</b>
+    ///
+    /// <para>
+    /// 소켓 경로로 확인하는 것은 <b>배선</b>이다 — 제어 → 게임서버 → <c>NpcDespawned</c> →
+    /// NPC 서버가 슬롯을 비우고, <c>NpcSpawned</c>(<c>ExtA</c>=인스턴스 id) → 다시 앉는다.
+    /// "다른 슬롯으로 살아난다" 와 "이전 거주자의 물건을 물려받지 않는다" 는
+    /// <c>DynamicRosterTests</c> 가 슬롯 단위로 본다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>양쪽이 동적 로스터를 켠다.</b> 한쪽만 켜면 로스터 해시가 어긋나 붙지 못하고,
+    /// 그것이 의도된 동작이다 — 이 회차가 붙는 것 자체가 그 합의를 확인한다.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task TestBed_DespawnThenRespawnBringsTheNpcBack()
+    {
+        const int Watched = 3;
+
+        await using Bed bed = await Bed.StartAsync(npcs: 16, dynamicRoster: true);
+
+        await bed.DriveAsync(20);
+
+        // 붙었다는 것은 곧 로스터 해시가 맞았다는 뜻이다.
+        Assert.True(bed.Server.Link.Session is { IsAccepted: true }, bed.Describe());
+
+        int occupant = bed.Host.Store.Occupant[Watched];
+
+        Assert.NotEqual(0, occupant);
+
+        // 디스폰 — 게임서버 제어로 내린다.
+        Assert.True(bed.Server.Controls.Apply(
+            new Control { Kind = (byte)ControlKind.Despawn, Amount = Watched }, new Tick(bed.Now)));
+
+        await bed.DriveUntilAsync(
+            () => bed.Host.Store.Occupant[Watched] == 0,
+            maxTicks: 200);
+
+        Assert.Equal(0, bed.Host.Store.Occupant[Watched]);
+        Assert.Equal((byte)StepStatus.Unspawned, bed.Host.Store.StepStatus[Watched]);
+
+        // 다시 스폰 — NpcSpawned 의 ExtA 가 "누구인가" 를 실어 온다.
+        Assert.True(bed.Server.Controls.Apply(
+            new Control { Kind = (byte)ControlKind.Spawn, Amount = Watched }, new Tick(bed.Now)));
+
+        await bed.DriveUntilAsync(
+            () => bed.Host.Store.Occupant[Watched] == occupant,
+            maxTicks: 200);
+
+        Assert.Equal(occupant, bed.Host.Store.Occupant[Watched]);
+
+        // <b>Ready 를 그대로 단언하지 않는다.</b> NPC 서버는 다른 스레드에서 계속 도므로
+        // 슬롯이 앉은 직후 이미 명령을 내고 Waiting 으로 넘어가 있을 수 있다 —
+        // 여기서 볼 것은 "세계에 있다" 이고 그것은 Unspawned 가 아님이다.
+        Assert.NotEqual((byte)StepStatus.Unspawned, bed.Host.Store.StepStatus[Watched]);
+
+        // 아키타입·집이 다시 채워졌는가 — 시드가 돌았다는 증거다.
+        Assert.NotEqual(0, bed.Host.Store.HomePoi[Watched]);
+        Assert.NotEqual(0, bed.Host.Store.PlanId[Watched]);
+    }
+
     // ---------------------------------------------------------------- 보조
 
     private static bool Saw(Bed bed, int npc, GameEventKind kind)
@@ -336,7 +398,10 @@ public sealed class EndToEndTests
         /// 스폰보다 먼저 정해져야 하는 값이 여기 들어간다 (B-02).
         /// </param>
         public static async Task<Bed> StartAsync(
-            int npcs = 32, double dropRate = 0, Action<GameServer>? configure = null)
+            int npcs = 32,
+            double dropRate = 0,
+            Action<GameServer>? configure = null,
+            bool dynamicRoster = false)
         {
             GameServer server = GameServer.Create(
                 new GameServerOptions
@@ -347,6 +412,9 @@ public sealed class EndToEndTests
                     TimeScale = 60,
                     DropRate = dropRate,
                     MasterData = TestPaths.MasterData,
+
+                    // B-05 — 양쪽이 같이 켜야 한다. 로스터 해시가 달라지기 때문이다.
+                    DynamicRoster = dynamicRoster,
                 },
                 TextWriter.Null);
 
@@ -373,6 +441,13 @@ public sealed class EndToEndTests
                 // 이름을 유니크하게 둬야 ResolvePlanStore 가 위로 올라가 저장소의 것을 찾지 않는다.
                 "--planstore", "no-planstore-testbed-e2e",
             ];
+
+            if (dynamicRoster)
+            {
+                // 여유 슬롯을 둔다. 디스폰한 NPC 가 다른 슬롯으로 살아나는 것을 보려면
+                // 로스터 수보다 슬롯이 많아야 한다 (B-05).
+                args = [.. args, "--dynamic-roster", "--npc-capacity", (npcs * 2).ToString(CultureInfo.InvariantCulture)];
+            }
 
             Assert.True(HostOptions.TryParse(args, out HostOptions options, out string? error), error);
 

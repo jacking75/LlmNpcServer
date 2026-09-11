@@ -30,6 +30,15 @@ public enum ControlKind : byte
 
     /// <summary><c>Amount</c> 번 NPC 를 despawn 한다. <c>TargetGone</c> 경로 확인용이다.</summary>
     Despawn = 5,
+
+    /// <summary>
+    /// <c>Amount</c> 번 슬롯을 다시 spawn 한다 (B-05).
+    ///
+    /// <b>디스폰한 NPC 를 되살리는 길이다.</b> <c>NpcSpawned</c> 에 그 슬롯의 인스턴스 정의
+    /// id 가 <c>ExtA</c> 로 실려 나가므로, 동적 로스터를 켠 NPC 서버는 집·일터·아키타입을
+    /// 다시 찾아 시드한다.
+    /// </summary>
+    Spawn = 6,
 }
 
 /// <summary>

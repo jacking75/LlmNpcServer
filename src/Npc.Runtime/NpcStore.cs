@@ -98,6 +98,21 @@ public sealed class NpcStore
     // --- 콜드 (재계획·바인딩 시에만) ---
 
     /// <summary>
+    /// 이 슬롯에 앉은 인스턴스 정의 id (B-05). <b>0 = 빈 슬롯이다</b> —
+    /// <c>npc_instances.json</c> 의 id 는 1 부터라 0 을 "없음" 으로 쓸 수 있다.
+    ///
+    /// <para>
+    /// <b>슬롯과 인스턴스는 다른 것이다.</b> 슬롯은 배열 첨자이고 인스턴스는 "누구" 다.
+    /// 정적 로스터에서는 둘이 1:1 로 붙어 있어 구분할 이유가 없었지만, 런타임 스폰·디스폰이
+    /// 생기면 같은 슬롯에 다른 인스턴스가 앉을 수 있다 — 그때 이 배열이 없으면
+    /// <b>이전 거주자의 인벤토리를 물려받은 NPC</b> 가 생긴다.
+    /// </para>
+    ///
+    /// <para><b>정적 로스터 회차에서도 채운다.</b> 경로를 갈라 두면 한쪽만 나는 버그가 생긴다.</para>
+    /// </summary>
+    public int[] Occupant = [];
+
+    /// <summary>
     /// 채널·인스턴스 던전·레이어 (B-02). 0 = 기본 월드.
     ///
     /// <b>게임서버가 정하고 우리는 되돌려 준다.</b> <c>NpcSpawned</c> 가 실어 주고,
@@ -190,6 +205,7 @@ public sealed class NpcStore
         ArchetypeCode = new ushort[capacity];
         CurrentPoi = new ushort[capacity];
 
+        Occupant = new int[capacity];
         Instance = new ushort[capacity];
         HomePoi = new ushort[capacity];
         WorkPoi = new ushort[capacity];
@@ -250,6 +266,7 @@ public sealed class NpcStore
         Array.Copy(ZoneCode, buffer.ZoneCode, Count);
         Array.Copy(ArchetypeCode, buffer.ArchetypeCode, Count);
         Array.Copy(CurrentPoi, buffer.CurrentPoi, Count);
+        Array.Copy(Occupant, buffer.Occupant, Count);
         Array.Copy(Instance, buffer.Instance, Count);
         Array.Copy(HomePoi, buffer.HomePoi, Count);
         Array.Copy(WorkPoi, buffer.WorkPoi, Count);
@@ -293,6 +310,7 @@ public sealed class NpcStore
         Array.Copy(buffer.ZoneCode, ZoneCode, Count);
         Array.Copy(buffer.ArchetypeCode, ArchetypeCode, Count);
         Array.Copy(buffer.CurrentPoi, CurrentPoi, Count);
+        Array.Copy(buffer.Occupant, Occupant, Count);
         Array.Copy(buffer.Instance, Instance, Count);
         Array.Copy(buffer.HomePoi, HomePoi, Count);
         Array.Copy(buffer.WorkPoi, WorkPoi, Count);
@@ -332,6 +350,69 @@ public sealed class NpcStore
     public Span<int> InventoryOf(int npc) =>
         Inventory.AsSpan(npc * InventoryStride, InventoryStride);
 
+    /// <summary>이 슬롯에 인스턴스가 앉아 있는가 (B-05).</summary>
+    public bool IsOccupied(int slot) => (uint)slot < (uint)Count && Occupant[slot] != 0;
+
+    /// <summary>지금 앉아 있는 슬롯 수 (B-05). 메트릭용이다 — 틱 루프에서 부르지 않는다.</summary>
+    public int OccupiedSlots()
+    {
+        int count = 0;
+
+        for (int i = 0; i < Count; i++)
+        {
+            if (Occupant[i] != 0)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// 슬롯을 비운다 (B-05). <b>다음 거주자가 이전 거주자의 상태를 물려받지 않게</b> 한다.
+    ///
+    /// <para>
+    /// <see cref="Allocate"/> 직후와 같은 값으로 되돌린다 — 그렇게 하지 않으면
+    /// "스폰 순서에 따라 다르게 행동하는 NPC" 가 생기고, 그것은 재현이 거의 불가능하다.
+    /// </para>
+    ///
+    /// <para><b>틱 루프에서 부를 수 있다.</b> 할당이 없다 — 쓰기만 한다.</para>
+    /// </summary>
+    /// <param name="slot">비울 슬롯.</param>
+    public void ClearSlot(int slot)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(slot);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(slot, Count);
+
+        Occupant[slot] = 0;
+        Flags[slot] = default;
+        PlanId[slot] = 0;
+        StepIndex[slot] = 0;
+        StepStatus[slot] = (byte)Runtime.StepStatus.Unspawned;
+        StepIssuedTick[slot] = 0;
+        Lod[slot] = InactiveLod;
+        Pos[slot] = default;
+        Hp[slot] = 100;
+        Stamina[slot] = 100;
+        ZoneCode[slot] = 0;
+        ArchetypeCode[slot] = 0;
+        CurrentPoi[slot] = 0;
+        Instance[slot] = 0;
+        HomePoi[slot] = 0;
+        WorkPoi[slot] = 0;
+        Recent[slot] = default;
+        PendingPlanId[slot] = 0;
+        PlanAssignedTick[slot] = 0;
+        PendingUrgency[slot] = 0;
+        LastFailReason[slot] = 0;
+        StepRetries[slot] = 0;
+
+        // 시퀀스는 되돌리지 않는다 — 링크는 프로세스 수명 동안 순증하므로(N6) 0 으로 되돌리면
+        // 재스폰 뒤의 이벤트가 전부 "중복" 으로 읽힌다.
+        Inventory.AsSpan(slot * InventoryStride, InventoryStride).Clear();
+    }
+
     /// <summary>한 NPC 의 인벤토리 (읽기 전용).</summary>
     public ReadOnlySpan<int> ReadInventoryOf(int npc) =>
         Inventory.AsSpan(npc * InventoryStride, InventoryStride);
@@ -359,6 +440,7 @@ public sealed class NpcStore
             hash = Mix(hash, (ulong)(ushort)Stamina[i]);
             hash = Mix(hash, ZoneCode[i]);
             hash = Mix(hash, CurrentPoi[i]);
+            hash = Mix(hash, (ulong)(uint)Occupant[i]);
             hash = Mix(hash, Instance[i]);
 
             ReadOnlySpan<int> inventory = ReadInventoryOf(i);

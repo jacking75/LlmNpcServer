@@ -71,7 +71,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 - [x] **B-02** 패킷 확장 슬롯 (v2 레이아웃: `InstanceId` · `Ext` 예약) — P1 · M · 의존 B-01 — **완료. 계약 필드는 `Instance`·`Faction`(계약의 `NpcId Npc` 이름 규칙), 크기는 72B·80B**
 - [x] **B-03** 이기종 런타임 명세: 바이트 오프셋 표 자동 생성 · 참조 코덱(C++/Python) · 골든 바이트 벡터 — P1 · M · 의존 B-01 — **명세·벡터·코덱 완료. C++ 컴파일 확인과 C++ 미니 게임서버 실습은 미실시**(이 저장소에 컴파일러가 없다)
 - [x] **B-04** 핸드셰이크 해시 분할 (구조 해시 / 내용 해시) · 부분 호환 정책 — P1 · S · 의존 B-01
-- [ ] **B-05** 동적 로스터: 런타임 스폰·디스폰 · 용량 예약 — P1 · M · 의존 B-01, A-01
+- [x] **B-05** 동적 로스터: 런타임 스폰·디스폰 · 용량 예약 — P1 · M · 의존 B-01, A-01 — **1단계 완료. 인스턴스 테이블에 있는 id 만 · 템플릿 스폰(2단계)은 미착수**
 - [ ] **B-06** 적대 플레이어 감지: `PlayerHostility` 이벤트 · `HostilePlayerNearby` 플래그 · `$nearest_hostile_player` 바인딩 — P1 · M · 의존 B-01, D-04
 - [x] **B-07** 게임서버 적합성 테스트 키트 (`Npc.Conformance`) — P1 · M · 의존 B-01 — **완료. 대역 보고서 통과 6 · 불합격 0 · 미판정 1(전투 없음)**
 - [ ] **B-08** 읽기 전용 질의 API (벌크·검색·스트림) — 링크가 아니라 HTTP — P1 · M · 의존 A-06
@@ -995,6 +995,36 @@ TLS 와 토큰이 필요하다"(`docs/reference_link.html` §13)고 적었다. �
 **테스트.** `Runtime/DynamicRosterTests` — 스폰→디스폰→재스폰 멱등 · 용량 초과 무시 · `bytesPerTick` 0. `TestBed` — 게임서버 대역 `Control.Spawn` 추가로 종단.
 
 **완료 조건.** 뷰어에서 NPC 를 despawn 했다가 다시 spawn 하면 새 슬롯으로 살아난다.
+
+**구현 (2026-09-11).**
+
+| 자리 | 무엇 |
+|---|---|
+| `NpcStore.Occupant` | **슬롯에 앉은 인스턴스 정의 id.** 0 = 빈 슬롯 (id 는 1부터) |
+| `NpcStore.ClearSlot` | 슬롯을 `Allocate` 직후 값으로 되돌린다. **할당 0** |
+| `src/Npc.Runtime/DynamicRoster.cs` | 앉히기·비우기. 정적 시드와 **같은 함수**(`Seed` + `AssignPlan`)를 지난다 |
+| `EventApplier.Roster` | null 이면 정적 로스터 — 오늘의 동작 그대로다 |
+| `--dynamic-roster` · `--npc-capacity` | 기동 옵션. 기본 용량은 로스터 × 1.2 |
+| `ExtensionSlots` | **`NpcSpawned.ExtA` = 인스턴스 정의 id** 를 등록했다 (B-02 예약 슬롯의 첫 사용자) |
+| 게임서버 대역 | `--dynamic-roster` · `ControlKind.Spawn` · `SimWorld.SetDefinition` |
+
+**로드맵과 다른 것 — 인스턴스 식별자가 `Npc` 가 아니라 `ExtA` 로 간다.** 초안은
+"`NpcSpawned(Npc=전역 id)`" 라고 썼지만 지금 `Npc` 필드는 **슬롯 번호**이고, 그것을 전역 id 로
+바꾸는 것은 A-08(전역 `NpcId`·샤딩)의 일이다. 두 개념을 한 필드에 겹치면 B-05 가 A-08 을
+끌고 들어오고, 그 둘을 같이 하면 되돌릴 수 없는 커밋이 된다. **`ExtA` 는 B-02 가
+"Kind 별로 의미를 문서화하는 예약 슬롯" 으로 만든 자리이고, 이것이 그 첫 사용자다.**
+
+**슬롯 배정은 게임서버가 한다.** NPC 서버가 고르면 같은 슬롯 번호가 두 쪽에서 다른 NPC 를
+가리키고, 그 순간 명령이 엉뚱한 NPC 에게 간다.
+
+**로스터 해시는 양쪽이 같이 켜야 맞는다.** 기능 협상은 핸드셰이크 중에 끝나므로 해시를 협상
+결과로 고를 수 없다 — 한쪽만 켜면 `RosterMismatch` 로 거절되고 그것이 의도다. 어긋난 채 붙는
+것보다 거절이 싸다.
+
+**"새 슬롯으로 살아난다" 를 무엇으로 셌나.** 소켓 회차
+(`TestBed_DespawnThenRespawnBringsTheNpcBack`)는 **배선**을 본다 — 제어 → `NpcDespawned` →
+슬롯 비움 → `NpcSpawned(ExtA)` → 다시 앉음. **다른 슬롯으로 살아나는 것**과 **이전 거주자의
+물건을 물려받지 않는 것**은 `DynamicRosterTests` 가 슬롯 단위로 본다(11건. 할당 0 포함).
 
 **규칙 충돌 확인.** §2.1 할당 0(사전 용량). N7 멱등.
 

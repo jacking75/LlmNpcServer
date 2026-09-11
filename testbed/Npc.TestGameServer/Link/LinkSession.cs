@@ -211,7 +211,7 @@ public sealed class LinkSession : IAsyncDisposable
             SessionEpoch = _options.SessionEpoch,
             MasterDataStructural = WireHash.FromHex(_data.StructuralHash),
             MasterDataContent = WireHash.FromHex(_data.ContentHash),
-            Roster = WireHash.FromHex(_world.Roster.Hash),
+            Roster = WireHash.FromHex(_world.RosterHash),
             Nonce = nonce,
         };
 
@@ -230,7 +230,7 @@ public sealed class LinkSession : IAsyncDisposable
                 NpcCount = _world.Roster.Count,
                 StartTick = _world.Now.Value,
                 MasterData = WireHash.FromHex(_data.ContentHash),
-                Roster = WireHash.FromHex(_world.Roster.Hash),
+                Roster = WireHash.FromHex(_world.RosterHash),
             });
 
         byte helloVersion = _options.ProtocolVersion >= 2 ? FrameCodec.MaxVersion : FrameCodec.Version;
@@ -505,6 +505,9 @@ public sealed class LinkSession : IAsyncDisposable
                 // B-02 — 재동기화 스폰도 인스턴스를 실어야 한다. NPC 서버가 인스턴스를
                 // 아는 경로는 NpcSpawned 하나뿐이고, 세션 전 이벤트는 위에서 버려진다.
                 Instance = world.InstanceOf(i),
+
+                // B-05 — 누가 앉았는지도 같이. 동적 로스터의 NPC 서버가 이것으로 시드한다.
+                ExtA = (uint)world.DefinitionOf(i),
             });
         }
 

@@ -50,7 +50,7 @@ await using (server.ConfigureAwait(false))
         $"game server: npcs={server.World.Roster.Count} time-scale={options.TimeScale} " +
         $"bots={options.Bots} max-clients={options.MaxClients}");
     Console.Out.WriteLine($"masterdata: {options.MasterData} ({server.Data.ContentHash[..12]})");
-    Console.Out.WriteLine($"roster hash: {server.World.Roster.Hash[..12]}");
+    Console.Out.WriteLine($"roster hash: {server.World.RosterHash[..12]}");
     Console.Out.WriteLine($"listening: link :{server.LinkPort} | client :{server.ClientPort}");
 
     if (options.Scenario is { } scenario)

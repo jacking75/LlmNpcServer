@@ -222,6 +222,37 @@ public sealed class WireV2DtoTests
     }
 
     /// <summary>
+    /// <b>등록된 슬롯은 값이 있어도 깨끗하다</b> (B-05).
+    ///
+    /// <c>NpcSpawned.ExtA</c> = 인스턴스 정의 id 가 지금 유일한 등록 항목이다.
+    /// 이 단언이 깨지면 등록부가 지워진 것이고, 그러면 동적 로스터가 조용히 멈춘다 —
+    /// 스폰 이벤트의 "누구인가" 가 규약 위반으로 읽히기 때문이다.
+    /// </summary>
+    [Fact]
+    public void Ext_NpcSpawnedSlotAIsRegistered()
+    {
+        Assert.True(ExtensionSlots.IsDefined(GameEventKind.NpcSpawned, ExtSlot.A));
+        Assert.Contains(
+            "인스턴스",
+            ExtensionSlots.MeaningOf(GameEventKind.NpcSpawned, ExtSlot.A),
+            StringComparison.Ordinal);
+
+        var spawned = new GameEvent
+        {
+            Kind = GameEventKind.NpcSpawned,
+            Sequence = 1,
+            OccurredAt = new Tick(1),
+            ExtA = 1234,
+        };
+
+        Assert.True(ExtensionSlots.IsClean(in spawned));
+
+        // B 는 여전히 등록되지 않았다.
+        Assert.False(ExtensionSlots.IsDefined(GameEventKind.NpcSpawned, ExtSlot.B));
+        Assert.False(ExtensionSlots.IsClean(spawned with { ExtB = 1 }));
+    }
+
+    /// <summary>
     /// <see cref="InstanceId"/>·<see cref="FactionId"/> 는 예약 슬롯이 아니다 —
     /// 의미가 이미 정해져 있으므로 등록부를 거치지 않고, 값이 있어도 깨끗하다.
     /// </summary>

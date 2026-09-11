@@ -36,7 +36,7 @@ public sealed class GameWorldTests
         options ??= new GameServerOptions();
         NpcRoster roster = NpcRoster.Select(s_instances, npcs);
 
-        return GameWorld.Create(options with { Npcs = npcs }, s_data, roster);
+        return GameWorld.Create(options with { Npcs = npcs }, s_data, roster, s_instances);
     }
 
     /// <summary>완료 조건 — §7.2 순서대로 호출된다. 호출 기록으로 확인한다.</summary>

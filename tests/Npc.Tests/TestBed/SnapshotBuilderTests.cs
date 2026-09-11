@@ -251,7 +251,7 @@ public sealed class SnapshotBuilderTests
     {
         NpcRoster roster = NpcRoster.Select(s_instances, npcs);
 
-        return GameWorld.Create(Options() with { Npcs = npcs }, s_data, roster);
+        return GameWorld.Create(Options() with { Npcs = npcs }, s_data, roster, s_instances);
     }
 
     private static float Distance(in WorldPos a, in WorldPos b)

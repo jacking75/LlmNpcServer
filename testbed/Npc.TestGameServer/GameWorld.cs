@@ -102,6 +102,14 @@ public sealed class GameWorld : IAsyncDisposable
     /// <summary>이 게임서버가 보는 NPC 집합. 해시가 핸드셰이크에 실린다 (docs/20 §5.5).</summary>
     public NpcRoster Roster { get; }
 
+    /// <summary>
+    /// 핸드셰이크에 실을 로스터 해시 (B-05).
+    ///
+    /// <b>동적 로스터면 "누가 존재할 수 있는가"</b>(인스턴스 테이블 전체)를 해시한다.
+    /// 활성 집합은 런타임에 바뀌므로 해시로 못 박을 것이 아니다.
+    /// </summary>
+    public string RosterHash { get; private init; } = string.Empty;
+
     /// <summary>NPC 서버가 보낸 명령이 들어오는 곳. 링크 세션이 채운다 (T6-17).</summary>
     public CommandInbox Inbox => _inbox;
 
@@ -180,11 +188,17 @@ public sealed class GameWorld : IAsyncDisposable
     public static long DueMillis(long tick) => tick * 1000 / TickRate;
 
     /// <summary>옵션대로 조립하고 로스터를 세계에 올린다. 기동 시 1회.</summary>
-    public static GameWorld Create(GameServerOptions options, MasterDataSet data, NpcRoster roster)
+    /// <param name="options">설정.</param>
+    /// <param name="data">마스터데이터.</param>
+    /// <param name="roster">초기 활성 집합.</param>
+    /// <param name="instances">알려진 인스턴스 전부. 동적 로스터 해시에 쓴다 (B-05).</param>
+    public static GameWorld Create(
+        GameServerOptions options, MasterDataSet data, NpcRoster roster, NpcInstanceTable instances)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(roster);
+        ArgumentNullException.ThrowIfNull(instances);
 
         // PlayerBots 는 0 이다. 대역의 플레이어는 PlayerRegistry 가 돌린다 (docs/20 §7.3) —
         // 둘 다 ObservedByPlayer 에 쓰면 서로의 근접 판정을 덮어쓴다.
@@ -200,6 +214,9 @@ public sealed class GameWorld : IAsyncDisposable
         for (int i = 0; i < npcs.Length; i++)
         {
             world.Place(i, npcs[i].Archetype, npcs[i].Home);
+
+            // B-05 — 슬롯에 앉은 인스턴스 정의 id. NpcSpawned 가 이 값을 싣는다.
+            world.SetDefinition(i, npcs[i].Id);
         }
 
         var movement = new MovementSim(world);
@@ -238,7 +255,14 @@ public sealed class GameWorld : IAsyncDisposable
             new NeedsSim(world),
             options.Scenario is { } path ? ScenarioRunner.Load(path, data) : ScenarioRunner.Empty,
             new CommandInbox(),
-            roster);
+            roster)
+        {
+            // B-05 — 동적 로스터면 "누가 존재할 수 있는가" 를 해시한다. NPC 서버의
+            // --dynamic-roster 와 같은 계산이어야 붙는다.
+            RosterHash = options.DynamicRoster
+                ? NpcRoster.HashOf(instances.Instances)
+                : roster.Hash,
+        };
     }
 
     /// <summary>

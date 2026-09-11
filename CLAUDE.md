@@ -330,6 +330,7 @@ logs/ replays/ artifacts/
 | 핸드셰이크 필드 순서를 바꿈 | 정렬 구멍 위치가 바뀌어 이미 붙어 있는 상대가 깨진다 | `HandshakePadding_IsPinned` |
 | 적합성 보고서의 "미판정" 을 통과로 셈 | 안 본 것을 봤다고 하는 것이다 | `Verdict.NotChecked` 는 합격에 안 든다. 보고서가 사유를 적는다 |
 | v1 와이어 DTO(`Npc.Wire/V1/`)에 필드 추가 | v1 게임서버가 읽던 배치가 통째로 어긋난다 | **동결이다.** 새 필드는 `V2/` 에만 |
+| 디스폰에서 슬롯을 비우지 않음 | 다음 거주자가 **이전 거주자의 인벤토리·플래그·플랜을 물려받는다** | `NpcStore.ClearSlot` (B-05) |
 | 의미를 등록하지 않고 `ExtA`·`ExtB` 사용 | 두 팀이 같은 칸에 다른 것을 넣고 알아챌 계기가 없다 | `ExtensionSlots` 에 등록 + `Ext_ZeroForUndefinedKinds` |
 | 아키타입에 `duty_hours` 없이 `Guard`·`Patrol` 허용 | 인지 스캔이 매번 이탈로 읽어 재계획 큐 포화 | **V12 가 기동을 막는다.** `OnDuty`를 세우는 것은 `duty_hours` 뿐이다 |
 | `code`·`bit` 를 눈으로 세어 다음 번호를 정함 | 중복·예약 구간 침범 | `npc next-code <파일>` 이 답한다 |

@@ -318,7 +318,7 @@ public sealed class PlayerRegistryTests
     {
         NpcRoster roster = NpcRoster.Select(s_instances, npcs);
 
-        return GameWorld.Create(Options(timeScale) with { Npcs = npcs }, s_data, roster);
+        return GameWorld.Create(Options(timeScale) with { Npcs = npcs }, s_data, roster, s_instances);
     }
 
     /// <summary>한 틱 걸었을 때의 이동 거리.</summary>
