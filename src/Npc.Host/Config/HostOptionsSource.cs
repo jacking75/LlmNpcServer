@@ -91,6 +91,7 @@ public static class HostOptionsSource
         new("--weights", true),
         new("--dynamic-roster", false),
         new("--npc-capacity", true),
+        new("--planstore-sha", true),
         new("--scan-cap", true),
         new("--max-speed", false),
         new("--no-dashboard", false),

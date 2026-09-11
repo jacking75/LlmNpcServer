@@ -49,13 +49,29 @@ if (options.PrintPrefix)
     return 0;
 }
 
+// C-03 — 프리픽스 SHA 별 디렉터리에 쌓는다. 프롬프트를 고치면 새 폴더가 생기고,
+// 되돌리면 옛 폴더가 그대로 선택된다 — 롤백이 "다시 $5 를 태우는 일" 이 아니게 된다.
+//
+// <b>핀은 루트에 공유로 둔다.</b> 사람이 검수한 것이라 프리픽스가 바뀌었다고 무효가 되지 않는다.
+string storeRoot = options.Out;
+PromptManifest promptManifest = PromptManifest.Load(
+    Path.Combine(options.MasterData, PromptPrefix.PromptFolderName));
+string outDir = PlanStoreLayout.DirectoryFor(storeRoot, prefix.Sha256);
+
+if (PlanStoreLayout.SavePrefix(storeRoot, prefix.Sha256, promptManifest.PromptVersion, prefix.Text))
+{
+    Console.WriteLine(
+        $"prefix     : {PlanStoreLayout.PrefixArtifactPath(storeRoot, prefix.Sha256)} 에 전문을 남겼다.");
+}
+
 // 2. 기존 manifest 와 비교 → 무효화 범위 판정
-Manifest? previous = Manifest.LoadFrom(options.Out);
+Manifest? previous = Manifest.LoadFrom(outDir);
 InvalidationScope scope = PlanStoreValidator.Compare(
     previous, data, prefix.Sha256, out var changedFiles);
 
 Console.WriteLine($"masterdata : {options.MasterData}");
-Console.WriteLine($"planstore  : {options.Out}");
+Console.WriteLine($"planstore  : {outDir}");
+Console.WriteLine($"prompt     : {promptManifest.PromptVersion}" + (promptManifest.IsMissing ? " (prompt_manifest.json 이 없다)" : string.Empty));
 Console.WriteLine($"prefix     : {prefix.TokenCount} tok · {prefix.Sha256[..16]}");
 Console.WriteLine(
     $"무효화     : {scope}"
@@ -63,7 +79,7 @@ Console.WriteLine(
 
 // 3. 생성 대상 버킷 목록 산출. --resume·Partial 은 기존 스토어를 봐야 한다
 PlanStore existing = PlanStore.CreateIdleOnly(data);
-PlanStoreLoadReport loaded = PlanStoreIo.LoadAll(options.Out, existing, data);
+PlanStoreLoadReport loaded = PlanStoreIo.LoadAll(outDir, storeRoot, existing, data);
 
 if (loaded.Total > 0 || loaded.Errors.Length > 0)
 {
@@ -173,7 +189,7 @@ var runner = new BulkRunner(
     new BulkRunOptions(
         Concurrency: options.Concurrency,
         MaxConcurrency: options.MaxConcurrency,
-        PlanStoreDirectory: options.Out,
+        PlanStoreDirectory: outDir,
         DryRunSample: options.DryRunSample,
         Budget: budget));
 
@@ -219,7 +235,7 @@ foreach (DryRunOutcome failure in dryRun.Failures.Take(10))
 }
 
 // 8. 통과한 것을 plans/ 에 쓴다. pinned 는 건드리지 않는다
-int written = PlanStoreIo.SaveAll(options.Out, runner.Store, data);
+int written = PlanStoreIo.SaveAll(outDir, runner.Store, data);
 
 WriteJsonl(options.Report, report, data);
 
@@ -229,13 +245,14 @@ WriteJsonl(options.Report, report, data);
 // 그것을 세면 증분 --only 회차가 이전 회차를 잊는다 — 실제로 718개가 있는데 523 이라고 적었다.
 // 저장 뒤 디스크에서 다시 읽어 지금 스토어 상태를 그대로 센다.
 PlanStore onDisk = PlanStore.CreateIdleOnly(data);
-PlanStoreIo.LoadAll(options.Out, onDisk, data);
+PlanStoreIo.LoadAll(outDir, storeRoot, onDisk, data);
 
 Manifest manifest = ManifestWriter.Build(
     data, prefix, engine, options.Tier.ToString(), report, dryRun, onDisk, options.GeneratedAt,
-    target: selection.Count);
+    target: selection.Count,
+    promptVersion: promptManifest.PromptVersion);
 
-string manifestPath = ManifestWriter.Save(options.Out, manifest, dryRun);
+string manifestPath = ManifestWriter.Save(outDir, manifest, dryRun);
 
 Console.WriteLine();
 
@@ -254,7 +271,7 @@ Console.WriteLine($"비용          : ${report.CostUsd:F4}");
 Console.WriteLine($"소요          : {report.WallClockSeconds:F1}s");
 Console.WriteLine($"429 최초 동시성: {report.FirstRateLimitConcurrency} (총 {report.RateLimitHits}회, 최대 동시성 {report.PeakConcurrency})");
 Console.WriteLine($"프리픽스 해시  : {runner.Stats.UniquePrefixHashes} 종");
-Console.WriteLine($"저장          : {written} 건 → {Path.Combine(options.Out, "plans")}");
+Console.WriteLine($"저장          : {written} 건 → {Path.Combine(outDir, "plans")}");
 Console.WriteLine($"결과          : {options.Report}");
 Console.WriteLine(
     $"manifest      : {manifestPath} (대상 {manifest.Counts.Target} · 스토어 {manifest.Counts.Generated}"

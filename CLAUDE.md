@@ -177,6 +177,7 @@ world_flags → items → actions → zones → pois → archetypes
 | 프리픽스 SHA-256을 모든 요청 메트릭에 태그로 | 유니크 해시가 2개 이상 = 즉시 경보 |
 | 가변 서픽스 **≤ 300 토큰** (테스트로 강제) | dotLLM prefill이 느리다. 방치하면 반드시 자란다 |
 | 재시도 피드백은 **서픽스에만** 넣는다 | 프리픽스를 건드리면 캐시가 깨진다 |
+| 프리픽스를 고치면 `prompt_manifest.json` 의 `prompt_version` 도 올린다 | 되돌릴 좌표가 SHA 문자열뿐이면 사람이 회차를 부를 수 없다 (C-03) |
 | **플레이어 작성 문자열을 프롬프트에 넣지 않는다** | 프롬프트 인젝션. 캐릭터명·채팅·길드명 전부. 구조화 enum과 내부 ID만 |
 
 ### 2.6 LLM 출력
@@ -295,6 +296,9 @@ tools/gen_*.cs      ←  #:project 로 MasterData (파생물 잠금 갱신)
 ```gitignore
 planstore/plans/         # 생성물. 재현 가능
 planstore/rejected/
+planstore/*/plans/       # C-03 — 프리픽스 SHA 별 배치
+planstore/*/rejected/
+planstore/prefix/        # 프리픽스 전문. 프롬프트 파일에서 재현된다
 models/                  # GGUF 파일
 tools/dotllm/            # GPLv3 바이너리. 별도 배포
 logs/ replays/ artifacts/
@@ -304,7 +308,7 @@ logs/ replays/ artifacts/
 
 - `masterdata/**` — 소스
 - `planstore/pinned/**` — **사람이 수정한 플랜.** 잃으면 검수 작업이 날아간다
-- `planstore/manifest.json` — 실측 원자료
+- `planstore/manifest.json` · `planstore/<sha8>/manifest.json` — 실측 원자료
 - `tests/golden/**`
 - `docs/measurements/**` — 실측 원자료(jsonl·csv). **보고서 md 는 `docs/reference_metrics.html` 로 옮겼다**
 
@@ -330,6 +334,7 @@ logs/ replays/ artifacts/
 | 핸드셰이크 필드 순서를 바꿈 | 정렬 구멍 위치가 바뀌어 이미 붙어 있는 상대가 깨진다 | `HandshakePadding_IsPinned` |
 | 적합성 보고서의 "미판정" 을 통과로 셈 | 안 본 것을 봤다고 하는 것이다 | `Verdict.NotChecked` 는 합격에 안 든다. 보고서가 사유를 적는다 |
 | v1 와이어 DTO(`Npc.Wire/V1/`)에 필드 추가 | v1 게임서버가 읽던 배치가 통째로 어긋난다 | **동결이다.** 새 필드는 `V2/` 에만 |
+| 프롬프트를 고치고 플랜 스토어를 그대로 씀 | 프리픽스 해시가 달라져 **전량 미적중**. 낡은 플랜이 조용히 돈다 | `planstore/<sha8>/` 이 갈라 준다. 기동 로그가 무효화 범위를 말한다 (C-03) |
 | 적대 판정을 NPC 서버에서 하려 함 | 세력·PK 상태를 두 쪽에서 관리하면 어긋나고, 어긋나면 **경비병이 아군을 공격한다** | `PlayerHostility` 를 받는다 (B-06) |
 | 디스폰에서 슬롯을 비우지 않음 | 다음 거주자가 **이전 거주자의 인벤토리·플래그·플랜을 물려받는다** | `NpcStore.ClearSlot` (B-05) |
 | 의미를 등록하지 않고 `ExtA`·`ExtB` 사용 | 두 팀이 같은 칸에 다른 것을 넣고 알아챌 계기가 없다 | `ExtensionSlots` 에 등록 + `Ext_ZeroForUndefinedKinds` |

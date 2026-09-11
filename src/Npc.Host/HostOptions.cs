@@ -224,6 +224,17 @@ public sealed record HostOptions
     public int NpcCapacity { get; init; }
 
     /// <summary>
+    /// 플랜 스토어를 특정 프리픽스 회차로 고정한다 (C-03). 빈 문자열이면 지금 프리픽스다.
+    ///
+    /// <para>
+    /// <b>진단용이다.</b> "이 회차의 플랜으로 돌려 보자" 를 프롬프트 파일을 건드리지 않고
+    /// 해 보는 길이다 — 운영에서는 <b>프롬프트를 되돌리는 쪽이 정직하다</b>. 그래야
+    /// 만들어진 플랜과 지금 쓰는 프롬프트가 같아진다.
+    /// </para>
+    /// </summary>
+    public string PlanStoreSha { get; init; } = string.Empty;
+
+    /// <summary>
     /// 10Hz 실시간 페이싱을 끄고 최대 속도로 돈다. 부하·게이트 측정용.
     /// 켜면 벽시계를 보지만 <b>게임 로직은 여전히 Tick 만 본다</b> — 리플레이는 깨지지 않는다.
     /// </summary>
@@ -467,6 +478,7 @@ public sealed record HostOptions
           --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
           --dynamic-roster        런타임 스폰·디스폰 허용 (B-05). 게임서버도 켜야 한다
           --npc-capacity N        NpcStore 슬롯 수. 0=동적이면 로스터×1.2 (B-05)
+          --planstore-sha <sha8>  플랜 스토어를 그 프리픽스 회차로 고정 (C-03. 진단용)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
           --no-dashboard          웹 호스트를 띄우지 않는다 (헬스 라우트는 계속 뜬다)
@@ -1231,6 +1243,16 @@ public sealed record HostOptions
 
                 case "--dynamic-roster":
                     result = result with { DynamicRoster = true };
+                    break;
+
+                case "--planstore-sha":
+                    if (!TryValue(args, ref i, arg, out string? planStoreSha, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { PlanStoreSha = planStoreSha! };
                     break;
 
                 case "--npc-capacity":

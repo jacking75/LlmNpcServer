@@ -182,9 +182,28 @@ public static class PlanStoreIo
     /// <c>plans/</c> → <c>pinned/</c> 순으로 스토어에 올린다. pinned 가 이긴다.
     /// 폴더가 없으면 아무것도 하지 않는다 — 첫 기동에는 스토어가 없다.
     /// </summary>
-    public static PlanStoreLoadReport LoadAll(string planStoreDirectory, PlanStore store, MasterDataSet data)
+    public static PlanStoreLoadReport LoadAll(string planStoreDirectory, PlanStore store, MasterDataSet data) =>
+        LoadAll(planStoreDirectory, planStoreDirectory, store, data);
+
+    /// <summary>
+    /// 같되 <c>pinned/</c> 를 다른 곳에서 읽는다 (C-03).
+    ///
+    /// <para>
+    /// 프리픽스 SHA 별 배치에서는 <c>plans/</c> 가 <c>planstore/&lt;sha8&gt;/</c> 에 있고
+    /// <c>pinned/</c> 는 <c>planstore/</c> 에 공유로 있다 — <b>핀은 사람이 검수한 것이라
+    /// 프리픽스가 바뀌었다고 무효가 되지 않는다.</b> 회차마다 복사하면 어느 쪽이 진짜인지
+    /// 모르게 된다.
+    /// </para>
+    /// </summary>
+    /// <param name="planStoreDirectory"><c>plans/</c>·<c>manifest.json</c> 이 있는 곳.</param>
+    /// <param name="pinnedRoot"><c>pinned/</c> 가 있는 곳.</param>
+    /// <param name="store">채울 스토어.</param>
+    /// <param name="data">마스터데이터.</param>
+    public static PlanStoreLoadReport LoadAll(
+        string planStoreDirectory, string pinnedRoot, PlanStore store, MasterDataSet data)
     {
         ArgumentException.ThrowIfNullOrEmpty(planStoreDirectory);
+        ArgumentException.ThrowIfNullOrEmpty(pinnedRoot);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(data);
 
@@ -197,7 +216,8 @@ public static class PlanStoreIo
         // plans 먼저, pinned 나중. 순서가 곧 우선순위다.
         foreach (PlanLayer layer in new[] { PlanLayer.Plans, PlanLayer.Pinned })
         {
-            string folder = Path.Combine(planStoreDirectory, FolderOf(layer));
+            string folder = Path.Combine(
+                layer == PlanLayer.Pinned ? pinnedRoot : planStoreDirectory, FolderOf(layer));
 
             if (!Directory.Exists(folder))
             {

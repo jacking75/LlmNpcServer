@@ -245,6 +245,7 @@ PS&gt; dotnet run -c Release --project tools/Npc.Prebake -- `
 <tr><td>아키타입 추가 (7장)</td><td><b>전량</b> + 키 공간 확대</td><td><code>prefix_hash</code> · <code>total_keys</code></td></tr>
 <tr><td>POI·아이템 추가 (5장)</td><td><code>masterdata_hash</code> 변경</td><td>플랜 자체는 문법적으로 유효하나 <b>DryRun 재검증 대상</b></td></tr>
 <tr><td>인터럽트 규칙 (8장)</td><td>없음</td><td>인터럽트는 프롬프트에 안 실린다</td></tr>
+<tr><td>월드 플래그 추가 (4장)</td><td><b>전량</b></td><td>액션 카탈로그의 전제·효과 표에 실린다 → <code>prefix_hash</code> 변경</td></tr>
 <tr><td><code>system_rules.md</code> 수정</td><td><b>전량</b></td><td><code>prefix_hash</code> 변경</td></tr>
 </tbody>
 </table>
@@ -255,6 +256,48 @@ PS&gt; dotnet run -c Release --project tools/Npc.Prebake -- `
   해시가 바뀌었다고 <b>항상</b> 2,880건을 다시 굽는 것이 옳지는 않다. 전량이 $5.12 다.
   <b>도달 버킷 264개만</b> 다시 구우면 $0.37 이고, 그것으로 히트율 98 %대가 유지된다면 그게 맞는 선택이다.
   <code>/heatmap.csv</code> 가 그 판단의 근거다.
+</div>
+
+<h2 id="rollback">되돌린다 — 프롬프트 회차 (C-03)</h2>
+
+<p>
+  <code>system_rules.md</code> 한 줄을 고치면 2,880 버킷이 전부 미적중된다.
+  예전에는 <b>새 회차가 옛 회차를 덮었다</b> — 되돌리려면 다시 구워야 했고 그것은 $5 와 5분이다.
+  지금은 플랜이 <b>프리픽스 SHA 별 폴더</b>에 쌓인다.
+</p>
+
+<pre><code>planstore/
+  pinned/                  <span class="cm">← 공유. 사람이 검수한 것이라 프리픽스와 무관하다</span>
+  prefix/10e852a3.md       <span class="cm">← 그 회차의 프리픽스 전문. 사람이 읽는다</span>
+  10e852a3/plans/          <span class="cm">← 지금 프롬프트로 구운 것</span>
+  10e852a3/manifest.json
+  56a0c601/plans/          <span class="cm">← 이전 프롬프트로 구운 것. 그대로 남는다</span></code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>하고 싶은 일</th><th>어떻게</th></tr></thead>
+<tbody>
+<tr><td><b>되돌린다</b></td><td><code>git checkout &lt;이전 커밋&gt; -- masterdata/prompt/</code>. SHA 가 이전 값이 되고 <b>그 폴더가 자동 선택된다</b> — 다시 구울 일이 없다</td></tr>
+<tr><td>되돌리지 않고 <b>비교만</b></td><td><code>--planstore-sha 56a0c601</code>. <b>진단용이다</b> — 운영에서는 프롬프트를 되돌리는 쪽이 정직하다. 그래야 만들어진 플랜과 지금 쓰는 프롬프트가 같아진다</td></tr>
+<tr><td>어떤 프롬프트로 구웠나</td><td><code>planstore/prefix/&lt;sha8&gt;.md</code> 를 연다. 머리말에 <code>prompt_version</code> 과 SHA 전문이 있다</td></tr>
+<tr><td>회차에 이름을 붙인다</td><td><code>masterdata/prompt/prompt_manifest.json</code> 의 <code>prompt_version</code> 을 올리고 <code>changelog</code> 에 한 줄</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="warn">
+  <span class="tag">라벨은 프리픽스에 안 실린다</span>
+  <code>prompt_manifest.json</code> 을 고쳐도 <b>프리픽스 SHA 는 안 바뀐다.</b>
+  라벨을 해시에 넣으면 "설명을 고쳤더니 캐시가 전부 미적중" 이 되고, 그러면 아무도 설명을 안 고친다.
+  <b>신원은 SHA 이고 라벨은 그 SHA 를 사람이 부르는 이름</b>이다 —
+  라벨을 안 올리고 프롬프트만 고치는 일이 있으므로, 비교에 쓸 것은 언제나 SHA 다.
+</div>
+
+<div class="warn">
+  <span class="tag">핀은 회차마다 복사하지 않는다</span>
+  <code>pinned/</code> 는 루트에 하나뿐이다. 사람이 검수한 플랜이고 프리픽스가 바뀌었다고
+  그 검수가 무효가 되지는 않는다 — 무효 판정은 <code>PlanStoreValidator</code> 가 마스터데이터 기준으로
+  따로 한다. 회차마다 복사하면 <b>어느 쪽이 진짜인지</b> 모르게 된다.
 </div>
 
 <h2 id="next">더 볼 것</h2>

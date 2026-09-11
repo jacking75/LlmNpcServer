@@ -432,6 +432,12 @@ FodyWeavers.xsd
 # 생성물. 재현 가능하다
 planstore/plans/
 planstore/rejected/
+# C-03 — 프리픽스 SHA 별 배치. planstore/<sha8>/{plans,rejected}
+# pinned/ 는 공유이고 커밋 대상이다 (사람이 검수한 것)
+planstore/*/plans/
+planstore/*/rejected/
+# 프리픽스 전문 보관. 프롬프트 파일에서 재현되므로 커밋하지 않는다
+planstore/prefix/
 # GGUF 파일
 models/
 # GPLv3 바이너리. 별도 배포

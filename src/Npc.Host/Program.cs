@@ -510,6 +510,12 @@ internal sealed class NpcHost : IAsyncDisposable
     /// <summary>NPC 상태. 측정 하네스가 읽는다 — <b>쓰지 않는다</b> (T4-17·T4-21).</summary>
     public NpcStore Store => _store;
 
+    /// <summary>
+    /// 플랜 스토어. <b>어느 회차의 플랜이 올라왔는지</b>를 밖에서 세려고 연다 (C-03).
+    /// 측정·테스트가 읽는다 — 쓰지 않는다.
+    /// </summary>
+    public PlanStore Plans => _plans;
+
     /// <summary>재계획 큐. 가중치 A/B 가 유입·처리량을 읽는다 (T4-17).</summary>
     public ReplanQueue ReplanQueue => _replanQueue;
 
@@ -763,7 +769,21 @@ internal sealed class NpcHost : IAsyncDisposable
         var snapshots = new ReplanSnapshots(capacity);
         var individualPool = new IndividualPlanPool();
 
-        PlanStore plans = BuildPlanStore(options, data, masterDataDir, log, out int[] fallbackOf);
+        // C-03 — 프리픽스는 여기서 한 번만 조립한다. 예전에는 세 곳에서 각각 조립했는데
+        // 그것은 같은 값을 세 번 만드는 일이고(11,967 토큰짜리 문자열이다) 기동을 느리게 한다.
+        PromptPrefix prefix = PromptPrefix.Build(data, masterDataDir);
+        PromptManifest promptManifest = PromptManifest.Load(
+            Path.Combine(masterDataDir, PromptPrefix.PromptFolderName));
+
+        if (promptManifest.IsMissing)
+        {
+            log.WriteLine(
+                $"warn: {PromptManifest.FileName} 이 없다. 프롬프트 버전이 "
+                + $"'{PromptManifest.UnknownVersion}' 로 기록된다 — 되돌릴 좌표가 SHA 뿐이다.");
+        }
+
+        PlanStore plans = BuildPlanStore(
+            options, data, masterDataDir, prefix, promptManifest.PromptVersion, log, out int[] fallbackOf);
 
         // 개별 재계획 플랜은 레지스트리가 아니라 512칸 링에서 온다 (docs/13 §2 · T4-12).
         plans.Individual = individualPool;
@@ -827,7 +847,7 @@ internal sealed class NpcHost : IAsyncDisposable
             options.Restore == RestoreMode.File ? options.RestorePath! : options.ResolveSnapshotDir(),
             data.ContentHash,
             rosterHash,
-            PromptPrefix.Build(data, masterDataDir).Sha256,
+            prefix.Sha256,
             log);
 
         log.WriteLine($"restore: {restore.Detail}");
@@ -967,7 +987,7 @@ internal sealed class NpcHost : IAsyncDisposable
 
             loop.Snapshots = port;
 
-            string prefixHash = PromptPrefix.Build(data, masterDataDir).Sha256;
+            string prefixHash = prefix.Sha256;
             string snapshotDir = options.ResolveSnapshotDir();
 
             snapshotWriter = new SnapshotWriter(
@@ -1309,8 +1329,21 @@ internal sealed class NpcHost : IAsyncDisposable
     /// 마스터데이터가 스토어보다 새로우면 <b>경고만</b> 하고 계속 간다. 기동을 막지 않는 이유는
     /// 낡은 플랜이라도 폴백보다는 나은 경우가 있고, 재생성 판단은 사람이 할 일이기 때문이다.
     /// </summary>
+    /// <param name="options">설정.</param>
+    /// <param name="data">마스터데이터.</param>
+    /// <param name="masterDataDir">마스터데이터 경로.</param>
+    /// <param name="prefix">조립된 프리픽스. <b>여기서 다시 조립하지 않는다</b> — 비싸다.</param>
+    /// <param name="promptVersion">사람이 읽는 프롬프트 버전 (C-03).</param>
+    /// <param name="log">로그.</param>
+    /// <param name="fallbackOf">아키타입 → 폴백 플랜 id.</param>
     private static PlanStore BuildPlanStore(
-        HostOptions options, MasterDataSet data, string masterDataDir, TextWriter log, out int[] fallbackOf)
+        HostOptions options,
+        MasterDataSet data,
+        string masterDataDir,
+        PromptPrefix prefix,
+        string promptVersion,
+        TextWriter log,
+        out int[] fallbackOf)
     {
         PlanStore plans = PlanStore.CreateIdleOnly(data);
         fallbackOf = new int[data.Archetypes.Count];
@@ -1326,21 +1359,41 @@ internal sealed class NpcHost : IAsyncDisposable
             }
         }
 
-        string storeDir = options.ResolvePlanStore();
+        string root = options.ResolvePlanStore();
 
-        if (!Directory.Exists(storeDir))
+        // C-03 — 프리픽스 SHA 별 디렉터리를 고른다. 없으면 옛 평면 배치, 그것도 없으면 폴백이다.
+        PlanStoreLayout layout = PlanStoreLayout.Resolve(root, prefix.Sha256, options.PlanStoreSha);
+
+        if (layout.Shape == PlanStoreShape.Missing)
         {
-            log.WriteLine($"planstore 없음 ({storeDir}) — 폴백 {plans.FilledFallbacks}개로 돈다.");
+            log.WriteLine(
+                $"planstore 없음 ({layout}) — 폴백 {plans.FilledFallbacks}개로 돈다. "
+                + $"프리픽스 {PromptManifest.ShortSha(prefix.Sha256)} 의 프리베이크가 필요하다.");
+
+            SavePrefixArtifact(root, prefix, promptVersion, log);
+
             return plans;
         }
 
+        if (layout.Shape == PlanStoreShape.Flat)
+        {
+            // 어느 프리픽스로 만든 것인지 경로에 안 적혀 있다. manifest 의 prefix_hash 가
+            // 그것을 말해 주고, 어긋나면 아래 WarnIfStale 이 잡는다.
+            log.WriteLine($"planstore: 평면 배치다 (C-03 이전). 다음 프리베이크부터 {PromptManifest.ShortSha(prefix.Sha256)}/ 에 쌓인다.");
+        }
+
+        SavePrefixArtifact(root, prefix, promptVersion, log);
+
         long started = Stopwatch.GetTimestamp();
-        PlanStoreLoadReport report = PlanStoreIo.LoadAll(storeDir, plans, data);
+        PlanStoreLoadReport report = PlanStoreIo.LoadAll(layout.Directory, layout.PinnedRoot, plans, data);
         double elapsed = Stopwatch.GetElapsedTime(started).TotalSeconds;
 
+        string storeDir = layout.Directory;
+
         log.WriteLine(
-            $"planstore {storeDir} · 버킷 {report.Total}/{data.Buckets.TotalKeys} "
-            + $"(pinned {report.Pinned}) · 폴백 {plans.FilledFallbacks} · {elapsed:0.###}s");
+            $"planstore {layout} · 버킷 {report.Total}/{data.Buckets.TotalKeys} "
+            + $"(pinned {report.Pinned}) · 폴백 {plans.FilledFallbacks} · "
+            + $"프롬프트 {promptVersion} · {elapsed:0.###}s");
 
         if (report.Skipped + report.Failed > 0)
         {
@@ -1357,18 +1410,48 @@ internal sealed class NpcHost : IAsyncDisposable
             log.WriteLine($"warn: 미생성 버킷 {plans.ColdBuckets}건. 아키타입 폴백으로 해소된다.");
         }
 
-        WarnIfStale(storeDir, data, masterDataDir, log);
+        WarnIfStale(storeDir, data, prefix.Sha256, log);
 
         return plans;
     }
 
     /// <summary>
+    /// 프리픽스 전문을 보관한다 (C-03). <b>이미 있으면 조용히 넘어간다.</b>
+    ///
+    /// <para>
+    /// 이것이 있어야 "이 플랜이 어떤 프롬프트로 만들어졌나" 를 사람이 확인할 수 있다 —
+    /// SHA 만으로는 되돌릴 좌표는 되어도 <b>읽을 수는 없다</b>.
+    /// </para>
+    /// </summary>
+    private static void SavePrefixArtifact(
+        string root, PromptPrefix prefix, string promptVersion, TextWriter log)
+    {
+        try
+        {
+            if (PlanStoreLayout.SavePrefix(root, prefix.Sha256, promptVersion, prefix.Text))
+            {
+                log.WriteLine(
+                    $"prefix: {PlanStoreLayout.PrefixArtifactPath(root, prefix.Sha256)} 에 전문을 남겼다.");
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // 보관은 진단용이다. 못 써도 서버는 뜬다 — 대신 조용히 넘어가지 않는다.
+            log.WriteLine($"warn: 프리픽스 전문을 못 남겼다: {e.Message}");
+        }
+    }
+
+    /// <summary>
     /// 마스터데이터·프롬프트가 스토어보다 새로우면 경고한다. 판정은 T3-06 이 한다.
     ///
-    /// 프리픽스는 여기서만 조립한다 — <c>Npc.Runtime</c> 은 <c>Npc.Llm</c> 을 모른다 (CLAUDE.md §3).
+    /// 프리픽스는 조립된 것을 받는다 (C-03) — 예전에는 여기서 또 조립했다.
     /// </summary>
+    /// <param name="storeDir">스토어 디렉터리.</param>
+    /// <param name="data">마스터데이터.</param>
+    /// <param name="prefixSha">지금 프리픽스의 SHA-256.</param>
+    /// <param name="log">로그.</param>
     private static void WarnIfStale(
-        string storeDir, MasterDataSet data, string masterDataDir, TextWriter log)
+        string storeDir, MasterDataSet data, string prefixSha, TextWriter log)
     {
         Manifest? manifest = Manifest.LoadFrom(storeDir);
 
@@ -1381,7 +1464,7 @@ internal sealed class NpcHost : IAsyncDisposable
         InvalidationScope scope = PlanStoreValidator.Compare(
             manifest,
             data,
-            PromptPrefix.Build(data, masterDataDir).Sha256,
+            prefixSha,
             out ImmutableArray<string> changed);
 
         if (scope == InvalidationScope.None)

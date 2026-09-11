@@ -136,6 +136,7 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 | **적합성 키트** | `Npc.Conformance` 가 게임서버에 붙어 발행 규약 7종을 관찰하고 보고서를 낸다. **미판정을 통과로 세지 않는다** |
 | **동적 로스터** | `--dynamic-roster` 로 런타임 스폰·디스폰. 여유 슬롯은 기동 시 잡고(`--npc-capacity`), **넘는 스폰은 무시하고 센다** |
 | **적대 플레이어** | `PlayerHostility` 이벤트 → `HostilePlayerNearby` 플래그 → `attack_hostile_player` 인터럽트 → `CombatAction(TargetPlayer)`. **적대 판정은 게임서버가 한다** |
+| **프롬프트 버전** | 플랜이 `planstore/<프리픽스 sha8>/` 에 쌓인다. **되돌리기 = 프롬프트 파일을 되돌리는 것** — 그 회차 폴더가 자동 선택된다. 전문은 `planstore/prefix/<sha8>.md` |
 | **상호 인증** | HMAC-SHA256 + 논스 재사용 캐시 · `FixedTimeEquals` · TLS/mTLS |
 | **해시 분할** | **구조 해시**는 완전 일치 요구(불일치 = 거절), **내용 해시**는 경고 후 수락 |
 | **장애 주입** | `--drop-rate` 로 명령 유실을 상시 시험 |

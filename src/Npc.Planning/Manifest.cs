@@ -113,6 +113,14 @@ public sealed record Manifest
     /// <summary>프롬프트 프리픽스 SHA-256. 바뀌면 플랜 스토어가 전량 무효다.</summary>
     public required string PrefixHash { get; init; }
 
+    /// <summary>
+    /// 사람이 읽는 프롬프트 버전 (C-03). <c>masterdata/prompt/prompt_manifest.json</c> 의 것이다.
+    ///
+    /// <b>신원은 <see cref="PrefixHash"/> 다.</b> 이 값은 라벨이라 비교에 쓰지 않는다 —
+    /// 라벨을 안 올리고 프롬프트를 고치는 일이 있고, 그때 믿을 것은 SHA 뿐이다.
+    /// </summary>
+    public string PromptVersion { get; init; } = string.Empty;
+
     /// <summary>어떤 엔진으로 만들었나.</summary>
     public required ManifestGeneratedBy GeneratedBy { get; init; }
 
@@ -173,7 +181,8 @@ public sealed record Manifest
         MasterDataSet data,
         string prefixHash,
         ManifestGeneratedBy generatedBy,
-        string? generatedAt = null)
+        string? generatedAt = null,
+        string? promptVersion = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentException.ThrowIfNullOrEmpty(prefixHash);
@@ -183,6 +192,7 @@ public sealed record Manifest
         {
             MasterdataHash = data.ContentHash,
             PrefixHash = prefixHash,
+            PromptVersion = promptVersion ?? string.Empty,
             GeneratedBy = generatedBy,
             GeneratedAt = generatedAt ?? string.Empty,
             FileHashes = data.FileHashes,
@@ -229,6 +239,7 @@ public sealed record Manifest
         m.Schema,
         m.MasterdataHash,
         m.PrefixHash,
+        m.PromptVersion,
         m.GeneratedAt,
         m.Partial,
         new GeneratedByDto(
@@ -258,6 +269,7 @@ public sealed record Manifest
         Schema = dto.Schema,
         MasterdataHash = dto.MasterdataHash ?? string.Empty,
         PrefixHash = dto.PrefixHash ?? string.Empty,
+        PromptVersion = dto.PromptVersion ?? string.Empty,
         GeneratedAt = dto.GeneratedAt ?? string.Empty,
         Partial = dto.Partial,
         GeneratedBy = new ManifestGeneratedBy(
@@ -287,6 +299,7 @@ public sealed record Manifest
         int Schema,
         string? MasterdataHash,
         string? PrefixHash,
+        string? PromptVersion,
         string? GeneratedAt,
         bool Partial,
         GeneratedByDto? GeneratedBy,

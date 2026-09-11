@@ -44,7 +44,8 @@ public static class ManifestWriter
         DryRunReport dryRun,
         PlanStore store,
         string generatedAt,
-        int target = 0)
+        int target = 0,
+        string? promptVersion = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(prefix);
@@ -67,7 +68,8 @@ public static class ManifestWriter
                 report.StartConcurrency,
                 report.PeakConcurrency,
                 report.FirstRateLimitConcurrency),
-            generatedAt) with
+            generatedAt,
+            promptVersion) with
         {
             Counts = new ManifestCounts(
                 Total: data.Buckets.TotalKeys,
@@ -118,7 +120,7 @@ public static class ManifestWriter
         var invariant = CultureInfo.InvariantCulture;
 
         line.Append(invariant, $$"""
-            {"generated_at":"{{Escape(manifest.GeneratedAt)}}","model":"{{Escape(manifest.GeneratedBy.Model)}}","tier":"{{Escape(manifest.GeneratedBy.Tier)}}","prefix_hash":"{{Escape(manifest.PrefixHash)}}","masterdata_hash":"{{Escape(manifest.MasterdataHash)}}","partial":{{(manifest.Partial ? "true" : "false")}},"generated":{{manifest.Counts.Generated}},"pinned":{{manifest.Counts.Pinned}},"fallback":{{manifest.Counts.Fallback}},"reused":{{manifest.Counts.Reused}},"pass":{{manifest.Validation.Pass}},"fail_schema":{{manifest.Validation.FailSchema}},"fail_vocab":{{manifest.Validation.FailVocab}},"fail_coherence":{{manifest.Validation.FailCoherence}},"fail_dryrun":{{manifest.Validation.FailDryRun}},"fail_call":{{manifest.Validation.FailCall}},"cost_usd":{{manifest.CostUsd.ToString("F6", invariant)}},"wall_clock_s":{{manifest.WallClockSeconds.ToString("F1", invariant)}},"cache_hit_rate":{{manifest.CacheHitRate.ToString("F4", invariant)}},"dryrun_checked":{{dryRun.Checked}},"dryrun_failed":{{dryRun.Failed}},"dryrun_s":{{dryRun.WallClockSeconds.ToString("F2", invariant)}},"concurrency":{{manifest.GeneratedBy.Concurrency}},"peak_concurrency":{{manifest.GeneratedBy.PeakConcurrency}},"first_rate_limit_concurrency":{{manifest.GeneratedBy.FirstRateLimitConcurrency}}}
+            {"generated_at":"{{Escape(manifest.GeneratedAt)}}","model":"{{Escape(manifest.GeneratedBy.Model)}}","tier":"{{Escape(manifest.GeneratedBy.Tier)}}","prefix_hash":"{{Escape(manifest.PrefixHash)}}","prompt_version":"{{Escape(manifest.PromptVersion)}}","masterdata_hash":"{{Escape(manifest.MasterdataHash)}}","partial":{{(manifest.Partial ? "true" : "false")}},"generated":{{manifest.Counts.Generated}},"pinned":{{manifest.Counts.Pinned}},"fallback":{{manifest.Counts.Fallback}},"reused":{{manifest.Counts.Reused}},"pass":{{manifest.Validation.Pass}},"fail_schema":{{manifest.Validation.FailSchema}},"fail_vocab":{{manifest.Validation.FailVocab}},"fail_coherence":{{manifest.Validation.FailCoherence}},"fail_dryrun":{{manifest.Validation.FailDryRun}},"fail_call":{{manifest.Validation.FailCall}},"cost_usd":{{manifest.CostUsd.ToString("F6", invariant)}},"wall_clock_s":{{manifest.WallClockSeconds.ToString("F1", invariant)}},"cache_hit_rate":{{manifest.CacheHitRate.ToString("F4", invariant)}},"dryrun_checked":{{dryRun.Checked}},"dryrun_failed":{{dryRun.Failed}},"dryrun_s":{{dryRun.WallClockSeconds.ToString("F2", invariant)}},"concurrency":{{manifest.GeneratedBy.Concurrency}},"peak_concurrency":{{manifest.GeneratedBy.PeakConcurrency}},"first_rate_limit_concurrency":{{manifest.GeneratedBy.FirstRateLimitConcurrency}}}
             """);
         line.Append('\n');
 
