@@ -59,8 +59,8 @@ public sealed class WorldFlagsEnumTests
         }
 
         Assert.Equal(WorldFlagTable.All, or);
-        // 예약 구간(22~23, 44~63)은 비어 있어야 한다.
-        Assert.Equal(WorldFlags.None, WorldFlagTable.All & (WorldFlags)0xFFFF_F000_00C0_0000UL);
+        // 예약 구간(22~23, 45~63)은 비어 있어야 한다. B-06 이 44 를 가져갔다.
+        Assert.Equal(WorldFlags.None, WorldFlagTable.All & (WorldFlags)0xFFFF_E000_00C0_0000UL);
     }
 
     [Fact]

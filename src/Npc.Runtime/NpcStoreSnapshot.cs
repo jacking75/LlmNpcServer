@@ -40,6 +40,7 @@ public sealed class ShadowBuffer
         ZoneCode = new ushort[capacity];
         ArchetypeCode = new ushort[capacity];
         CurrentPoi = new ushort[capacity];
+        HostilePlayer = new int[capacity];
         Occupant = new int[capacity];
         Instance = new ushort[capacity];
         HomePoi = new ushort[capacity];
@@ -106,6 +107,9 @@ public sealed class ShadowBuffer
 
     /// <summary>현재 POI.</summary>
     public ushort[] CurrentPoi { get; }
+
+    /// <summary>최근 적대 플레이어 (B-06). 0 = 없음.</summary>
+    public int[] HostilePlayer { get; }
 
     /// <summary>슬롯에 앉은 인스턴스 정의 id (B-05). 0 = 빈 슬롯.</summary>
     public int[] Occupant { get; }

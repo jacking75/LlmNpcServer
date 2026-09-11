@@ -12,7 +12,7 @@
 
 | 항목 | 값 |
 |---|---|
-| 협상 | protocol 2 · contract 1.2 · features 0x3E |
+| 협상 | protocol 2 · contract 1.3 · features 0x3E |
 | NPC | 16 |
 | 존 | 12 |
 | 관찰 이벤트 | 311건 |
@@ -24,7 +24,7 @@
 
 | 검사 | 판정 | 근거 |
 |---|---|---|
-| `C1.handshake` 핸드셰이크 · 재동기화 | **통과** | protocol 2 · contract minor 2 · features 0x3E · 스폰 16/16 · 존 12/12 · 프레임 최대 40건 |
+| `C1.handshake` 핸드셰이크 · 재동기화 | **통과** | protocol 2 · contract minor 3 · features 0x3E · 스폰 16/16 · 존 12/12 · 프레임 최대 40건 |
 | `C2.ticksync` TickSync — 단조 · 갭 0 · 10Hz | **통과** | TickSync 240건 · 틱 3~242 · 갭 0 · 속도 미판정 (구동 회차 — 벽시계가 없다) |
 | `C3.sequence` 시퀀스 — 단조 · 갭 0 · 리셋 없음 | **통과** | 이벤트 311건 · 시퀀스 19~329 · 갭 0 · 되감김 0 |
 | `C4.proximity` 근접 — 동시 1건 · 히스테리시스 · 에지 트리거 | **통과** | PlayerProximity 4건 (Enter 2 · Leave 2) · 관찰 끝에 열려 있는 NPC 0명 |

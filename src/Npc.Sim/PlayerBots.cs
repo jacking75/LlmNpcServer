@@ -45,6 +45,17 @@ public sealed class PlayerBots
     /// <summary>발행한 PlayerProximity 수.</summary>
     public long ProximityEvents { get; private set; }
 
+    /// <summary>발행한 PlayerHostility 수 (B-06).</summary>
+    public long HostilityEvents { get; private set; }
+
+    /// <summary>
+    /// 이 봇이 적대인가 (B-06). 앞쪽 <c>HostileBots</c> 마리가 적대다.
+    ///
+    /// <b>대역의 단순화다.</b> 실제 게임서버는 세력·PK 상태·퀘스트로 판정한다 —
+    /// 그 자료는 전부 게임서버의 것이고 NPC 서버는 결과만 받는다.
+    /// </summary>
+    public bool IsHostile(int bot) => bot < Math.Min(_at.Length, Math.Max(0, _world.Options.HostileBots));
+
     /// <summary>지금 플레이어에게 관측되는 NPC 수.</summary>
     public int ObservedNpcs
     {
@@ -111,6 +122,25 @@ public sealed class PlayerBots
             });
 
             ProximityEvents++;
+
+            // B-06 — 적대 판정을 같이 낸다. 근접과 같은 에지 트리거다: 상태가 바뀐 NPC 에만.
+            //
+            // <b>떠날 때는 안 낸다.</b> PlayerProximity(Leave) 가 이미 적대 플래그를 내리므로
+            // 두 번 알리면 이벤트만 두 배가 된다 (근접 규약의 "NPC 당 1건" 과 같은 정신).
+            if (observed && IsHostile(bot))
+            {
+                _world.Emit(new GameEvent
+                {
+                    Kind = GameEventKind.PlayerHostility,
+                    Sequence = 0,
+                    OccurredAt = now,
+                    Npc = new NpcId(npc),
+                    Player = new PlayerId(bot + 1),
+                    Code = (byte)Hostility.Hostile,
+                });
+
+                HostilityEvents++;
+            }
         }
     }
 

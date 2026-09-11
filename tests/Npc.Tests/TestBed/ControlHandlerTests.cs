@@ -4,6 +4,7 @@ using Npc.MasterData;
 using Npc.TestBed.Protocol;
 using Npc.TestGameServer;
 using Npc.TestGameServer.Client;
+using Npc.TestGameServer.World;
 
 namespace Npc.Tests.TestBed;
 
@@ -34,7 +35,7 @@ public sealed class ControlHandlerTests
     {
         await using GameWorld world = Create();
 
-        var control = new ControlHandler(world, s_data);
+        var control = new ControlHandler(world, s_data, new PlayerRegistry(world, s_data, RegistryOptions));
         ZoneDef zone = s_data.Zones.Zones[0];
         var now = new Tick(7);
 
@@ -104,7 +105,7 @@ public sealed class ControlHandlerTests
 
         await using GameWorld world = Create(timeScale: TimeScale);
 
-        var control = new ControlHandler(world, s_data);
+        var control = new ControlHandler(world, s_data, new PlayerRegistry(world, s_data, RegistryOptions));
         var now = new Tick(10);
 
         // 이동 중인 NPC 를 하나 만든다.
@@ -161,7 +162,7 @@ public sealed class ControlHandlerTests
     {
         await using GameWorld world = Create();
 
-        var control = new ControlHandler(world, s_data);
+        var control = new ControlHandler(world, s_data, new PlayerRegistry(world, s_data, RegistryOptions));
         int npc = FirstSpawned(world);
         var now = new Tick(3);
 
@@ -198,7 +199,7 @@ public sealed class ControlHandlerTests
     {
         await using GameWorld world = Create();
 
-        var control = new ControlHandler(world, s_data);
+        var control = new ControlHandler(world, s_data, new PlayerRegistry(world, s_data, RegistryOptions));
         var now = new Tick(1);
 
         Drain(world);
@@ -226,7 +227,7 @@ public sealed class ControlHandlerTests
 
         await using GameWorld world = Create();
 
-        var control = new ControlHandler(world, s_data);
+        var control = new ControlHandler(world, s_data, new PlayerRegistry(world, s_data, RegistryOptions));
         var now = new Tick(1);
 
         // 100% 드롭. 만분율이라 10,000 이 전부다.
@@ -295,6 +296,15 @@ public sealed class ControlHandlerTests
     }
 
     // ---------------------------------------------------------------- 도우미
+
+    /// <summary>제어 처리기에 넘길 등록부용 옵션. 슬롯 수만 쓰인다.</summary>
+    private static GameServerOptions RegistryOptions => new()
+    {
+        Npcs = 32,
+        TimeScale = 60,
+        LinkPort = 0,
+        ClientPort = 0,
+    };
 
     private static GameWorld Create(int npcs = 32, int timeScale = 60)
     {

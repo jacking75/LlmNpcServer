@@ -72,7 +72,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 - [x] **B-03** 이기종 런타임 명세: 바이트 오프셋 표 자동 생성 · 참조 코덱(C++/Python) · 골든 바이트 벡터 — P1 · M · 의존 B-01 — **명세·벡터·코덱 완료. C++ 컴파일 확인과 C++ 미니 게임서버 실습은 미실시**(이 저장소에 컴파일러가 없다)
 - [x] **B-04** 핸드셰이크 해시 분할 (구조 해시 / 내용 해시) · 부분 호환 정책 — P1 · S · 의존 B-01
 - [x] **B-05** 동적 로스터: 런타임 스폰·디스폰 · 용량 예약 — P1 · M · 의존 B-01, A-01 — **1단계 완료. 인스턴스 테이블에 있는 id 만 · 템플릿 스폰(2단계)은 미착수**
-- [ ] **B-06** 적대 플레이어 감지: `PlayerHostility` 이벤트 · `HostilePlayerNearby` 플래그 · `$nearest_hostile_player` 바인딩 — P1 · M · 의존 B-01, D-04
+- [x] **B-06** 적대 플레이어 감지: `PlayerHostility` 이벤트 · `HostilePlayerNearby` 플래그 · `$nearest_hostile_player` 바인딩 — P1 · M · 의존 B-01, D-04 — **완료. D-04(세력 테이블) 없이 돌아간다** — 적대 판정이 게임서버 몫이라 `Faction` 은 통과만 한다
 - [x] **B-07** 게임서버 적합성 테스트 키트 (`Npc.Conformance`) — P1 · M · 의존 B-01 — **완료. 대역 보고서 통과 6 · 불합격 0 · 미판정 1(전투 없음)**
 - [ ] **B-08** 읽기 전용 질의 API (벌크·검색·스트림) — 링크가 아니라 HTTP — P1 · M · 의존 A-06
 
@@ -1052,6 +1052,37 @@ TLS 와 토큰이 필요하다"(`docs/reference_link.html` §13)고 적었다. �
 **테스트.** `Runtime/HostilityTests` — 플래그 세움/내림 · 인터럽트가 `CombatAction(TargetPlayer=…)` 발행 · 멱등. `Scenarios` — "순찰 중 적대 플레이어 접근 → 공격 → 이탈 → 순찰 복귀" 종단(FAQ Q5 의 5단계).
 
 **완료 조건.** 뷰어에서 플레이어를 적대 세력으로 두고 경비병 곁을 지나면 경비병이 공격하고, 멀어지면 순찰로 돌아간다.
+
+**구현 (2026-09-11).** FAQ Q6 의 네 가지를 그대로.
+
+| # | 무엇 | 어디 |
+|---|---|---|
+| 1 | `GameEventKind.PlayerHostility`(18) · `Hostility { Neutral=0, Hostile=1, Friendly=2 }` | `Npc.Contracts/GameEvent.cs`. 계약 부 버전 2 → **3** |
+| 2 | `HostilePlayerNearby` **bit 44**(예약 구간에서) · `NpcStore.HostilePlayer[]` | `world_flags.json` — 플래그 42 → 43 |
+| 3 | `nearest:hostile_player` npc_ref (`NpcRefKind.HostilePlayer`) | `CommandEmitter` 가 `TargetPlayer` 에 싣고 `TargetNpc` 를 0 으로 |
+| 4 | 인터럽트 `attack_hostile_player`(priority 100 · urgency 95) | `interrupts.json` — 규칙 14 → 15 |
+| 대역 | `--hostile-bots N`(루프백) · `ControlKind.SetHostile`(뷰어·소켓) | `PlayerBots` · `PlayerRegistry` |
+| 계기 | `HostilityEvents` · `PlayerTargetedCommands` | `/metrics` 스냅샷 |
+
+**내리는 경로가 둘이다.** `PlayerHostility(Neutral|Friendly)` 와 `PlayerProximity(Leave)`.
+후자가 없으면 떠난 플레이어가 대상으로 남아 **경비병이 허공을 공격한다.**
+
+**`Hostility.Neutral = 0` 인 이유.** `default` 가 안전한 쪽이어야 한다 — 값을 안 실은 이벤트가
+적대로 읽히면 경비병이 아무나 공격한다.
+
+**인터럽트의 `target` 은 셋만 받는다.** `$threat` · `self` · `nearest:hostile_player`.
+`nearest:<archetype>` 은 근접 판정을 게임서버에 넘기는 값이라 즉시 반응과 맞지 않는다 —
+**모르는 값은 기동 실패**다. 조용히 "대상 없음" 으로 두면 규칙이 있는데 아무 일도 안 나고,
+그 증상은 "인터럽트가 가끔 안 먹는다" 로만 보인다.
+
+**D-04(세력 테이블) 없이 돌아간다.** 적대 판정이 게임서버 몫이라 `Faction` 은 통과만 한다 —
+세력 테이블은 우리가 판정을 하게 될 때 필요해지고, 지금 설계는 그럴 계획이 아니다.
+
+**프롬프트 프리픽스가 바뀐다.** 플래그 하나와 인터럽트 하나가 늘었으므로 프리픽스 해시가
+달라지고, 그것은 **플랜 스토어 전량 무효**다. 이 저장소의 `planstore/plans/` 는 커밋 대상이
+아니라(생성물) 실제 무효화 대상은 운영 스토어다 — C-03 의 버전 절차가 그것을 다룬다.
+
+**같이 고친 문서 31곳.** "플래그 42" → 43 · "인터럽트 14" → 15 · 예약 구간 44~63 → 45~63.
 
 **규칙 충돌 확인.** §2.5 플레이어 문자열 미투입 — `PlayerId`·`Faction` code 만. §2.3 결정론 — 이벤트 기반. 인터럽트에 `cooldown_s` 를 두지 않는다(`CODEMAP.md`).
 

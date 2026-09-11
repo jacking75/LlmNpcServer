@@ -90,13 +90,13 @@ public sealed class WireDtoTests
         }
     }
 
-    /// <summary>17개 <see cref="GameEventKind"/> 전부.</summary>
+    /// <summary>18개 <see cref="GameEventKind"/> 전부.</summary>
     [Fact]
     public void Wire_EventRoundTrips()
     {
         GameEventKind[] kinds = Enum.GetValues<GameEventKind>();
 
-        Assert.Equal(17, kinds.Length);
+        Assert.Equal(18, kinds.Length);
 
         int seed = 1;
 

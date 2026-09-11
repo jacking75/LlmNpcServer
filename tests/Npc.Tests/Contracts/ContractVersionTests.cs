@@ -15,12 +15,13 @@ public sealed class ContractVersionTests
     /// <summary>
     /// 이 부 버전에서의 멤버 수. 늘리려면 <c>Minor</c> 도 같이 올린다.
     ///
-    /// <b>2 에서 열거형은 그대로다</b> — B-02 는 패킷에 필드를 더했지 Kind 를 늘리지 않았다.
+    /// <b>3 에서 <c>GameEventKind</c> 가 17 → 18 이다</b> — B-06 이 <c>PlayerHostility</c> 를
+    /// 뒤에 추가했다. 2 에서는 패킷에 필드만 더했고 Kind 는 그대로였다.
     /// </summary>
-    private const int ExpectedMinorForCounts = 2;
+    private const int ExpectedMinorForCounts = 3;
 
     private const int NpcCommandKindCount = 12;
-    private const int GameEventKindCount = 17;
+    private const int GameEventKindCount = 18;
     private const int ActionFailReasonCount = 10;
 
     [Fact]

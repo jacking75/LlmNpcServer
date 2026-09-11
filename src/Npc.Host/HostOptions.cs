@@ -172,6 +172,14 @@ public sealed record HostOptions
     /// <summary>가상 플레이어 봇 수. 인지 LOD 가 실제로 갈리는지 보려면 0 보다 커야 한다.</summary>
     public int PlayerBots { get; init; } = 20;
 
+    /// <summary>
+    /// 그중 <b>적대</b>로 판정할 봇 수 (B-06). 기본 0 — 켜야 선제공격 경로가 돈다.
+    ///
+    /// <b>게임서버 대역 전용이다.</b> 실제 게임서버에 붙을 때 적대 판정은 그쪽이 하고,
+    /// 우리는 <c>PlayerHostility</c> 를 받을 뿐이다.
+    /// </summary>
+    public int HostileBots { get; init; }
+
     /// <summary>Sim·지터의 시드.</summary>
     public int Seed { get; init; } = 20260725;
 
@@ -426,6 +434,7 @@ public sealed record HostOptions
           --fail-rate <0~1>       Sim 의 액션 실패 주입
           --drop-rate <0~1>       Sim 의 명령 유실 주입
           --player-bots N         가상 플레이어 수 (기본 20)
+          --hostile-bots N        그중 적대로 판정할 봇 수 (기본 0. B-06 · 대역 전용)
           --masterdata <dir>      마스터데이터 디렉터리 (기본 ./masterdata)
           --planstore <dir>       프리베이크된 플랜 스토어 (기본 ./planstore). 없으면 폴백만
           --seed N                Sim 시드 (기본 20260725)
@@ -947,6 +956,16 @@ public sealed record HostOptions
                     }
 
                     result = result with { Days = days, DaysSpecified = true };
+                    break;
+
+                case "--hostile-bots":
+                    if (!TryInt(args, ref i, arg, 0, 100_000, out int hostileBots, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { HostileBots = hostileBots };
                     break;
 
                 case "--player-bots":

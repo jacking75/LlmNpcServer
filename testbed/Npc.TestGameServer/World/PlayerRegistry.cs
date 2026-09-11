@@ -138,6 +138,9 @@ public sealed class PlayerRegistry
         }
     }
 
+    /// <summary>발행한 <c>PlayerHostility</c> 수 (B-06).</summary>
+    public long HostilityEvents { get; private set; }
+
     /// <summary>발행한 <c>PlayerProximity</c> 수.</summary>
     public long ProximityEvents { get; private set; }
 
@@ -206,6 +209,42 @@ public sealed class PlayerRegistry
     /// 플레이어를 등록한다. 자리가 없으면 <c>PlayerId(0)</c> 을 준다 — 예외를 던지지 않는다.
     /// 정원 초과는 클라이언트 세션이 거절 메시지로 답할 일이다 (T6-23).
     /// </summary>
+    /// <summary>이 플레이어가 적대 세력인가 (B-06).</summary>
+    /// <param name="player">플레이어.</param>
+    public bool IsHostile(PlayerId player) =>
+        (uint)(player.Value - 1) < (uint)_slots.Length
+        && _slots[player.Value - 1] is { Active: true, Hostile: true };
+
+    /// <summary>
+    /// 플레이어를 적대/중립으로 둔다 (B-06). <b>모르는 id 는 false 다.</b>
+    ///
+    /// <para>
+    /// <b>이벤트를 여기서 내지 않는다.</b> 근접 판정이 도는 자리에서 에지 트리거로 내야
+    /// "상태가 안 바뀐 NPC 에 이벤트를 내지 않는다" 를 지킬 수 있다.
+    /// </para>
+    /// </summary>
+    /// <param name="player">플레이어.</param>
+    /// <param name="hostile">적대면 true.</param>
+    /// <returns>바꿨으면 true.</returns>
+    public bool SetHostile(PlayerId player, bool hostile)
+    {
+        if ((uint)(player.Value - 1) >= (uint)_slots.Length)
+        {
+            return false;
+        }
+
+        PlayerState state = _slots[player.Value - 1];
+
+        if (!state.Active)
+        {
+            return false;
+        }
+
+        state.Hostile = hostile;
+
+        return true;
+    }
+
     public PlayerId Add()
     {
         for (int slot = 0; slot < _slots.Length; slot++)
@@ -570,6 +609,25 @@ public sealed class PlayerRegistry
             });
 
             ProximityEvents++;
+
+            // B-06 — 들어온 플레이어가 적대면 같이 알린다. 근접과 같은 에지 트리거다.
+            //
+            // <b>떠날 때는 안 낸다.</b> PlayerProximity(Leave) 가 이미 적대를 내리므로
+            // 두 번 알리면 이벤트만 두 배가 된다.
+            if (observed && IsHostile(nearest))
+            {
+                world.Emit(new GameEvent
+                {
+                    Kind = GameEventKind.PlayerHostility,
+                    Sequence = 0,
+                    OccurredAt = now,
+                    Npc = new NpcId(npc),
+                    Player = nearest,
+                    Code = (byte)Hostility.Hostile,
+                });
+
+                HostilityEvents++;
+            }
         }
     }
 
@@ -739,5 +797,13 @@ public sealed class PlayerRegistry
 
         /// <summary>봇의 목적지 POI. 사람은 0 이다.</summary>
         public PoiId Target;
+
+        /// <summary>
+        /// 적대 세력인가 (B-06). 뷰어가 <c>ControlKind.SetHostile</c> 로 켠다.
+        ///
+        /// <b>대역의 단순화다.</b> 실제 게임서버는 세력·PK 상태·퀘스트로 판정한다 —
+        /// 그 자료는 전부 게임서버의 것이고 NPC 서버는 결과만 받는다.
+        /// </summary>
+        public bool Hostile;
     }
 }

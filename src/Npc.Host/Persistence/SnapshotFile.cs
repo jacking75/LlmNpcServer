@@ -53,12 +53,13 @@ public static class SnapshotFile
     /// <summary>
     /// 형식 버전. 배치가 바뀌면 올린다. 다른 버전은 복원하지 않는다.
     ///
+    /// <b>4 — <c>HostilePlayer</c> 배열이 들어갔다</b> (B-06).
     /// <b>3 — <c>Occupant</c>(슬롯 거주자) 배열이 들어갔다</b> (B-05).
     /// <b>2 — <c>Instance</c> 배열이 <c>CurrentPoi</c> 뒤에 들어갔다</b> (B-02).
     /// 버전 1 스냅샷은 거절된다. 되돌릴 상태가 아니라 <b>다시 만드는 것</b>이 정답이다 —
     /// 스냅샷은 60초마다 새로 쓰인다.
     /// </summary>
-    public const ushort FormatVersion = 3;
+    public const ushort FormatVersion = 4;
 
     /// <summary>파일 이름 접두. 뒤에 게임 틱이 붙는다.</summary>
     public const string NamePrefix = "snapshot-";
@@ -134,6 +135,7 @@ public static class SnapshotFile
             WriteU16(writer, buffer.ZoneCode, n);
             WriteU16(writer, buffer.ArchetypeCode, n);
             WriteU16(writer, buffer.CurrentPoi, n);
+            WriteI32(writer, buffer.HostilePlayer, n);
             WriteI32(writer, buffer.Occupant, n);
             WriteU16(writer, buffer.Instance, n);
             WriteU16(writer, buffer.HomePoi, n);
@@ -296,6 +298,7 @@ public static class SnapshotFile
             ReadU16(reader, shadow.ZoneCode, n);
             ReadU16(reader, shadow.ArchetypeCode, n);
             ReadU16(reader, shadow.CurrentPoi, n);
+            ReadI32(reader, shadow.HostilePlayer, n);
             ReadI32(reader, shadow.Occupant, n);
             ReadU16(reader, shadow.Instance, n);
             ReadU16(reader, shadow.HomePoi, n);

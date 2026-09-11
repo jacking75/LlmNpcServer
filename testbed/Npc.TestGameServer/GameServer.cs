@@ -218,7 +218,7 @@ public sealed class GameServer : IAsyncDisposable
         world.Players = players.Tick;
 
         // ControlHandler 는 GameWorld.Create 뒤에 만든다 — SimWorld.Handler 앞에 서기 때문이다.
-        var controls = new ControlHandler(world, data);
+        var controls = new ControlHandler(world, data, players);
         var snapshots = new SnapshotBuilder(world, data, players, options.TimeScale);
 
         return new GameServer(

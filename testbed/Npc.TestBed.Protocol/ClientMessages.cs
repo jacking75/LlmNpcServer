@@ -39,6 +39,14 @@ public enum ControlKind : byte
     /// 다시 찾아 시드한다.
     /// </summary>
     Spawn = 6,
+
+    /// <summary>
+    /// <c>Amount</c> 번 플레이어를 적대(<c>Code</c>=1)/중립(0)으로 둔다 (B-06).
+    ///
+    /// <b>적대 판정은 게임서버가 한다</b> — 이 제어는 대역에서 그것을 손으로 흉내내는 길이다.
+    /// 실제 게임서버는 세력·PK 상태·퀘스트로 판정한다.
+    /// </summary>
+    SetHostile = 7,
 }
 
 /// <summary>

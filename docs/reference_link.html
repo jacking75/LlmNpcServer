@@ -391,6 +391,7 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
           <tr><td><code>CombatEnded</code></td><td><code>Npc</code></td><td><code>ThreatNearby</code>·<code>InCombat</code> 해제</td></tr>
           <tr><td><code>ZoneStateChanged</code></td><td><code>Zone, Code</code>(RegionState)</td><td><strong>버킷 키 변경 → 존 전체 플랜 스왑.</strong> War·Disaster면 그 존 전체를 LOD 1로 승격</td></tr>
           <tr><td><code>WeatherChanged</code></td><td><code>Zone, Code</code>(Climate)</td><td>동일</td></tr>
+          <tr><td><code>PlayerHostility</code></td><td><code>Npc, Player, Code</code>(<code>Hostility</code>), <code>Faction</code></td><td><strong>적대 판정. 게임서버가 한다</strong>(세력·PK 상태·퀘스트) — NPC 서버는 결과만 받아 <code>HostilePlayerNearby</code> 를 세운다. 발행 규약은 근접과 같다: <strong>NPC 당 1건 · 에지 트리거 · 히스테리시스</strong> (B-06)</td></tr>
           <tr><td colspan="3"><strong>모든 이벤트 공통 (v2 · B-02)</strong> — <code>Instance</code> · <code>Faction</code> · <code>ExtA</code>/<code>ExtB</code>. <strong><code>NpcSpawned</code>의 <code>Instance</code>가 NPC 서버가 인스턴스를 아는 유일한 경로다</strong> — 재동기화 스폰에도 실어야 한다</td></tr>
         </tbody>
       </table></div>
@@ -790,7 +791,18 @@ public enum LinkByeCode : byte
       <h3>NpcTransform</h3>
       <p>최다 이벤트다. 관측 대상 상한(레퍼런스 구현은 틱당 256)을 두고 잘라 보낸다. NPC 서버는 이 값을 위치 표시에만 쓰고 판단에 쓰지 않으므로, 누락돼도 동작이 깨지지 않는다.</p>
 
-      <div class="callout warn"><strong>계약에 아직 없는 것 — 적대 플레이어 감지</strong><p>현재 <code>PlayerProximity</code>는 중립적 인지만 전달한다. <code>ThreatNearby</code>는 <code>CombatStarted</code>·<code>DamageTaken</code>으로만 서므로 <strong>반격은 되고 선제공격은 안 된다.</strong> "보면 공격하는" NPC를 만들려면 ① 적대 판정을 실은 이벤트(<code>PlayerProximity</code>의 <code>Code</code> 확장 또는 새 Kind를 뒤에 추가), ② <code>HostilePlayerNearby</code> 월드 플래그, ③ 그 플래그를 조건으로 <code>CombatAction.TargetPlayer</code>를 바인딩하는 인터럽트 규칙 — 셋이 필요하다. <strong>좌표는 여전히 필요 없다.</strong> 늘어나는 것은 1비트와 <code>PlayerId</code> 하나다.</p></div>
+      <div class="callout"><strong>적대 플레이어 선제공격 — 구현됨 (B-06)</strong><p>전에는 <code>PlayerProximity</code>가 중립 인지만 전달해 <strong>반격은 되고 선제공격은 안 됐다.</strong> 지금은 넷이 이어져 있다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>무엇</th><th>어디</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>GameEventKind.PlayerHostility</code>(18) · <code>Hostility { Neutral=0, Hostile=1, Friendly=2 }</code></td><td><code>Npc.Contracts/GameEvent.cs</code>. 계약 부 버전 3</td></tr>
+          <tr><td>2</td><td><code>HostilePlayerNearby</code> 월드 플래그 (<strong>bit 44</strong>, 예약 구간에서)</td><td><code>world_flags.json</code> · <code>NpcStore.HostilePlayer[]</code>(최근 적대 플레이어 id)</td></tr>
+          <tr><td>3</td><td><code>nearest:hostile_player</code> npc_ref</td><td><code>NpcRefKind.HostilePlayer</code>. <code>CommandEmitter</code> 가 <code>TargetPlayer</code> 에 싣고 <code>TargetNpc</code> 를 0 으로 둔다</td></tr>
+          <tr><td>4</td><td>인터럽트 <code>attack_hostile_player</code>(priority 100, urgency 95)</td><td><code>interrupts.json</code>. 조건은 <code>HostilePlayerNearby</code> + <code>combat_capable</code></td></tr>
+        </tbody>
+      </table></div>
+      <p><strong>내리는 경로가 둘이다.</strong> <code>PlayerHostility(Neutral|Friendly)</code> 와 <code>PlayerProximity(Leave)</code>. 후자가 없으면 떠난 플레이어가 대상으로 남아 <strong>경비병이 허공을 공격한다.</strong></p>
+      <p><strong>좌표는 여전히 필요 없다.</strong> 늘어난 것은 1비트와 <code>PlayerId</code> 하나다 — 플레이어가 쓴 문자열은 들어오지 않는다 (§2.5).</p></div>
     </section>
 
     <section class="card" id="tests">

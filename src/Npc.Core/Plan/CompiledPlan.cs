@@ -82,6 +82,17 @@ public enum NpcRefKind : byte
 
     /// <summary>그 POI 의 주인.</summary>
     PoiOwner = 3,
+
+    /// <summary>
+    /// 최근에 적대로 판정된 플레이어 (B-06). <b>페이로드를 쓰지 않는다.</b>
+    ///
+    /// <para>
+    /// 대상은 <c>NpcStore.HostilePlayer</c> 가 들고 있다 — 플랜에 플레이어 id 를 박을 수
+    /// 없으므로(매 회차 다르다) 발행 시점에 읽는다. <c>TargetNpc</c> 대신
+    /// <c>TargetPlayer</c> 에 실린다.
+    /// </para>
+    /// </summary>
+    HostilePlayer = 4,
 }
 
 /// <summary>
@@ -121,6 +132,11 @@ public static class NpcRefCodes
     }
 
     /// <summary>그 POI 의 주인.</summary>
+    /// <summary>
+    /// 최근 적대 플레이어 (B-06). 페이로드가 없다 — 대상은 런타임 상태에서 온다.
+    /// </summary>
+    public static ushort HostilePlayer() => (ushort)((int)NpcRefKind.HostilePlayer << PayloadBits);
+
     public static ushort PoiOwner(PoiSymbol symbol) =>
         (ushort)(((int)NpcRefKind.PoiOwner << PayloadBits) | ((int)symbol & PayloadMask));
 

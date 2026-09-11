@@ -135,6 +135,7 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 | **이기종 구현** | 오프셋 표(생성물) · 골든 바이트 벡터 7종 · **C++17/파이썬 참조 코덱** → [`docs/wire/`](docs/wire/layout_v2.md). v2 배치는 필드별 리틀엔디언 명시 직렬화다 |
 | **적합성 키트** | `Npc.Conformance` 가 게임서버에 붙어 발행 규약 7종을 관찰하고 보고서를 낸다. **미판정을 통과로 세지 않는다** |
 | **동적 로스터** | `--dynamic-roster` 로 런타임 스폰·디스폰. 여유 슬롯은 기동 시 잡고(`--npc-capacity`), **넘는 스폰은 무시하고 센다** |
+| **적대 플레이어** | `PlayerHostility` 이벤트 → `HostilePlayerNearby` 플래그 → `attack_hostile_player` 인터럽트 → `CombatAction(TargetPlayer)`. **적대 판정은 게임서버가 한다** |
 | **상호 인증** | HMAC-SHA256 + 논스 재사용 캐시 · `FixedTimeEquals` · TLS/mTLS |
 | **해시 분할** | **구조 해시**는 완전 일치 요구(불일치 = 거절), **내용 해시**는 경고 후 수락 |
 | **장애 주입** | `--drop-rate` 로 명령 유실을 상시 시험 |
@@ -637,7 +638,7 @@ docs/               설계 사양 (아래)
 | [`docs/book/index.html`](docs/book/index.html) | **코드 이해와 활용 안내서 (13장).** 왜 이 구조인가 → 계약 → 런타임 → 플랜 생성 → 설정·실측. **코드를 읽거나 고쳐야 하면 여기부터** |
 | [`docs/tutorial/index.html`](docs/tutorial/index.html) | **활용 실습서 (6부 21장 + 부록).** 실행 한 줄 → 콘텐츠 추가 → 내 게임서버 붙이기 → LLM 켜기 → 부하·테스트. 장마다 예제(`samples/` 24종)와 확인 절차가 붙고, **실린 수치는 전부 실제로 돌려 얻은 것**이다. **직접 만들어 보려면 여기부터** |
 | [`docs/reference_link.html`](docs/reference_link.html) | **게임서버 연동 계약 ★** N1~N8 · 패킷 · 와이어 프로토콜 · 핸드셰이크 · **게임서버가 지켜야 할 발행 규약**. 연동 팀에 그대로 건넬 수 있다 |
-| [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | **마스터데이터 레퍼런스 ★** 월드 플래그 42 · 액션 37 · 아키타입 40 · 버킷 2,880 · 검증 V1~V13 · 작성 순서 |
+| [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | **마스터데이터 레퍼런스 ★** 월드 플래그 43 · 액션 37 · 아키타입 40 · 버킷 2,880 · 검증 V1~V13 · 작성 순서 |
 | [`docs/reference_metrics.html`](docs/reference_metrics.html) | **실측 데이터.** 런타임 성능 · 스케일 · LLM 지연 · 캐시 · 비용 · 프리베이크 · 플랜 품질 · 수용 기준 판정 · **미측정으로 남은 것** |
 | [`docs/FAQ.html`](docs/FAQ.html) | 도입 이점 · 적합한 범위와 한계 · 행동 플랜 준비 · 전투 반응 설계 · NPC 대화 확장 |
 | [`docs/startup_flow.html`](docs/startup_flow.html) | 기동 흐름 시각화 — 무엇이 어떤 순서로 조립되는가 |

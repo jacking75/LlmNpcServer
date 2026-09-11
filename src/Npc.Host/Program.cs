@@ -1233,6 +1233,8 @@ internal sealed class NpcHost : IAsyncDisposable
         ScanPerTick: _cognition.LastScanned,
         Deviations: _cognition.Deviations,
         InterruptsForced: _interrupts.Forced,
+        HostilityEvents: _loop.HostilityChanges,
+        PlayerTargetedCommands: _executor.PlayerTargetedCommands,
         ReplanQueued: _replanQueue.Count,
         EventBacklogs: _loop.EventBacklogs,
         LlmCalls: _tiers.Stats?.Calls ?? 0,
@@ -1511,6 +1513,8 @@ internal readonly record struct HostSnapshot(
     int ScanPerTick,
     long Deviations,
     long InterruptsForced,
+    long HostilityEvents,
+    long PlayerTargetedCommands,
     int ReplanQueued,
     long EventBacklogs,
     long LlmCalls,
@@ -1584,7 +1588,8 @@ internal sealed class SimDriver : IAsyncDisposable
             TimeScale: options.TimeScale,
             FailRate: options.FailRate,
             DropRate: options.DropRate,
-            PlayerBots: options.PlayerBots));
+            PlayerBots: options.PlayerBots,
+            HostileBots: options.HostileBots));
 
         for (int i = 0; i < npcs.Length; i++)
         {

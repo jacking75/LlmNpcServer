@@ -108,6 +108,12 @@ public sealed class EventApplier
     public long RosterRejections { get; private set; }
 
     /// <summary>
+    /// 적대 판정을 반영한 횟수 (B-06). <b>0 이면 적대 경로가 한 번도 안 돌았다</b> —
+    /// 게임서버가 <c>PlayerHostility</c> 를 안 내고 있다는 뜻이다.
+    /// </summary>
+    public long HostilityChanges { get; private set; }
+
+    /// <summary>
     /// 이벤트 하나를 반영한다. <b>할당 0.</b> 틱 루프의 배수 구간에서 돈다.
     /// </summary>
     public void Apply(in GameEvent ev)
@@ -231,6 +237,10 @@ public sealed class EventApplier
 
             case GameEventKind.PlayerProximity:
                 ApplyProximity(npc, (ProximityChange)ev.Code, ev.Amount);
+                break;
+
+            case GameEventKind.PlayerHostility:
+                ApplyHostility(npc, (Hostility)ev.Code, ev.Player);
                 break;
 
             case GameEventKind.PlayerInteracted:
@@ -409,7 +419,50 @@ public sealed class EventApplier
             _store.Flags[npc] |= WorldFlags.PlayerNearby;
         }
 
+        if (change == ProximityChange.Leave)
+        {
+            // B-06 — 떠났으면 적대도 없다. 플래그만 내리고 플레이어 id 는 지우지 않으면
+            // 인터럽트가 이미 떠난 플레이어를 공격 대상으로 찍는다.
+            _store.Flags[npc] &= ~WorldFlags.HostilePlayerNearby;
+            _store.HostilePlayer[npc] = 0;
+        }
+
         _lod.OnProximity(npc, change, distance);
+    }
+
+    /// <summary>
+    /// 적대 판정을 반영한다 (B-06).
+    ///
+    /// <para>
+    /// <b>판정은 게임서버가 한다.</b> 여기서는 플래그를 세우고 플레이어 id 를 기억할 뿐이다 —
+    /// 세력·PK 상태·퀘스트가 섞인 판단을 두 쪽에서 하면 어긋나고, 어긋난 순간
+    /// "경비병이 아군을 공격한다" 가 된다.
+    /// </para>
+    ///
+    /// <para><b>멱등이다</b> (N7). 같은 값을 두 번 받아도 상태가 같다.</para>
+    /// </summary>
+    private void ApplyHostility(int npc, Hostility hostility, PlayerId player)
+    {
+        HostilityChanges++;
+
+        if (hostility == Hostility.Hostile)
+        {
+            _store.Flags[npc] |= WorldFlags.HostilePlayerNearby | WorldFlags.PlayerNearby;
+            _store.HostilePlayer[npc] = player.Value;
+
+            return;
+        }
+
+        // 중립·우호는 같이 내린다. 구분은 앞으로의 일이다 — 지금 우호를 따로 다루면
+        // 쓰이지 않는 분기가 남는다.
+        _store.Flags[npc] &= ~WorldFlags.HostilePlayerNearby;
+
+        // <b>그 플레이어의 판정만 지운다.</b> 다른 플레이어가 적대인 상태를 덮으면
+        // 경비병이 공격을 멈춘다 — 게임서버는 NPC 당 1건만 보내므로 보통 같은 id 다.
+        if (_store.HostilePlayer[npc] == player.Value)
+        {
+            _store.HostilePlayer[npc] = 0;
+        }
     }
 
     private void ApplyTimeOfDay(TimeOfDay time)

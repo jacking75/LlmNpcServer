@@ -13,7 +13,7 @@ public sealed class GameEventTests
     };
 
     [Fact]
-    public void GameEvent_AllSeventeenKindsAreConstructible()
+    public void GameEvent_AllEighteenKindsAreConstructible()
     {
         long seq = 0;
 
@@ -96,10 +96,19 @@ public sealed class GameEventTests
                 Zone = new ZoneId(1),
                 Code = 2,
             },
+
+            // B-06 — 적대 판정. 플레이어 id 와 세력 code 만 실린다 (§2.5: 문자열 없음).
+            Header(GameEventKind.PlayerHostility, ++seq) with
+            {
+                Npc = new NpcId(7),
+                Player = new PlayerId(4242),
+                Code = (byte)Hostility.Hostile,
+                Faction = new FactionId(3),
+            },
         ];
 
-        Assert.Equal(17, events.Length);
-        Assert.Equal(17, events.Select(e => e.Kind).Distinct().Count());
+        Assert.Equal(18, events.Length);
+        Assert.Equal(18, events.Select(e => e.Kind).Distinct().Count());
         Assert.Equal(Enum.GetValues<GameEventKind>().Length, events.Length);
     }
 

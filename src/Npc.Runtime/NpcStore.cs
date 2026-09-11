@@ -98,6 +98,22 @@ public sealed class NpcStore
     // --- 콜드 (재계획·바인딩 시에만) ---
 
     /// <summary>
+    /// 최근에 적대로 판정된 플레이어 (B-06). <b>0 = 없음.</b>
+    ///
+    /// <para>
+    /// <c>nearest:hostile_player</c> 바인딩이 읽는 값이다 — 인터럽트가 이 플레이어를
+    /// <c>CombatAction.TargetPlayer</c> 로 찍는다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>참조 카운트를 세지 않는다.</b> 게임서버가 NPC 당 1건·에지 트리거로 보내므로
+    /// "누군가 적대다" 하나만 알면 되고, 둘 중 하나가 떠난 판정은 게임서버가 소유한다
+    /// (근접 규약과 같은 원칙).
+    /// </para>
+    /// </summary>
+    public int[] HostilePlayer = [];
+
+    /// <summary>
     /// 이 슬롯에 앉은 인스턴스 정의 id (B-05). <b>0 = 빈 슬롯이다</b> —
     /// <c>npc_instances.json</c> 의 id 는 1 부터라 0 을 "없음" 으로 쓸 수 있다.
     ///
@@ -205,6 +221,7 @@ public sealed class NpcStore
         ArchetypeCode = new ushort[capacity];
         CurrentPoi = new ushort[capacity];
 
+        HostilePlayer = new int[capacity];
         Occupant = new int[capacity];
         Instance = new ushort[capacity];
         HomePoi = new ushort[capacity];
@@ -266,6 +283,7 @@ public sealed class NpcStore
         Array.Copy(ZoneCode, buffer.ZoneCode, Count);
         Array.Copy(ArchetypeCode, buffer.ArchetypeCode, Count);
         Array.Copy(CurrentPoi, buffer.CurrentPoi, Count);
+        Array.Copy(HostilePlayer, buffer.HostilePlayer, Count);
         Array.Copy(Occupant, buffer.Occupant, Count);
         Array.Copy(Instance, buffer.Instance, Count);
         Array.Copy(HomePoi, buffer.HomePoi, Count);
@@ -310,6 +328,7 @@ public sealed class NpcStore
         Array.Copy(buffer.ZoneCode, ZoneCode, Count);
         Array.Copy(buffer.ArchetypeCode, ArchetypeCode, Count);
         Array.Copy(buffer.CurrentPoi, CurrentPoi, Count);
+        Array.Copy(buffer.HostilePlayer, HostilePlayer, Count);
         Array.Copy(buffer.Occupant, Occupant, Count);
         Array.Copy(buffer.Instance, Instance, Count);
         Array.Copy(buffer.HomePoi, HomePoi, Count);
@@ -386,6 +405,7 @@ public sealed class NpcStore
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(slot, Count);
 
         Occupant[slot] = 0;
+        HostilePlayer[slot] = 0;
         Flags[slot] = default;
         PlanId[slot] = 0;
         StepIndex[slot] = 0;
@@ -440,6 +460,7 @@ public sealed class NpcStore
             hash = Mix(hash, (ulong)(ushort)Stamina[i]);
             hash = Mix(hash, ZoneCode[i]);
             hash = Mix(hash, CurrentPoi[i]);
+            hash = Mix(hash, (ulong)(uint)HostilePlayer[i]);
             hash = Mix(hash, (ulong)(uint)Occupant[i]);
             hash = Mix(hash, Instance[i]);
 

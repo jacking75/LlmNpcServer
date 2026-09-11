@@ -5,6 +5,7 @@ using Npc.Contracts;
 using Npc.Core;
 using Npc.Host;
 using Npc.Host.Api;
+using Npc.MasterData;
 using Npc.Runtime;
 using Npc.Sim;
 using Npc.TestBed.Protocol;
@@ -336,6 +337,78 @@ public sealed class EndToEndTests
         // 아키타입·집이 다시 채워졌는가 — 시드가 돌았다는 증거다.
         Assert.NotEqual(0, bed.Host.Store.HomePoi[Watched]);
         Assert.NotEqual(0, bed.Host.Store.PlanId[Watched]);
+    }
+
+    /// <summary>
+    /// B-06 완료 조건 — <b>플레이어를 적대로 두고 경비병 곁을 지나면 경비병이 공격한다.</b>
+    ///
+    /// <para>
+    /// 뷰어가 하는 일을 제어 메시지로 대신한다 — <c>ControlKind.SetHostile</c> 로 플레이어를
+    /// 적대로 두고, 그 플레이어를 전투 가능한 NPC 위로 옮긴다. 게임서버가
+    /// <c>PlayerHostility(Hostile)</c> 를 내고, NPC 서버가 인터럽트로
+    /// <c>CombatAction(TargetPlayer=…)</c> 을 낸다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>적대 판정은 게임서버가 한다.</b> 여기서 확인하는 것은 그 결과가 소켓을 건너와
+    /// 명령이 되는가다 — 판정 자체는 대역의 몫이고 실제 게임서버는 세력·PK 상태로 한다.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task TestBed_HostilePlayerMakesTheGuardAttack()
+    {
+        const int Npcs = 48;
+
+        await using Bed bed = await Bed.StartAsync(npcs: Npcs);
+
+        await bed.DriveAsync(20);
+
+        // 전투 가능하고 Attack 을 쓸 수 있는 아키타입의 슬롯을 찾는다.
+        // 없으면 회차가 아무것도 못 본다 — 그때는 테스트 설정이 잘못된 것이다.
+        MasterDataSet data = MasterDataLoader.Load(TestPaths.MasterData);
+
+        Assert.True(data.Actions.TryGet("Attack", out ActionDef attack));
+
+        int guard = -1;
+
+        for (int npc = 0; npc < Npcs; npc++)
+        {
+            ArchetypeDef def = data.Archetypes[new ArchetypeId(bed.Host.Store.ArchetypeCode[npc])];
+
+            if (def.CombatCapable && def.Allows(attack.Code))
+            {
+                guard = npc;
+                break;
+            }
+        }
+
+        Assert.True(guard >= 0, $"전투 가능한 NPC 가 로스터에 없다. {bed.Describe()}");
+
+        PlayerId player = bed.Server.Players.Add();
+
+        Assert.True(bed.Server.Controls.Apply(
+            new Control { Kind = (byte)ControlKind.SetHostile, Amount = player.Value, Code = 1 },
+            new Tick(bed.Now)));
+
+        long before = bed.Host.Snapshot().PlayerTargetedCommands;
+
+        await bed.DriveUntilAsync(
+            () => bed.Host.Snapshot().PlayerTargetedCommands > before,
+            maxTicks: 300,
+            beforeTick: () => bed.Follow(player, guard));
+
+        HostSnapshot snapshot = bed.Host.Snapshot();
+
+        Assert.True(
+            snapshot.HostilityEvents > 0,
+            $"PlayerHostility 가 소켓을 건너오지 않았다. {bed.Describe()}");
+
+        Assert.True(
+            snapshot.PlayerTargetedCommands > before,
+            $"TargetPlayer 를 찍은 명령이 안 나갔다. {bed.Describe()}");
+
+        // 그 NPC 가 적대 플레이어를 기억하고 있다.
+        Assert.Equal(player.Value, bed.Host.Store.HostilePlayer[guard]);
     }
 
     // ---------------------------------------------------------------- 보조

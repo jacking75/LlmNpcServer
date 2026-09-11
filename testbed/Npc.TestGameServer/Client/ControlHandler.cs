@@ -4,6 +4,7 @@ using Npc.Core.Plan;
 using Npc.MasterData;
 using Npc.Sim;
 using Npc.TestBed.Protocol;
+using Npc.TestGameServer.World;
 
 namespace Npc.TestGameServer.Client;
 
@@ -37,6 +38,7 @@ public sealed class ControlHandler
 
     private readonly GameWorld _world;
     private readonly MasterDataSet _data;
+    private readonly PlayerRegistry _players;
 
     /// <summary>
     /// 원래 핸들러. 기동 시 <c>GameWorld.Create</c> 가 붙인 <see cref="FaultInjector"/> 다.
@@ -53,13 +55,21 @@ public sealed class ControlHandler
     /// 처리기를 만든다. <b>여기서 <see cref="SimWorld.Handler"/> 앞에 선다</b> —
     /// 런타임 고장 주입(<see cref="ControlKind.SetFaultRate"/>)이 그 자리를 필요로 한다.
     /// </summary>
-    public ControlHandler(GameWorld world, MasterDataSet data)
+    /// <param name="world">세계.</param>
+    /// <param name="data">마스터데이터.</param>
+    /// <param name="players">
+    /// 플레이어 등록부 (B-06). <c>SetHostile</c> 이 여기를 만진다 — 적대 판정은
+    /// 플레이어의 성질이라 세계가 아니라 등록부가 소유한다.
+    /// </param>
+    public ControlHandler(GameWorld world, MasterDataSet data, PlayerRegistry players)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(players);
 
         _world = world;
         _data = data;
+        _players = players;
 
         _inner = world.World.Handler
             ?? throw new ArgumentException("월드에 명령 핸들러가 없다. GameWorld.Create 로 만들어야 한다.", nameof(world));
@@ -121,6 +131,9 @@ public sealed class ControlHandler
 
             case ControlKind.Spawn:
                 return Spawn(control.Amount, now);
+
+            case ControlKind.SetHostile:
+                return SetHostile(control.Amount, control.Code);
 
             default:
                 // 낡은 클라이언트가 모르는 값을 보냈다. 게임서버는 계속 돈다.
@@ -254,6 +267,23 @@ public sealed class ControlHandler
     ///
     /// NPC 서버 쪽에서는 그 NPC 를 상대로 하던 플랜 스텝이 실패하고 재계획이 걸려야 한다.
     /// </summary>
+    /// <summary>
+    /// 플레이어를 적대/중립으로 둔다 (B-06).
+    ///
+    /// <b>이벤트는 근접 판정이 낸다</b> — 여기서 바로 내면 에지 트리거 규약이 깨진다.
+    /// </summary>
+    private bool SetHostile(int player, byte code)
+    {
+        if (!_players.SetHostile(new PlayerId(player), code != 0))
+        {
+            Rejected++;
+            return false;
+        }
+
+        Applied++;
+        return true;
+    }
+
     /// <summary>
     /// 슬롯을 다시 spawn 한다 (B-05).
     ///

@@ -23,6 +23,40 @@ public enum GameEventKind : byte
     DamageTaken,
     ZoneStateChanged,
     WeatherChanged,
+
+    /// <summary>
+    /// 플레이어의 적대 여부가 바뀌었다 (B-06). <c>Code</c> 는 <see cref="Hostility"/>.
+    ///
+    /// <para>
+    /// <b>적대 판정은 게임서버가 한다.</b> 세력·PK 상태·퀘스트 진행이 섞인 판단이고 그것은
+    /// 전부 게임서버의 자료다 — NPC 서버는 결과만 받는다. 우리가 판정하려 들면
+    /// 세력 테이블을 두 쪽에서 관리해야 하고, 어긋난 순간 "경비병이 아군을 공격한다" 가 된다.
+    /// </para>
+    ///
+    /// <para>
+    /// 발행 규약은 근접과 같다 — <b>NPC 당 1건 · 에지 트리거 · 히스테리시스.</b>
+    /// 상태가 안 바뀐 NPC 에 이벤트를 내면 재계획 큐가 포화한다.
+    /// </para>
+    /// </summary>
+    PlayerHostility,
+}
+
+/// <summary>
+/// <see cref="GameEventKind.PlayerHostility"/> 의 <c>Code</c> 필드 (B-06).
+///
+/// <b>번호를 재배치하지 않는다.</b> 0 이 "중립" 인 것은 <c>default</c> 가 안전한 쪽이어야
+/// 하기 때문이다 — 값을 안 실은 이벤트가 적대로 읽히면 경비병이 아무나 공격한다.
+/// </summary>
+public enum Hostility : byte
+{
+    /// <summary>중립. 적대 플래그를 내린다.</summary>
+    Neutral = 0,
+
+    /// <summary>적대. <c>HostilePlayerNearby</c> 를 세운다.</summary>
+    Hostile = 1,
+
+    /// <summary>우호. 중립과 같이 플래그를 내린다 — 구분은 앞으로의 일이다.</summary>
+    Friendly = 2,
 }
 
 /// <summary>

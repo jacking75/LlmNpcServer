@@ -55,6 +55,13 @@ public readonly record struct TraitCondition(TraitKind Kind, TraitComparison Com
 /// <param name="TargetsThreat">
 /// <c>$threat</c> 를 대상으로 하는가. 위협의 정체는 규칙이 아니라 이벤트가 알려준다.
 /// </param>
+/// <param name="NpcRef">
+/// 대상 npc_ref 코드 (B-06). <see cref="NpcRefCodes.None"/> 이면 <c>$threat</c> 나 대상 없음이다.
+///
+/// <b>인터럽트는 아키타입을 이름으로 찍지 않는다</b> — 즉시 반응이 목적이라 근접 판정을 할
+/// 시간이 없다. 지금 쓰이는 것은 <c>nearest:hostile_player</c> 하나로, 대상을 플랜이 아니라
+/// <c>NpcStore.HostilePlayer</c> 에서 읽는다.
+/// </param>
 /// <param name="Amount">액션의 정수 인자 (duration_s, count). 없으면 0.</param>
 /// <param name="Urgency">재계획 긴급도 0~100.</param>
 public sealed record InterruptRule(
@@ -69,6 +76,7 @@ public sealed record InterruptRule(
     ActionId Action,
     PoiSymbol Poi,
     bool TargetsThreat,
+    ushort NpcRef,
     int Amount,
     int Urgency);
 
@@ -240,6 +248,7 @@ public sealed class InterruptRules
                 action.Code,
                 ParsePoi(dto.Id, ReadString(dto.Then.Params, "poi")),
                 string.Equals(ReadString(dto.Then.Params, "target"), "$threat", StringComparison.Ordinal),
+                ParseNpcRef(dto.Id, ReadString(dto.Then.Params, "target")),
                 ReadInt(dto.Then.Params, "duration_s") + ReadInt(dto.Then.Params, "count"),
                 dto.Replan?.Urgency ?? 0));
         }
@@ -312,6 +321,29 @@ public sealed class InterruptRules
 
         return builder.ToImmutable();
     }
+
+    /// <summary>
+    /// 인터럽트의 <c>target</c> 을 npc_ref 코드로 (B-06).
+    ///
+    /// <para>
+    /// <b>모르는 값은 기동 실패다.</b> 조용히 "대상 없음" 으로 두면 규칙이 있는데 아무 일도
+    /// 안 나고, 그 증상은 "인터럽트가 가끔 안 먹는다" 로만 보인다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>아키타입 이름은 받지 않는다.</b> <c>nearest:&lt;archetype&gt;</c> 는 근접 판정을
+    /// 게임서버에 넘기는 값이라 즉시 반응하는 인터럽트와 맞지 않는다 — 평시 플랜의 것이다.
+    /// </para>
+    /// </summary>
+    private static ushort ParseNpcRef(string ruleId, string? text) => text switch
+    {
+        null or "$threat" => NpcRefCodes.None,
+        "self" => NpcRefCodes.Self(),
+        "nearest:hostile_player" => NpcRefCodes.HostilePlayer(),
+        _ => throw new InvalidDataException(
+            $"interrupts.json: 규칙 '{ruleId}' 의 target '{text}' 를 모른다. "
+            + "$threat / self / nearest:hostile_player 만 쓴다."),
+    };
 
     private static PoiSymbol ParsePoi(string ruleId, string? text)
     {

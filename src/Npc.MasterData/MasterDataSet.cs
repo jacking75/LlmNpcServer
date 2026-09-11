@@ -949,7 +949,8 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
                 {
                     return ValidationResult.Fail(
                         ValidationStage.Vocabulary, "V2.TYPE_MISMATCH", stepIndex,
-                        $"{def.Id}.{param.Name} 의 '{value.GetString()}' 는 self / nearest:<archetype> / poi_owner:<poi> 가 아니다.");
+                        $"{def.Id}.{param.Name} 의 '{value.GetString()}' 는 "
+                        + "self / nearest:<archetype> / nearest:hostile_player / poi_owner:<poi> 가 아니다.");
                 }
 
                 break;
@@ -1022,6 +1023,13 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
             return true;
         }
 
+        // B-06 — 적대 플레이어. nearest: 접두를 쓰지만 아키타입이 아니라 런타임 상태를 가리킨다.
+        if (string.Equals(text, "nearest:hostile_player", StringComparison.Ordinal))
+        {
+            code = NpcRefCodes.HostilePlayer();
+            return true;
+        }
+
         if (text.StartsWith("nearest:", StringComparison.Ordinal))
         {
             return Archetypes.TryGet(text["nearest:".Length..], out ArchetypeDef archetype)
@@ -1057,6 +1065,7 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
         NpcRefKind.Self => "self",
         NpcRefKind.NearestArchetype =>
             "nearest:" + Archetypes[new ArchetypeId((ushort)NpcRefCodes.PayloadOf(code))].Id,
+        NpcRefKind.HostilePlayer => "nearest:hostile_player",
         NpcRefKind.PoiOwner =>
             "poi_owner:" + PoiSymbols.ToText((PoiSymbol)NpcRefCodes.PayloadOf(code)),
         _ => "self",

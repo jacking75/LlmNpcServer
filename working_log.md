@@ -1,5 +1,35 @@
 # 작업 로그
 
+## 2026-09-11 10:38 KST · B-06 적대 플레이어 감지 · 플레이어 대상 바인딩
+
+"보이는 모든 플레이어를 선제공격하는 경비병" 이 불가능했다. `PlayerProximity` 는 중립 인지만
+세우고 `Attack` 의 대상은 `TargetNpc` 뿐이라 플레이어를 찍을 길이 없었다 (FAQ Q6).
+
+FAQ Q6 의 네 가지를 그대로 넣었다.
+
+1. `GameEventKind.PlayerHostility`(18) · `Hostility { Neutral=0, Hostile=1, Friendly=2 }`.
+   계약 부 버전 2 → 3.
+2. `HostilePlayerNearby` **bit 44**(예약 구간에서) · `NpcStore.HostilePlayer[]`. 플래그 42 → 43.
+3. `nearest:hostile_player` npc_ref — `TargetPlayer` 에 싣고 `TargetNpc` 는 0 으로.
+4. 인터럽트 `attack_hostile_player`(priority 100 · urgency 95). 규칙 14 → 15.
+
+**적대 판정은 게임서버가 한다.** 세력·PK 상태·퀘스트가 섞인 판단이고 그 자료는 전부
+게임서버의 것이다 — 두 쪽에서 판정하면 어긋나고, 어긋난 순간 **경비병이 아군을 공격한다.**
+
+**내리는 경로가 둘이다.** `PlayerHostility(Neutral|Friendly)` 와 `PlayerProximity(Leave)`.
+후자가 없으면 떠난 플레이어가 대상으로 남아 **경비병이 허공을 공격한다.**
+
+**`Neutral = 0` 인 이유.** `default` 가 안전한 쪽이어야 한다 — 값을 안 실은 이벤트가 적대로
+읽히면 경비병이 아무나 공격한다.
+
+**인터럽트의 `target` 은 셋만 받고 모르는 값은 기동 실패다.** 조용히 "대상 없음" 으로 두면
+규칙이 있는데 아무 일도 안 나고, 증상은 "인터럽트가 가끔 안 먹는다" 로만 보인다.
+
+대역: `--hostile-bots N`(루프백) · `ControlKind.SetHostile`(뷰어·소켓).
+문서 31곳의 "플래그 42"·"인터럽트 14"·예약 구간 표기를 같이 고쳤다.
+
+빌드 경고 0 · 테스트 1,563건 통과.
+
 ## 2026-09-11 09:57 KST · B-05 동적 로스터 (런타임 스폰·디스폰)
 
 로스터 해시가 완전 일치라 이벤트성 NPC·인스턴스 던전 NPC 를 런타임에 넣고 뺄 수 없었다.

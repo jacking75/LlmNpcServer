@@ -65,6 +65,7 @@
 | **남의 게임서버가 규약을 지키는지 본다** | `tools/Npc.Conformance/` — 검사는 `Checks/*.cs`(순수 함수) · 소켓은 `Observer.cs` · 보고서는 `Report.cs` | **검사와 관찰을 갈랐다** — 그래야 고의 위반을 합성해 검사를 시험할 수 있다. 대역 보고서는 `docs/measurements/conformance_testbed.md` |
 | **다른 언어(C++·파이썬)로 게임서버를 짠다** | `docs/wire/layout_v2.md`(오프셋 표·생성물) · `docs/wire/vectors_v2/`(골든 바이트) · `docs/wire/reference/npc_wire.h`·`npc_wire.py` | **표를 손으로 고치지 않는다** — `LayoutDocTests` 가 다시 뽑는다. 참조 코덱이 표와 어긋나면 `WireReferenceTests` 가 깨진다 |
 | **와이어 바이트를 직접 쓴다·읽는다** | `src/Npc.Wire/V2/WireWriter.cs` | v2 는 명시 리틀엔디언이다. 바이트는 원시 복사와 같아야 한다(`WireWriter_MatchesMemoryPackBytes`) |
+| **적대 플레이어를 선제공격하게 한다** | `masterdata/interrupts.json`(`attack_hostile_player`) · `world_flags.json`(bit 44) · `NpcStore.HostilePlayer` · `NpcRefKind.HostilePlayer` · `EventApplier.ApplyHostility` | **적대 판정은 게임서버가 한다** — 우리는 `PlayerHostility` 를 받을 뿐이다. 대상은 플랜이 아니라 런타임 상태에서 온다 |
 | **런타임에 NPC 를 넣고 뺀다** | `src/Npc.Runtime/DynamicRoster.cs` · `NpcStore.Occupant`(슬롯 거주자) · `EventApplier` 스폰/디스폰 · `--dynamic-roster`·`--npc-capacity` | **양쪽이 같이 켜야 붙는다** — 로스터 해시가 인스턴스 테이블 전체의 것으로 바뀐다. 슬롯 배정은 게임서버가 한다 |
 | **채널·인스턴스 던전 · 세력 · 예약 슬롯** | `src/Npc.Contracts/ExtensionSlots.cs`(의미 등록부) · `NpcStore.Instance` · `docs/reference_link.html` §05 | **등록되지 않은 예약 슬롯은 0 이다.** 쓰려면 등록부에 줄을 넣고 문서를 같은 커밋에서 고친다 |
 | **실제 게임서버에 붙인다** | `docs/reference_link.html` 를 상대 팀에 전달 → `src/Npc.Gateway/TcpGameServerLink.cs`(661줄) | 이기종 런타임이면 `Npc.Wire` 한 곳만 고친다 |

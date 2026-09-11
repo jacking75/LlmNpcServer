@@ -536,7 +536,7 @@ Console.CancelKeyPress += (_, e) =&gt; { e.Cancel = <span class="kw">true</span>
 <pre><code><span class="cmt">&gt; npc validate</span>
 masterdata  C:\github_edu\LlmNpcServer\masterdata
   SKIP V9  프롬프트 프리픽스는 Npc.Llm 이 조립한다 (P2). P1 에는 없다.
-  OK   액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14
+  OK   액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 15
   content_hash    f37c02926c0b3d26582c4f47a4d393c6548fe921e5b6bc74f04c31ce2cb53218
   structural_hash a7dd5c980ee7a7ea2dff9f6428690facb48b73c9b30bbd427c2f3577d72856c8
 검증 통과 (V1~V13, 건너뜀 1건)</code></pre></div>
@@ -1656,7 +1656,7 @@ scan/tick 24 · interrupts 200 · replan-q 200 · drops link 0 sim 0 · backlogs
     d:'11종 JSON 을 전량 읽고 → 스키마 검증 → 참조 무결성 → 인덱스 컴파일. <b>이후 불변이다.</b> 참조가 깨져 있으면 여기서 던진다 — 경고 후 진행은 없다.<br>파생물 신선도(<code>derived.lock.json</code>)도 여기서 읽어 <code>StaleArtifacts</code> 에 싣는다 — <b>기동을 막지는 않고 경고한다</b>.',
     c:'<span class="ty">string</span> masterDataDir = options.<span class="fn">ResolveMasterData</span>();\n<span class="hl">MasterDataSet data = MasterDataLoader.<span class="fn">Load</span>(masterDataDir);</span>\n\n<span class="cmt">// 내부 순서 — 이 순서를 어기면 참조를 풀 수 없다</span>\n<span class="cmt">// items → actions → archetypes → zones → pois → buckets → interrupts</span>\n<span class="cmt">// 폴백 플랜은 MasterDataSet 자신을 어휘로 쓰므로 마지막에 붙인다</span>',
     o:['MasterDataSet','ItemTable','ActionCatalog','ArchetypeTable','ZoneTable','PoiTable','BucketSpace','InterruptRules','PlanTable (폴백)'],
-    s:'액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 14. <code>ContentHash</code> 도 여기서 계산된다 — 플랜 스토어가 낡았는지 판정하는 기준이다. <b>아키타입 수는 여기서 정해진다</b>(F-05) — <code>BucketSpace.TotalKeys</code> 가 플랜 스토어 배열 길이를 정한다.' },
+    s:'액션 37 · 아이템 82 · 존 12 · POI 243 · 아키타입 40 · 인터럽트 15. <code>ContentHash</code> 도 여기서 계산된다 — 플랜 스토어가 낡았는지 판정하는 기준이다. <b>아키타입 수는 여기서 정해진다</b>(F-05) — <code>BucketSpace.TotalKeys</code> 가 플랜 스토어 배열 길이를 정한다.' },
 
   { ph:'P1 · 조립', t:'NPC 인스턴스 표', f:'NpcInstanceTable.Load',
     d:'어떤 NPC 가 어느 아키타입·집·일터·존에 속하는지 적힌 표. <code>--npcs</code> 가 이 수보다 크면 <b>줄이고 경고한다</b>.',

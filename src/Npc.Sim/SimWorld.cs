@@ -10,6 +10,12 @@ namespace Npc.Sim;
 /// <param name="FailRate">액션이 실패할 확률 0~1. 폴백 경로가 실제로 도는지 확인한다.</param>
 /// <param name="DropRate">명령을 조용히 버릴 확률 0~1. 타임아웃 합성을 검증한다.</param>
 /// <param name="PlayerBots">존을 랜덤 워크하는 가상 플레이어 수.</param>
+/// <param name="HostileBots">
+/// 그중 <b>적대</b>로 판정할 봇 수 (B-06). 앞쪽 봇부터 적대다.
+///
+/// <b>적대 판정은 게임서버가 한다</b>(우리는 그 역할이다) — 세력 테이블 없이 "앞의 N 마리"
+/// 로 고르는 것은 대역의 단순화이고, 실제 게임서버는 세력·PK 상태로 판정한다.
+/// </param>
 /// <param name="TransformPeriodTicks">이동 중 NpcTransform 발행 주기.</param>
 public sealed record SimOptions(
     int Seed = 20260725,
@@ -17,6 +23,7 @@ public sealed record SimOptions(
     double FailRate = 0,
     double DropRate = 0,
     int PlayerBots = 0,
+    int HostileBots = 0,
     int TransformPeriodTicks = 10);
 
 /// <summary>

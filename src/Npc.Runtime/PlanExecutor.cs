@@ -70,6 +70,14 @@ public sealed class PlanExecutor
         _timeScale = timeScale;
     }
 
+    /// <summary>
+    /// <c>TargetPlayer</c> 를 찍어 나간 명령 수 (B-06).
+    ///
+    /// <b>전에는 0 일 수밖에 없었다</b> — <c>Attack</c> 의 대상이 <c>TargetNpc</c> 뿐이라
+    /// 플레이어를 찍을 길이 없었다 (FAQ Q6). 이 값이 오르면 그 길이 열린 것이다.
+    /// </summary>
+    public long PlayerTargetedCommands { get; private set; }
+
     /// <summary>발행한 명령 수.</summary>
     public long CommandsEmitted { get; private set; }
 
@@ -164,6 +172,12 @@ public sealed class PlanExecutor
         for (int c = 0; c < count; c++)
         {
             link.Enqueue(in _batch[c]);
+
+            // B-06 — 플레이어를 찍은 명령을 센다. 비교 한 번이라 틱 예산에 영향이 없다.
+            if (_batch[c].TargetPlayer.Value != 0)
+            {
+                PlayerTargetedCommands++;
+            }
         }
 
         CommandsEmitted += count;
@@ -320,6 +334,12 @@ public sealed class PlanExecutor
         for (int c = 0; c < count; c++)
         {
             link.Enqueue(in _batch[c]);
+
+            // B-06 — 플레이어를 찍은 명령을 센다. 비교 한 번이라 틱 예산에 영향이 없다.
+            if (_batch[c].TargetPlayer.Value != 0)
+            {
+                PlayerTargetedCommands++;
+            }
         }
 
         CommandsEmitted += count;
@@ -337,7 +357,8 @@ public sealed class PlanExecutor
         new PoiId(_store.CurrentPoi[npc]),
         new ZoneId(_store.ZoneCode[npc]),
         default,
-        new InstanceId(_store.Instance[npc]));
+        new InstanceId(_store.Instance[npc]),
+        new PlayerId(_store.HostilePlayer[npc]));
 
     /// <summary>
     /// 명령 유실 방어. docs/02 §1 · docs/03 §6.

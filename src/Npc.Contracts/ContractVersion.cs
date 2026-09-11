@@ -35,10 +35,12 @@ public static class ContractVersion
     /// <summary>
     /// 부 버전. 열거형에 값을 뒤에 추가하거나 <b>패킷 뒤에 필드를 더하면</b> 올린다.
     ///
+    /// <para><b>3</b> — <c>GameEventKind.PlayerHostility</c> 를 뒤에 추가했다 (B-06).
+    /// 낮은 쪽 기준으로 도므로 옛 게임서버는 이 Kind 를 안 보내고, 우리는 안 기다린다.</para>
     /// <para><b>2</b> — 확장 슬롯 <c>Instance</c>·<c>Faction</c>·<c>ExtA</c>·<c>ExtB</c> (B-02).
     /// v1 코덱은 이 넷을 싣지 않으므로 옛 게임서버는 그대로 돈다.</para>
     /// </summary>
-    public const ushort Minor = 2;
+    public const ushort Minor = 3;
 
     /// <summary>사람이 읽는 표기.</summary>
     public static string Text => $"{Major}.{Minor}";

@@ -144,6 +144,12 @@ public sealed class NpcServerLoop
     /// <summary>배수한 이벤트 수.</summary>
     public long EventsDrained { get; private set; }
 
+    /// <summary>
+    /// 적대 판정을 반영한 횟수 (B-06). 적용기의 것을 그대로 보여 준다 —
+    /// 호스트가 적용기를 따로 들고 있지 않아 루프를 통해 읽는다.
+    /// </summary>
+    public long HostilityChanges => _applier.HostilityChanges;
+
     /// <summary>이벤트 상한에 걸려 다음 틱으로 넘긴 횟수.</summary>
     public long EventBacklogs { get; private set; }
 

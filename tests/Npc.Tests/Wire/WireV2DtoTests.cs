@@ -97,7 +97,7 @@ public sealed class WireV2DtoTests
         }
     }
 
-    /// <summary>17개 이벤트 종류 전부.</summary>
+    /// <summary>18개 이벤트 종류 전부.</summary>
     [Fact]
     public void Wire_EventRoundTrips_V2()
     {

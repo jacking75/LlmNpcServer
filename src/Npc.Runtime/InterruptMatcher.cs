@@ -94,10 +94,11 @@ public sealed class InterruptMatcher
             (ushort)Math.Clamp(rule.Amount, 0, ushort.MaxValue),
             (ushort)Math.Clamp(seconds, PlanDocument.MinTimeoutSeconds, PlanDocument.MaxTimeoutSeconds),
             0,
-            NpcRefCodes.None,
+            rule.NpcRef,
             0);
 
-        // NpcRef 는 None 이다. 대상 NPC 는 EmitContext.Target 으로 들어간다 (CommandEmitter 참조).
+        // NpcRef 가 None 이면 대상 NPC 는 EmitContext.Target 으로 들어간다 (CommandEmitter 참조).
+        // B-06 의 nearest:hostile_player 는 EmitContext.HostilePlayer 를 읽는다.
     }
 
     /// <summary>

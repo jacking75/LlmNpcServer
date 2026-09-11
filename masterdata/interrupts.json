@@ -31,6 +31,13 @@
       "replan": { "urgency": 90 }
     },
     {
+      "id": "attack_hostile_player", "priority": 100,
+      "_comment": "적대 플레이어 선제공격 (B-06). 적대 판정은 게임서버가 PlayerHostility 로 알려 준다 — 우리는 세력을 모른다. 대상은 플랜에 박을 수 없어(회차마다 다르다) nearest:hostile_player 로 런타임 상태에서 읽는다.",
+      "when": { "any_flag": ["HostilePlayerNearby"], "combat_capable": true },
+      "then": { "action": "Attack", "params": { "target": "nearest:hostile_player" } },
+      "replan": { "urgency": 95 }
+    },
+    {
       "id": "flee_on_damage", "priority": 98,
       "when": { "event": "DamageTaken", "archetype_trait": { "courage": "<40" } },
       "then": { "action": "Flee", "params": { "poi": "$nearest_safe" } },

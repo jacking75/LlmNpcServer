@@ -18,9 +18,10 @@ public sealed class WorldFlagsDataTests
             .ToArray();
 
     [Fact]
-    public void WorldFlagsJson_HasFortyTwoFlags()
+    public void WorldFlagsJson_HasFortyThreeFlags()
     {
-        Assert.Equal(42, Flags().Length);
+        // B-06 이 HostilePlayerNearby(bit 44)를 예약 구간에서 가져와 43 이 됐다.
+        Assert.Equal(43, Flags().Length);
     }
 
     [Fact]
@@ -46,7 +47,7 @@ public sealed class WorldFlagsDataTests
             .EnumerateArray().Select(e => e.GetInt32()).ToArray();
         int[] used = Flags().Select(f => f.Bit).ToArray();
 
-        Assert.Equal([22, 23, .. Enumerable.Range(44, 20)], reserved);
+        Assert.Equal([22, 23, .. Enumerable.Range(45, 19)], reserved);
         Assert.Empty(used.Intersect(reserved));
     }
 

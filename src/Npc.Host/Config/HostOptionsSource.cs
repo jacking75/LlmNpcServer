@@ -61,6 +61,7 @@ public static class HostOptionsSource
         new("--fail-rate", true),
         new("--drop-rate", true),
         new("--player-bots", true),
+        new("--hostile-bots", true),
         new("--masterdata", true),
         new("--planstore", true),
         new("--seed", true),

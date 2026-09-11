@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="LlmNpcServer 마스터데이터 레퍼런스 — 월드 플래그 42비트, 액션 카탈로그 37개, 아키타입 40종, 컨텍스트 버킷 2,880, 검증 규칙 V1~V13">
+<meta name="description" content="LlmNpcServer 마스터데이터 레퍼런스 — 월드 플래그 43비트, 액션 카탈로그 37개, 아키타입 40종, 컨텍스트 버킷 2,880, 검증 규칙 V1~V13">
 <title>마스터데이터 레퍼런스 — LlmNpcServer</title>
 <style>
 :root{
@@ -95,7 +95,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
     <div class="toc-title">목차</div>
     <ol class="toc" id="toc">
       <li><a href="#files"><span class="n">01</span>파일 목록과 규모</a></li>
-      <li><a href="#flags"><span class="n">02</span>월드 플래그 42비트</a></li>
+      <li><a href="#flags"><span class="n">02</span>월드 플래그 43비트</a></li>
       <li><a href="#actions"><span class="n">03</span>액션 카탈로그 37개</a></li>
       <li><a href="#items"><span class="n">04</span>아이템과 레시피</a></li>
       <li><a href="#world"><span class="n">05</span>존과 POI</a></li>
@@ -122,7 +122,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
       <p class="lead">NPC 서버를 동작시키는 정적 데이터 전체 정의다. <strong><code>masterdata/</code>가 단일 원천(SSOT)이며, LLM 프롬프트 프리픽스는 여기서 생성된다.</strong> 액션·플래그·아키타입을 코드에 하드코딩하지 않는다 — 둘이 어긋나면 검증 실패율이 즉시 치솟는다.</p>
       <div class="chips">
         <span class="chip primary">SSOT</span>
-        <span class="chip">플래그 42</span><span class="chip">액션 37</span>
+        <span class="chip">플래그 43</span><span class="chip">액션 37</span>
         <span class="chip">아키타입 40</span><span class="chip">버킷 2,880</span>
       </div>
     </header>
@@ -157,8 +157,8 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
     </section>
 
     <section class="card" id="flags">
-      <div class="shead"><span class="snum">02</span><h2><code>world_flags.json</code> — 월드 플래그 42비트</h2></div>
-      <p>플랜의 전제조건·효과, 인지 스캔의 이탈 판정이 전부 이 64비트 위에서 돈다. <strong>가장 먼저 확정해야 하는 파일이다.</strong> 42개를 정의하고 <strong>bit 22~23과 44~63은 예약</strong>한다.</p>
+      <div class="shead"><span class="snum">02</span><h2><code>world_flags.json</code> — 월드 플래그 43비트</h2></div>
+      <p>플랜의 전제조건·효과, 인지 스캔의 이탈 판정이 전부 이 64비트 위에서 돈다. <strong>가장 먼저 확정해야 하는 파일이다.</strong> 43개를 정의하고 <strong>bit 22~23과 45~63은 예약</strong>한다.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>bit</th><th>id</th><th>뜻</th></tr></thead>
         <tbody>
@@ -206,11 +206,12 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
           <tr><td class="bit">37</td><td><code>WeatherHarsh</code></td><td>악천후다</td></tr>
           <tr><td class="bit">38</td><td><code>ResourceDepleted</code></td><td>대상 자원이 고갈됐다</td></tr>
           <tr><td class="bit">39</td><td><code>PathBlocked</code></td><td>목표 경로가 막혔다</td></tr>
-          <tr class="grp"><td colspan="3">위협 (40~43)</td></tr>
+          <tr class="grp"><td colspan="3">위협 (40~44)</td></tr>
           <tr><td class="bit">40</td><td><code>ThreatNearby</code></td><td>적대 대상이 근처에 있다</td></tr>
           <tr><td class="bit">41</td><td><code>PlayerNearby</code></td><td>플레이어가 인지 범위에 있다</td></tr>
           <tr><td class="bit">42</td><td><code>AllyNearby</code></td><td>아군이 근처에 있다</td></tr>
           <tr><td class="bit">43</td><td><code>InCombat</code></td><td>전투 중이다</td></tr>
+          <tr><td class="bit">44</td><td><code>HostilePlayerNearby</code></td><td>적대 플레이어가 인지 범위에 있다 (B-06). <strong>게임서버가 <code>PlayerHostility</code> 로 알려 준다</strong> — 세력·PK 상태를 우리가 판정하지 않는다</td></tr>
         </tbody>
       </table></div>
       <p><code>Npc.Core/WorldFlags.cs</code>의 <code>[Flags] enum WorldFlags : ulong</code>은 이 파일에서 <strong>소스 생성기가 자동 생성</strong>한다. 손으로 쓰지 않는다.</p>
@@ -461,7 +462,7 @@ public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState 
     </section>
 
     <section class="card" id="intr">
-      <div class="shead"><span class="snum">08</span><h2><code>interrupts.json</code> — 인터럽트 규칙 14개</h2></div>
+      <div class="shead"><span class="snum">08</span><h2><code>interrupts.json</code> — 인터럽트 규칙 15개</h2></div>
       <p><strong>LLM이 만들지 않는다.</strong> 인터럽트는 반응 속도가 생명이라 결정론 규칙으로만 정의한다. 공격·도주·긴급 대피처럼 재현성이 중요한 행동이 전부 이 경로에 있다.</p>
 <pre><code>{ "id": "flee_on_threat", "priority": 100,
   "when": { "any_flag": ["ThreatNearby","InCombat"],
@@ -475,6 +476,11 @@ public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState 
   "then": { "action": "Attack", "params": { "target": "$threat" } },
   "replan": { "urgency": 90 } },
 
+{ "id": "attack_hostile_player", "priority": 100,
+  "when": { "any_flag": ["HostilePlayerNearby"], "combat_capable": true },
+  "then": { "action": "Attack", "params": { "target": "nearest:hostile_player" } },
+  "replan": { "urgency": 95 } },
+
 { "id": "yield_to_player", "priority": 90,
   "when": { "event": "PlayerInteracted" },
   "then": { "action": "Wait", "params": { "duration_s": 30 } },
@@ -484,6 +490,7 @@ public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState 
   "when": { "all_flag": ["IsHungry","HasFood"] },
   "then": { "action": "Eat" },
   "replan": { "urgency": 10 } }</code></pre>
+      <div class="callout"><strong><code>nearest:hostile_player</code> — 대상이 플랜에 없다 (B-06)</strong><p>플레이어 id 는 회차마다 다르므로 플랜에 박을 수 없다. 이 npc_ref 는 <strong>발행 시점에 <code>NpcStore.HostilePlayer</code> 를 읽어</strong> <code>CombatAction.TargetPlayer</code> 에 싣고 <code>TargetNpc</code> 는 0 으로 둔다 — 둘 다 채우면 게임서버가 어느 쪽을 공격할지 모른다.</p><p><strong>인터럽트의 <code>target</code> 은 <code>$threat</code> · <code>self</code> · <code>nearest:hostile_player</code> 셋만 받는다.</strong> <code>nearest:&lt;archetype&gt;</code> 는 근접 판정을 게임서버에 넘기는 값이라 즉시 반응과 맞지 않는다 — 모르는 값은 <strong>기동 실패</strong>다.</p></div>
       <p><code>then</code>은 <strong>즉시 실행</strong>되고 <code>replan.urgency</code>는 재계획 큐에 점수로 들어간다. 즉 <strong>"먼저 도망치고, 새 계획은 나중에 받는다".</strong></p>
       <div class="callout warn"><strong>발동은 엣지 트리거다</strong><p><code>when</code> 조건은 대부분 플래그라 한 번 참이 되면 한동안 참으로 남는다. 이벤트마다 다시 발동시키면 <em>강제 액션 → 완료 이벤트 → 다시 강제</em>의 되먹임이 생겨 명령 수가 NPC당 수천 건으로 폭주한다. 그래서 매처는 NPC별로 마지막 발동 규칙을 기억하고, 같은 규칙이 이어서 걸리면 넘긴다. 조건이 한 번 풀렸다가 다시 참이 될 때 재무장한다.</p><p><strong><code>cooldown_s</code> 같은 필드를 두지 않는다</strong> — 시간 기반 쿨다운은 <code>Tick</code>에 의존해 리플레이 재현을 어렵게 만든다. 엣지 트리거는 상태만 보므로 결정론이다.</p></div>
     </section>

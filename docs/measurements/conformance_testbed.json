@@ -7,7 +7,7 @@
       "id": "C1.handshake",
       "title": "핸드셰이크 · 재동기화",
       "verdict": "pass",
-      "detail": "protocol 2 · contract minor 2 · features 0x3E · 스폰 16/16 · 존 12/12 · 프레임 최대 40건",
+      "detail": "protocol 2 · contract minor 3 · features 0x3E · 스폰 16/16 · 존 12/12 · 프레임 최대 40건",
       "violations": []
     },
     {

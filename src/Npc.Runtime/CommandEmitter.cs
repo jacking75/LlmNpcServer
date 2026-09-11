@@ -24,6 +24,12 @@ namespace Npc.Runtime;
 /// 이 NPC 가 있는 채널·인스턴스 (B-02). <c>NpcSpawned</c> 가 알려준 값 그대로다 —
 /// 발행기는 해석하지 않고 <b>모든 명령에 찍기만</b> 한다.
 /// </param>
+/// <param name="HostilePlayer">
+/// 최근에 적대로 판정된 플레이어 (B-06). 0 = 없음.
+///
+/// <b>플랜에 플레이어 id 를 박을 수 없다</b> — 회차마다 다르다. 그래서
+/// <c>nearest:hostile_player</c> 는 발행 시점에 이 값을 읽는다.
+/// </param>
 public readonly record struct EmitContext(
     NpcId Npc,
     ArchetypeId Archetype,
@@ -34,7 +40,8 @@ public readonly record struct EmitContext(
     PoiId Current,
     ZoneId Zone,
     NpcId Target = default,
-    InstanceId Instance = default);
+    InstanceId Instance = default,
+    PlayerId HostilePlayer = default);
 
 /// <summary>
 /// 컴파일된 스텝을 <see cref="NpcCommand"/> 로 바꾼다. docs/03 §6 · docs/01 §2.1 <c>emits</c>.
@@ -176,6 +183,14 @@ public sealed class CommandEmitter
             NpcRefKind.NearestArchetype => command with
             {
                 Archetype = new ArchetypeId((ushort)NpcRefCodes.PayloadOf(step.NpcRef)),
+            },
+            // B-06 — 대상은 플랜이 아니라 런타임 상태에서 온다. 플레이어 id 는 회차마다
+            // 다르므로 플랜에 박을 수 없다. TargetNpc 는 0 으로 둔다 — 둘 다 채우면
+            // 게임서버가 어느 쪽을 공격할지 모른다.
+            NpcRefKind.HostilePlayer => command with
+            {
+                TargetPlayer = ctx.HostilePlayer,
+                TargetNpc = default,
             },
             NpcRefKind.PoiOwner => command with { TargetPoi = command.TargetPoi },
             _ => command,
