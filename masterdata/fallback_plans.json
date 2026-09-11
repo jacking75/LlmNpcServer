@@ -1217,7 +1217,7 @@
         {
           "action": "MoveTo",
           "args": {
-            "poi": "$workplace"
+            "poi": "$patrol_route"
           },
           "timeout_s": 300
         },
@@ -1269,7 +1269,7 @@
         {
           "action": "MoveTo",
           "args": {
-            "poi": "$workplace"
+            "poi": "$patrol_route"
           },
           "timeout_s": 300
         },
@@ -1321,7 +1321,7 @@
         {
           "action": "MoveTo",
           "args": {
-            "poi": "$workplace"
+            "poi": "$patrol_route"
           },
           "timeout_s": 300
         },
@@ -1373,7 +1373,7 @@
         {
           "action": "MoveTo",
           "args": {
-            "poi": "$workplace"
+            "poi": "$patrol_route"
           },
           "timeout_s": 300
         },
@@ -1425,7 +1425,7 @@
         {
           "action": "MoveTo",
           "args": {
-            "poi": "$workplace"
+            "poi": "$patrol_route"
           },
           "timeout_s": 300
         },

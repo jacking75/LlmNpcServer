@@ -52,7 +52,9 @@ HARD RULES
      recipe at your workplace with just your tool. Prefer it when you have it.
 8. In `poi_ref` arguments use only these symbols, exactly as written: `$home`,
    `$workplace`, `$market`, `$tavern`, `$temple`, `$gate`, `$nearest_field`,
-   `$nearest_safe`, `$nearest_shelter`. Never a concrete id such as `smithy_01`.
+   `$nearest_safe`, `$nearest_shelter`, `$patrol_route`. Never a concrete id
+   such as `smithy_01`. `$patrol_route` is this NPC's own beat; it falls back to
+   `$workplace` for an NPC that has none, so it is always safe for a guard.
 9. In `npc_ref` arguments use only `self`, `nearest:<archetype>` or
    `poi_owner:<poi_symbol>`. `nearest:player` is not valid - players are not
    archetypes. Never a character name, a player name or a numeric id.

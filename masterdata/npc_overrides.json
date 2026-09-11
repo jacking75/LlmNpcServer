@@ -1,0 +1,30 @@
+{
+  "$schema": "../docs/schema/npc_overrides.schema.json",
+  "_comment": [
+    "개체별 행동 파라미터 (D-04). npc_instances.json 위에 id 로 병합된다.",
+    "",
+    "왜 파일이 둘인가. npc_instances.json 은 tools/gen_npcs.cs 의 생성물이라 재생성하면",
+    "손편집이 통째로 사라진다. 이 파일은 사람이 쓰는 쪽이고 생성기가 건드리지 않는다 —",
+    "'재생성해도 순찰로가 남는다' 가 D-04 의 완료 조건이고, 파일을 가르는 것이 그 답이다.",
+    "",
+    "전부 선택 필드다. 없으면 지금과 같이 돈다.",
+    "  patrol_route        POI id 배열. 플랜의 $patrol_route 심볼이 첫 지점으로 바인딩된다",
+    "  aggro_radius_m      경계 반경(m). NPC 서버는 저장·조회만 한다",
+    "  faction             factions.json 의 id. 나가는 명령의 Faction 슬롯에 찍힌다 (B-02)",
+    "  dialogue_profile    대화 서비스(D-01)가 읽는다. NPC 서버는 저장만",
+    "  schedule_offset_min 시간대 전환 분산에 더한다. 결정론 지터에 가산이다",
+    "",
+    "아래는 표본이다. 2326 은 동쪽 장터의 위병이고, 순찰로는 같은 존 안이어야 한다 (V13)."
+  ],
+  "version": 1,
+  "overrides": [
+    {
+      "id": 2326,
+      "patrol_route": ["guardhouse_001_04", "market_stall_001_04", "house_012_04"],
+      "aggro_radius_m": 20,
+      "faction": "town_watch",
+      "dialogue_profile": "guard_stern_01",
+      "schedule_offset_min": 15
+    }
+  ]
+}

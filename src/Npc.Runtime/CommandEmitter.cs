@@ -30,6 +30,18 @@ namespace Npc.Runtime;
 /// <b>플랜에 플레이어 id 를 박을 수 없다</b> — 회차마다 다르다. 그래서
 /// <c>nearest:hostile_player</c> 는 발행 시점에 이 값을 읽는다.
 /// </param>
+/// <param name="Patrol">
+/// 이번 스텝의 순찰 지점 (D-04). <c>$patrol_route</c> 가 이 값으로 바인딩된다.
+/// 0 이면 이 NPC 에게 순찰로가 없고, 그때는 일터로 떨어진다.
+/// </param>
+/// <param name="TargetFaction">
+/// <b>대상</b>의 세력 (B-02 · D-04). <c>CombatAction</c> 의 <c>Faction</c> 슬롯이 이 값이다.
+///
+/// <b>이 NPC 자신의 세력이 아니다.</b> 계약이 정한 슬롯의 뜻이 "대상 세력" 이라
+/// 자기 세력을 찍으면 게임서버가 아군을 적으로 읽는다. 값의 출처는
+/// <c>PlayerHostility</c> 이벤트가 실어 준 세력 하나뿐이고, 안 실어 주면 0 이다 —
+/// <b>모르는 값을 지어내지 않는다.</b>
+/// </param>
 public readonly record struct EmitContext(
     NpcId Npc,
     ArchetypeId Archetype,
@@ -41,7 +53,9 @@ public readonly record struct EmitContext(
     ZoneId Zone,
     NpcId Target = default,
     InstanceId Instance = default,
-    PlayerId HostilePlayer = default);
+    PlayerId HostilePlayer = default,
+    PoiId Patrol = default,
+    FactionId TargetFaction = default);
 
 /// <summary>
 /// 컴파일된 스텝을 <see cref="NpcCommand"/> 로 바꾼다. docs/03 §6 · docs/01 §2.1 <c>emits</c>.
@@ -78,7 +92,8 @@ public sealed class CommandEmitter
         Span<NpcCommand> destination)
     {
         ActionDef action = _data.Actions[step.Action];
-        var bindContext = new PoiBindContext(ctx.Npc, ctx.Archetype, ctx.Home, ctx.Workplace, ctx.Current);
+        var bindContext = new PoiBindContext(
+            ctx.Npc, ctx.Archetype, ctx.Home, ctx.Workplace, ctx.Current, ctx.Patrol);
 
         PoiId boundPoi = default;
         if (step.Poi != PoiSymbol.None)
@@ -103,9 +118,16 @@ public sealed class CommandEmitter
                 Correlation = ctx.Correlation,
                 Priority = emit.Priority,
 
-                // B-02 — 인스턴스는 통과만 한다. Faction·ExtA·ExtB 는 아직 아무도 채우지
-                // 않으므로 default(0) 로 둔다. 0 이 아니면 Ext_ZeroForUndefinedKinds 가 깨진다.
+                // B-02 — 인스턴스는 통과만 한다. ExtA·ExtB 는 아직 의미를 등록한 Kind 가
+                // 없으므로 default(0) 로 둔다. 0 이 아니면 Ext_ZeroForUndefinedKinds 가 깨진다.
                 Instance = ctx.Instance,
+
+                // D-04 — Faction 은 <b>대상</b>의 세력이다 (계약이 그렇게 적혀 있다).
+                // 그래서 대상이 있는 명령에만 찍는다. 다른 Kind 에 자기 세력을 찍으면
+                // 게임서버는 그것을 "이 명령의 대상 세력" 으로 읽는다.
+                Faction = emit.Command == NpcCommandKind.CombatAction
+                    ? ctx.TargetFaction
+                    : default,
             };
 
             foreach (EmitMapping mapping in emit.Map)

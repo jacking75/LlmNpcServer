@@ -137,7 +137,7 @@ public sealed class DynamicRoster : IDynamicRoster
 
         NpcInstanceDef def = _instances[index];
 
-        _applier.Seed(slot, def.Home, def.Zone, def.Archetype, def.Home, def.Workplace);
+        _applier.Seed(slot, in def);
 
         _store.Bind(slot, def.Id);
         _store.StepStatus[slot] = (byte)StepStatus.Ready;

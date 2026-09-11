@@ -430,6 +430,15 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     /// </summary>
     public ImmutableArray<LocalizationTable> Locales { get; init; } = [];
 
+    /// <summary>
+    /// 세력 표 (D-04). 파일이 없으면 null 이고, 그때 <c>npc_overrides.json</c> 의
+    /// <c>faction</c> 은 읽히지 않는다 — 표가 없으면 code 로 바꿀 방법이 없다.
+    ///
+    /// <b>적대 판정은 여기서 하지 않는다.</b> 게임서버 몫이고(B-06), 이 표는 그 판정에
+    /// 실어 줄 code 를 정할 뿐이다.
+    /// </summary>
+    public FactionTable? Factions { get; init; }
+
     /// <summary>아이템·레시피.</summary>
     public required ItemTable Items { get; init; }
 
@@ -774,6 +783,11 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
             PoiSymbol.NearestField => HasEnterable(PoiType.Field, archetype),
             PoiSymbol.NearestSafe => HasEnterable(PoiType.Gate, archetype) || HasEnterable(PoiType.Home, archetype),
             PoiSymbol.NearestShelter => HasEnterable(PoiType.Home, archetype),
+
+            // D-04 — 순찰 지점은 개체마다 다르고 이 검사는 아키타입 단위다. 순찰로가 없으면
+            // 일터로, 일터도 없으면 집으로 떨어지므로 <b>바인딩은 언제나 성립한다</b> —
+            // 여기서 막으면 순찰로를 가진 개체까지 그 플랜을 못 쓴다.
+            PoiSymbol.PatrolRoute => true,
             _ => false,
         };
     }
@@ -1095,13 +1109,40 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
 /// <param name="Home">집 POI.</param>
 /// <param name="Workplace">일터 POI. 없으면 <c>default</c> (villager·child 등).</param>
 /// <param name="Spawn">스폰 좌표.</param>
+/// <param name="PatrolRoute">
+/// 순찰로 POI (D-04). 비어 있으면 없다 — 플랜의 <c>$patrol_route</c> 는 그때 일터로 떨어진다.
+///
+/// <b>플랜은 이 배열을 모른다.</b> 버킷 플랜은 수천 NPC 가 공유하므로 심볼만 쓰고,
+/// 개체 차이는 바인딩에서 난다 — 프롬프트 서픽스 300토큰 예산과 무관하다.
+/// </param>
+/// <param name="AggroRadiusM">경계 반경(m) (D-04). 0 이면 아키타입 기본값이다.</param>
+/// <param name="Faction">
+/// 세력 code (D-04). 0 = 미지정. <b>나가는 명령의 <c>Faction</c> 슬롯에 찍힌다</b> (B-02) —
+/// 적대 판정은 게임서버 몫이고, NPC 서버는 그 판정의 재료를 실어 줄 뿐이다.
+/// </param>
+/// <param name="DialogueProfile">
+/// 대화 성격 id (D-04). <b>NPC 서버는 저장만 한다</b> — 읽는 것은 대화 서비스(D-01)다.
+/// </param>
+/// <param name="ScheduleOffsetMinutes">
+/// 시간대 전환 분산에 더할 분 (D-04). <b>결정론 지터에 가산이다</b> —
+/// 난수가 아니므로 리플레이가 깨지지 않는다 (CLAUDE.md §2.3).
+/// </param>
 public readonly record struct NpcInstanceDef(
     int Id,
     ArchetypeId Archetype,
     ZoneId Zone,
     PoiId Home,
     PoiId Workplace,
-    WorldPos Spawn);
+    WorldPos Spawn,
+    ImmutableArray<PoiId> PatrolRoute = default,
+    int AggroRadiusM = 0,
+    FactionId Faction = default,
+    string DialogueProfile = "",
+    int ScheduleOffsetMinutes = 0)
+{
+    /// <summary>순찰로의 첫 지점. 없으면 <c>default</c>.</summary>
+    public PoiId PatrolStart => PatrolRoute.IsDefaultOrEmpty ? default : PatrolRoute[0];
+}
 
 /// <summary>
 /// npc_instances.json 의 읽기 전용 인덱스. docs/01 §9.
@@ -1133,7 +1174,29 @@ public sealed class NpcInstanceTable
     /// <summary>NpcStore 첨자로 조회.</summary>
     public NpcInstanceDef this[int index] => Instances[index];
 
-    /// <summary>masterdata/npc_instances.json 로드.</summary>
+    /// <summary>손편집 파일 이름 (D-04). <see cref="Load"/> 가 같은 폴더에서 찾는다.</summary>
+    public const string OverrideFileName = "npc_overrides.json";
+
+    /// <summary>
+    /// 한 NPC 가 가질 수 있는 순찰 지점 수 (D-04). 넘으면 로드 실패다.
+    ///
+    /// <b>고정 폭이라 런타임이 배열을 잡을 수 있다.</b> <c>NpcStore</c> 는 NPC 당 이만큼을
+    /// 한 줄로 들고 있고, 가변이면 틱 루프에서 간접 참조가 하나 늘어난다.
+    /// </summary>
+    public const int MaxPatrolWaypoints = 4;
+
+    /// <summary>
+    /// <c>schedule_offset_min</c> 의 절댓값 상한 (D-04). 게임 분 기준.
+    ///
+    /// <b>시간대 폭보다 커지면 안 된다.</b> 저녁 버킷으로 갈아타는 시각이 밤을 넘어가면
+    /// 그 NPC 는 저녁 플랜을 아예 받지 못한다.
+    /// </summary>
+    public const int MaxScheduleOffsetMinutes = 120;
+
+    /// <summary><c>aggro_radius_m</c> 의 상한 (D-04). 존 하나보다 커질 이유가 없다.</summary>
+    public const int MaxAggroRadiusM = 200;
+
+    /// <summary>masterdata/npc_instances.json 로드. 옆에 npc_overrides.json 이 있으면 병합한다 (D-04).</summary>
     public static NpcInstanceTable Load(string path, MasterDataSet data)
     {
         ArgumentNullException.ThrowIfNull(data);
@@ -1180,7 +1243,170 @@ public sealed class NpcInstanceTable
         // id 오름차순이어야 첨자(Id - 1)와 순서가 맞는다.
         instances.Sort((a, b) => a.Id.CompareTo(b.Id));
 
-        return new NpcInstanceTable(file.Seed, instances.ToImmutable());
+        ImmutableArray<NpcInstanceDef> merged = ApplyOverrides(
+            instances.ToImmutable(),
+            Path.Combine(Path.GetDirectoryName(path) ?? ".", OverrideFileName),
+            data);
+
+        return new NpcInstanceTable(file.Seed, merged);
+    }
+
+    /// <summary>
+    /// 손편집 파라미터를 id 로 얹는다 (D-04).
+    ///
+    /// <para>
+    /// <b>파일을 가른 것이 이 기능의 전부다.</b> <c>npc_instances.json</c> 은
+    /// <c>tools/gen_npcs.cs</c> 의 생성물이라 재생성하면 손편집이 통째로 사라진다 —
+    /// 사람이 쓰는 쪽을 따로 두면 "재생성해도 순찰로가 남는다" 가 구현이 아니라 구조로 성립한다.
+    /// </para>
+    ///
+    /// <para>파일이 없으면 원본 그대로 돌려준다. 전부 선택 필드다.</para>
+    /// </summary>
+    private static ImmutableArray<NpcInstanceDef> ApplyOverrides(
+        ImmutableArray<NpcInstanceDef> instances, string path, MasterDataSet data)
+    {
+        if (!File.Exists(path))
+        {
+            return instances;
+        }
+
+        NpcOverridesFile? file = JsonSerializer.Deserialize(
+            File.ReadAllText(path), WorldJsonContext.Default.NpcOverridesFile);
+
+        if (file?.Overrides is not { Length: > 0 } overrides)
+        {
+            return instances;
+        }
+
+        ImmutableArray<NpcInstanceDef>.Builder builder = instances.ToBuilder();
+        var seen = new HashSet<int>(overrides.Length);
+
+        foreach (NpcOverrideDto dto in overrides)
+        {
+            if (!seen.Add(dto.Id))
+            {
+                throw new InvalidDataException($"{OverrideFileName}: id {dto.Id} 이 두 번 나온다.");
+            }
+
+            // 이진 탐색이 아니라 선형 — 손편집 파일이라 수천 줄이 될 물건이 아니다.
+            int at = -1;
+
+            for (int i = 0; i < builder.Count; i++)
+            {
+                if (builder[i].Id == dto.Id)
+                {
+                    at = i;
+                    break;
+                }
+            }
+
+            if (at < 0)
+            {
+                throw new InvalidDataException(
+                    $"{OverrideFileName}: id {dto.Id} 이 npc_instances.json 에 없다.");
+            }
+
+            builder[at] = Merge(builder[at], dto, data);
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>한 줄을 얹는다. 없는 필드는 원본을 그대로 둔다.</summary>
+    private static NpcInstanceDef Merge(NpcInstanceDef def, NpcOverrideDto dto, MasterDataSet data)
+    {
+        ImmutableArray<PoiId> route = def.PatrolRoute;
+
+        if (dto.PatrolRoute is { Length: > 0 } waypoints)
+        {
+            if (waypoints.Length > MaxPatrolWaypoints)
+            {
+                throw new InvalidDataException(
+                    $"{OverrideFileName}: NPC {dto.Id} 의 순찰 지점이 {waypoints.Length} 개다. "
+                    + $"상한은 {MaxPatrolWaypoints} 다.");
+            }
+
+            ImmutableArray<PoiId>.Builder resolved =
+                ImmutableArray.CreateBuilder<PoiId>(waypoints.Length);
+
+            foreach (string id in waypoints)
+            {
+                if (!data.Pois.TryGet(id, out PoiDef poi))
+                {
+                    throw new InvalidDataException(
+                        $"{OverrideFileName}: NPC {dto.Id} 의 순찰 지점 '{id}' 가 pois.json 에 없다.");
+                }
+
+                // 순찰로가 존을 넘으면 샤드를 넘을 수 있고, 그때 그 NPC 는 우리가 이벤트를
+                // 받지 못하는 곳으로 걸어가 timeout_s 가 만료될 때까지 멈춘다 (A-08 과 같은 증상).
+                if (poi.Zone != def.Zone)
+                {
+                    throw new InvalidDataException(
+                        $"{OverrideFileName}: NPC {dto.Id} 의 순찰 지점 '{id}' 가 다른 존이다 "
+                        + $"(NPC {def.Zone.Value}, POI {poi.Zone.Value}).");
+                }
+
+                resolved.Add(poi.Code);
+            }
+
+            route = resolved.ToImmutable();
+        }
+
+        int aggro = def.AggroRadiusM;
+
+        if (dto.AggroRadiusM is { } radius)
+        {
+            if (radius is < 0 or > MaxAggroRadiusM)
+            {
+                throw new InvalidDataException(
+                    $"{OverrideFileName}: NPC {dto.Id} 의 aggro_radius_m {radius} 가 "
+                    + $"0~{MaxAggroRadiusM} 밖이다.");
+            }
+
+            aggro = radius;
+        }
+
+        FactionId faction = def.Faction;
+
+        if (!string.IsNullOrEmpty(dto.Faction))
+        {
+            if (data.Factions is not { } table)
+            {
+                throw new InvalidDataException(
+                    $"{OverrideFileName}: NPC {dto.Id} 이 세력 '{dto.Faction}' 을 쓰는데 "
+                    + $"{FactionTable.FileName} 이 없다.");
+            }
+
+            if (!table.TryGet(dto.Faction, out faction))
+            {
+                throw new InvalidDataException(
+                    $"{OverrideFileName}: NPC {dto.Id} 의 세력 '{dto.Faction}' 이 "
+                    + $"{FactionTable.FileName} 에 없다.");
+            }
+        }
+
+        int offset = def.ScheduleOffsetMinutes;
+
+        if (dto.ScheduleOffsetMin is { } minutes)
+        {
+            if (Math.Abs(minutes) > MaxScheduleOffsetMinutes)
+            {
+                throw new InvalidDataException(
+                    $"{OverrideFileName}: NPC {dto.Id} 의 schedule_offset_min {minutes} 가 "
+                    + $"±{MaxScheduleOffsetMinutes} 밖이다.");
+            }
+
+            offset = minutes;
+        }
+
+        return def with
+        {
+            PatrolRoute = route,
+            AggroRadiusM = aggro,
+            Faction = faction,
+            DialogueProfile = dto.DialogueProfile ?? def.DialogueProfile,
+            ScheduleOffsetMinutes = offset,
+        };
     }
 }
 
@@ -1238,11 +1464,22 @@ internal sealed record NpcInstanceDto(
     string? WorkplacePoi,
     PosDto SpawnPos);
 
+internal sealed record NpcOverridesFile(int Version, NpcOverrideDto[] Overrides);
+
+internal sealed record NpcOverrideDto(
+    int Id,
+    string[]? PatrolRoute,
+    int? AggroRadiusM,
+    string? Faction,
+    string? DialogueProfile,
+    int? ScheduleOffsetMin);
+
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(ZonesFile))]
 [JsonSerializable(typeof(PoisFile))]
 [JsonSerializable(typeof(BucketsFile))]
 [JsonSerializable(typeof(NpcInstancesFile))]
+[JsonSerializable(typeof(NpcOverridesFile))]
 
 // 스키마 발행 전용 (E-02). 로더는 쓰지 않지만 스키마는 이 모양에서 나온다 —
 // SchemaDtoTests 가 실제 파일과의 드리프트를 막는다.

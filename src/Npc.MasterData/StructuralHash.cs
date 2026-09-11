@@ -44,7 +44,8 @@ public static class StructuralHash
         PoiTable pois,
         ArchetypeTable archetypes,
         BucketSpace buckets,
-        DialogueTable? dialogues = null)
+        DialogueTable? dialogues = null,
+        FactionTable? factions = null)
     {
         ArgumentNullException.ThrowIfNull(actions);
         ArgumentNullException.ThrowIfNull(items);
@@ -87,6 +88,19 @@ public static class StructuralHash
             foreach (DialogueLine line in dialogues.Lines)
             {
                 sb.Append(line.Id).Append(':').Append(line.Code.Value).Append('\n');
+            }
+        }
+
+        // D-04 — 세력 code 는 구조다. 나가는 명령·들어오는 이벤트의 Faction 슬롯 값이라
+        // 두 프로세스가 다른 번호를 쓰면 위병대를 도적으로 읽는다. 표가 없는 회차에서는
+        // 이 절이 비어 있다 — 옛 해시와 같은 값이 나와야 기존 게임서버가 그대로 붙는다.
+        if (factions is { Count: > 0 })
+        {
+            sb.Append("factions\n");
+
+            foreach (FactionDef faction in factions.Factions)
+            {
+                sb.Append(faction.Id).Append(':').Append(faction.Code.Value).Append('\n');
             }
         }
 

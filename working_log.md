@@ -1,5 +1,21 @@
 # 작업 로그
 
+## 2026-09-11 23:58 KST · D-04 개체별 행동 파라미터 · 세력 표
+
+NPC 마다 다른 순찰로·세력·대화 성격을 줄 수 없었다. `npc_instances.json` 은 생성물이라
+손편집을 그 안에 하면 다음 재생성에 통째로 사라진다 — **파일을 가르는 것**이 답이다.
+
+- `masterdata/npc_overrides.json`(사람 편집)을 `npc_instances.json` 위에 id 로 병합한다.
+  `patrol_route` · `aggro_radius_m` · `faction` · `dialogue_profile` · `schedule_offset_min`.
+- `$patrol_route` 심볼 + `NpcStore.PatrolCursor`. **스텝 번호가 아니라 커서로 돈다** —
+  `loop: true` 인 플랜에서 스텝 번호는 영원히 같은 지점을 가리킨다.
+- `masterdata/factions.json`(6) — code 는 1부터이고 **구조 해시**에 들어간다.
+  명령의 `Faction` 은 **대상**의 세력이라 자기 세력을 찍지 않았다: `CombatAction` 에만,
+  `PlayerHostility` 가 실어 준 값으로만 나간다. 안 실어 주면 0 이다.
+- `aggro_radius_m` 은 **읽는 명령이 없다** — `SetAggro` 를 내는 액션이 없고 상한이 37/40 이다.
+  저장·조회만 한다고 로드맵과 레퍼런스에 적었다.
+- V13 이 `npc_overrides.json` 의 참조·순찰로 존·값 범위를 같이 본다. 스냅샷 형식 v5.
+
 ## 2026-09-11 22:46 KST · D-02 대사 테이블 · 로컬라이즈 · V14
 
 `DialogueId` 가 `actions.json` 의 심볼을 사전순으로 모은 **첨자**였다. 주제를 하나 추가하면

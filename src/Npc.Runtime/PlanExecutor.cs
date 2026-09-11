@@ -342,6 +342,13 @@ public sealed class PlanExecutor
             }
         }
 
+        // D-04 — 순찰 스텝을 냈으면 다음 지점으로 나아간다. 스텝 번호로 돌리면
+        // loop: true 인 플랜에서 같은 번호가 영원히 돌아와 한 지점만 오간다.
+        if (step.Poi == PoiSymbol.PatrolRoute)
+        {
+            _store.AdvancePatrol(npc);
+        }
+
         CommandsEmitted += count;
         _store.StepStatus[npc] = (byte)StepStatus.Waiting;
         _store.StepIssuedTick[npc] = tick.Value;
@@ -364,7 +371,11 @@ public sealed class PlanExecutor
         new ZoneId(_store.ZoneCode[npc]),
         default,
         new InstanceId(_store.Instance[npc]),
-        new PlayerId(_store.HostilePlayer[npc]));
+        new PlayerId(_store.HostilePlayer[npc]),
+
+        // D-04 — 지금 갈 순찰 지점. 나아가는 것은 스텝을 낸 뒤다 (Emit).
+        _store.PatrolPointOf(npc),
+        new FactionId(_store.HostileFaction[npc]));
 
     /// <summary>
     /// 명령 유실 방어. docs/02 §1 · docs/03 §6.

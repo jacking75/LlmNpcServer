@@ -157,7 +157,11 @@
           "flags": { "type": "array", "items": { "type": "string" } },
           "inventory": { "type": "array", "items": { "type": "string" } },
           "steps": { "type": "array", "items": { "$ref": "#/components/schemas/TraceStep" } },
-          "recent": { "type": "array", "items": { "$ref": "#/components/schemas/TraceEvent" } }
+          "recent": { "type": "array", "items": { "$ref": "#/components/schemas/TraceEvent" } },
+          "patrolRoute": { "type": "array", "items": { "type": "string" } },
+          "faction": { "type": "string" },
+          "aggroRadiusM": { "type": "integer" },
+          "scheduleOffsetMin": { "type": "integer" }
         }
       },
       "TraceEvent": {

@@ -177,6 +177,6 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "인터럽트 규칙",
-  "$comment": "content_hash=de6d64cd3529a1556537a4ef27273d7e9d3d2536a7518326b5d30326722d78c0 기준. 허용 값은 이 마스터데이터 상태의 것이다.",
+  "$comment": "content_hash=a78156a66e978f625fc5a1454a106f67d10c33b4ef1b5b1a4e5f0147cb8b783d 기준. 허용 값은 이 마스터데이터 상태의 것이다.",
   "description": "interrupts.json 의 구조. **스키마는 검증기가 아니다** — 교차 제약(V5 가중치 합 · V6 total_keys · V10 정원 · V11 도달)은 여기서 표현할 수 없고 MasterDataValidator 가 판정한다. docs/reference_masterdata.html 이 전문이다."
 }

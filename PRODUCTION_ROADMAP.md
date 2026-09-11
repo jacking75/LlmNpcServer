@@ -92,7 +92,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 - [ ] **D-01** 대화 서비스 (`Npc.Dialogue`, 별도 프로세스) · 응답 계약 · 폴백 · 인젝션 방어 — P2 · XL · 의존 D-02, D-03, B-08
 - [x] **D-02** 대사 테이블(`dialogue_lines.json`) · 로컬라이즈 테이블 · 검증 V14 — P1 · M · 의존 없음 — **완료. `Lexicon` 을 파일 읽는 계층으로 바꾸지는 않았다** — 대신 두 벌이 어긋나지 않게 테스트가 대조한다
 - [ ] **D-03** NPC 기억·관계 저장소 (구조체 · 보존·삭제 정책) — P2 · L · 의존 A-01
-- [ ] **D-04** 개체별 행동 파라미터 (`patrol_route` · `aggro_radius` · `faction` · `dialogue_profile`) — P1 · M · 의존 F-04
+- [x] **D-04** 개체별 행동 파라미터 (`patrol_route` · `aggro_radius` · `faction` · `dialogue_profile`) — P1 · M · 의존 F-04 — **완료. 단 `aggro_radius_m` 은 읽는 명령이 없다** — `SetAggro` 를 내는 액션이 `actions.json` 에 없고 액션 상한이 37/40 이라 만들지 않았다. 저장·조회만 한다
 
 ### 트랙 E — LLM 이 이 서버를 잘 이해하고 쓰게 만든다
 
@@ -266,7 +266,7 @@ M3 은 M0 의 A-05(관측) 뒤에 붙인다. M5 는 제품 요구가 확정된 �
 | 자유 대화 | **없음** | 설계도만 `docs/FAQ.html` Q8 | D-01 |
 | 기억·관계 | **없음** | `Memory\|History\|Relationship\|Reputation` grep 0건. 있는 것은 서픽스용 휘발성 `NpcSnapshot`(인벤 8·recent 3·직전 결말) | D-03 |
 | 로컬라이즈 | **없음** | `name_key` 만 있고 문구 테이블 없음. `Lexicon.cs` 하드코딩 한국어 | D-02 |
-| 개체 파라미터 | **없음** | `npc_instances.json` 8필드. FAQ Q4 가 권장 확장 형태만 제시 | D-04 |
+| 개체 파라미터 | **구현됨** | `npc_overrides.json` 5필드가 `npc_instances.json` 위에 id 로 병합된다 (`aggro_radius_m` 만 읽는 명령이 없다) | D-04 |
 
 ### 3.5 오써링·도구
 
@@ -1555,11 +1555,22 @@ CI 야간에 `--sample 48 --runs 1` 로 회귀만(비용 상한 $0.5), 릴리스
 
 **테스트.** 로딩·병합·바인딩·V13. `Determinism` — 오프셋이 리플레이를 깨지 않음.
 
-**완료 조건.** 경비병 501 이 자기 순찰로를 돌고, 재생성해도 순찰로가 남는다.
+**완료 조건.** 경비병 501 이 자기 순찰로를 돌고, 재생성해도 순찰로가 남는다. <sub>표본은 501 이 아니라 **2326**(동쪽 장터 `town_guard`) 이다 — 501 은 이 저장소의 인스턴스에서 경비가 아니다.</sub>
 
 **규칙 충돌 확인.** §8 "새 마스터데이터 필드 → 서픽스에 실리는가" — 실리지 않는다(바인딩 전용).
 
 **크기·의존.** M. 의존 F-04.
+
+**구현 결과.** `masterdata/factions.json`(6) + `FactionTable` · `masterdata/npc_overrides.json`(사람 편집) + `NpcInstanceTable.ApplyOverrides` · `PoiSymbol.PatrolRoute`(`$patrol_route`) · `NpcStore` 콜드 배열 5종 + `PatrolPointOf`/`AdvancePatrol` · `EventApplier.Seed(npc, def)` · `BucketTransition.TimeScale`/오프셋 가산 · 경비 계열 폴백 플랜 5개가 `$patrol_route` 를 쓴다 · V13 확장 · `docs/schema/{factions,npc_overrides}.schema.json` · `GET /npc/{id}` 노출.
+
+- **순찰 지점은 커서로 돈다** (`NpcStore.PatrolCursor`, `$patrol_route` 스텝을 낼 때 하나 나아간다). 스텝 번호로 돌리면 `loop: true` 인 플랜에서 같은 번호가 영원히 돌아와 한 지점만 오간다 — 순찰이 아니라 두 번째 일터다. 난수로 고르면 리플레이가 깨진다. 순찰로가 없으면 일터로, 일터도 없으면 집으로 떨어진다(버킷 플랜은 아키타입 단위라 같은 위병 플랜을 순찰로가 있는 개체와 없는 개체가 같이 쓴다) — 그래서 `CanBindSymbol` 도 이 심볼만은 언제나 참이다.
+- **`Faction` 슬롯은 대상의 세력이다.** 계약이 그렇게 적혀 있어(`SetAggro`·`CombatAction` 의 대상 세력) NPC 자신의 세력을 모든 명령에 찍지 않았다 — 찍으면 게임서버가 아군을 적으로 읽는다. 채우는 곳은 `CombatAction` 하나이고 값의 출처는 `PlayerHostility` 가 실어 준 세력뿐이다(`NpcStore.HostileFaction`, 스냅샷 형식 v5). 게임서버가 안 실어 주면 **0 으로 나간다** — 지어내지 않는다. NPC 자신의 세력은 저장하고 조회로 낸다(D-01·D-03 이 읽는다).
+- **`aggro_radius_m` 은 읽는 명령이 없다.** 설계는 `SetAggro` 의 `Amount` 인데 그 명령을 내는 액션이 `actions.json` 에 없고, 액션은 40개 상한에 37개까지 차 있어(§8) 여기서 하나를 만들지 않았다. **저장·조회만 한다** — 쓰려면 액션 추가 또는 기존 액션의 파라미터 흡수를 먼저 결정한다.
+- **프롬프트 프리픽스가 바뀐다.** `SchemaProvider` 가 `PoiSymbols.Names` 를 그대로 내보내므로 심볼을 하나 추가한 시점에 플랜 스키마가 바뀐다 — `system_rules.md` 규칙 8 도 같이 고쳤다(둘이 어긋나면 모델이 스키마에만 있는 심볼을 못 쓴다). C-05 가 few-shot 두 건을 늘려 이미 새 프리픽스라 **추가 무효화는 없다**.
+- **`factions.json` 의 `code` 는 구조 해시에 들어간다**(B-04). 두 프로세스가 다른 번호를 쓰면 위병대를 도적으로 읽고, 그 사고는 아무 로그도 남기지 않는다.
+- **`gen_npcs.cs` 는 손대지 않았다.** 보존은 코드가 아니라 구조로 성립한다 — 생성기가 쓰는 파일과 사람이 쓰는 파일이 다르면 재생성이 손편집을 지울 방법이 없다.
+
+**테스트.** `tests/Npc.Tests/MasterData/InstanceParamsTests.cs`(12) · `tests/Npc.Tests/Runtime/InstanceParamRuntimeTests.cs`(9). 완료 조건은 `Guard_WalksItsWholeRoute` 가 지킨다 — 저장된 값이 아니라 **발행된 `MoveTo` 의 `TargetPoi`** 가 세 지점을 순서대로 돈다.
 
 ---
 

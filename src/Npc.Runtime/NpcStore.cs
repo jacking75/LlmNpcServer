@@ -114,6 +114,15 @@ public sealed class NpcStore
     public int[] HostilePlayer = [];
 
     /// <summary>
+    /// 그 플레이어의 세력 code (B-02 · D-04). 0 = 게임서버가 안 알려 줬다.
+    ///
+    /// <b><see cref="HostilePlayer"/> 와 한 쌍이다.</b> <c>PlayerHostility</c> 이벤트가
+    /// 같이 실어 주는 값이고, <c>CombatAction</c> 명령의 <c>Faction</c> 슬롯
+    /// ("<b>대상</b>의 세력") 으로 그대로 나간다. 우리는 이 값으로 아무 판정도 하지 않는다.
+    /// </summary>
+    public ushort[] HostileFaction = [];
+
+    /// <summary>
     /// 이 슬롯에 앉은 인스턴스 정의 id (B-05). <b>0 = 빈 슬롯이다</b> —
     /// <c>npc_instances.json</c> 의 id 는 1 부터라 0 을 "없음" 으로 쓸 수 있다.
     ///
@@ -157,6 +166,47 @@ public sealed class NpcStore
 
     /// <summary>일터 POI. 0 이면 일터 없음.</summary>
     public ushort[] WorkPoi = [];
+
+    /// <summary>
+    /// 순찰 지점 (D-04). 첨자 = npc * <see cref="PatrolStride"/> + 순번. 0 이면 빈 칸.
+    ///
+    /// <b>콜드다.</b> 발행 경로에서만 읽으므로 핫 배열에 넣지 않는다.
+    /// <b>스냅샷에 담지 않는다</b> — 상태가 아니라 설정이고, 설정의 출처는 마스터데이터다.
+    /// </summary>
+    public ushort[] PatrolRoute = [];
+
+    /// <summary>이 NPC 의 순찰 지점 수 (D-04). 0 이면 순찰로 없음.</summary>
+    public byte[] PatrolCount = [];
+
+    /// <summary>
+    /// 다음에 갈 순찰 지점의 순번 (D-04). <c>$patrol_route</c> 를 쓴 스텝을 낼 때마다 하나 나아간다.
+    ///
+    /// <para>
+    /// <b>스텝 번호로는 안 된다.</b> 폴백 플랜은 <c>loop: true</c> 라 같은 스텝 번호가 영원히
+    /// 돌아오고, 그러면 그 NPC 는 순찰로의 한 지점만 오간다 — "순찰" 이 아니라 "두 번째 일터" 다.
+    /// </para>
+    ///
+    /// <para><b>난수가 아니다.</b> 순증 카운터라 리플레이가 일치한다 (CLAUDE.md §2.3).</para>
+    /// </summary>
+    public byte[] PatrolCursor = [];
+
+    /// <summary>
+    /// 세력 code (D-04). 0 = 미지정.
+    ///
+    /// <b>나가는 명령의 <c>Faction</c> 슬롯이 아니다.</b> 그 슬롯은 <b>대상</b>의 세력이고
+    /// (<c>NpcCommand.Faction</c>), 이 배열은 이 NPC 자신의 세력이다.
+    /// 읽는 것은 조회 API 와 앞으로의 대화 서비스(D-01)·기억 저장소(D-03)다.
+    /// </summary>
+    public ushort[] Faction = [];
+
+    /// <summary>경계 반경 m (D-04). 0 이면 아키타입 기본값.</summary>
+    public ushort[] AggroRadiusM = [];
+
+    /// <summary>시간대 전환에 더할 게임 분 (D-04). 결정론 지터에 가산이다.</summary>
+    public short[] ScheduleOffsetMin = [];
+
+    /// <summary>NPC 당 순찰 지점 칸 수 (D-04). <c>NpcInstanceTable.MaxPatrolWaypoints</c> 와 같다.</summary>
+    public const int PatrolStride = 4;
 
     /// <summary>인벤토리. 첨자 = npc * <see cref="InventoryStride"/> + itemCode.</summary>
     public int[] Inventory = [];
@@ -241,10 +291,17 @@ public sealed class NpcStore
         CurrentPoi = new ushort[capacity];
 
         HostilePlayer = new int[capacity];
+        HostileFaction = new ushort[capacity];
         Occupant = new int[capacity];
         Instance = new ushort[capacity];
         HomePoi = new ushort[capacity];
         WorkPoi = new ushort[capacity];
+        PatrolRoute = new ushort[capacity * PatrolStride];
+        PatrolCount = new byte[capacity];
+        PatrolCursor = new byte[capacity];
+        Faction = new ushort[capacity];
+        AggroRadiusM = new ushort[capacity];
+        ScheduleOffsetMin = new short[capacity];
         Inventory = new int[(long)capacity * inventoryStride <= int.MaxValue
             ? capacity * inventoryStride
             : throw new ArgumentOutOfRangeException(nameof(capacity), "인벤토리 배열이 int 범위를 넘는다.")];
@@ -303,6 +360,8 @@ public sealed class NpcStore
         Array.Copy(ArchetypeCode, buffer.ArchetypeCode, Count);
         Array.Copy(CurrentPoi, buffer.CurrentPoi, Count);
         Array.Copy(HostilePlayer, buffer.HostilePlayer, Count);
+        Array.Copy(HostileFaction, buffer.HostileFaction, Count);
+        Array.Copy(PatrolCursor, buffer.PatrolCursor, Count);
         Array.Copy(Occupant, buffer.Occupant, Count);
         Array.Copy(Instance, buffer.Instance, Count);
         Array.Copy(HomePoi, buffer.HomePoi, Count);
@@ -348,6 +407,8 @@ public sealed class NpcStore
         Array.Copy(buffer.ArchetypeCode, ArchetypeCode, Count);
         Array.Copy(buffer.CurrentPoi, CurrentPoi, Count);
         Array.Copy(buffer.HostilePlayer, HostilePlayer, Count);
+        Array.Copy(buffer.HostileFaction, HostileFaction, Count);
+        Array.Copy(buffer.PatrolCursor, PatrolCursor, Count);
         Array.Copy(buffer.Occupant, Occupant, Count);
         Array.Copy(buffer.Instance, Instance, Count);
         Array.Copy(buffer.HomePoi, HomePoi, Count);
@@ -391,6 +452,47 @@ public sealed class NpcStore
     /// <summary>한 NPC 의 인벤토리. 할당 0.</summary>
     public Span<int> InventoryOf(int npc) =>
         Inventory.AsSpan(npc * InventoryStride, InventoryStride);
+
+    /// <summary>한 NPC 의 순찰 지점 칸 (D-04). 할당 0.</summary>
+    /// <param name="npc">슬롯.</param>
+    public Span<ushort> PatrolRouteOf(int npc) =>
+        PatrolRoute.AsSpan(npc * PatrolStride, PatrolStride);
+
+    /// <summary>
+    /// 이 NPC 가 지금 갈 순찰 지점 (D-04). 순찰로가 없으면 0 이다 —
+    /// 그때는 바인더가 일터로 떨어뜨린다.
+    /// </summary>
+    /// <param name="npc">슬롯.</param>
+    public PoiId PatrolPointOf(int npc)
+    {
+        int count = PatrolCount[npc];
+
+        if (count == 0)
+        {
+            return default;
+        }
+
+        return new PoiId(PatrolRoute[(npc * PatrolStride) + (PatrolCursor[npc] % count)]);
+    }
+
+    /// <summary>
+    /// 순찰로를 한 지점 나아간다 (D-04). <c>$patrol_route</c> 를 쓴 스텝을 낸 직후에 부른다.
+    ///
+    /// <para>
+    /// <b>지점 수로 나눈 나머지를 저장한다.</b> 순증만 시키면 <c>byte</c> 가 256 에서 돌아
+    /// 지점 수가 256 의 약수가 아닐 때 순서가 한 번 튄다 — 3지점 순찰로가 그렇다.
+    /// </para>
+    /// </summary>
+    /// <param name="npc">슬롯.</param>
+    public void AdvancePatrol(int npc)
+    {
+        int count = PatrolCount[npc];
+
+        if (count != 0)
+        {
+            PatrolCursor[npc] = (byte)((PatrolCursor[npc] + 1) % count);
+        }
+    }
 
     /// <summary>이 슬롯에 인스턴스가 앉아 있는가 (B-05).</summary>
     public bool IsOccupied(int slot) => (uint)slot < (uint)Count && Occupant[slot] != 0;
@@ -514,6 +616,7 @@ public sealed class NpcStore
         Ids.Unbind(Occupant[slot]);
         Occupant[slot] = 0;
         HostilePlayer[slot] = 0;
+        HostileFaction[slot] = 0;
         Flags[slot] = default;
         PlanId[slot] = 0;
         StepIndex[slot] = 0;
@@ -529,6 +632,12 @@ public sealed class NpcStore
         Instance[slot] = 0;
         HomePoi[slot] = 0;
         WorkPoi[slot] = 0;
+        PatrolRouteOf(slot).Clear();
+        PatrolCount[slot] = 0;
+        PatrolCursor[slot] = 0;
+        Faction[slot] = 0;
+        AggroRadiusM[slot] = 0;
+        ScheduleOffsetMin[slot] = 0;
         Recent[slot] = default;
         PendingPlanId[slot] = 0;
         PlanAssignedTick[slot] = 0;
@@ -569,6 +678,8 @@ public sealed class NpcStore
             hash = Mix(hash, ZoneCode[i]);
             hash = Mix(hash, CurrentPoi[i]);
             hash = Mix(hash, (ulong)(uint)HostilePlayer[i]);
+            hash = Mix(hash, HostileFaction[i]);
+            hash = Mix(hash, PatrolCursor[i]);
             hash = Mix(hash, (ulong)(uint)Occupant[i]);
             hash = Mix(hash, Instance[i]);
 

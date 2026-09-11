@@ -993,7 +993,7 @@ internal sealed class NpcHost : IAsyncDisposable
         {
             NpcInstanceDef def = roster.Npcs[i];
 
-            applier.Seed(i, def.Home, def.Zone, def.Archetype, def.Home, def.Workplace);
+            applier.Seed(i, in def);
 
             // B-05 — 슬롯 거주자를 기록한다. 정적 회차에서도 채운다: 경로를 갈라 두면
             // 한쪽만 나는 버그가 생긴다.
@@ -1103,7 +1103,13 @@ internal sealed class NpcHost : IAsyncDisposable
             link, clock, applier, interrupts, cognition, executor, swapper, bands, replanQueue)
         {
             StopAtTick = totalTicks,
-            Transition = new BucketTransition(store, plans, data) { ZoneStates = zoneStates },
+            Transition = new BucketTransition(store, plans, data)
+            {
+                ZoneStates = zoneStates,
+
+                // D-04 — schedule_offset_min 은 게임 분이다. 틱으로 바꾸려면 배속을 알아야 한다.
+                TimeScale = clock.TimeScale,
+            },
             Handoff = handoff,
         };
 

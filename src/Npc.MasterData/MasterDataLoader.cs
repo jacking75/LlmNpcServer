@@ -23,6 +23,7 @@ public static class MasterDataLoader
         "archetypes.json",
         "context_buckets.json",
         "dialogue_lines.json",
+        "factions.json",
         "fallback_plans.json",
         "interrupts.json",
         "items.json",
@@ -49,6 +50,10 @@ public static class MasterDataLoader
         string dialoguePath = Path_(DialogueTable.FileName);
         DialogueTable? dialogues = File.Exists(dialoguePath) ? DialogueTable.Load(dialoguePath) : null;
 
+        // D-04 — 세력 표. 없으면 null 이고, 그때 npc_overrides.json 의 faction 은 쓸 수 없다.
+        string factionPath = Path_(FactionTable.FileName);
+        FactionTable? factions = File.Exists(factionPath) ? FactionTable.Load(factionPath) : null;
+
         ActionCatalog actions = ActionCatalog.Load(Path_("actions.json"), items, dialogues);
         ArchetypeTable archetypes = ArchetypeTable.Load(Path_("archetypes.json"), actions, items);
         ZoneTable zones = LoadZones(Path_("zones.json"));
@@ -64,6 +69,9 @@ public static class MasterDataLoader
 
             // D-02 — 표시 문구. 없으면 빈 배열이고, 그때 표시 계층은 키를 그대로 쓴다.
             Locales = LocalizationTable.LoadAll(masterDataDirectory),
+
+            // D-04 — 세력 code. npc_overrides.json 의 faction 이 이 표로 풀린다.
+            Factions = factions,
             Actions = actions,
             Items = items,
             Zones = zones,
@@ -74,7 +82,7 @@ public static class MasterDataLoader
             FileHashes = hashes,
             ContentHash = CombineHashes(hashes),
             StructuralHash = MasterData.StructuralHash.Compute(
-                actions, items, zones, pois, archetypes, buckets, dialogues),
+                actions, items, zones, pois, archetypes, buckets, dialogues, factions),
 
             // 파생물 신선도 (F-04). 여기서 던지지 않는다 — 호출부가 경고로 낸다.
             StaleArtifacts = Authoring.DerivedArtifacts.Stale(masterDataDirectory),

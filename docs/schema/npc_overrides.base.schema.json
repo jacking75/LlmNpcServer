@@ -1,0 +1,82 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "version": {
+      "description": "파일 형식 버전. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "integer"
+    },
+    "overrides": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "덮어쓸 NPC 의 id. **npc_instances.json 에 있어야 한다** (V13)."
+          },
+          "patrol_route": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": "순찰 지점. 최대 4곳이고 **전부 이 NPC 의 존 안**이어야 한다 (V13)."
+          },
+          "aggro_radius_m": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "경계 반경 m. 0~200. 0 이면 아키타입 기본값이다."
+          },
+          "faction": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "세력 id. 나가는 명령의 Faction 슬롯은 **대상**의 세력이라 이 값이 그대로 나가지는 않는다."
+          },
+          "dialogue_profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "대화 성격 id. **NPC 서버는 저장만 한다** — 읽는 것은 대화 서비스(D-01)다."
+          },
+          "schedule_offset_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "시간대 전환에 더할 게임 분. ±120. 결정론 지터에 **가산**이다."
+          },
+          "_comment": {
+            "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+          }
+        }
+      }
+    },
+    "_comment": {
+      "description": "사람이 읽는 주석. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다."
+    },
+    "$schema": {
+      "description": "에디터용 스키마 경로. **로더는 읽지 않는다** — 값을 고쳐도 동작이 바뀌지 않는다.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "개체별 행동 파라미터 (사람 편집)",
+  "$comment": "정적 변형 — 허용 값(enum)이 없다. 구조만 설명한다.",
+  "description": "npc_overrides.json 의 구조. **스키마는 검증기가 아니다** — 교차 제약(V5 가중치 합 · V6 total_keys · V10 정원 · V11 도달)은 여기서 표현할 수 없고 MasterDataValidator 가 판정한다. docs/reference_masterdata.html 이 전문이다."
+}

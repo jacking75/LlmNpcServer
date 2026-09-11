@@ -41,6 +41,8 @@ public sealed class ShadowBuffer
         ArchetypeCode = new ushort[capacity];
         CurrentPoi = new ushort[capacity];
         HostilePlayer = new int[capacity];
+        HostileFaction = new ushort[capacity];
+        PatrolCursor = new byte[capacity];
         Occupant = new int[capacity];
         Instance = new ushort[capacity];
         HomePoi = new ushort[capacity];
@@ -110,6 +112,12 @@ public sealed class ShadowBuffer
 
     /// <summary>최근 적대 플레이어 (B-06). 0 = 없음.</summary>
     public int[] HostilePlayer { get; }
+
+    /// <summary>그 플레이어의 세력 code (D-04).</summary>
+    public ushort[] HostileFaction { get; }
+
+    /// <summary>다음에 갈 순찰 지점의 순번 (D-04).</summary>
+    public byte[] PatrolCursor { get; }
 
     /// <summary>슬롯에 앉은 인스턴스 정의 id (B-05). 0 = 빈 슬롯.</summary>
     public int[] Occupant { get; }

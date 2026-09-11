@@ -14,12 +14,19 @@ namespace Npc.Runtime;
 /// <param name="Home">인스턴스의 home_poi.</param>
 /// <param name="Workplace">인스턴스의 workplace_poi. 없으면 default.</param>
 /// <param name="Current">현재 위치 POI. 거리 계산의 기준이다.</param>
+/// <param name="Patrol">
+/// 이번 스텝의 순찰 지점 (D-04). 0 이면 이 NPC 에게 순찰로가 없다.
+///
+/// <b>지점 고르기는 여기서 하지 않는다.</b> 몇 번째 지점인가는 스텝 번호가 정하고,
+/// 그것을 아는 것은 발행기다 (<c>PlanExecutor.ContextOf</c>) — 바인더는 받은 값을 쓴다.
+/// </param>
 public readonly record struct PoiBindContext(
     NpcId Npc,
     ArchetypeId Archetype,
     PoiId Home,
     PoiId Workplace,
-    PoiId Current);
+    PoiId Current,
+    PoiId Patrol = default);
 
 /// <summary>
 /// 플랜의 POI 심볼을 개체별 실제 POI 로 바인딩한다. docs/03 §2 · docs/11 §12.
@@ -97,6 +104,15 @@ public sealed class PoiBinder
 
             case PoiSymbol.NearestShelter:
                 return TryNearestOfTypes(s_shelterTypes, ctx, symbol, out poi);
+
+            // D-04 — 순찰로가 없는 NPC 가 이 심볼을 쓴 플랜을 받을 수 있다. 버킷 플랜은
+            // 아키타입 단위라 "이 경비병에게는 순찰로가 있고 저 경비병에게는 없다" 를 모른다.
+            // 그때 실패로 두면 위병 플랜 전체가 그 스텝에서 멈추므로 일터로 떨어뜨린다.
+            case PoiSymbol.PatrolRoute:
+                poi = ctx.Patrol.Value != 0 ? ctx.Patrol
+                    : ctx.Workplace.Value != 0 ? ctx.Workplace
+                    : ctx.Home;
+                return poi.Value != 0;
 
             default:
                 poi = default;

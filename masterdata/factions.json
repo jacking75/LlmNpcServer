@@ -1,0 +1,52 @@
+{
+  "$schema": "../docs/schema/factions.schema.json",
+  "_comment": [
+    "세력 표 (D-04). code 가 NpcCommand.Faction · GameEvent.Faction 의 값이다 (B-02 예약 슬롯).",
+    "",
+    "적대 판정 자체는 게임서버 몫이다 (B-06). NPC 서버가 이 표를 아는 이유는 하나 —",
+    "나가는 명령에 '이 NPC 가 어느 세력인가' 를 찍어야 게임서버가 판정할 재료가 생긴다.",
+    "hostile_to 는 게임서버가 쓰는 값이고 NPC 서버는 통과만 시킨다.",
+    "",
+    "code 를 재배치하지 않는다 (CLAUDE.md §2.4). 추가는 뒤에만.",
+    "0 은 '미지정' 이라 쓸 수 없다 — 세력을 안 준 NPC 와 구분해야 한다."
+  ],
+  "version": 1,
+  "factions": [
+    {
+      "id": "townsfolk",
+      "code": 1,
+      "desc": "마을 주민. 생산·상업·비노동 아키타입의 기본값",
+      "hostile_to": ["bandit"]
+    },
+    {
+      "id": "town_watch",
+      "code": 2,
+      "desc": "위병대. 경비 아키타입",
+      "hostile_to": ["bandit", "beast"]
+    },
+    {
+      "id": "temple",
+      "code": 3,
+      "desc": "신전. 사제·수련사제",
+      "hostile_to": []
+    },
+    {
+      "id": "merchant_guild",
+      "code": 4,
+      "desc": "상인 조합. 상인·행상·대상 우두머리",
+      "hostile_to": ["bandit"]
+    },
+    {
+      "id": "bandit",
+      "code": 5,
+      "desc": "도적. 이 저장소의 인스턴스에는 없다 — 게임서버가 붙이는 세력이다",
+      "hostile_to": ["townsfolk", "town_watch", "merchant_guild"]
+    },
+    {
+      "id": "beast",
+      "code": 6,
+      "desc": "야수. 게임서버가 붙이는 세력이다",
+      "hostile_to": ["townsfolk", "town_watch"]
+    }
+  ]
+}

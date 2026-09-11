@@ -17,7 +17,9 @@
     { "fileMatch": ["/masterdata/interrupts.json"], "url": "./docs/schema/interrupts.schema.json" },
     { "fileMatch": ["/masterdata/fallback_plans.json"], "url": "./docs/schema/fallback_plans.schema.json" },
     { "fileMatch": ["/masterdata/dialogue_lines.json"], "url": "./docs/schema/dialogue_lines.schema.json" },
-    { "fileMatch": ["/masterdata/npc_instances.json"], "url": "./docs/schema/npc_instances.schema.json" }
+    { "fileMatch": ["/masterdata/factions.json"], "url": "./docs/schema/factions.schema.json" },
+    { "fileMatch": ["/masterdata/npc_instances.json"], "url": "./docs/schema/npc_instances.schema.json" },
+    { "fileMatch": ["/masterdata/npc_overrides.json"], "url": "./docs/schema/npc_overrides.schema.json" }
   ],
 
   "// 생성물은 열지 않는다": [

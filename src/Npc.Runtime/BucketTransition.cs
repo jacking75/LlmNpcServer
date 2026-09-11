@@ -107,6 +107,12 @@ public sealed class BucketTransition
     /// </summary>
     public ZoneStateTable? ZoneStates { get; init; }
 
+    /// <summary>
+    /// 게임 분 → 틱 환산에 쓰는 시간 배속 (D-04). <c>GameClock.TimeScale</c> 과 같아야 한다.
+    /// 기본 1(실시간)이라 개체 오프셋을 안 쓰는 회차는 오늘과 같다.
+    /// </summary>
+    public int TimeScale { get; init; } = 1;
+
     /// <summary>전환을 겪은 횟수 (계기 수).</summary>
     public long Transitions { get; private set; }
 
@@ -311,12 +317,26 @@ public sealed class BucketTransition
     private static int SlotOf(long tick) => (int)(((tick % JitterWindow) + JitterWindow) % JitterWindow);
 
     /// <summary>
+    /// 이 NPC 의 <c>schedule_offset_min</c> 을 틱으로 (D-04).
+    ///
+    /// <b>난수가 아니라 마스터데이터 값이다</b> — 리플레이가 깨지지 않는다 (CLAUDE.md §2.3).
+    /// </summary>
+    private long OffsetTicks(int npc)
+    {
+        short minutes = _store.ScheduleOffsetMin[npc];
+
+        return minutes == 0 ? 0 : (long)minutes * 60 * Contracts.Tick.PerSecond / TimeScale;
+    }
+
+    /// <summary>
     /// 이 NPC 의 예약을 걸거나 옮긴다. 이미 예약이 있으면 <b>덮어쓴다</b> —
     /// 두 계기가 겹치면 나중 것이 이긴다. 어느 쪽이든 갈아탈 버킷은 지금 상태에서 다시 계산된다.
     /// </summary>
     private void Reserve(int npc, long boundary, TimeOfDay target, int spread)
     {
-        long due = DueTick(boundary, new NpcId(npc), spread);
+        // D-04 — 개체 오프셋은 지터에 <b>가산</b>이다. 지터를 대체하면 같은 오프셋을 가진
+        // NPC 들이 한 틱에 몰려 완화하려던 스파이크가 그대로 돌아온다.
+        long due = DueTick(boundary, new NpcId(npc), spread) + OffsetTicks(npc);
         int slot = SlotOf(due);
         int current = _slotOf[npc];
 

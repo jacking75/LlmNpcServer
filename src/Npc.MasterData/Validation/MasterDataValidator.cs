@@ -857,6 +857,9 @@ public static class MasterDataValidator
         var occupancy = new Dictionary<string, int>(StringComparer.Ordinal);
         var seenIds = new HashSet<int>();
 
+        // D-04 — 순찰로 검사에 NPC 의 존이 필요하다. 두 파일을 따로 도는 대신 여기서 모아 둔다.
+        var zoneOf = new Dictionary<int, string>();
+
         // 위반은 첫 몇 건만 낸다 — 5,000줄이 전부 깨지면 목록이 아니라 소음이다.
         const int MaxReported = 5;
         int reported = 0;
@@ -883,6 +886,7 @@ public static class MasterDataValidator
             }
 
             string zone = npc.GetProperty("zone").GetString()!;
+            zoneOf[id] = zone;
 
             if (!zones.Contains(zone) && reported++ < MaxReported)
             {
@@ -932,6 +936,214 @@ public static class MasterDataValidator
                     "npc_instances.json",
                     "/npcs"));
             }
+        }
+
+        CheckOverrides(ctx, zoneOf, violations, ref reported, MaxReported);
+    }
+
+    /// <summary>
+    /// V13 의 뒷부분 — <c>npc_overrides.json</c> (D-04).
+    ///
+    /// <para>
+    /// <b>로더도 같은 것을 본다.</b> 로더는 던져서 기동을 막고, 여기서는 모아서 보여 준다 —
+    /// 손편집 파일이라 틀린 줄이 여럿일 때 첫 줄만 알려 주면 고치는 데 왕복이 생긴다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>순찰 지점이 같은 존이어야 하는 이유.</b> 존이 다르면 샤드가 다를 수 있고,
+    /// 그때 그 NPC 는 우리가 이벤트를 받지 못하는 곳으로 걸어가 <c>timeout_s</c> 가
+    /// 만료될 때까지 멈춘다 (A-08 과 같은 증상).
+    /// </para>
+    /// </summary>
+    private static void CheckOverrides(
+        Context ctx,
+        Dictionary<int, string> zoneOf,
+        ImmutableArray<MasterDataViolation>.Builder violations,
+        ref int reported,
+        int maxReported)
+    {
+        string path = Path.Combine(ctx.Directory, "npc_overrides.json");
+
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+
+        if (!document.RootElement.TryGetProperty("overrides", out JsonElement overrides)
+            || overrides.ValueKind != JsonValueKind.Array)
+        {
+            violations.Add(new MasterDataViolation(
+                "V13", "npc_overrides.json: overrides 배열이 없다.", "npc_overrides.json", "/overrides"));
+            return;
+        }
+
+        var poiZone = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (JsonElement p in ctx.Array("pois.json", "pois"))
+        {
+            poiZone[p.GetProperty("id").GetString()!] = p.GetProperty("zone").GetString()!;
+        }
+
+        // factions.json 은 필수 파일 목록에 없다 (없어도 기동한다). 그래서 직접 읽는다.
+        var factions = new HashSet<string>(StringComparer.Ordinal);
+        string factionPath = Path.Combine(ctx.Directory, FactionTable.FileName);
+
+        if (File.Exists(factionPath))
+        {
+            using JsonDocument table = JsonDocument.Parse(File.ReadAllText(factionPath));
+
+            if (table.RootElement.TryGetProperty("factions", out JsonElement rows)
+                && rows.ValueKind == JsonValueKind.Array)
+            {
+                foreach (JsonElement f in rows.EnumerateArray())
+                {
+                    factions.Add(f.GetProperty("id").GetString()!);
+                }
+            }
+        }
+
+        var seen = new HashSet<int>();
+
+        foreach (JsonElement entry in overrides.EnumerateArray())
+        {
+            int id = entry.GetProperty("id").GetInt32();
+
+            if (!seen.Add(id) && reported++ < maxReported)
+            {
+                violations.Add(new MasterDataViolation(
+                    "V13",
+                    $"npc_overrides.json: id {id} 이 두 번 나온다.",
+                    "npc_overrides.json",
+                    $"/overrides/{id}"));
+            }
+
+            if (!zoneOf.TryGetValue(id, out string? zone))
+            {
+                if (reported++ < maxReported)
+                {
+                    violations.Add(new MasterDataViolation(
+                        "V13",
+                        $"npc_overrides.json: id {id} 이 npc_instances.json 에 없다.",
+                        "npc_overrides.json",
+                        $"/overrides/{id}"));
+                }
+
+                continue;
+            }
+
+            CheckPatrol(entry, id, zone, poiZone, violations, ref reported, maxReported);
+
+            if (entry.TryGetProperty("faction", out JsonElement faction)
+                && faction.ValueKind == JsonValueKind.String
+                && !factions.Contains(faction.GetString()!)
+                && reported++ < maxReported)
+            {
+                violations.Add(new MasterDataViolation(
+                    "V13",
+                    $"npc_overrides.json: NPC {id} 의 세력 '{faction.GetString()}' 이 factions.json 에 없다.",
+                    "npc_overrides.json",
+                    $"/overrides/{id}/faction"));
+            }
+
+            CheckRange(
+                entry, id, "aggro_radius_m", 0, NpcInstanceTable.MaxAggroRadiusM,
+                violations, ref reported, maxReported);
+
+            CheckRange(
+                entry, id, "schedule_offset_min",
+                -NpcInstanceTable.MaxScheduleOffsetMinutes, NpcInstanceTable.MaxScheduleOffsetMinutes,
+                violations, ref reported, maxReported);
+        }
+    }
+
+    /// <summary>순찰 지점이 존재하고, 개수가 상한 안이고, 전부 같은 존인가 (D-04).</summary>
+    private static void CheckPatrol(
+        JsonElement entry,
+        int id,
+        string zone,
+        Dictionary<string, string> poiZone,
+        ImmutableArray<MasterDataViolation>.Builder violations,
+        ref int reported,
+        int maxReported)
+    {
+        if (!entry.TryGetProperty("patrol_route", out JsonElement route)
+            || route.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        if (route.GetArrayLength() > NpcInstanceTable.MaxPatrolWaypoints && reported++ < maxReported)
+        {
+            violations.Add(new MasterDataViolation(
+                "V13",
+                $"npc_overrides.json: NPC {id} 의 순찰 지점이 {route.GetArrayLength()} 개다. "
+                + $"상한은 {NpcInstanceTable.MaxPatrolWaypoints} 다.",
+                "npc_overrides.json",
+                $"/overrides/{id}/patrol_route"));
+        }
+
+        foreach (JsonElement waypoint in route.EnumerateArray())
+        {
+            if (waypoint.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            string poi = waypoint.GetString()!;
+
+            if (!poiZone.TryGetValue(poi, out string? owner))
+            {
+                if (reported++ < maxReported)
+                {
+                    violations.Add(new MasterDataViolation(
+                        "V13",
+                        $"npc_overrides.json: NPC {id} 의 순찰 지점 '{poi}' 가 pois.json 에 없다.",
+                        "npc_overrides.json",
+                        $"/overrides/{id}/patrol_route"));
+                }
+
+                continue;
+            }
+
+            if (!string.Equals(owner, zone, StringComparison.Ordinal) && reported++ < maxReported)
+            {
+                violations.Add(new MasterDataViolation(
+                    "V13",
+                    $"npc_overrides.json: NPC {id} 의 순찰 지점 '{poi}' 가 다른 존이다 "
+                    + $"(NPC '{zone}', POI '{owner}').",
+                    "npc_overrides.json",
+                    $"/overrides/{id}/patrol_route"));
+            }
+        }
+    }
+
+    /// <summary>정수 필드 하나의 범위 (D-04).</summary>
+    private static void CheckRange(
+        JsonElement entry,
+        int id,
+        string field,
+        int min,
+        int max,
+        ImmutableArray<MasterDataViolation>.Builder violations,
+        ref int reported,
+        int maxReported)
+    {
+        if (!entry.TryGetProperty(field, out JsonElement value)
+            || value.ValueKind != JsonValueKind.Number
+            || !value.TryGetInt32(out int number))
+        {
+            return;
+        }
+
+        if ((number < min || number > max) && reported++ < maxReported)
+        {
+            violations.Add(new MasterDataViolation(
+                "V13",
+                $"npc_overrides.json: NPC {id} 의 {field} {number} 가 {min}~{max} 밖이다.",
+                "npc_overrides.json",
+                $"/overrides/{id}/{field}"));
         }
     }
 

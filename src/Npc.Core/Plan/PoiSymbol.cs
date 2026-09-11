@@ -39,6 +39,18 @@ public enum PoiSymbol : byte
 
     /// <summary>실내로 판정되는 가장 가까운 POI.</summary>
     NearestShelter = 9,
+
+    /// <summary>
+    /// 이 NPC 의 순찰 지점 (D-04). <c>npc_overrides.json</c> 의 <c>patrol_route</c> 다.
+    ///
+    /// <para>
+    /// <b>버킷 플랜은 수천 NPC 가 공유한다.</b> 그래서 플랜에는 순찰로가 아니라 이 심볼만 있고,
+    /// 개체 차이는 바인딩에서 난다 — 프롬프트 서픽스 300토큰 예산과 무관하다 (CLAUDE.md §2.5).
+    /// </para>
+    ///
+    /// <para>순찰로가 없는 NPC 는 일터로, 일터도 없으면 집으로 떨어진다.</para>
+    /// </summary>
+    PatrolRoute = 10,
 }
 
 /// <summary>POI 심볼의 문자열 표기와 파싱. docs/03 §2 의 허용 목록.</summary>
@@ -57,10 +69,11 @@ public static class PoiSymbols
         "$nearest_field",
         "$nearest_safe",
         "$nearest_shelter",
+        "$patrol_route",
     ];
 
     /// <summary>정의된 심볼 수 (None 제외).</summary>
-    public const int Count = 9;
+    public const int Count = 10;
 
     /// <summary>
     /// 플랜 DSL 의 문자열을 심볼로. 허용 목록에 없으면 false —
@@ -79,6 +92,7 @@ public static class PoiSymbols
             case "$nearest_field": symbol = PoiSymbol.NearestField; return true;
             case "$nearest_safe": symbol = PoiSymbol.NearestSafe; return true;
             case "$nearest_shelter": symbol = PoiSymbol.NearestShelter; return true;
+            case "$patrol_route": symbol = PoiSymbol.PatrolRoute; return true;
             default: symbol = PoiSymbol.None; return false;
         }
     }

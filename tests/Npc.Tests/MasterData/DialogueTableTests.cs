@@ -120,11 +120,11 @@ public sealed class DialogueTableTests
     {
         string withTable = StructuralHash.Compute(
             s_data.Actions, s_data.Items, s_data.Zones, s_data.Pois, s_data.Archetypes,
-            s_data.Buckets, s_data.Dialogues);
+            s_data.Buckets, s_data.Dialogues, s_data.Factions);
 
         string without = StructuralHash.Compute(
             s_data.Actions, s_data.Items, s_data.Zones, s_data.Pois, s_data.Archetypes,
-            s_data.Buckets);
+            s_data.Buckets, dialogues: null, s_data.Factions);
 
         Assert.NotEqual(withTable, without);
         Assert.Equal(s_data.StructuralHash, withTable);

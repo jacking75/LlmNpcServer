@@ -65,6 +65,10 @@ public readonly record struct TraceEvent(
 /// <param name="Inventory">0 이 아닌 인벤토리 항목.</param>
 /// <param name="Steps">플랜의 스텝.</param>
 /// <param name="Recent">최근 사건 (RingBuffer8).</param>
+/// <param name="PatrolRoute">순찰 지점 이름 (D-04). 비어 있으면 순찰로가 없다.</param>
+/// <param name="Faction">이 NPC 의 세력 id (D-04). 빈 문자열이면 미지정.</param>
+/// <param name="AggroRadiusM">경계 반경 m (D-04). 0 이면 아키타입 기본값.</param>
+/// <param name="ScheduleOffsetMin">시간대 전환 오프셋, 게임 분 (D-04).</param>
 public readonly record struct NpcTrace(
     bool Found,
     int Npc,
@@ -89,7 +93,11 @@ public readonly record struct NpcTrace(
     string[] Flags,
     string[] Inventory,
     TraceStep[] Steps,
-    TraceEvent[] Recent);
+    TraceEvent[] Recent,
+    string[] PatrolRoute,
+    string Faction,
+    ushort AggroRadiusM,
+    short ScheduleOffsetMin);
 
 /// <summary>
 /// <c>GET /npc/{id}</c>. docs/14 §8 · T4-21.
@@ -151,7 +159,34 @@ internal static class NpcTraceEndpoint
                 '|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             Inventory: InventoryOf(store, data, npc),
             Steps: StepsOf(plan, data, step),
-            Recent: RecentOf(store, npc, now));
+            Recent: RecentOf(store, npc, now),
+
+            // D-04 — 개체별 행동 파라미터. 여기가 유일한 조회 창구다.
+            PatrolRoute: PatrolOf(store, data, npc),
+            Faction: data.Factions?.NameOf(new FactionId(store.Faction[npc])) ?? string.Empty,
+            AggroRadiusM: store.AggroRadiusM[npc],
+            ScheduleOffsetMin: store.ScheduleOffsetMin[npc]);
+    }
+
+    /// <summary>이 NPC 의 순찰 지점 이름들 (D-04). 순찰로가 없으면 빈 배열.</summary>
+    private static string[] PatrolOf(NpcStore store, MasterDataSet data, int npc)
+    {
+        int count = store.PatrolCount[npc];
+
+        if (count == 0)
+        {
+            return [];
+        }
+
+        Span<ushort> route = store.PatrolRouteOf(npc);
+        var names = new string[count];
+
+        for (int i = 0; i < count; i++)
+        {
+            names[i] = PoiNameOf(data, route[i]);
+        }
+
+        return names;
     }
 
     /// <summary>

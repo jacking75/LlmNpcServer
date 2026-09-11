@@ -514,7 +514,7 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
         <thead><tr><th>필드</th><th>타입</th><th>의미</th></tr></thead>
         <tbody>
           <tr><td><code>Instance</code></td><td><code>InstanceId</code>(ushort)</td><td>채널·인스턴스 던전·레이어. <strong>0 = 기본 월드.</strong> 게임서버가 <code>NpcSpawned</code>로 알려주고 NPC 서버는 그 NPC로 나가는 <strong>모든 명령에 그대로 찍는다</strong> — 값을 해석하지 않는다</td></tr>
-          <tr><td><code>Faction</code></td><td><code>FactionId</code>(ushort)</td><td>명령은 <code>SetAggro</code>·<code>CombatAction</code>의 대상 세력, 이벤트는 관련 플레이어·NPC의 세력. <strong>0 = 미지정.</strong> 세력 테이블은 아직 없다(D-04) — 지금은 값이 통과만 한다</td></tr>
+          <tr><td><code>Faction</code></td><td><code>FactionId</code>(ushort)</td><td>명령은 <code>SetAggro</code>·<code>CombatAction</code>의 <strong>대상</strong> 세력, 이벤트는 관련 플레이어·NPC의 세력. <strong>0 = 미지정.</strong> 세력 표는 <code>masterdata/factions.json</code> 이다 (D-04) — <code>code</code> 가 이 값이고 <strong>구조 해시</strong>에 들어간다. <strong>NPC 자신의 세력을 모든 명령에 찍지 않는다</strong>: 슬롯의 뜻이 "대상 세력" 이라 자기 세력을 찍으면 게임서버가 아군을 적으로 읽는다. NPC 서버가 채우는 곳은 <code>CombatAction</code> 하나이고, 값의 출처는 <code>PlayerHostility</code> 가 실어 준 세력뿐이다 — <strong>안 실어 주면 0 으로 나간다</strong></td></tr>
           <tr><td><code>ExtA</code>, <code>ExtB</code></td><td><code>uint</code></td><td><strong>예약 슬롯.</strong> Kind별 의미를 <code>ExtensionSlots</code>에 등록해야 쓸 수 있고, <strong>등록되지 않은 Kind에서는 0이어야 한다</strong>(<code>Ext_ZeroForUndefinedKinds</code>). <strong>지금 등록된 것은 없다</strong> — B-05 의 <code>NpcSpawned.ExtA</code>(인스턴스 정의 id)는 A-08 이 <code>Npc</code> 자체를 전역 id 로 바꾸면서 같은 값을 두 번 싣는 것이 되어 지웠다</td></tr>
           <tr><td><code>Reserved</code></td><td><code>uint</code></td><td>꼬리 정렬을 명시한 것. <strong>항상 0.</strong> 계약에는 대응물이 없다</td></tr>
         </tbody>

@@ -72,9 +72,11 @@ public static class SchemaCatalog
         new("archetypes" + Suffix, "archetypes.json", "아키타입"),
         new("context_buckets" + Suffix, "context_buckets.json", "버킷 차원"),
         new("dialogue_lines" + Suffix, "dialogue_lines.json", "대사 주제 — code 는 재배치하지 않는다"),
+        new("factions" + Suffix, "factions.json", "세력 — code 는 재배치하지 않는다"),
         new("interrupts" + Suffix, "interrupts.json", "인터럽트 규칙"),
         new("fallback_plans" + Suffix, "fallback_plans.json", "폴백 플랜"),
         new("npc_instances" + Suffix, "npc_instances.json", "NPC 인스턴스 (생성물)"),
+        new("npc_overrides" + Suffix, "npc_overrides.json", "개체별 행동 파라미터 (사람 편집)"),
     ];
 
     /// <summary>
@@ -215,6 +217,8 @@ public static class SchemaCatalog
         "world_flags" => typeof(WorldFlagsFile),
         "fallback_plans" => typeof(FallbackPlansFile),
         "dialogue_lines" => typeof(DialogueLinesFile),
+        "factions" => typeof(FactionsFile),
+        "npc_overrides" => typeof(NpcOverridesFile),
         _ => throw new ArgumentException($"'{stem}' 의 DTO 를 모른다.", nameof(stem)),
     };
 
@@ -292,6 +296,13 @@ public static class SchemaCatalog
 
             ("npc_instances", "archetype") => Array(data.Archetypes.Archetypes.Select(a => a.Id)),
             ("npc_instances", "zone") => Array(data.Zones.Zones.Select(z => z.Id)),
+
+            // D-04 — 순찰 지점·세력은 다른 파일이 정한다. 여기 적어 두면 그 순간 어긋난다.
+            ("npc_overrides", "patrol_route") => Array(data.Pois.Pois.Select(p => p.Id)),
+            ("npc_overrides", "faction") =>
+                data.Factions is null ? null : Array(data.Factions.Factions.Select(f => f.Id)),
+            ("factions", "hostile_to") =>
+                data.Factions is null ? null : Array(data.Factions.Factions.Select(f => f.Id)),
 
             ("interrupts", "action") => Array(data.Actions.Actions.Select(a => a.Id)),
 
@@ -460,6 +471,19 @@ public static class SchemaCatalog
             "근무 시간대. **비우면 OnDuty 가 서지 않는다** — Guard·Patrol 을 허용하려면 필요하다 (V12).",
         ("archetypes", "fallback_plan") => "모든 아키타입에 있어야 한다 (V7). 허용 액션만으로 구성 (V8).",
         ("pois", "capacity") => "정원. 이 종류를 쓰는 아키타입 인구의 합 이상이어야 한다 (V10).",
+        ("factions", "hostile_to") =>
+            "적대 세력. **NPC 서버는 판정에 쓰지 않는다** — 적대 판정은 게임서버 몫이다 (B-06).",
+        ("npc_overrides", "id") =>
+            "덮어쓸 NPC 의 id. **npc_instances.json 에 있어야 한다** (V13).",
+        ("npc_overrides", "faction") =>
+            "세력 id. 나가는 명령의 Faction 슬롯은 **대상**의 세력이라 이 값이 그대로 나가지는 않는다.",
+        ("npc_overrides", "patrol_route") =>
+            "순찰 지점. 최대 4곳이고 **전부 이 NPC 의 존 안**이어야 한다 (V13).",
+        ("npc_overrides", "aggro_radius_m") => "경계 반경 m. 0~200. 0 이면 아키타입 기본값이다.",
+        ("npc_overrides", "dialogue_profile") =>
+            "대화 성격 id. **NPC 서버는 저장만 한다** — 읽는 것은 대화 서비스(D-01)다.",
+        ("npc_overrides", "schedule_offset_min") =>
+            "시간대 전환에 더할 게임 분. ±120. 결정론 지터에 **가산**이다.",
         ("zones", "adjacent") => "인접 존. **대칭이어야 한다** — 한쪽만 이으면 도달 불가가 생긴다 (V11).",
         ("context_buckets", "total_keys") =>
             "아키타입 수 × 72. **사람이 읽는 기록이다** — 코드는 이 값을 읽지 않고 V6 이 대조한다.",

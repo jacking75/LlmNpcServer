@@ -248,7 +248,7 @@ public sealed class EventApplier
                 break;
 
             case GameEventKind.PlayerHostility:
-                ApplyHostility(npc, (Hostility)ev.Code, ev.Player);
+                ApplyHostility(npc, (Hostility)ev.Code, ev.Player, ev.Faction);
                 break;
 
             case GameEventKind.PlayerInteracted:
@@ -272,6 +272,34 @@ public sealed class EventApplier
         }
 
         Remember(npc, in ev);
+    }
+
+    /// <summary>
+    /// 인스턴스 정의를 그대로 심는다 (D-04). 개체별 행동 파라미터까지 같이 앉힌다.
+    ///
+    /// <b>스냅샷이 되돌려 주지 않는 값들이다</b> — 상태가 아니라 설정이라
+    /// 출처는 언제나 마스터데이터다. 그래서 복원 경로도 이 메서드를 먼저 지난다.
+    /// </summary>
+    /// <param name="npc">슬롯.</param>
+    /// <param name="def">인스턴스 정의.</param>
+    public void Seed(int npc, in NpcInstanceDef def)
+    {
+        Seed(npc, def.Home, def.Zone, def.Archetype, def.Home, def.Workplace);
+
+        Span<ushort> route = _store.PatrolRouteOf(npc);
+        route.Clear();
+
+        int count = Math.Min(def.PatrolRoute.IsDefault ? 0 : def.PatrolRoute.Length, route.Length);
+
+        for (int i = 0; i < count; i++)
+        {
+            route[i] = def.PatrolRoute[i].Value;
+        }
+
+        _store.PatrolCount[npc] = (byte)count;
+        _store.Faction[npc] = def.Faction.Value;
+        _store.AggroRadiusM[npc] = (ushort)def.AggroRadiusM;
+        _store.ScheduleOffsetMin[npc] = (short)def.ScheduleOffsetMinutes;
     }
 
     /// <summary>스폰 전 초기 상태를 심는다. 시퀀스 판정을 거치지 않는다.</summary>
@@ -449,7 +477,7 @@ public sealed class EventApplier
     ///
     /// <para><b>멱등이다</b> (N7). 같은 값을 두 번 받아도 상태가 같다.</para>
     /// </summary>
-    private void ApplyHostility(int npc, Hostility hostility, PlayerId player)
+    private void ApplyHostility(int npc, Hostility hostility, PlayerId player, FactionId faction)
     {
         HostilityChanges++;
 
@@ -457,6 +485,10 @@ public sealed class EventApplier
         {
             _store.Flags[npc] |= WorldFlags.HostilePlayerNearby | WorldFlags.PlayerNearby;
             _store.HostilePlayer[npc] = player.Value;
+
+            // D-04 — 그 플레이어의 세력. 게임서버가 안 실어 주면 0 이고, 그러면
+            // CombatAction 의 Faction 도 0 으로 나간다. <b>지어내지 않는다.</b>
+            _store.HostileFaction[npc] = faction.Value;
 
             return;
         }
@@ -470,6 +502,7 @@ public sealed class EventApplier
         if (_store.HostilePlayer[npc] == player.Value)
         {
             _store.HostilePlayer[npc] = 0;
+            _store.HostileFaction[npc] = 0;
         }
     }
 
