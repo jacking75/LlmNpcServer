@@ -1,0 +1,2 @@
+﻿stamp,agent,task,run,pass,minutes,changed_files,note
+2026-09-12,claude-opus-5,04-fallback-plan,1,1,4,4,E-06 구현 세션에서 채점. 저장소가 깨끗하지 않아 changed_files 는 이 회차의 값이 아니다

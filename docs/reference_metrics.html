@@ -108,6 +108,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
       <li><a href="#weights"><span class="n">11</span>재계획 가중치 A/B</a></li>
       <li><a href="#authoring"><span class="n">12</span>오써링 공수</a></li>
       <li><a href="#gate"><span class="n">13</span>수용 기준 판정</a></li>
+      <li><a href="#agent"><span class="n">13.5</span>에이전트 성공률</a></li>
       <li><a href="#open"><span class="n">14</span>미측정으로 남은 것</a></li>
     </ol>
     <div class="side-tools">
@@ -611,6 +612,44 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
       <p><code>ActivitySource("Npc.Replan")</code> 하나뿐이다. LLM 호출 하나가 하나의 span 이다. <strong>틱 루프에는 붙이지 않는다</strong> — <code>Activity</code> 는 매번 할당한다 (CLAUDE.md §2.1).</p>
     </section>
 
+    <section class="card" id="agent">
+      <div class="shead"><span class="snum">13.5</span><h2>에이전트 성공률 <span class="chip">E-06</span></h2></div>
+      <p>온보딩 팩(E-01)·스키마(E-02)·MCP(E-03)가 <strong>실제로</strong> LLM 에이전트의 성공률을 올리는지 잰다. 재지 않으면 문서는 다시 추측으로 돌아간다.</p>
+      <p>과제 10종은 <code>tests/agent-bench/</code>, 채점과 기록은 <code>tools/agent-bench.ps1</code>, 원자료는 <code>docs/measurements/agent_bench.csv</code> 다.</p>
+
+      <div class="callout"><strong>러너는 에이전트를 부르지 않는다</strong><p>에이전트마다 호출 방식이 다르고, 러너가 그것을 흉내 내면 <strong>"이 러너로 잰 점수"</strong>가 되어 버린다. 사람이 <code>task.md</code> 를 그 에이전트의 제 방식대로 주고, 끝나면 러너가 채점한다.</p></div>
+
+      <div class="callout bad"><strong>1회차는 표본 1건이다 — 성공률이 아니다</strong><p>아래 표에 있는 것은 <strong>과제 하나</strong>의 판정뿐이고, 그것도 <strong>벤치를 만든 세션이 스스로 푼 것</strong>이다. 자기가 낸 문제를 자기가 푼 점수는 능력의 측정이 아니라 <strong>채점기가 도는지의 확인</strong>이다. 10종 × 3회 회차는 <strong>미실시</strong>다 (§14).</p></div>
+
+      <div class="table-wrap"><table>
+        <thead><tr><th>날짜</th><th>에이전트</th><th>과제</th><th>판정</th><th>소요</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td>2026-09-12</td><td><code>claude-opus-5</code></td><td>04-fallback-plan</td><td><span class="badge ok">통과</span> 4/4</td><td>4분</td><td>벤치 구현 세션. 저장소가 깨끗하지 않아 <code>changed_files</code> 는 이 회차의 값이 아니다</td></tr>
+          <tr><td>—</td><td>—</td><td>나머지 9종</td><td><span class="badge na">미실시</span></td><td>—</td><td>깨끗한 트리 + 에이전트 세션이 필요하다</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>채점기를 믿을 근거</h3>
+      <p><code>tools/agent-bench.ps1 -SelfTest</code> 는 <strong>과제를 풀지 않은 상태</strong>에서 10종을 전부 채점해, 하나라도 통과하면 실패로 끝난다. <strong>언제나 통과하는 채점기는 점수가 아니라 상수다.</strong> 2026-09-12 실행 결과 <strong>10종 전부 실패(정상)</strong> 였다 — 채점기가 실제로 판정하고 있다.</p>
+
+      <h3>과제가 무엇을 재나</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>과제</th><th>채점 핵심</th></tr></thead>
+        <tbody>
+          <tr><td>01</td><td>아이템+POI 추가</td><td><code>validate</code> · <strong>거리표를 다시 만들었는가</strong></td></tr>
+          <tr><td>02</td><td>아키타입 추가</td><td>V5 합 · V6 <code>total_keys</code> · V7 폴백 · <strong>C# 코드 무변경</strong> (F-05)</td></tr>
+          <tr><td>03</td><td>액션 추가</td><td><strong>프리픽스 SHA 변경을 보고했는가</strong> (C-03)</td></tr>
+          <tr><td>04</td><td>폴백 플랜 작성</td><td>4단 통과 · <code>loop: true</code> · 모든 스텝에 <code>timeout_s</code></td></tr>
+          <tr><td>05</td><td>인터럽트 추가</td><td><strong>없는 필드(<code>cooldown_s</code>)를 만들어 넣지 않았는가</strong></td></tr>
+          <tr><td>06</td><td>시나리오 작성</td><td>배속 환산 정확 (09:00 = 틱 180)</td></tr>
+          <tr><td>07</td><td>반려 플랜 8건 수리</td><td>1회 통과율. 표본은 <strong>실제 <code>planstore/rejected/</code></strong> 에서 뽑았다</td></tr>
+          <tr><td>08</td><td>"NPC 왜 저기" 진단</td><td>근거 3요소 — 플랜 출처 · 스텝 · <code>requires</code></td></tr>
+          <tr><td>09</td><td>틱 루프에 LINQ 요청</td><td><strong>거절이 정답이다.</strong> 코드가 바뀌면 그 자체로 실패</td></tr>
+          <tr><td>10</td><td>미니 게임서버 붙이기</td><td>핸드셰이크 수락 · <code>timeouts 0</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
     <section class="card" id="open">
       <div class="shead"><span class="snum">14</span><h2>미측정으로 남은 것</h2></div>
       <p><strong>이 목록을 지우지 않는다.</strong> 없는 것을 채우면 이 문서를 근거로 쓴 모든 판단이 거짓이 된다.</p>
@@ -625,6 +664,8 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
           <tr><td>블라인드 평가</td><td>참가자 12명 × 40~60분</td><td>품질의 정량 근거</td></tr>
           <tr><td>수작성 시간 기준선</td><td>사람이 폴백 40개를 짜고 시간 기록</td><td>오써링 절감률 축 A</td></tr>
           <tr><td>GPU 사용률·소비전력</td><td>부하 회차에 로깅 추가</td><td>T1 전력 비용 모델의 검증</td></tr>
+          <tr><td>에이전트 성공률 10종 × 3회 <span class="chip">E-06</span></td><td>깨끗한 트리에서 에이전트 세션 30회</td><td>온보딩 팩·MCP 의 효과 판정 (§13.5)</td></tr>
+          <tr><td>온보딩 팩 전후 대조 <span class="chip">E-06</span></td><td>팩을 끄고 같은 10종을 다시</td><td>"문서가 성공률을 올린다" 의 근거</td></tr>
         </tbody>
       </table></div>
       <p class="muted">원자료(<code>docs/measurements/</code>의 jsonl·csv)는 저장소에 남아 있다. 위 표의 항목은 전부 "안 돌린 것"이지 코드 결함이 아니다.</p>

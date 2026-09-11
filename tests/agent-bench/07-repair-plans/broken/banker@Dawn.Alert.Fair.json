@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "goal": "daily_reconciliation",
+  "reasoning": "dawn, alert but peaceful; open the bank, process deposits, then attend to personal needs before the day's work",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Withdraw",
+      "args": {
+        "item": "coin",
+        "count": 20
+      },
+      "timeout_s": 300
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "coin",
+        "count": 20
+      },
+      "timeout_s": 300
+    },
+    {
+      "action": "Observe",
+      "args": {
+        "target": "nearest:player",
+        "duration_s": 600
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Drink",
+      "args": {},
+      "timeout_s": 120
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 600
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      }
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}

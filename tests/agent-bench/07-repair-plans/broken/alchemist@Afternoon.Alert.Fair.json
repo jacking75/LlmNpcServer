@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "goal": "restock_and_brew",
+  "reasoning": "Afternoon, alert but peaceful; gather herbs, brew potions, then rest at home.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$nearest_field",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Gather",
+      "args": {
+        "resource": "herb",
+        "count": 10
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Craft",
+      "args": {
+        "recipe": "healing_potion",
+        "count": 5
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "healing_potion",
+        "count": 5
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Evening"
+      },
+      "timeout_s": 3600
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}

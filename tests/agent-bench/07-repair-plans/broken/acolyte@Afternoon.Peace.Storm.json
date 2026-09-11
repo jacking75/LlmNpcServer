@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "goal": "temple_chores_and_study",
+  "reasoning": "Afternoon, stormy weather, peaceful region. Acolyte needs to perform temple duties, study, and rest. Move to temple, pray, then study, and finally rest at home.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$temple",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Pray",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 3600
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Work",
+      "args": {
+        "recipe": "parchment",
+        "count": 2
+      },
+      "timeout_s": 900
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "parchment",
+        "count": 8
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Evening"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}

@@ -330,6 +330,7 @@ logs/ replays/ artifacts/
 - `planstore/pinned/**` — **사람이 수정한 플랜.** 잃으면 검수 작업이 날아간다
 - `planstore/manifest.json` · `planstore/<sha8>/manifest.json` — 실측 원자료
 - `tests/golden/**`
+- `tests/agent-bench/**` — 에이전트 벤치 과제·채점기·반려 플랜 표본 (E-06)
 - `docs/measurements/**` — 실측 원자료(jsonl·csv). **보고서 md 는 `docs/reference_metrics.html` 로 옮겼다**
 
 커밋 메시지: `<scope>: <내용>` (예: `runtime: 인지 LOD 밴드 이동을 틱당 64건으로 제한`)

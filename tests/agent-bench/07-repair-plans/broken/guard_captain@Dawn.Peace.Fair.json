@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "goal": "morning_patrol_and_assign",
+  "reasoning": "dawn, peaceful; start the day with a patrol of the town, then assign the watch and return home to rest",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$nearest_field",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Patrol",
+      "args": {
+        "route": [
+          "$gate",
+          "$market",
+          "$tavern",
+          "$temple",
+          "$workplace"
+        ],
+        "laps": 1
+      },
+      "timeout_s": 3600
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Guard",
+      "args": {
+        "duration_s": 3600,
+        "poi": "$workplace"
+      },
+      "timeout_s": 7200
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      }
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}

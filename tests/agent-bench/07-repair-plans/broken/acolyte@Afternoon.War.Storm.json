@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "goal": "shelter_from_storm_and_war",
+  "reasoning": "Afternoon, war, storm, low courage: seek shelter at the temple, pray for safety, and wait out the danger.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$temple",
+        "speed": "run"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Pray",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Wait",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      }
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}

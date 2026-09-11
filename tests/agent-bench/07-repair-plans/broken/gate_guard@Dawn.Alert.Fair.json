@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "goal": "guard_gate_at_dawn",
+  "reasoning": "Dawn, on duty, peaceful region; guard the gate and observe traffic, then rest before the day truly begins.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$gate"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Guard",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Observe",
+      "args": {
+        "target": "nearest:villager",
+        "duration_s": 600
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Greet",
+      "args": {
+        "npc": "nearest:villager"
+      },
+      "timeout_s": 60
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Noon"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}

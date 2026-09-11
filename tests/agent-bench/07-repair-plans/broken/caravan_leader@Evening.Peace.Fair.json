@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "goal": "escort_caravan_home",
+  "reasoning": "Evening, peaceful, on duty; escort the caravan to the stable, then rest at home.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$stable",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Guard",
+      "args": {
+        "duration_s": 1800,
+        "poi": "$stable"
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Talk",
+      "args": {
+        "npc": "poi_owner:$stable",
+        "topic": "work"
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
