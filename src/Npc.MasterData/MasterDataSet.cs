@@ -414,6 +414,22 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     /// <summary>액션 카탈로그.</summary>
     public required ActionCatalog Actions { get; init; }
 
+    /// <summary>
+    /// 대사 주제 표 (D-02). 파일이 없으면 null 이고, 그때 <c>DialogueId</c> 는 옛 방식
+    /// (심볼 사전순 첨자)으로 매겨진다 — 최소 픽스처로 도는 테스트가 그 경로다.
+    ///
+    /// <b>문구는 여기 없다.</b> 패킷은 code 만 싣고(N3) 문구를 고르는 것은 표시 계층이다.
+    /// </summary>
+    public DialogueTable? Dialogues { get; init; }
+
+    /// <summary>
+    /// 로컬라이즈 표 (D-02). 파일이 없으면 비어 있다 — <b>오류가 아니다</b>.
+    ///
+    /// <b>표시 계층이라 누락이 기동을 막지 않는다.</b> 대신 기동 로그가 무엇이 빠졌는지 세고,
+    /// CI 게이트가 그 수를 0 으로 요구한다.
+    /// </summary>
+    public ImmutableArray<LocalizationTable> Locales { get; init; } = [];
+
     /// <summary>아이템·레시피.</summary>
     public required ItemTable Items { get; init; }
 

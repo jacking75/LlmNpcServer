@@ -238,7 +238,13 @@ public sealed class ActionCatalog
         (uint)code.Value < (uint)_byCode.Length && _byCode[code.Value] is not null;
 
     /// <summary>masterdata/actions.json 로드.</summary>
-    public static ActionCatalog Load(string path, ItemTable items)
+    /// <param name="path">파일 경로.</param>
+    /// <param name="items">아이템 표.</param>
+    /// <param name="dialogues">
+    /// 대사 주제 표 (D-02). null 이면 <b>옛 방식</b>으로 심볼을 사전순으로 모아 첨자를 매긴다 —
+    /// 그 방식은 주제를 추가하면 번호가 밀려서 이 파일이 생겼다. 테스트 픽스처만 null 을 쓴다.
+    /// </param>
+    public static ActionCatalog Load(string path, ItemTable items, DialogueTable? dialogues = null)
     {
         using FileStream stream = File.OpenRead(path);
         ActionsFile? file = JsonSerializer.Deserialize(stream, ActionsJsonContext.Default.ActionsFile);
@@ -248,11 +254,14 @@ public sealed class ActionCatalog
             throw new InvalidDataException($"actions.json 에서 액션을 읽지 못했다: {path}");
         }
 
-        return Build(file, items);
+        return Build(file, items, dialogues);
     }
 
     /// <summary>JSON 문자열에서 로드. 테스트 픽스처용.</summary>
-    public static ActionCatalog Parse(string json, ItemTable items)
+    /// <param name="json">파일 내용.</param>
+    /// <param name="items">아이템 표.</param>
+    /// <param name="dialogues">대사 주제 표 (D-02). null 이면 옛 방식이다.</param>
+    public static ActionCatalog Parse(string json, ItemTable items, DialogueTable? dialogues = null)
     {
         ActionsFile? file = JsonSerializer.Deserialize(json, ActionsJsonContext.Default.ActionsFile);
 
@@ -261,10 +270,10 @@ public sealed class ActionCatalog
             throw new InvalidDataException("actions.json 에서 액션을 읽지 못했다.");
         }
 
-        return Build(file, items);
+        return Build(file, items, dialogues);
     }
 
-    private static ActionCatalog Build(ActionsFile file, ItemTable items)
+    private static ActionCatalog Build(ActionsFile file, ItemTable items, DialogueTable? dialogues)
     {
         // 1단 — 애니메이션·대사 심볼을 먼저 모은다. 정렬해서 id 를 매기므로 결정론적이다.
         var animationNames = new SortedSet<string>(StringComparer.Ordinal);
@@ -272,7 +281,10 @@ public sealed class ActionCatalog
         CollectSymbols(file, animationNames, dialogueNames);
 
         ImmutableArray<string> animations = [.. animationNames];
-        ImmutableArray<string> dialogues = [.. dialogueNames];
+
+        // D-02 · V14 — 대사 code 는 파일이 정한다. 사전순 첨자로 매기던 옛 방식은
+        // 주제를 추가할 때마다 뒤쪽 번호를 밀어 프리베이크된 플랜을 깼다.
+        ImmutableArray<string> dialogueNameTable = Resolve(dialogueNames, dialogues);
 
         int maxCode = 0;
         foreach (ActionDto dto in file.Actions)
@@ -312,7 +324,7 @@ public sealed class ActionCatalog
                 BuildDuration(dto),
                 dto.Cost,
                 dto.DefaultTimeoutS,
-                BuildEmits(dto, parameters, items, animations, dialogues),
+                BuildEmits(dto, parameters, items, animations, dialogueNameTable),
                 ParseEvents(dto.Id, "completes_on", dto.CompletesOn),
                 ParseEvents(dto.Id, "fails_on", dto.FailsOn));
 
@@ -327,10 +339,43 @@ public sealed class ActionCatalog
 
         actions.Sort((a, b) => a.Code.Value.CompareTo(b.Code.Value));
 
-        return new ActionCatalog(byCode, byId, actions.ToImmutable(), animations, dialogues);
+        return new ActionCatalog(byCode, byId, actions.ToImmutable(), animations, dialogueNameTable);
     }
 
     /// <summary>Animation·Dialogue 필드에 실릴 수 있는 모든 문자열을 모은다.</summary>
+    /// <summary>
+    /// 대사 이름 표를 정한다 (D-02 · <b>V14</b>).
+    ///
+    /// <para>
+    /// 표가 있으면 <b>code 가 첨자다</b> — 사전순으로 매기던 옛 방식은 주제를 하나 추가할 때마다
+    /// 뒤쪽 번호를 밀어 프리베이크된 플랜 2,880개와 게임서버의 대사 표를 조용히 어긋나게 했다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>표에 없는 심볼은 기동 실패다.</b> 경고로 두면 그 심볼의 <c>DialogueId</c> 가 0 이 되고,
+    /// 0 은 다른 주제의 번호라 NPC 가 엉뚱한 말을 한다 — 그 사고는 아무 로그도 안 남긴다.
+    /// </para>
+    /// </summary>
+    private static ImmutableArray<string> Resolve(SortedSet<string> used, DialogueTable? table)
+    {
+        if (table is null)
+        {
+            return [.. used];
+        }
+
+        string[] missing = [.. used.Where(id => !table.Contains(id))];
+
+        if (missing.Length > 0)
+        {
+            throw new InvalidDataException(
+                $"V14: actions.json 의 대사 심볼 {string.Join(", ", missing)} 이 "
+                + $"{DialogueTable.FileName} 에 없다. 그 파일에 줄을 추가한다 — "
+                + "code 는 재배치하지 않고 뒤에만 붙인다.");
+        }
+
+        return table.Names;
+    }
+
     private static void CollectSymbols(ActionsFile file, SortedSet<string> animations, SortedSet<string> dialogues)
     {
         foreach (ActionDto dto in file.Actions)

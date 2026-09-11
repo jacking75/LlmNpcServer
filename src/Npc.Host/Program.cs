@@ -846,6 +846,15 @@ internal sealed class NpcHost : IAsyncDisposable
             log.WriteLine($"경고 파생물 {stale}");
         }
 
+        // D-02 · V14 — 로컬라이즈 누락은 <b>경고다</b>. 표시 계층이라 기동을 막지 않는다 —
+        // 막으면 문구 하나 빠진 것으로 서버가 안 뜨고, 그러면 사람이 이 검사를 꺼 버린다.
+        foreach (LocalizationTable locale in data.Locales)
+        {
+            string line = locale.Describe(data);
+
+            log.WriteLine(locale.Missing(data).IsEmpty ? $"locale: {line}" : $"경고 locale {line}");
+        }
+
         string instancePath = Path.Combine(masterDataDir, "npc_instances.json");
         NpcInstanceTable instances = NpcInstanceTable.Load(instancePath, data);
 

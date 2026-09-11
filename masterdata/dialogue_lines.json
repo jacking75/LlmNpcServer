@@ -1,0 +1,28 @@
+{
+  "$schema": "../docs/schema/dialogue_lines.schema.json",
+  "_comment": [
+    "대사 주제 표 (D-02). 첨자가 아니라 code 가 DialogueId 다.",
+    "",
+    "왜 이 파일이 생겼나. 예전에는 actions.json 의 emits.map.Dialogue 심볼을 SortedSet 으로",
+    "모아 그 첨자를 DialogueId 로 썼다. 주제를 하나 추가하면 사전순 뒤쪽이 통째로 밀려,",
+    "프리베이크된 플랜과 게임서버의 대사 표가 조용히 어긋났다.",
+    "",
+    "code 를 절대 재배치하지 않는다 (CLAUDE.md §2.4). 추가는 뒤에만.",
+    "아래 0~7 은 SortedSet 시절의 순서를 그대로 굳힌 것이다 — 그래야 기존 플랜이 살아남는다.",
+    "",
+    "여기 없는 심볼이 actions.json 에 나오면 V14 가 기동을 막는다.",
+    "문구는 여기 없다. 로컬라이즈 표(masterdata/localization/<locale>.json)의 dialogue.<id> 다 —",
+    "패킷은 code 만 싣고(N3), 문구를 고르는 것은 게임서버·클라이언트의 표시 계층이다."
+  ],
+  "version": 1,
+  "lines": [
+    { "id": "call_for_help", "code": 0, "tags": ["combat", "urgent"], "priority": "Critical" },
+    { "id": "danger", "code": 1, "tags": ["gossip", "warn"] },
+    { "id": "greeting", "code": 2, "tags": ["talk", "social"] },
+    { "id": "politics", "code": 3, "tags": ["gossip"] },
+    { "id": "rumor", "code": 4, "tags": ["talk", "gossip"] },
+    { "id": "trade", "code": 5, "tags": ["talk", "gossip", "commerce"] },
+    { "id": "warning", "code": 6, "tags": ["talk", "warn"] },
+    { "id": "work", "code": 7, "tags": ["talk"] }
+  ]
+}

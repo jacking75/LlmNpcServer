@@ -127,6 +127,6 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "NPC 인스턴스 (생성물)",
-  "$comment": "content_hash=587e1ba0b9a35f5fcf53da66ac32213131485e3eb7d1c12e2cb477c536ba4d18 기준. 허용 값은 이 마스터데이터 상태의 것이다.",
+  "$comment": "content_hash=de6d64cd3529a1556537a4ef27273d7e9d3d2536a7518326b5d30326722d78c0 기준. 허용 값은 이 마스터데이터 상태의 것이다.",
   "description": "npc_instances.json 의 구조. **스키마는 검증기가 아니다** — 교차 제약(V5 가중치 합 · V6 total_keys · V10 정원 · V11 도달)은 여기서 표현할 수 없고 MasterDataValidator 가 판정한다. docs/reference_masterdata.html 이 전문이다."
 }

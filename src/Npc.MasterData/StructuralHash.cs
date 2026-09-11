@@ -43,7 +43,8 @@ public static class StructuralHash
         ZoneTable zones,
         PoiTable pois,
         ArchetypeTable archetypes,
-        BucketSpace buckets)
+        BucketSpace buckets,
+        DialogueTable? dialogues = null)
     {
         ArgumentNullException.ThrowIfNull(actions);
         ArgumentNullException.ThrowIfNull(items);
@@ -74,6 +75,19 @@ public static class StructuralHash
         foreach (ActionDef action in actions.Actions.OrderBy(a => a.Code.Value))
         {
             sb.Append(action.Id).Append(':').Append(action.Code.Value).Append('\n');
+        }
+
+        // D-02 — 대사 code 는 구조다. 두 프로세스가 다른 번호를 쓰면 NPC 가 엉뚱한 말을 하고,
+        // 그 사고는 아무 로그도 안 남긴다. 표가 없는 회차(최소 픽스처)에서는 이 절이 비어 있다 —
+        // 옛 해시와 같은 값이 나와야 기존 게임서버가 그대로 붙는다.
+        if (dialogues is { Count: > 0 })
+        {
+            sb.Append("dialogues\n");
+
+            foreach (DialogueLine line in dialogues.Lines)
+            {
+                sb.Append(line.Id).Append(':').Append(line.Code.Value).Append('\n');
+            }
         }
 
         sb.Append("items\n");

@@ -16,6 +16,7 @@
     { "fileMatch": ["/masterdata/context_buckets.json"], "url": "./docs/schema/context_buckets.schema.json" },
     { "fileMatch": ["/masterdata/interrupts.json"], "url": "./docs/schema/interrupts.schema.json" },
     { "fileMatch": ["/masterdata/fallback_plans.json"], "url": "./docs/schema/fallback_plans.schema.json" },
+    { "fileMatch": ["/masterdata/dialogue_lines.json"], "url": "./docs/schema/dialogue_lines.schema.json" },
     { "fileMatch": ["/masterdata/npc_instances.json"], "url": "./docs/schema/npc_instances.schema.json" }
   ],
 

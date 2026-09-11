@@ -71,6 +71,7 @@ public static class SchemaCatalog
         new("pois" + Suffix, "pois.json", "POI"),
         new("archetypes" + Suffix, "archetypes.json", "아키타입"),
         new("context_buckets" + Suffix, "context_buckets.json", "버킷 차원"),
+        new("dialogue_lines" + Suffix, "dialogue_lines.json", "대사 주제 — code 는 재배치하지 않는다"),
         new("interrupts" + Suffix, "interrupts.json", "인터럽트 규칙"),
         new("fallback_plans" + Suffix, "fallback_plans.json", "폴백 플랜"),
         new("npc_instances" + Suffix, "npc_instances.json", "NPC 인스턴스 (생성물)"),
@@ -213,6 +214,7 @@ public static class SchemaCatalog
         "npc_instances" => typeof(NpcInstancesFile),
         "world_flags" => typeof(WorldFlagsFile),
         "fallback_plans" => typeof(FallbackPlansFile),
+        "dialogue_lines" => typeof(DialogueLinesFile),
         _ => throw new ArgumentException($"'{stem}' 의 DTO 를 모른다.", nameof(stem)),
     };
 

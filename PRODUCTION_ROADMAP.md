@@ -90,7 +90,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 ### 트랙 D — 대화·기억·개체 파라미터 (플레이어가 체감하는 반쪽)
 
 - [ ] **D-01** 대화 서비스 (`Npc.Dialogue`, 별도 프로세스) · 응답 계약 · 폴백 · 인젝션 방어 — P2 · XL · 의존 D-02, D-03, B-08
-- [ ] **D-02** 대사 테이블(`dialogue_lines.json`) · 로컬라이즈 테이블 · 검증 V14 — P1 · M · 의존 없음
+- [x] **D-02** 대사 테이블(`dialogue_lines.json`) · 로컬라이즈 테이블 · 검증 V14 — P1 · M · 의존 없음 — **완료. `Lexicon` 을 파일 읽는 계층으로 바꾸지는 않았다** — 대신 두 벌이 어긋나지 않게 테스트가 대조한다
 - [ ] **D-03** NPC 기억·관계 저장소 (구조체 · 보존·삭제 정책) — P2 · L · 의존 A-01
 - [ ] **D-04** 개체별 행동 파라미터 (`patrol_route` · `aggro_radius` · `faction` · `dialogue_profile`) — P1 · M · 의존 F-04
 
@@ -1502,13 +1502,24 @@ CI 야간에 `--sample 48 --runs 1` 로 회귀만(비용 상한 $0.5), 릴리스
 - V14: 출하 로케일(`--locales ko-KR,en-US`) 마다 모든 `name_key`·`dialogue.*`·아이템·POI subtype·액션 키가 존재. 누락은 기동 실패가 아니라 **경고**(표시 계층이므로)로 두되 CI 게이트로는 실패.
 - 게임서버 팀에 "대사 `code` → 문구" 표를 이 파일로 전달한다(지금은 표가 없다).
 
-**구현 절차.** 파일 2종 · `ActionCatalog` 로딩 경로 · `MasterDataValidator` V14 · `Npc.Narrate/Lexicon.cs` 리팩터 · `testbed/IdNames.cs` 도 같은 파일 · `docs/reference_masterdata.html`.
+**구현 절차.** (실제로 한 것)
 
-**테스트.** `MasterData/DialogueTableTests` — 심볼 누락 V14 · 기존 `DialogueId` 값 불변(프리베이크 호환 회귀) · `Lexicon_CoversEveryId` 유지.
+1. `masterdata/dialogue_lines.json` — `code` 가 `DialogueId` 다. **0~7 은 `SortedSet` 시절의 순서를 그대로 굳혔다** — 그래야 프리베이크된 플랜 2,880개가 살아남는다.
+2. `src/Npc.MasterData/DialogueTable.cs` — code 중복·id 중복·빈 표는 로드 실패.
+3. `ActionCatalog` 가 이 표에서 code 를 읽는다. **V14** — `emits.map.Dialogue` 심볼이 표에 없으면 **기동 실패**다: 경고로 두면 그 심볼의 `DialogueId` 가 0 이 되고, 0 은 다른 주제의 번호라 NPC 가 엉뚱한 말을 한다.
+4. **대사 code 를 구조 해시에 넣었다** (B-04). 두 프로세스가 다른 번호를 쓰는 것은 "내용이 조금 다르다" 가 아니다.
+5. `masterdata/localization/{ko-KR,en-US}.json` · `LocalizationTable` — 키 169개(`npc.` · `poi.` · `item.` · `zone.` · `dialogue.`). **누락은 경고**(표시 계층이므로)이고 기동 로그가 센다. `Extra` 로 낡은 키도 잡는다.
+6. `docs/schema/dialogue_lines.schema.json` 발행 + `.vscode/settings.json` 매핑 + 파일의 `$schema`.
 
-**완료 조건.** 새 주제 `farewell` 을 추가해도 기존 `DialogueId` 가 바뀌지 않는다.
+**정정 — `Lexicon` 을 파일 읽는 얇은 계층으로 바꾸지 않았다.** 대신 **`ko-KR.json` 을 `Lexicon` 에서 뽑아 커밋하고, 테스트가 둘이 같은지 대조한다**(`KoreanLocale_MatchesTheLexicon`). 이 저장소가 이미 쓰는 생성물 패턴(`docs/schema/`·`docs/wire/`·`docs/openapi.json`)과 같고, 드리프트 가능성은 0 이면서 서술 경로를 건드리지 않는다 — 40여 곳의 서술 코드를 문자열 조회로 바꾸는 변경은 이 태스크가 사려는 것보다 크다.
 
-**규칙 충돌 확인.** N3 — 링크는 여전히 `DialogueId` 만. §2.4 `code` 재배치 금지 적용.
+**정정 — 액션·플래그 키는 넣지 않았다.** 표시 계층이 그것들을 id 그대로 쓰고 있고, 쓰지 않는 문구를 미리 번역해 두면 그 번역이 먼저 낡는다. 쓰는 자리가 생기면 `RequiredKeys` 에 줄을 더한다.
+
+**테스트.** `MasterData/DialogueTableTests` 8건 — 굳힌 code 가 그대로다 · **주제를 추가해도 기존 번호가 안 밀린다**(완료 조건) · 중복 거절 · **V14 가 심볼 누락에 기동을 막는다** · code 가 구조 해시에 들어간다 · 로케일이 키를 빠짐없이 덮는다(낡은 키도 없다) · 한국어가 `Lexicon` 과 같다 · 없는 키는 키를 그대로 돌려준다.
+
+**주의 — `ContentHash` 가 바뀌었다.** `dialogue_lines.json` 이 해시 대상 파일에 들어갔다. 프리베이크 재실행이 필요하다 (C-05 의 프리픽스 변경과 같은 회차다).
+
+**완료 조건.** 새 주제 `farewell` 을 추가해도 기존 `DialogueId` 가 바뀌지 않는다. **테스트가 그것을 확인한다.**
 
 **크기·의존.** M. 의존 없음.
 

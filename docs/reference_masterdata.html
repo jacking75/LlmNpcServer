@@ -526,7 +526,26 @@ public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState 
     </section>
 
     <section class="card" id="prompt">
-      <div class="shead"><span class="snum">10</span><h2><code>prompt/</code> — 프롬프트 프리픽스</h2></div>
+            <h3>대사 주제 <code>dialogue_lines.json</code> <span class="chip">D-02</span></h3>
+      <p><strong><code>code</code> 가 곧 <code>DialogueId</code> 다.</strong> 예전에는 <code>actions.json</code> 의 <code>emits.map.Dialogue</code> 심볼을 사전순으로 모아 그 <strong>첨자</strong>를 썼다 — 주제를 하나 추가하면 뒤쪽이 통째로 밀려 프리베이크된 플랜 2,880개와 게임서버의 대사 표가 <strong>조용히</strong> 어긋났다. 증상은 "NPC 가 엉뚱한 말을 한다" 이고 원인은 아무 로그에도 없다.</p>
+<pre><code>{ "id": "greeting", "code": 2, "tags": ["talk", "social"] }</code></pre>
+      <div class="callout bad"><strong>V14 — 표에 없는 심볼은 기동 실패다</strong><p>경고로 두면 그 심볼의 <code>DialogueId</code> 가 0 이 되는데, 0 은 다른 주제의 번호다. <strong><code>code</code> 는 재배치하지 않는다</strong> — 추가는 뒤에만 (§2.4 와 같은 규칙). 대사 code 는 <strong>구조 해시</strong>에 들어간다 (B-04): 두 프로세스가 다른 번호를 쓰는 것은 "내용이 조금 다르다" 가 아니다.</p></div>
+
+      <h3>로컬라이즈 <code>localization/&lt;locale&gt;.json</code> <span class="chip">D-02</span></h3>
+      <p>문구가 마스터데이터에 없어 게임서버·툴·<code>Npc.Narrate</code> 가 각자 하드코딩하던 것을 한 곳으로 모았다. 키 접두가 <strong>무엇이 이름을 소유하는지</strong> 말한다 — <code>npc.</code>(아키타입) · <code>poi.</code>(subtype) · <code>item.</code> · <code>zone.</code> · <code>dialogue.</code>.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>규칙</th><th>이유</th></tr></thead>
+        <tbody>
+          <tr><td>키 목록은 <strong>마스터데이터가 정한다</strong></td><td>손으로 적으면 아키타입을 추가할 때 두 곳을 고쳐야 하고, 한 곳만 고쳐지는 날이 온다</td></tr>
+          <tr><td>누락은 <strong>경고</strong>다 (기동 실패가 아니다)</td><td>표시 계층이다. 문구 하나 빠진 것으로 서버가 안 뜨면 사람이 이 검사를 꺼 버린다 — 대신 기동 로그가 세고 CI 게이트가 0 을 요구한다</td></tr>
+          <tr><td>없는 키는 <strong>키를 그대로</strong> 돌려준다</td><td>빈 문자열이면 화면에서 사라져 누락을 알아챌 계기가 없다</td></tr>
+          <tr><td>낡은 키(마스터데이터에 없는 키)도 잡는다</td><td>아이템을 지웠는데 번역이 남으면 파일이 무엇을 덮는지 아무도 모르게 된다</td></tr>
+          <tr><td>액션·플래그 키는 <strong>아직 없다</strong></td><td>표시 계층이 그것들을 id 그대로 쓴다. 쓰지 않는 문구를 미리 번역하면 그 번역이 먼저 낡는다</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><strong>한국어 표기는 <code>Lexicon</code> 에서 뽑아 커밋한다</strong><p>두 벌이면 반드시 어긋나고, 어긋나면 블라인드 평가 자료의 두 군이 다른 문장으로 보인다. <code>KoreanLocale_MatchesTheLexicon</code> 이 대조한다 — <code>docs/schema/</code>·<code>docs/wire/</code> 와 같은 생성물 패턴이다.</p></div>
+
+<div class="shead"><span class="snum">10</span><h2><code>prompt/</code> — 프롬프트 프리픽스</h2></div>
       <div class="callout bad"><strong>액션 카탈로그는 생성물이다</strong><p><code>prompt/</code>의 카탈로그는 <code>actions.json</code>에서 <strong>생성</strong>된다. 손으로 편집하지 않는다.</p></div>
       <h3>프리픽스 조립</h3>
 <pre><code>[1] system_rules.md                             (  905 tok)

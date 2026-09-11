@@ -22,6 +22,7 @@ public static class MasterDataLoader
         "actions.json",
         "archetypes.json",
         "context_buckets.json",
+        "dialogue_lines.json",
         "fallback_plans.json",
         "interrupts.json",
         "items.json",
@@ -42,7 +43,13 @@ public static class MasterDataLoader
         string Path_(string name) => Path.Combine(masterDataDirectory, name);
 
         ItemTable items = ItemTable.Load(Path_("items.json"));
-        ActionCatalog actions = ActionCatalog.Load(Path_("actions.json"), items);
+
+        // D-02 — 대사 code 는 파일이 정한다. 파일이 없으면 옛 방식(사전순 첨자)으로 떨어진다:
+        // 이 저장소에는 항상 있지만, 최소 픽스처로 도는 테스트가 그 경로를 쓴다.
+        string dialoguePath = Path_(DialogueTable.FileName);
+        DialogueTable? dialogues = File.Exists(dialoguePath) ? DialogueTable.Load(dialoguePath) : null;
+
+        ActionCatalog actions = ActionCatalog.Load(Path_("actions.json"), items, dialogues);
         ArchetypeTable archetypes = ArchetypeTable.Load(Path_("archetypes.json"), actions, items);
         ZoneTable zones = LoadZones(Path_("zones.json"));
         PoiTable pois = LoadPois(Path_("pois.json"), Path_("poi_distances.bin"), zones, archetypes, items);
@@ -53,6 +60,10 @@ public static class MasterDataLoader
 
         var set = new MasterDataSet
         {
+            Dialogues = dialogues,
+
+            // D-02 — 표시 문구. 없으면 빈 배열이고, 그때 표시 계층은 키를 그대로 쓴다.
+            Locales = LocalizationTable.LoadAll(masterDataDirectory),
             Actions = actions,
             Items = items,
             Zones = zones,
@@ -63,7 +74,7 @@ public static class MasterDataLoader
             FileHashes = hashes,
             ContentHash = CombineHashes(hashes),
             StructuralHash = MasterData.StructuralHash.Compute(
-                actions, items, zones, pois, archetypes, buckets),
+                actions, items, zones, pois, archetypes, buckets, dialogues),
 
             // 파생물 신선도 (F-04). 여기서 던지지 않는다 — 호출부가 경고로 낸다.
             StaleArtifacts = Authoring.DerivedArtifacts.Stale(masterDataDirectory),
