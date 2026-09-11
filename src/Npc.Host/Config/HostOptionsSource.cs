@@ -92,6 +92,7 @@ public static class HostOptionsSource
         new("--dynamic-roster", false),
         new("--npc-capacity", true),
         new("--planstore-sha", true),
+        new("--query-max-streams", true),
         new("--scan-cap", true),
         new("--max-speed", false),
         new("--no-dashboard", false),

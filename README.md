@@ -153,6 +153,7 @@ LLM은 행동 플랜을 *생성*하고, 결정론적 런타임이 그것을 *실
 | **관측** | OpenTelemetry 메트릭·트레이스 · Prometheus(`/metrics/prometheus`) · OTLP · 구조화 로그 |
 | **경보** | 14종 · 쿨다운 · 웹훅(Slack/Teams). 예산 임계 80/95/100 % |
 | **관리 API** | 킬스위치 · 즉시 스냅샷. 토큰 인증 + 분당 실패 5회 제한 + **감사 로그**(`state/audit.jsonl`) |
+| **질의 API** | `/npcs`(필터·페이지) · `/npc/{id}/context`(대화용, **전부 id·enum**) · `/buckets` · `/stream/npcs`(SSE 1Hz 변경분). **도구·대화·운영 전용** — 런타임 게임 로직은 링크만 쓴다 |
 | **비밀 취급** | 환경변수로만. 인자(`ps` 에 보인다)·파일(이미지에 굽힌다) 금지. `--bind 0.0.0.0` 은 토큰 없으면 거절 |
 | **배포** | Dockerfile(비루트·`HEALTHCHECK`) · compose(데모 한 벌) · k8s(프로브 3종·시크릿) · Grafana |
 

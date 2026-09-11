@@ -235,6 +235,14 @@ public sealed record HostOptions
     public string PlanStoreSha { get; init; } = string.Empty;
 
     /// <summary>
+    /// 동시에 열어 줄 조회 스트림(SSE) 수 (B-08). 0 이면 스트림을 열지 않는다.
+    ///
+    /// <b>상한이 없으면 GM 도구를 여러 개 띄운 것만으로</b> 응답 조립이 틱마다 수십 번 돈다 —
+    /// 조회는 다른 스레드지만 CPU 는 같이 쓴다.
+    /// </summary>
+    public int QueryMaxStreams { get; init; } = 8;
+
+    /// <summary>
     /// 10Hz 실시간 페이싱을 끄고 최대 속도로 돈다. 부하·게이트 측정용.
     /// 켜면 벽시계를 보지만 <b>게임 로직은 여전히 Tick 만 본다</b> — 리플레이는 깨지지 않는다.
     /// </summary>
@@ -479,6 +487,7 @@ public sealed record HostOptions
           --dynamic-roster        런타임 스폰·디스폰 허용 (B-05). 게임서버도 켜야 한다
           --npc-capacity N        NpcStore 슬롯 수. 0=동적이면 로스터×1.2 (B-05)
           --planstore-sha <sha8>  플랜 스토어를 그 프리픽스 회차로 고정 (C-03. 진단용)
+          --query-max-streams N   조회 스트림(SSE) 동시 연결 상한 (기본 8. 0=끔. B-08)
           --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
           --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
           --no-dashboard          웹 호스트를 띄우지 않는다 (헬스 라우트는 계속 뜬다)
@@ -1243,6 +1252,16 @@ public sealed record HostOptions
 
                 case "--dynamic-roster":
                     result = result with { DynamicRoster = true };
+                    break;
+
+                case "--query-max-streams":
+                    if (!TryInt(args, ref i, arg, 0, 1_000, out int maxStreams, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { QueryMaxStreams = maxStreams };
                     break;
 
                 case "--planstore-sha":

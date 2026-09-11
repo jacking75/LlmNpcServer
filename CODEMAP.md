@@ -114,6 +114,7 @@
 | **경보를 어디로 보내나** | `src/Npc.Host/Observability/Alarms.cs`(싱크·쿨다운·웹훅) · 예산 임계는 `Observability/BudgetAlarmBridge.cs` |
 | **Prometheus·OTLP·구조화 로그** | `src/Npc.Host/Observability/Telemetry.cs` |
 | **틱 루프에 금지된 API 를 썼다** | `src/Npc.Runtime/BannedSymbols.txt` — 빌드가 RS0030 으로 막는다 |
+| **여러 NPC 를 한 번에 본다 · 검색한다** | `src/Npc.Host/Api/QueryEndpoints.cs`(`/npcs`·`/npc/{id}/context`·`/buckets`) · `QueryStream.cs`(SSE) | **도구·대화·운영 전용이다.** 런타임 게임 로직이 의존하면 링크를 우회한 동기 호출이 된다 |
 | **NPC 하나를 추적하고 싶다** | `src/Npc.Host/Api/NpcTraceEndpoint.cs` |
 | **컨테이너·릴리스** | `deploy/` (Dockerfile · compose · k8s · Grafana) · 버전은 `src/Npc.Host/HostVersion.cs` · 패키지 버전은 `Directory.Packages.props` 한 곳 |
 | **CI 파이프라인을 짠다** | 워크플로 파일을 두지 않는다 — `build.ps1` · `npc validate` · `npc regen --check` 세 명령이 파이프라인의 내용이다 |

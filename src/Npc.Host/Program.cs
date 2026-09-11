@@ -213,6 +213,9 @@ if (options.NoDashboard)
 // 들고 다니게 하면 그 토큰이 사방에 퍼지고, 그 둘은 상태를 바꾸지 않는다.
 var adminAuth = new AdminAuth(AdminAuth.TokenFromEnvironment());
 
+// B-08 — SSE 연결 수 상한. 0 이면 스트림을 열지 않는다.
+var streams = new StreamLimiter(options.QueryMaxStreams);
+
 if (adminAuth.Enabled)
 {
     app.Use(async (context, next) =>
@@ -246,6 +249,41 @@ app.MapGet("/metrics", () => host.Metrics.Snapshot());
 
 // NPC 추적 (T4-21). SoA 배열을 읽기만 하고 값을 복사해 나간다 — 틱 루프를 막지 않는다.
 app.MapGet(NpcTraceEndpoint.Route, (int id) => host.Trace(id));
+
+// ── 읽기 전용 질의 API (B-08) ───────────────────────────────────
+//
+// <b>링크가 아니라 HTTP 다.</b> N1(명령은 fire-and-forget)은 그대로다 — 게임서버가
+// NPC 서버에 물어볼 수단이 구조적으로 없는 것은 옳은 설계이고, 그것을 흔들지 않으려고
+// 질의를 링크 밖에 둔다. <b>런타임 게임 로직이 여기에 의존하면 안 된다.</b>
+app.MapGet(QueryEndpoints.ListRoute, (
+    string? zone, string? archetype, string? flag, string? status, int? limit, int? cursor) =>
+    host.QueryNpcs(zone, archetype, flag, status, limit ?? QueryEndpoints.DefaultLimit, cursor ?? 0));
+
+app.MapGet(QueryEndpoints.ContextRoute, (int id) => host.Context(id));
+app.MapGet(QueryEndpoints.BucketsRoute, (string? state) => host.Buckets(state));
+
+// 변경 스트림 (SSE). 1Hz · 바뀐 것만.
+//
+// <b>연결 수에 상한을 둔다.</b> 상한이 없으면 GM 도구를 여러 개 띄운 것만으로
+// 응답 조립이 틱마다 수십 번 돈다 — 조회는 다른 스레드지만 CPU 는 같이 쓴다.
+app.MapGet(QueryEndpoints.StreamRoute, async (HttpContext http, string? ids) =>
+{
+    if (!streams.TryEnter())
+    {
+        http.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await http.Response.WriteAsJsonAsync(new { error = "too many streams", limit = streams.Limit });
+        return;
+    }
+
+    try
+    {
+        await QueryStream.RunAsync(http, host, ids, CancellationToken.None);
+    }
+    finally
+    {
+        streams.Exit();
+    }
+});
 
 // 버킷 히트맵 원자료 (T4-22). W12 보고서 §6 "발견" 의 원자료라 CSV 로도 뽑을 수 있게 둔다 —
 // /metrics 의 JSON 은 대시보드용이고, 이쪽은 T5-18 이 파일로 받아 가는 경로다.
@@ -1207,6 +1245,47 @@ internal sealed class NpcHost : IAsyncDisposable
     /// </summary>
     public NpcTrace Trace(int npc) =>
         NpcTraceEndpoint.Snapshot(npc, _store, _plans, _data, _clock.Current);
+
+    /// <summary>
+    /// 벌크 조회 (B-08). <b>도구·대화·운영 전용이다</b> — 런타임 게임 로직이 여기에 의존하면
+    /// 그것은 링크를 우회한 동기 호출이 되고, 틱 예산과 장애 격리가 동시에 무너진다.
+    /// </summary>
+    /// <param name="zone">존 id 필터.</param>
+    /// <param name="archetype">아키타입 id 필터.</param>
+    /// <param name="flag">월드 플래그 이름 필터.</param>
+    /// <param name="status">스텝 상태 필터.</param>
+    /// <param name="limit">한 쪽 크기.</param>
+    /// <param name="cursor">이 슬롯부터.</param>
+    public NpcListPage QueryNpcs(
+        string? zone = null,
+        string? archetype = null,
+        string? flag = null,
+        string? status = null,
+        int limit = QueryEndpoints.DefaultLimit,
+        int cursor = 0) =>
+        QueryEndpoints.List(
+            _store, _plans, _data, _clock.Current, zone, archetype, flag, status, limit, cursor);
+
+    /// <summary>대화·진단용 맥락 (B-08). 전부 id·enum 이다 — 자연어를 담지 않는다.</summary>
+    /// <param name="npc">NPC 첨자.</param>
+    public NpcContext Context(int npc) =>
+        QueryEndpoints.Context(npc, _store, _plans, _data, _clock.Current);
+
+    /// <summary>플랜 스토어 상태 (B-08).</summary>
+    /// <param name="state"><c>missing</c>·<c>pinned</c>·<c>filled</c>. 빈 값이면 집계만.</param>
+    public BucketReport Buckets(string? state = null) =>
+        QueryEndpoints.Buckets(_plans, _data, state);
+
+    /// <summary>
+    /// 스트림이 볼 요약 한 줄 (B-08). SSE 루프가 부른다.
+    /// </summary>
+    /// <param name="npc">NPC 첨자.</param>
+    public NpcSummary Summary(int npc) =>
+        QueryEndpoints.List(_store, _plans, _data, _clock.Current, limit: 1, cursor: npc)
+            .Npcs is [var only, ..] ? only : default;
+
+    /// <summary>슬롯 총수. 스트림이 id 범위를 거르는 데 쓴다.</summary>
+    public int SlotCount => _store.Count;
 
     /// <summary>
     /// 버킷 히트맵 원자료 CSV (T4-22). W12 보고서 §6 "발견" 의 원자료다 (T5-18 이 읽는다).

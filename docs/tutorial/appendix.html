@@ -89,11 +89,31 @@
 <tr><td><code>GET /status</code></td><td>세계 요약 한 장</td><td>"돌고 있나?"</td></tr>
 <tr><td><code>GET /metrics</code></td><td>패널 7종 전체 지표</td><td>수치를 정확히</td></tr>
 <tr><td><code>GET /npc/{id}</code></td><td><b>NPC 한 마리의 속사정</b></td><td>"왜 저기로 가는가"</td></tr>
+<tr><td><code>GET /npcs?zone=&amp;archetype=&amp;flag=&amp;status=&amp;limit=&amp;cursor=</code></td><td><b>벌크 요약</b>. 필터·페이지네이션 (B-08)</td><td>"저 존 전체가 어떤가"</td></tr>
+<tr><td><code>GET /npc/{id}/context</code></td><td>대화·진단용 최소 맥락. <b>전부 id·enum</b> (B-08)</td><td>대화 서비스(D-01)가 읽는다</td></tr>
+<tr><td><code>GET /buckets?state=missing|pinned|filled</code></td><td>플랜 스토어 상태. <b>줄은 <code>state</code> 를 줬을 때만</b> (B-08)</td><td>무엇이 비었나</td></tr>
+<tr><td><code>GET /stream/npcs?ids=1,2,3</code></td><td>변경분 SSE. <b>1Hz · 바뀐 것만</b> (B-08)</td><td>몇 마리를 계속 본다</td></tr>
 <tr><td><code>GET /heatmap.csv</code></td><td>버킷 조회 히트맵</td><td>무엇을 구울지 정할 때</td></tr>
 <tr><td><code>GET /dashboard</code></td><td>단일 HTML 대시보드</td><td>그래프로</td></tr>
 <tr><td><code>POST /control/killswitch?target=…</code></td><td>T2·T1·PlanStore 차단</td><td><b><code>--dev-control</code> 필요</b>. 없으면 404</td></tr>
 </tbody>
 </table>
+</div>
+
+<div class="warn">
+  <span class="tag">질의 API 는 도구·대화·운영 전용이다</span>
+  <b>런타임 게임 로직이 여기에 의존하면 안 된다.</b> 게임서버가 매 틱 물어 행동을 정하기 시작하면
+  그것은 링크를 우회한 동기 호출이 되고, <b>틱 예산과 장애 격리가 동시에 무너진다.</b>
+  게임서버가 NPC 서버에 물어볼 수단이 링크에 없는 것(N1)은 결함이 아니라 설계다 —
+  그래서 질의를 HTTP 에 두었다.
+</div>
+
+<div class="warn">
+  <span class="tag">전부 토큰 뒤에 있다</span>
+  <code>NPC_ADMIN_TOKEN</code> 이 설정돼 있으면 위 표의 <code>/healthz/*</code>·<code>/metrics/prometheus</code>
+  를 뺀 전부가 <code>Authorization: Bearer</code> 를 요구한다 (A-06).
+  SSE 는 <code>--query-max-streams</code>(기본 8) 로 동시 연결을 막는다 — <b>상한이 없으면
+  GM 도구를 여러 개 띄운 것만으로</b> 응답 조립이 틱마다 수십 번 돈다.
 </div>
 
 <h3>경보 기준 — 이 값이 이러면 본다</h3>
