@@ -247,6 +247,108 @@ public sealed class PlanStore
     /// <summary>이 버킷이 사람이 고정한 플랜인가.</summary>
     public bool IsPinned(BucketKey key) => IsPinned(key.ToIndex());
 
+    /// <summary>
+    /// 다른 스토어의 버킷 표를 <b>이 스토어로 옮긴다</b> (A-07 핫 리로드).
+    ///
+    /// <para>
+    /// <b>순서가 전부다.</b> 새 플랜을 먼저 등록해 새 <c>PlanId</c> 를 만든 뒤에야
+    /// <c>_byBucket</c> 을 그 쪽으로 돌린다 — 반대로 하면 그 사이에 읽는 틱이
+    /// <b>아직 채워지지 않은 슬롯</b>을 가리키는 id 를 본다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>옛 플랜을 지우지 않는다.</b> 지금 그 플랜을 쓰고 있는 NPC 가 있고, 스텝 경계에
+    /// 도달해야 새 것으로 넘어간다 (§2.6). 레지스트리가 조금 자라지만 리로드는 드물다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>디스크가 진실이다.</b> <paramref name="fresh"/> 에 없는 버킷은 미생성으로 되돌린다 —
+    /// 파일을 지웠는데 옛 플랜이 남으면 "지운 것이 계속 돈다".
+    /// </para>
+    ///
+    /// <para><b>개별 플랜 풀은 건드리지 않는다</b> — 프리픽스가 같으면 그 플랜은 여전히 유효하다.</para>
+    /// </summary>
+    /// <param name="fresh">디스크에서 새로 읽은 스토어.</param>
+    /// <returns>버킷 표에서 바뀐 칸 수.</returns>
+    public int Adopt(PlanStore fresh)
+    {
+        ArgumentNullException.ThrowIfNull(fresh);
+
+        if (fresh._byBucket.Length != _byBucket.Length
+            || fresh._byArchetype.Length != _byArchetype.Length)
+        {
+            throw new ArgumentException(
+                $"버킷 공간이 다르다: {fresh._byBucket.Length} vs {_byBucket.Length}. "
+                + "구조가 바뀌었으면 리로드가 아니라 재기동이다.",
+                nameof(fresh));
+        }
+
+        int changed = 0;
+
+        for (int index = 0; index < _byBucket.Length; index++)
+        {
+            int freshId = Volatile.Read(ref fresh._byBucket[index]);
+            var freshOrigin = (PlanOrigin)Volatile.Read(ref fresh._origin[index]);
+
+            if (freshId == IdlePlanId)
+            {
+                if (Volatile.Read(ref _byBucket[index]) != IdlePlanId)
+                {
+                    Volatile.Write(ref _byBucket[index], IdlePlanId);
+                    Volatile.Write(ref _origin[index], (int)PlanOrigin.Fallback);
+                    changed++;
+                }
+
+                continue;
+            }
+
+            CompiledPlan freshPlan = fresh[freshId];
+            int liveId = Volatile.Read(ref _byBucket[index]);
+
+            // <b>같은 내용이면 등록하지 않는다.</b> 레지스트리는 65,536칸이고 회수가 없다 —
+            // 2,880 버킷을 매 리로드마다 새로 등록하면 22회에 찬다. 대부분의 리로드는
+            // 몇 칸만 바뀌므로, 바뀐 것만 세는 쪽이 보고도 정직해진다.
+            if (liveId != IdlePlanId
+                && freshPlan.SameContentAs(this[liveId])
+                && (PlanOrigin)Volatile.Read(ref _origin[index]) == freshOrigin)
+            {
+                continue;
+            }
+
+            // 먼저 등록해 새 id 를 만든다. 그 다음에야 버킷을 돌린다.
+            PlanId id = Register(freshPlan);
+
+            Volatile.Write(ref _byBucket[index], id.Value);
+            Volatile.Write(ref _origin[index], (int)freshOrigin);
+
+            changed++;
+        }
+
+        for (int archetype = 0; archetype < _byArchetype.Length; archetype++)
+        {
+            int freshId = Volatile.Read(ref fresh._byArchetype[archetype]);
+
+            if (freshId == IdlePlanId)
+            {
+                continue;   // 폴백은 지우지 않는다 — 없으면 NPC 가 설 자리가 없다
+            }
+
+            CompiledPlan freshPlan = fresh[freshId];
+            int liveId = Volatile.Read(ref _byArchetype[archetype]);
+
+            if (liveId != IdlePlanId && freshPlan.SameContentAs(this[liveId]))
+            {
+                continue;
+            }
+
+            PlanId id = Register(freshPlan);
+
+            Volatile.Write(ref _byArchetype[archetype], id.Value);
+        }
+
+        return changed;
+    }
+
     /// <summary>pinned 버킷 수. manifest 의 <c>counts.pinned</c> 다 (docs/03 §7).</summary>
     public int PinnedBuckets
     {

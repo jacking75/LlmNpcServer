@@ -64,6 +64,9 @@
           "lastSnapshotTick": { "type": "integer" },
           "snapshotFailures": { "type": "integer" },
           "restoredFromTick": { "type": "integer" },
+          "reloads": { "type": "integer" },
+          "reloadFailures": { "type": "integer" },
+          "lastReload": { "type": "string" },
           "link": { "$ref": "#/components/schemas/LinkStats" }
         }
       },

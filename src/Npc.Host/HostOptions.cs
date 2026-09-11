@@ -243,6 +243,15 @@ public sealed record HostOptions
     public int QueryMaxStreams { get; init; } = 8;
 
     /// <summary>
+    /// <c>planstore/</c> 와 <c>masterdata/</c> 를 감시해 바뀌면 자동으로 리로드한다 (A-07).
+    ///
+    /// <b>개발용이다.</b> 운영에서는 <c>POST /admin/reload</c> 로 사람이 부른다 —
+    /// 파일이 반쯤 쓰인 순간에 워처가 깨어나는 경쟁이 있고, 운영에서 그 경쟁을 감수할
+    /// 이유가 없다. 감시 경로에서는 실패해도 현 상태 그대로라 안전하지만 로그가 시끄럽다.
+    /// </summary>
+    public bool Watch { get; init; }
+
+    /// <summary>
     /// 10Hz 실시간 페이싱을 끄고 최대 속도로 돈다. 부하·게이트 측정용.
     /// 켜면 벽시계를 보지만 <b>게임 로직은 여전히 Tick 만 본다</b> — 리플레이는 깨지지 않는다.
     /// </summary>
@@ -440,6 +449,7 @@ public sealed record HostOptions
           --gs-port N             게임서버 링크 포트 (기본 7010)
           --zone <id>[,<id>]      로스터 존 필터. 게임서버와 같아야 한다
           --dev-control           POST /control/* 을 연다 (기본 꺼짐). 데모용이다
+          --watch                 planstore/·masterdata/ 를 감시해 자동 리로드 (A-07). 개발용이다
           --npcs N                NPC 수 (기본 500)
           --time-scale N          시간 압축. 1=실시간, 60=1초당 게임 1분 (기본 60)
           --days N                돌릴 게임 일수. 0=무제한 (기본 1)
@@ -820,6 +830,10 @@ public sealed record HostOptions
 
                 case "--dev-control":
                     result = result with { DevControl = true };
+                    break;
+
+                case "--watch":
+                    result = result with { Watch = true };
                     break;
 
                 case "--on-link-fault":

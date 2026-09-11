@@ -10,6 +10,7 @@ using Npc.Host.Commands;
 using Npc.Host.Metrics;
 using Npc.Host.Observability;
 using Npc.Host.Persistence;
+using Npc.Host.Reload;
 using Npc.Host.Replan;
 using Npc.Llm;
 using Npc.MasterData;
@@ -196,6 +197,20 @@ app.MapGet(HealthEndpoints.LiveRoute, () => Probe(host.Live()));
 app.MapGet(HealthEndpoints.ReadyRoute, () => Probe(host.Ready()));
 app.MapGet(HealthEndpoints.StartupRoute, () => Probe(host.Startup()));
 
+// ── 파일 감시 리로드 (A-07) ─────────────────────────────────────
+// <b>개발용이다.</b> 운영은 POST /admin/reload 로 사람이 부른다 — 파일이 반쯤 쓰인
+// 순간에도 워처는 깨어나고, 프리베이크가 2,880개를 쏟는 동안에는 수천 번 깨어난다.
+using ReloadWatcher? watcher = options.Watch
+    ? new ReloadWatcher(
+        host.Reloader, options.ResolvePlanStore(), options.ResolveMasterData(), Console.Out)
+    : null;
+
+if (watcher is not null)
+{
+    Console.Out.WriteLine(
+        $"watch: 경로 {watcher.WatchedPaths}개 · 조용해진 뒤 {ReloadWatcher.QuietMillis}ms 에 리로드");
+}
+
 if (options.NoDashboard)
 {
     await app.StartAsync(CancellationToken.None);
@@ -349,6 +364,27 @@ if (adminAuth.Enabled || options.DevControl)
             : Results.BadRequest(new AdminResult(false, written.Error, []));
     });
 
+    // 무중단 리로드 (A-07). <b>트랜잭션이다</b> — 실패하면 아무것도 안 바뀐다.
+    //
+    // 로드·검증은 이 요청 스레드에서 돌고 틱 루프가 하는 일은 참조 읽기뿐이다.
+    // 그래서 리로드가 느려도 틱은 안 밀린다 (CLAUDE.md §2.1).
+    app.MapPost(AdminEndpoints.ReloadRoute, (HttpContext context, string? scope, string? reason) =>
+    {
+        if (ReloadService.ParseScope(scope) is not { } parsed)
+        {
+            return Results.BadRequest(new AdminResult(
+                false, $"scope 를 모른다: '{scope}'. planstore|content 중 하나다.", []));
+        }
+
+        ReloadResult result = host.Reloader.Reload(parsed);
+
+        audit.Write(new AuditEntry(
+            host.Clock.Current.Value, "reload", parsed.ToString(), Client(context),
+            reason ?? "(사유 없음)", result.Detail));
+
+        return result.Ok ? Results.Ok(result) : Results.BadRequest(result);
+    });
+
     // 호환: 예전 경로를 남긴다. 켜기만 하던 시절의 스크립트가 아직 있다.
     app.MapPost("/control/killswitch", (HttpContext context, string? target) =>
     {
@@ -360,7 +396,8 @@ if (adminAuth.Enabled || options.DevControl)
 
     Console.Out.WriteLine(
         $"admin: POST {AdminEndpoints.KillSwitchRoute}?target=T2|T1|PlanStore&state=on|off&reason=..."
-        + $" · POST {AdminEndpoints.SnapshotRoute}");
+        + $" · POST {AdminEndpoints.SnapshotRoute}"
+        + $" · POST {AdminEndpoints.ReloadRoute}?scope=planstore|content");
 }
 
 await app.StartAsync(CancellationToken.None);
@@ -610,6 +647,14 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>벽시계 청구 캡 (C-02). 꺼져 있어도 인스턴스는 있다.</summary>
     public BillingGuard Billing { get; init; } = null!;
+
+    /// <summary>
+    /// 무중단 리로드 (A-07). <c>POST /admin/reload</c> 와 <c>--watch</c> 가 부른다.
+    ///
+    /// <b>여기 있는 것은 서비스뿐이고 틱 루프는 이것을 모른다</b> — 교체는 참조 쓰기라
+    /// 루프가 다음 스텝 경계에서 새 플랜을 본다 (CLAUDE.md §2.1·§2.6).
+    /// </summary>
+    public ReloadService Reloader { get; init; } = null!;
 
     /// <summary>
     /// 릴리스 버전 (A-09). <c>MAJOR.MINOR.PATCH+메타</c>.
@@ -1087,6 +1132,16 @@ internal sealed class NpcHost : IAsyncDisposable
             Restore = restore,
             Webhook = webhook,
             Billing = billing,
+
+            // A-07 — 리로드는 기동 때 읽은 것과 같은 경로·같은 프리픽스를 다시 읽는다.
+            // 프리픽스를 여기서 다시 만들지 않는 것이 핵심이다: 다시 만들면 그 사이에 바뀐
+            // archetypes.json 이 조용히 새 SHA 를 만들고, 올라간 플랜과 기록된 회차가 어긋난다.
+            Reloader = new ReloadService(
+                plans, data, masterDataDir, options.ResolvePlanStore(),
+                prefix.Sha256, options.PlanStoreSha)
+            {
+                Interrupts = interrupts,
+            },
         };
 
         meter.TickSync = host.TickSync;
@@ -1352,6 +1407,9 @@ internal sealed class NpcHost : IAsyncDisposable
         LastSnapshotTick: _snapshots?.LastTick ?? 0,
         SnapshotFailures: _snapshots?.Failures ?? 0,
         RestoredFromTick: Restore.Tick,
+        Reloads: Reloader?.Reloads ?? 0,
+        ReloadFailures: Reloader?.Failures ?? 0,
+        LastReload: Reloader?.Last.Detail ?? "리로드 없음",
         Link: _link.Stats);
 
     /// <summary>종료 요약. 게이트 러너가 이 숫자를 본다.</summary>
@@ -1664,6 +1722,9 @@ internal sealed class NpcHost : IAsyncDisposable
 /// <param name="LastSnapshotTick">마지막으로 쓴 스냅샷의 틱 (A-01). 상태 손실 창의 하한이다.</param>
 /// <param name="SnapshotFailures">스냅샷 실패 누계. 0 이 아니면 손실 창이 주기보다 크다.</param>
 /// <param name="RestoredFromTick">복원한 스냅샷의 틱. 복원 안 했으면 0.</param>
+/// <param name="Reloads">성공한 무중단 리로드 수 (A-07).</param>
+/// <param name="ReloadFailures">거절된 리로드 수. <b>0 이 아니면 디스크에 못 올릴 것이 있다.</b></param>
+/// <param name="LastReload">마지막 리로드 결과 한 줄. 아직 없으면 "아직 없음".</param>
 /// <param name="Link">링크 통계.</param>
 internal readonly record struct HostSnapshot(
     string Version,
@@ -1695,6 +1756,9 @@ internal readonly record struct HostSnapshot(
     long LastSnapshotTick,
     long SnapshotFailures,
     long RestoredFromTick,
+    long Reloads,
+    long ReloadFailures,
+    string LastReload,
     LinkStats Link);
 
 /// <summary>게임서버 대역 한 벌. Sim 하위 시뮬을 조립하고 틱마다 민다.</summary>

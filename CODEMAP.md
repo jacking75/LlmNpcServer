@@ -124,7 +124,8 @@
 | **상태를 저장·복구한다** | `src/Npc.Host/Persistence/` — `SnapshotFile`(형식·CRC) · `SnapshotWriter`(주기 쓰기) · `SnapshotRestorer`(조건 판정) · 틱 루프 쪽 통로는 `src/Npc.Runtime/NpcStoreSnapshot.cs` |
 | **헬스체크 · 죽었는지 살았는지** | `src/Npc.Host/Api/HealthEndpoints.cs` (`/healthz/live`·`ready`·`startup`) · 루프 하트비트는 `src/Npc.Runtime/ILoopProbe.cs` |
 | **링크가 `Faulted` 인데 프로세스가 안 죽는다** | `src/Npc.Host/LinkFaultPolicy.cs` (`--on-link-fault`) |
-| **운영 제어 · 감사 로그** | `src/Npc.Host/Api/AdminEndpoints.cs`(`/admin/killswitch`·`/admin/snapshot`) · `Api/AuditLog.cs` — 시각은 게임 틱이다 |
+| **운영 제어 · 감사 로그** | `src/Npc.Host/Api/AdminEndpoints.cs`(`/admin/killswitch`·`/admin/snapshot`·`/admin/reload`) · `Api/AuditLog.cs` — 시각은 게임 틱이다 |
+| **실행 중에 플랜을 바꾼다 (재기동 없이)** | `src/Npc.Host/Reload/ReloadService.cs`(트랜잭션 교체) · `ReloadWatcher.cs`(`--watch`, 개발용) · 스토어 쪽 통로는 `src/Npc.Planning/PlanStore.cs`(`Adopt`) · 등급 표는 `docs/reference_masterdata.html` §13 |
 | **시크릿을 돌린다 · 유출됐다** | `docs/security/secrets.md` — 읽는 곳은 `src/Npc.Host/Program.cs`(링크 비밀) · `src/Npc.Host/Api/AdminAuth.cs`(관리 토큰) · `src/Npc.Llm/ChatClientFactory.cs`(엔진 키) |
 | **보안 위협·잔여 위험을 본다** | `docs/security/threat_model.md` (T1~T15) · 개인정보는 `docs/security/privacy.md` · SBOM 은 `tools/sbom.ps1` |
 | **라이선스가 걸린다 (dotLLM·모델 약관)** | `docs/legal/dotllm.md` · `docs/legal/models.md` — **법무 확인은 미실시**다. 지금은 별도 프로세스 + HTTP 경계가 유일한 조치 |

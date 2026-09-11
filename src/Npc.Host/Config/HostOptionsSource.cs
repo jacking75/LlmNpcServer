@@ -48,6 +48,7 @@ public static class HostOptionsSource
         new("--gs-port", true),
         new("--zone", true),
         new("--dev-control", false),
+        new("--watch", false),
         new("--npcs", true),
         new("--time-scale", true),
         new("--days", true),

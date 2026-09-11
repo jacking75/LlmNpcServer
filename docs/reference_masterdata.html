@@ -106,6 +106,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
       <li><a href="#prompt"><span class="n">10</span>프롬프트 프리픽스</a></li>
       <li><a href="#validate"><span class="n">11</span>로딩과 검증 V1~V13</a></li>
       <li><a href="#order"><span class="n">12</span>작성 순서</a></li>
+      <li><a href="#reload"><span class="n">13</span>리로드 등급</a></li>
     </ol>
     <div class="side-tools">
       <button type="button" id="theme">테마: 자동</button>
@@ -660,6 +661,55 @@ HARD RULES
 9. prompt/               ← actions.json 에서 자동 생성
 10. npc_instances.json   ← 스크립트 생성</code></pre>
       <div class="callout"><strong>8번이 사람 손이 가장 많이 가는 부분이다</strong><p>폴백 플랜 40개 수작성은 동시에 <strong>오써링 자동화의 비교 기준선</strong>이 된다 — 사람이 40개 만드는 데 걸린 시간 대 LLM이 2,880개 만드는 데 걸린 시간이 이 프로젝트의 핵심 수치다. 실측치는 <a href="reference_metrics.html">실측 데이터</a>에 있다.</p></div>
+    </section>
+
+    <section class="card" id="reload">
+      <div class="shead"><span class="snum">13</span><h2>리로드 등급 <span class="chip">A-07</span></h2></div>
+      <p><strong>무엇을 고치면 프로세스를 내려야 하는가.</strong> 재기동은 상태 손실 창과 게임서버 재동기화를 동반하고, 마스터데이터 구조 해시가 핸드셰이크 대조 대상이라 게임서버와 <strong>동시 교체</strong>가 된다. 그래서 "이 파일은 안 내려도 된다" 를 등급으로 못박는다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>등급</th><th>대상</th><th>트리거</th><th>게임서버 영향</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>핫</strong></td>
+            <td><code>planstore/&lt;sha8&gt;/plans/*</code> · <code>planstore/pinned/*</code></td>
+            <td><code>POST /admin/reload?scope=planstore</code></td>
+            <td>없음</td>
+          </tr>
+          <tr>
+            <td><strong>온</strong></td>
+            <td>위에 더해 <code>interrupts.json</code> · <code>fallback_plans.json</code></td>
+            <td><code>POST /admin/reload?scope=content</code></td>
+            <td>없음 (내용 해시만 변함)</td>
+          </tr>
+          <tr>
+            <td><strong>콜드</strong></td>
+            <td><code>code</code>/<code>bit</code> 추가 · <code>allowed_actions</code> · <code>pois</code>/<code>zones</code>/<code>items</code> 구조 · <code>context_buckets.json</code> · <strong><code>archetypes.json</code> 의 <code>desc</code>·<code>traits</code></strong> · <strong><code>prompt/</code>(<code>system_rules.md</code>·<code>fewshot/</code>)</strong></td>
+            <td>재기동</td>
+            <td>구조 해시가 바뀌면 게임서버도 재배포</td>
+          </tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout"><strong>프리픽스에 실리는 것은 전부 콜드다</strong><p><code>archetypes.json</code> 의 <code>desc</code>·<code>traits</code> 와 <code>prompt/</code> 아래 전부가 여기 해당한다. 고치면 <strong>프리픽스 SHA 가 바뀌고</strong>, 플랜 스토어는 SHA 별 디렉터리라 다른 회차의 것이 된다 — 플랜을 살린 채 프리픽스만 바꾸면 "이 플랜이 어떤 프롬프트로 만들어졌나" 가 거짓이 된다. 프롬프트를 되돌리면 그 회차의 플랜이 그대로 돌아온다는 것이 <strong>롤백의 전부</strong>이고, 온 등급 리로드가 그 관계를 깨면 안 된다.</p></div>
+
+      <h3>리로드는 트랜잭션이다</h3>
+      <p>디스크에서 <strong>전부 읽고 전부 검증한 뒤에야</strong> 교체한다. 플랜 하나라도 깨져 있으면 아무것도 안 바꾸고 사유를 응답에 담는다. 반쯤 갈아 끼운 스토어는 "어떤 NPC 는 새 플랜, 어떤 NPC 는 옛 플랜, 경계가 어디인지 아무도 모르는" 상태를 만든다.</p>
+      <p>온 등급은 <strong>구조 해시</strong>(B-04)가 같을 때만 통과한다. 달라졌으면 게임서버도 같이 배포해야 하므로 리로드로 덮을 수 없고, 응답이 재기동을 요구한다.</p>
+
+      <h3>교체 순서와 옛 플랜</h3>
+<pre><code>1. 새 PlanStore 를 워커(HTTP 요청) 스레드에서 로드 → 검증
+2. 바뀐 버킷만 라이브 레지스트리에 Register → 새 PlanId
+3. _byBucket[index] 를 그 PlanId 로 Volatile.Write
+4. 각 NPC 는 다음 스텝 경계에서 PlanSwapper 로 갈아탄다</code></pre>
+      <p><strong>옛 플랜은 지우지 않는다.</strong> 그 <code>PlanId</code> 를 들고 스텝 중간에 있는 NPC 가 있다. <strong>안 바뀐 버킷은 등록하지 않는다</strong> — 레지스트리가 65,536칸이고 회수가 없어, 매번 2,880개를 새로 등록하면 리로드 22회에 찬다.</p>
+      <p>틱 루프가 하는 일은 <code>Volatile</code> 읽기뿐이라 <strong>리로드 중에도 틱당 할당은 0</strong>이다 (<code>ReloadTests</code> 가 강제).</p>
+
+      <h3>개발용 파일 감시</h3>
+      <p><code>--watch</code> 는 <code>planstore/</code> 와 <code>masterdata/</code> 를 보다가 <strong>1.5초 조용해지면</strong> 한 번 돈다. 운영에는 쓰지 않는다 — 파일이 반쯤 쓰인 순간에도 워처는 깨어나고, 프리베이크가 2,880개를 쏟는 동안에는 수천 번 깨어난다. 트랜잭션이라 그 경우도 "현 상태 유지 + 시끄러운 로그" 로 끝나지만, 운영에서 그 경쟁을 감수할 이유가 없다.</p>
+
+      <h3>남은 것</h3>
+      <p><strong>리플레이에 리로드 시점을 기록하지 않는다</strong>(미구현). 기록 회차 중간에 리로드하면 리플레이가 같은 시점에 같은 스토어로 바뀌지 않아 해시가 갈린다 — 결정론이 필요한 회차에서는 리로드를 걸지 않는다.</p>
+
       <div class="refs">
         <a href="index.html">프로젝트 안내서</a>
         <a href="reference_link.html">게임서버 연동 계약</a>

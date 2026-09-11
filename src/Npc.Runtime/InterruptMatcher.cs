@@ -24,7 +24,8 @@ public sealed class InterruptMatcher
 {
     private readonly MasterDataSet _data;
     private readonly NpcStore _store;
-    private readonly InterruptRule?[] _armed;   // NPC 별 마지막으로 발동한 규칙
+    private readonly InterruptRule?[] _armed;
+    private InterruptRules _rules;   // NPC 별 마지막으로 발동한 규칙
 
     /// <summary>매처를 만든다. 기동 시 1회.</summary>
     public InterruptMatcher(MasterDataSet data, NpcStore store)
@@ -35,6 +36,7 @@ public sealed class InterruptMatcher
         _data = data;
         _store = store;
         _armed = new InterruptRule?[store.Count];
+        _rules = data.Interrupts;
     }
 
     /// <summary>매칭된 횟수.</summary>
@@ -42,6 +44,23 @@ public sealed class InterruptMatcher
 
     /// <summary>즉시 발행한 액션 수.</summary>
     public long Forced { get; private set; }
+
+    /// <summary>
+    /// 지금 쓰는 인터럽트 규칙 (A-07 온 등급 리로드).
+    ///
+    /// <para>
+    /// <b>참조 교체 하나로 바뀐다.</b> 규칙표는 불변이라 읽는 쪽은 락이 없고, 틱 중간에
+    /// 바뀌어도 그 틱이 본 표는 하나다 — 한 이벤트가 옛 규칙으로, 다음 이벤트가 새 규칙으로
+    /// 걸리는 것은 정상이다(둘 다 유효한 표다).
+    /// </para>
+    ///
+    /// <para><b>기동 시에는 마스터데이터의 것이다.</b> 리로드가 없으면 영원히 그대로다.</para>
+    /// </summary>
+    public InterruptRules Rules
+    {
+        get => Volatile.Read(ref _rules);
+        set => Volatile.Write(ref _rules, value ?? throw new ArgumentNullException(nameof(value)));
+    }
 
     /// <summary>같은 규칙이 이어서 걸려 넘긴 횟수. 되먹임 방지가 실제로 일하는 양이다.</summary>
     public long Suppressed { get; private set; }
@@ -68,7 +87,7 @@ public sealed class InterruptMatcher
 
         ArchetypeDef archetype = _data.Archetypes[new ArchetypeId(_store.ArchetypeCode[npc])];
 
-        if (!_data.Interrupts.TryMatch(in ev, _store.Flags[npc], archetype, out rule))
+        if (!Rules.TryMatch(in ev, _store.Flags[npc], archetype, out rule))
         {
             return false;
         }

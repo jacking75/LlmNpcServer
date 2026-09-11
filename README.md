@@ -283,7 +283,17 @@ curl -XPOST -H "Authorization: Bearer $NPC_ADMIN_TOKEN"   "localhost:5080/admin/
 
 # 즉시 스냅샷 (배포 직전에 한 장)
 curl -XPOST -H "Authorization: Bearer $NPC_ADMIN_TOKEN"   "localhost:5080/admin/snapshot?reason=배포+전"
+
+# 무중단 리로드 (A-07). 프로세스를 내리지 않고 고친 플랜을 올린다.
+#   scope=planstore  플랜·핀만          scope=content  + interrupts.json · fallback_plans.json
+curl -XPOST -H "Authorization: Bearer $NPC_ADMIN_TOKEN"   "localhost:5080/admin/reload?scope=planstore&reason=검수+반영"
 ```
+
+**리로드는 트랜잭션이다.** 전부 읽고 전부 검증한 뒤에야 교체한다 — 플랜 하나라도 깨져 있으면
+아무것도 안 바꾸고 사유를 응답에 담는다. 무엇이 핫·온·콜드인지는
+[`docs/reference_masterdata.html` §13](docs/reference_masterdata.html) 에 표로 있다.
+**프리픽스에 실리는 것**(`prompt/`·아키타입의 `desc`·`traits`)**은 전부 콜드다** — 고치면
+프리픽스 SHA 가 바뀌어 플랜 스토어가 다른 회차의 것이 된다.
 | `--max-speed` | 10Hz 페이싱 없이 최대 속도로. 부하·게이트 측정용 |
 | `--no-dashboard` | 웹 호스트를 띄우지 않는다 |
 | `--gs-host <host>` / `--gs-port N` | 게임서버 주소 (기본 `127.0.0.1:7010`). `--link tcp` 전용 |
@@ -292,6 +302,7 @@ curl -XPOST -H "Authorization: Bearer $NPC_ADMIN_TOKEN"   "localhost:5080/admin/
 | `--weights A\|B\|C\|D` | 재계획 점수 가중치 세트 (기본 B. A/B 결과는 `reference_metrics.html` §11) |
 | `--scan-cap N` | 인지 스캔 틱당 상한. 0=해제. **측정 전용** |
 | `--dev-control` | `NPC_ADMIN_TOKEN` 없이도 `/admin/*` 을 연다 (기본 꺼짐. 데모용) |
+| `--watch` | `planstore/`·`masterdata/` 를 감시해 자동 리로드 (기본 꺼짐). **개발용이다** |
 | `--on-link-fault exit\|wait` | 링크가 `Faulted` 로 가면 어떻게 할까 (기본 `exit` → 종료 코드 3) |
 | `--fault-grace-s N` | `Faulted` 진입 후 종료까지 유예 초 (기본 5) |
 | `--live-stall-s N` | `/healthz/live` 가 허용하는 루프 정지 초 (기본 30) |

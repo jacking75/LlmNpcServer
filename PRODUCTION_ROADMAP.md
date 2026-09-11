@@ -57,7 +57,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 - [x] **A-04** 설정 소스 통합 (CLI → 환경변수 → 파일) · 바인드 주소 · 프로파일 — P0 · M · 의존 없음
 - [x] **A-05** 관측성: OpenTelemetry 익스포터 · Prometheus 엔드포인트 · 구조화 로깅 · 알람 싱크 — P0 · M · 의존 A-04
 - [x] **A-06** 링크 보안: 핸드셰이크 인증(HMAC+nonce) · TLS/mTLS · 관리 API 인증 — P0 · M · 의존 B-01
-- [ ] **A-07** 핫 리로드: 플랜 스토어 · 인터럽트 · 폴백 · few-shot (구조 변경은 재기동) — P1 · L · 의존 A-01, B-04
+- [x] **A-07** 핫 리로드: 플랜 스토어 · 인터럽트 · 폴백 · ~~few-shot~~ (구조 변경은 재기동) — P1 · L · 의존 A-01, B-04 — **완료. few-shot 은 콜드로 정정했다**(프리픽스에 실려 SHA 가 바뀐다 — C-03). 리플레이에 리로드 시점을 기록하는 것은 미구현
 - [ ] **A-08** 전역 `NpcId` · 샤드 식별 · 다중 링크 세션 (샤딩 1단계) — P1 · L · 의존 B-01, B-05
 - [x] **A-09** 배포: Dockerfile · compose(테스트베드 포함) · ~~CI 파이프라인~~ · 중앙 패키지 관리 · 릴리스 버저닝 — P0 · M · 의존 없음
   - **CI 워크플로 파일은 만들지 않기로 했다** (2026-09-10 결정). 제공자를 고르지 않았고, 파이프라인의 내용은
@@ -625,23 +625,27 @@ TLS 와 토큰이 필요하다"(`docs/reference_link.html` §13)고 적었다. �
 
 | 등급 | 대상 | 방법 | 게임서버 영향 |
 |---|---|---|---|
-| **핫** | `planstore/plans/*`·`pinned/*`(같은 `prefix_hash`) · `masterdata/prompt/fewshot/*` | 새 `PlanStore` 인스턴스를 워커 스레드에서 로드 → 검증 → 틱 루프가 스텝 경계에서 참조 교체(`Volatile.Write`) → 각 NPC 는 다음 스텝 경계에 `PlanSwapper` 로 새 플랜 | 없음 |
-| **온** | `interrupts.json` · `fallback_plans.json` · `archetypes.json` 의 `traits`/`desc`/`default_goals` | 위와 같되 `InterruptRules`·`PlanTable` 도 교체. **구조 해시**(B-04)가 바뀌지 않는 범위만 허용 | 없음(내용 해시만 변함) |
-| **콜드** | `code`/`bit` 추가·`allowed_actions`·`pois`/`zones`/`items` 구조 · `context_buckets` | 재기동. A-01 복원 + 게임서버 재핸드셰이크 | 구조 해시 변경 → 게임서버도 재배포 |
+| **핫** | `planstore/<sha8>/plans/*`·`planstore/pinned/*` | 새 `PlanStore` 를 호출자 스레드에서 로드 → 검증 → 바뀐 버킷만 등록하고 `_byBucket` 을 `Volatile.Write` → 각 NPC 는 다음 스텝 경계에 `PlanSwapper` 로 새 플랜 | 없음 |
+| **온** | `interrupts.json` · `fallback_plans.json` | 위와 같되 `InterruptRules` 도 교체. **구조 해시**(B-04)가 바뀌지 않는 범위만 허용 | 없음(내용 해시만 변함) |
+| **콜드** | `code`/`bit` 추가·`allowed_actions`·`pois`/`zones`/`items` 구조 · `context_buckets` · **`archetypes.json` 의 `desc`/`traits`** · **`prompt/`(`system_rules.md`·`fewshot/`)** | 재기동. A-01 복원 + 게임서버 재핸드셰이크 | 구조 해시 변경 → 게임서버도 재배포 |
 
 트리거: `POST /admin/reload?scope=planstore|content`(A-11) 또는 `--watch`(개발용 `FileSystemWatcher`). 리로드는 **트랜잭션**이다 —
 로드·검증 전부 성공해야 교체하고, 실패하면 현 상태 유지 + 알람. 교체 후 `manifest` 해시를 `/status` 에 반영.
 
-**구현 절차.**
+**구현 절차.** (실제로 한 것. 1·2 는 아래 "정정" 대로 바꿨다)
 
-1. `src/Npc.Planning/PlanStore.cs` — 불변 스냅샷으로 다룰 수 있게 `PlanStore` 를 통째로 교체 가능한 참조로. `IndividualPlanPool` 은 유지(NPC 별 개별 플랜은 프리픽스가 같으면 살린다).
-2. `src/Npc.Runtime/NpcServerLoop.cs` — `Volatile.Read(ref _stores)` 한 번으로 틱당 참조 고정(`StoreSet { PlanStore, InterruptRules, PlanTable }`). 틱 중간에 바뀌지 않는다.
-3. `src/Npc.Host/Reload/ReloadService.cs` — 로드 → `PlanStoreValidator` → `MasterDataValidator`(온 등급) → 교체 요청 → 완료 대기.
-4. `src/Npc.Host/Api/AdminEndpoints.cs`(A-11) — `POST /admin/reload`.
-5. `docs/reference_masterdata.html` 에 "리로드 등급" 표 추가. `CODEMAP.md` 에 "실행 중 플랜을 바꾼다 → `Reload/`".
+1. `src/Npc.Planning/PlanStore.cs` — `Adopt(PlanStore fresh)`. **스토어를 통째로 바꾸지 않는다** — 바꾸면 NPC 가 들고 있는 `PlanId` 가 전부 다른 스토어의 첨자가 된다. 대신 바뀐 버킷만 라이브 레지스트리에 등록하고 `_byBucket` 을 돌린다. **옛 플랜은 지우지 않는다**(스텝 중간인 NPC 가 있다). `CompiledPlan.SameContentAs` 로 안 바뀐 것을 걸러낸다 — 레지스트리가 65,536칸이고 회수가 없어, 매번 2,880개를 등록하면 리로드 22회에 찬다.
+2. `src/Npc.Runtime/InterruptMatcher.cs` — `Rules` 를 `Volatile` 프로퍼티로. `StoreSet` 을 새로 만들지 않은 이유는 교체 대상이 둘(`PlanStore` 내부 배열 · `InterruptRules`)뿐이고 둘 다 이미 원자 교체 가능하기 때문이다.
+3. `src/Npc.Host/Reload/ReloadService.cs` — 로드 → 검증 → 교체. **트랜잭션**이다.
+4. `src/Npc.Host/Api/AdminEndpoints.cs`(A-11) — `POST /admin/reload?scope=planstore|content`. 감사 로그에 남는다.
+5. `src/Npc.Host/Reload/ReloadWatcher.cs` — `--watch`. 1.5초 디바운스.
+6. `docs/reference_masterdata.html` §13 "리로드 등급" 표. `CODEMAP.md` 에 "실행 중에 플랜을 바꾼다 → `Reload/`".
 
-**테스트.** `Host/ReloadTests.cs` — 핫: 리로드 후 다음 스텝 경계에서 새 플랜(`PlanId` 변화) · 실패 리로드는 상태 불변 · 리로드 틱의 `bytesPerTick`(틱 루프는 참조만 바꾸므로 0).
-`Determinism` — 리로드 시각을 기록에 남겨(`LinkRecord` 에 `Reload` 종류 추가, 틱 기준) 리플레이가 같은 시점에 같은 스토어로 바꾸면 해시 동일.
+**정정 — few-shot 과 아키타입 `desc`/`traits` 는 콜드다.** 이 표를 쓴 시점에는 C-03(프리픽스 SHA 별 플랜 스토어)이 없었다. 지금은 둘 다 **프롬프트 프리픽스에 실리고**, 프리픽스가 바뀌면 SHA 가 바뀌어 플랜 스토어가 다른 회차의 것이 된다. 플랜을 살린 채 프리픽스만 바꾸면 "이 플랜이 어떤 프롬프트로 만들어졌나" 가 거짓이 되므로 리로드로 덮지 않는다.
+
+**테스트.** `Host/ReloadTests.cs` 8건 — 기동 뒤 쓴 플랜이 올라온다 · 같은 버킷이 바뀌면 새 `PlanId`(옛 플랜은 살아 있다) · 깨진 플랜 하나면 아무것도 안 바뀐다 · 안 바뀐 것은 등록하지 않는다(5회 리로드 후 `Plans.Count` 동일) · 온 등급이 인터럽트를 올린다 · 모르는 `scope` 는 거절 · **리로드 중에도 `bytesPerTick` 0** · 워처가 두 트리를 보고 디바운스한다.
+
+**미구현 — 리플레이에 리로드 시점을 기록하지 않는다.** 기록 회차 중간에 리로드하면 리플레이가 같은 시점에 같은 스토어로 바뀌지 않아 해시가 갈린다. 결정론이 필요한 회차에서는 리로드를 걸지 않는 것이 지금의 운용이다.
 
 **완료 조건.** 게임서버를 내리지 않고 `pinned/` 에 플랜 하나를 넣고 리로드하면 해당 버킷 NPC 가 다음 스텝 경계에서 바뀐다.
 

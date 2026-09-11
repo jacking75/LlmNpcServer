@@ -200,6 +200,62 @@ public sealed record CompiledPlan
     public StepFlags FlagsOf(int stepIndex) => StepFlagSets[Steps[stepIndex].FlagSetIndex];
 
     /// <summary>
+    /// <see cref="Id"/> 를 뺀 내용이 같은가 (A-07).
+    ///
+    /// <para>
+    /// <b>레코드 기본 같음을 쓸 수 없다.</b> <see cref="ImmutableArray{T}"/> 의 <c>Equals</c> 는
+    /// 밑에 깔린 배열의 참조 비교라, 디스크에서 방금 읽은 플랜은 내용이 똑같아도 항상 다르다고
+    /// 나온다. 리로드는 그 판정을 믿고 "바뀐 것만 등록" 하므로 여기서 원소를 직접 본다 —
+    /// 안 그러면 리로드 22회에 레지스트리 65,536칸이 찬다.
+    /// </para>
+    /// </summary>
+    /// <param name="other">비교 대상.</param>
+    public bool SameContentAs(CompiledPlan? other)
+    {
+        if (other is null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
+
+        if (Bucket != other.Bucket
+            || Version != other.Version
+            || Loop != other.Loop
+            || OnFail != other.OnFail
+            || Origin != other.Origin
+            || RequiredFlags != other.RequiredFlags
+            || ForbiddenFlags != other.ForbiddenFlags
+            || !string.Equals(Goal, other.Goal, StringComparison.Ordinal)
+            || Steps.Length != other.Steps.Length
+            || StepFlagSets.Length != other.StepFlagSets.Length)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < Steps.Length; i++)
+        {
+            if (Steps[i] != other.Steps[i])
+            {
+                return false;
+            }
+        }
+
+        for (int i = 0; i < StepFlagSets.Length; i++)
+        {
+            if (StepFlagSets[i] != other.StepFlagSets[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// 재계획이 필요한가. <b>틱당 115회 실행되는 핫패스다</b> (docs/03 §5).
     /// 스텝을 순회하지 않고 사전 OR 해둔 마스크와 비트 연산 한 번으로 끝낸다.
     /// </summary>
