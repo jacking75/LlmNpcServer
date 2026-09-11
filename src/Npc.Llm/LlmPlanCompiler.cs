@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Npc.Contracts;
 using Npc.Core.Plan;
@@ -83,6 +84,14 @@ public sealed class LlmPlanCompiler : IPlanCompiler
     /// 2회 이상은 성공률이 거의 안 오르고 토큰만 태우며, 지연이 선형으로 늘어 런타임 재계획이 무의미해진다.
     /// </summary>
     public const int MaxAttempts = 2;
+
+    /// <summary>
+    /// 결정론 수선을 켤까 (C-05). 기본은 <b>켜짐</b>이다.
+    ///
+    /// <b>끄는 자리는 측정이다.</b> "수선 전 실패율" 을 재려면 이것이 꺼져 있어야 하고,
+    /// 그 숫자가 있어야 수선이 얼마나 벌어 주는지 말할 수 있다.
+    /// </summary>
+    public bool Repair { get; init; } = true;
 
     /// <summary>쓰고 있는 엔진.</summary>
     public LlmEngineOptions Engine => _engine;
@@ -186,10 +195,70 @@ public sealed class LlmPlanCompiler : IPlanCompiler
     }
 
     /// <summary>
-    /// 검증 1·2단 + 컴파일. <b>강제 디코딩을 신뢰하지 않고 재검증한다</b> (CLAUDE.md §2.6).
-    /// 3·4단은 T2-13 이후에 붙는다.
+    /// 4단 검증 + 컴파일. 실패하면 <b>결정론 수선</b>을 시도하고 <b>처음부터 다시</b> 검증한다 (C-05).
+    ///
+    /// <para>
+    /// <b>수선은 검증을 건너뛰는 것이 아니다.</b> 고친 문서는 1단부터 다시 지난다 —
+    /// 통과했다고 적힌 플랜은 실제로 통과한 것이어야 한다 (CLAUDE.md §8).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>수선이 실패를 옮기기만 하는 경우가 있다</b> — <c>MoveTo</c> 를 넣었더니 그 자리에서
+    /// <c>DEGENERATE</c> 가 나는 식이다. <see cref="PlanRepair.MaxRounds"/> 로 막는다.
+    /// </para>
     /// </summary>
     private PlanCompileResult Validate(in PlanRequest request, string text, in CompileStats stats)
+    {
+        PlanCompileResult result = ValidateOnce(request, text, stats);
+
+        if (result.Validation.IsValid || !Repair)
+        {
+            return result;
+        }
+
+        string current = text;
+
+        for (int round = 0; round < PlanRepair.MaxRounds; round++)
+        {
+            // 실패한 문서를 다시 읽는다. 1단이 못 읽는 응답이면 수선할 대상이 없다.
+            if (!SchemaValidator.Validate(current, out PlanDocument? broken).IsValid || broken is null)
+            {
+                return result;
+            }
+
+            RepairResult repair = PlanRepair.TryRepair(
+                broken, result.Validation, _data, request.Bucket.A);
+
+            if (!repair.Repaired)
+            {
+                return result;
+            }
+
+            current = JsonSerializer.Serialize(repair.Document, PlanJsonContext.Default.PlanDocument);
+
+            PlanCompileResult retried = ValidateOnce(request, current, stats);
+
+            if (retried.Validation.IsValid)
+            {
+                // 출처를 갈라 둔다. 검수 표본에서 "기계가 고친 것" 을 가려 볼 수 있어야
+                // 수선 규칙이 나쁜 플랜을 통과시키는 것을 알아챈다.
+                return retried with
+                {
+                    Plan = retried.Plan is { } plan ? plan with { Origin = PlanOrigin.Repaired } : null,
+                    Repairs = round + 1,
+                };
+            }
+
+            result = retried;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 검증 1·2단 + 컴파일. <b>강제 디코딩을 신뢰하지 않고 재검증한다</b> (CLAUDE.md §2.6).
+    /// </summary>
+    private PlanCompileResult ValidateOnce(in PlanRequest request, string text, in CompileStats stats)
     {
         ValidationResult schema = SchemaValidator.Validate(text, out PlanDocument? document);
 

@@ -1,0 +1,48 @@
+{
+  "_comment": "C-05 few-shot 확장 — V3.RESOURCE_IMBALANCE 처방. 04 가 장소 전제(PRECONDITION_UNMET)를 가르친다면 이쪽은 수지다: 플랜이 스스로 모은 양보다 많이 쓰면 반려된다. 실측 실패의 두 번째 덩어리다.",
+  "request": {
+    "archetype": "baker",
+    "allowed_actions": ["Cook", "Craft", "Drink", "Eat", "Emote", "Equip", "Flee", "Gossip", "Greet", "MoveTo", "Observe", "Repair", "Rest", "Retreat", "Sleep", "Store", "Talk", "Trade", "Wait", "Withdraw", "Work"],
+    "time_of_day": "Morning",
+    "region_state": "Peace",
+    "climate": "Fair",
+    "flags": ["HasFood", "HasWater", "HasTool", "HasProduct", "HasCoin", "IsDay", "RegionPeaceful"],
+    "traits": { "diligence": 85, "sociability": 60, "courage": 35, "greed": 40 },
+    "goals": ["mill_flour", "bake_daily", "sell_bread"]
+  },
+  "rejected_plan": {
+    "schema": 1,
+    "goal": "bake_the_batch",
+    "steps": [
+      { "action": "MoveTo", "args": { "poi": "$workplace" }, "timeout_s": 600 },
+      { "action": "Work", "args": { "recipe": "flour", "count": 1 }, "timeout_s": 900 },
+      { "action": "Work", "args": { "recipe": "bread", "count": 3 }, "timeout_s": 1800 },
+      { "action": "MoveTo", "args": { "poi": "$home" }, "timeout_s": 600 },
+      { "action": "Sleep", "args": { "until_time": "Morning" }, "timeout_s": 7200 }
+    ],
+    "loop": true
+  },
+  "rejection": {
+    "previous_attempt_failed": {
+      "stage": "Coherence",
+      "code": "V3.RESOURCE_IMBALANCE",
+      "step": 2,
+      "detail": "The plan gathers 2 flour but consumes 6. Gather more flour before this step, or lower the count."
+    }
+  },
+  "plan": {
+    "schema": 1,
+    "goal": "mill_then_bake",
+    "reasoning": "one flour batch yields two, and each bread needs two - mill twice so the numbers close, then bake one batch",
+    "steps": [
+      { "action": "MoveTo", "args": { "poi": "$workplace" }, "timeout_s": 600 },
+      { "action": "Work", "args": { "recipe": "flour", "count": 2 }, "timeout_s": 1200 },
+      { "action": "Work", "args": { "recipe": "bread", "count": 2 }, "timeout_s": 1800 },
+      { "action": "Store", "args": { "item": "bread", "count": 3 }, "timeout_s": 120 },
+      { "action": "MoveTo", "args": { "poi": "$home" }, "timeout_s": 600 },
+      { "action": "Sleep", "args": { "until_time": "Morning" }, "timeout_s": 7200 }
+    ],
+    "on_step_fail": "fallback",
+    "loop": true
+  }
+}

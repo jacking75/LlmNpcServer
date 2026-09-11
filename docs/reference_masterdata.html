@@ -534,9 +534,10 @@ public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState 
     (액션별 플래그 5종 표 · 레시피 입출력 포함)
 [3] archetypes.json → 아키타입별 허용 액션 표   (2,392 tok)  ← 자동 생성
 [4] 플랜 스키마 요약 + 스키마 본문              (1,718 tok)  ← 자동 생성
-[5] fewshot 3건                                 (  900 tok)
+[5] fewshot 6건                                 (약 1,900 tok)  ← C-05 에서 4 → 6
 ────────────────────────────────────────────────────────────
 합계 실측: 11,967 토큰 (o200k_base)</code></pre>
+      <div class="callout"><strong>few-shot 은 6건이다 <span class="chip">C-05</span></strong><p>군을 하나씩 맡는다 — 생산(<code>blacksmith</code>) · 야외(<code>farmer</code>) · 상업(<code>merchant</code>) · 비노동(<code>elder</code>, <strong>반려→수정</strong>) · 경비(<code>town_guard</code>) · 수지(<code>baker</code>, <strong>반려→수정</strong>). 반려→수정 두 건이 가르치는 것은 실측 실패의 가장 큰 두 덩어리다: <code>V3.PRECONDITION_UNMET</code>(장소 전제)과 <code>V3.RESOURCE_IMBALANCE</code>(수지). <strong>예시를 늘리면 프리픽스 SHA 가 바뀌고 플랜 스토어가 다른 회차의 것이 된다</strong> (C-03) — 의도한 것인지 반드시 확인한다.</p></div>
       <div class="table-wrap"><table>
         <thead><tr><th>규칙</th><th>이유</th></tr></thead>
         <tbody>

@@ -84,6 +84,7 @@
 | **프롬프트 서픽스에 값 추가** | `src/Npc.Llm/PlanRequestSuffix.cs` | **300 토큰 상한.** `SuffixBudgetTests` 가 막고, 문자열은 `PromptIsolationTests` 가 막는다 |
 | **`reasoning` 이 이상한 것을 담고 있다** | `src/Npc.Llm/ReasoningSanitizer.cs` · 금칙어는 `masterdata/prompt/blocklist.txt` | 플랜 자체는 건드리지 않는다 |
 | **프리픽스가 안 고정된다 · 캐시 미적중** | `src/Npc.Llm/PromptPrefix.cs` | SHA 유니크 2개 이상이면 경보. 기동 시 1회 조립 |
+| **검증 실패를 기계로 고친다** | `src/Npc.Core/Validation/PlanRepair.cs`(C-05) — 붙는 곳은 `src/Npc.Llm/LlmPlanCompiler.cs` 의 `Validate`. **수선은 검증을 건너뛰는 것이 아니라 재검증 전의 변환이다** — 고친 문서는 1단부터 다시 지나고, 통과하면 `PlanOrigin.Repaired` 로 표시된다 |
 | **검증기를 고친다** | `src/Npc.Core/Validation/` — `SchemaValidator`(V1) → `VocabularyValidator`(V2) → `CoherenceValidator`(V3) → `src/Npc.Sim/Validation/DryRunValidator.cs`(V4) | 4단은 순서대로다. 건너뛴 플랜을 런타임에 올리지 않는다 |
 | **LLM 제공사 교체·추가** | `src/Npc.Llm/ChatClientFactory.cs` → `appsettings.Llm.json` | `IChatClient` 밖에서 제공사 SDK 를 부르지 않는다 |
 | **제공사 하나가 죽었다** | `src/Npc.Llm/FailoverChatClient.cs` · 체인은 `appsettings.Llm.json` 의 `chains` | 전송 실패만 넘어간다. 400·스키마 거절은 페일오버하지 않는다 |

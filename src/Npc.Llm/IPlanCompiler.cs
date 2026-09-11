@@ -69,11 +69,18 @@ public readonly record struct CompileStats(
 /// 모델이 뱉은 원문(울타리를 벗긴 뒤). 검수·<c>planstore/rejected/</c> 보존용이다 —
 /// 실패 산출물을 조용히 버리면 품질 개선의 원자료가 사라진다 (docs/13 §8).
 /// </param>
+/// <param name="Repairs">
+/// 결정론 수선이 적용된 횟수 (C-05). 0 이면 모델이 낸 그대로 통과했다.
+///
+/// <b>통과율과 따로 센다.</b> "수선 전 실패율" 과 "수선 후 실패율" 을 가르지 않으면
+/// 수선 규칙이 얼마나 벌어 주는지, 혹은 나쁜 플랜을 통과시키고 있는지 알 수 없다.
+/// </param>
 public readonly record struct PlanCompileResult(
     CompiledPlan? Plan,
     ValidationResult Validation,
     CompileStats Stats,
-    string ResponseText);
+    string ResponseText,
+    int Repairs = 0);
 
 /// <summary>
 /// 인접 버킷 재사용의 공급원. docs/12 §6·§7.

@@ -1,0 +1,28 @@
+{
+  "_comment": "C-05 few-shot 확장 — 경비 군. 근무 중 아키타입이 '일터 → 초소 → 순찰 → 귀가' 를 한 번에 보여 준다. 비노동 군(04 elder)·생산 군(01 blacksmith)·상업 군(03 merchant)·야외 군(02 farmer)에 이어 네 번째 군이다.",
+  "request": {
+    "archetype": "town_guard",
+    "allowed_actions": ["Attack", "CallForHelp", "Defend", "Drink", "Eat", "Emote", "Equip", "Flee", "Greet", "Guard", "MoveTo", "Observe", "Patrol", "Rest", "Retreat", "Sleep", "Talk", "Wait", "Wander"],
+    "time_of_day": "Noon",
+    "region_state": "Alert",
+    "climate": "Fair",
+    "flags": ["HasFood", "HasWater", "HasCoin", "HasWeapon", "IsDay", "OnDuty", "RegionPeaceful"],
+    "traits": { "diligence": 75, "sociability": 45, "courage": 75, "greed": 35 },
+    "goals": ["stand_watch", "patrol_streets", "respond"]
+  },
+  "plan": {
+    "schema": 1,
+    "goal": "watch_then_patrol",
+    "reasoning": "alert but not under attack; hold the post first, then walk the market where people gather, and end at home",
+    "steps": [
+      { "action": "MoveTo", "args": { "poi": "$workplace", "speed": "walk" }, "timeout_s": 600 },
+      { "action": "Guard", "args": { "poi": "$workplace", "duration_s": 1800 }, "timeout_s": 2400 },
+      { "action": "MoveTo", "args": { "poi": "$market", "speed": "walk" }, "timeout_s": 600 },
+      { "action": "Observe", "args": { "target": "nearest:villager", "duration_s": 600 }, "timeout_s": 900 },
+      { "action": "MoveTo", "args": { "poi": "$home", "speed": "walk" }, "timeout_s": 600 },
+      { "action": "Sleep", "args": { "until_time": "Morning" }, "timeout_s": 7200 }
+    ],
+    "on_step_fail": "fallback",
+    "loop": true
+  }
+}
