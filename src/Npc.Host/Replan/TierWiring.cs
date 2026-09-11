@@ -66,6 +66,27 @@ internal sealed class TierWiring : IAsyncDisposable
     /// <summary>티어가 하나라도 켜졌는가.</summary>
     public bool Enabled => _workers.Count > 0;
 
+    /// <summary>
+    /// 관계 밴드를 서픽스에 실은 횟수 (D-03). 기억 저장소가 꺼져 있으면 언제나 0 이다.
+    ///
+    /// <b>켰는데 0 이면 저장소가 비어 있다는 뜻이다</b> — 게임서버가 아직 아무것도 안 썼다.
+    /// 이 값이 로드맵 D-03 의 "로그로 확인" 이 보는 계기다.
+    /// </summary>
+    public long BandsAttached
+    {
+        get
+        {
+            long total = 0;
+
+            foreach (ReplanWorker worker in _workers)
+            {
+                total += worker.BandsAttached;
+            }
+
+            return total;
+        }
+    }
+
     /// <summary>쓰고 있는 엔진 id. 티어가 꺼져 있으면 빈 문자열이다. 대시보드 비용 패널이 읽는다.</summary>
     public string EngineIds { get; private set; } = string.Empty;
 
@@ -90,7 +111,8 @@ internal sealed class TierWiring : IAsyncDisposable
         GameClock clock,
         TextWriter log,
         KillSwitchState? switches = null,
-        IAlarmSink? alarms = null)
+        IAlarmSink? alarms = null,
+        Npc.Memory.IMemoryReader? memory = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(log);
@@ -226,7 +248,12 @@ internal sealed class TierWiring : IAsyncDisposable
             };
 
             wiring._workers.Add(
-                new ReplanWorker(wiring.Individual, router, () => clock.Current, options.T1Workers));
+                new ReplanWorker(wiring.Individual, router, () => clock.Current, options.T1Workers)
+                {
+                    // D-03 — 관계 밴드는 개체 재계획에만 붙는다. 버킷 플랜은 수천 NPC 가
+                    // 공유하므로 개체의 관계를 실으면 그 플랜이 그 개체의 것이 된다.
+                    Memory = memory,
+                });
         }
 
         if (t2 is not null)

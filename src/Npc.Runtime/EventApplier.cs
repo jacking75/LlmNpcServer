@@ -253,6 +253,10 @@ public sealed class EventApplier
 
             case GameEventKind.PlayerInteracted:
                 _store.Flags[npc] |= WorldFlags.PlayerNearby;
+
+                // D-03 — 기억 저장소의 조회 키. "이 NPC 가 지금 누구를 상대하는가" 를
+                // 아는 계기는 이 이벤트와 PlayerHostility 둘뿐이다.
+                RememberPlayer(npc, ev.Player);
                 break;
 
             case GameEventKind.CombatStarted:
@@ -444,6 +448,19 @@ public sealed class EventApplier
     /// <c>PlayerNearby</c> 플래그만 여기서 정한다. <b>등급 산출은 <see cref="LodUpdater"/> 의 몫이다</b>
     /// (T4-14) — 거리 임계가 두 곳에 있으면 반드시 어긋난다.
     /// </summary>
+    /// <summary>
+    /// 마지막으로 상대한 플레이어를 적어 둔다 (D-03). 0 은 "없음" 이라 덮지 않는다 —
+    /// 게임서버가 플레이어 id 를 안 실어 준 이벤트로 기억을 지워 버리면
+    /// 그 NPC 는 관계를 영영 잃는다.
+    /// </summary>
+    private void RememberPlayer(int npc, PlayerId player)
+    {
+        if (player.Value != 0)
+        {
+            _store.RecentPlayer[npc] = player.Value;
+        }
+    }
+
     private void ApplyProximity(int npc, ProximityChange change, int distance)
     {
         if (change == ProximityChange.Leave)
@@ -485,6 +502,7 @@ public sealed class EventApplier
         {
             _store.Flags[npc] |= WorldFlags.HostilePlayerNearby | WorldFlags.PlayerNearby;
             _store.HostilePlayer[npc] = player.Value;
+            RememberPlayer(npc, player);
 
             // D-04 — 그 플레이어의 세력. 게임서버가 안 실어 주면 0 이고, 그러면
             // CombatAction 의 Faction 도 0 으로 나간다. <b>지어내지 않는다.</b>

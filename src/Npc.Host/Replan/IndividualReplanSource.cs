@@ -114,7 +114,12 @@ internal sealed class IndividualReplanSource : IReplanSource
                 flags,
                 PlanQuality.Individual,
                 score,
-                snapshot.Exists ? snapshot.QueuedTick : -1);
+                snapshot.Exists ? snapshot.QueuedTick : -1,
+
+                // D-03 — 기억 저장소의 키. 둘 다 int 한 칸이라 워커 스레드에서 읽어도
+                // 찢어지지 않는다 (위의 Flags 와 같은 논거).
+                _store.GlobalOf(npc),
+                _store.RecentPlayer[npc]);
 
             return true;
         }

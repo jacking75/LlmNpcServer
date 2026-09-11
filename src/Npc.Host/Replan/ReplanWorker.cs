@@ -2,6 +2,7 @@ using Npc.Contracts;
 using Npc.Core;
 using Npc.Core.Plan;
 using Npc.Llm;
+using Npc.Memory;
 
 namespace Npc.Host.Replan;
 
@@ -17,13 +18,23 @@ namespace Npc.Host.Replan;
 /// 큐에 들어간 틱. <b>-1 이면 모른다</b>(스냅샷이 없는 경로).
 /// docs/14 §6 의 "큐 평균 대기 시간" 이 이 값의 차분이다.
 /// </param>
+/// <param name="GlobalNpc">
+/// 이 NPC 의 전역 id (A-08). <b>기억 저장소의 키다</b> (D-03) — 슬롯은 우리 안쪽 사정이라
+/// 프로세스를 다시 띄우면 같은 NPC 가 다른 슬롯에 앉는다. 0 이면 모른다.
+/// </param>
+/// <param name="Subject">
+/// 이 NPC 가 가장 최근에 상대한 플레이어 (D-03). 0 = 없음.
+/// 관계 밴드를 어느 쌍에서 읽을지 정한다.
+/// </param>
 internal readonly record struct ReplanJob(
     int Npc,
     BucketKey Bucket,
     WorldFlags Flags,
     PlanQuality Quality,
     float Score,
-    long QueuedTick = -1);
+    long QueuedTick = -1,
+    int GlobalNpc = 0,
+    int Subject = 0);
 
 /// <summary>
 /// 워커의 일감 공급원. docs/14 §4.
@@ -118,6 +129,21 @@ internal sealed class ReplanWorker : BackgroundService
         _idleDelayMs = idleDelayMs;
     }
 
+    /// <summary>
+    /// 기억 저장소 (D-03). null 이면 밴드를 싣지 않는다 — <b>없는 것이 기본이다</b>.
+    ///
+    /// <para>
+    /// <b>읽기 전용 타입으로 받는다.</b> 무슨 일이 있었는지 아는 것은 게임서버와 대화
+    /// 서비스이고, 재계획 워커가 쓰기 시작하면 같은 사실을 두 곳이 기록하게 된다.
+    /// </para>
+    /// </summary>
+    public IMemoryReader? Memory { get; init; }
+
+    /// <summary>기억 조회가 밴드를 준 횟수 (D-03). 0 이면 아무 관계도 못 찾았다는 뜻이다.</summary>
+    public long BandsAttached => Interlocked.Read(ref _bandsAttached);
+
+    private long _bandsAttached;
+
     /// <summary>공급원 이름.</summary>
     public string Name => _source.Name;
 
@@ -192,7 +218,7 @@ internal sealed class ReplanWorker : BackgroundService
             Interlocked.Increment(ref _waitSamples);
         }
 
-        var request = new PlanRequest(job.Bucket, job.Flags, job.Quality);
+        PlanRequest request = await BuildRequestAsync(job, ct).ConfigureAwait(false);
 
         Interlocked.Increment(ref _busy);
 
@@ -221,6 +247,43 @@ internal sealed class ReplanWorker : BackgroundService
         _source.Abandon(in job, applied);
         Interlocked.Increment(ref _failed);
         return true;
+    }
+
+    /// <summary>
+    /// 일감을 요청으로. <b>기억이 붙는 곳은 여기 하나다</b> (D-03).
+    ///
+    /// <para>
+    /// <b>개체 스냅샷에 밴드만 싣는다.</b> 인벤토리와 <c>recent</c> 도 싣고 싶지만
+    /// 그것들은 여러 필드짜리 구조라 <b>틱 루프가 쓰는 중에 워커가 읽으면 찢어진 값</b>을 본다.
+    /// 밴드의 입력은 <c>int</c> 한 칸(<c>NpcStore.RecentPlayer</c>)이라 그 문제가 없다.
+    /// </para>
+    /// </summary>
+    private async ValueTask<PlanRequest> BuildRequestAsync(ReplanJob job, CancellationToken ct)
+    {
+        if (Memory is not { } memory
+            || job.Quality != PlanQuality.Individual
+            || job.GlobalNpc == 0
+            || job.Subject == 0)
+        {
+            return new PlanRequest(job.Bucket, job.Flags, job.Quality);
+        }
+
+        RelationshipBand band = await memory
+            .BandAsync(job.GlobalNpc, job.Subject, ct)
+            .ConfigureAwait(false);
+
+        if (band == RelationshipBand.Unknown)
+        {
+            return new PlanRequest(job.Bucket, job.Flags, job.Quality);
+        }
+
+        Interlocked.Increment(ref _bandsAttached);
+
+        return new PlanRequest(
+            job.Bucket,
+            job.Flags,
+            job.Quality,
+            new NpcSnapshot([], [], Band: band));
     }
 
     /// <inheritdoc />

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Npc.Contracts;
 using Npc.Core.Plan;
 using Npc.MasterData;
+using Npc.Memory;
 using Npc.Sim;
 
 namespace Npc.TestGameServer.World;
@@ -55,6 +56,12 @@ public sealed class PlayerRegistry
 
     /// <summary>접속 시작 지점의 존. docs/20 §7.3.</summary>
     public const string SpawnZoneId = "town_center";
+
+    /// <summary>상호작용 한 번의 호감도 증가 (D-03). 세 번이면 우호 경계(25)를 넘는다.</summary>
+    public const int InteractAffinity = 10;
+
+    /// <summary>공격 한 번의 호감도 감소 (D-03).</summary>
+    public const int AttackAffinity = -30;
 
     private readonly GameWorld _world;
     private readonly MasterDataSet _data;
@@ -367,7 +374,46 @@ public sealed class PlayerRegistry
 
         Interacts++;
 
+        // D-03 — <b>기억을 쓰는 것은 게임서버다.</b> 무슨 일이 있었는지 아는 쪽이 여기이고,
+        // NPC 서버는 그 결과(밴드)를 읽기만 한다. 대역에 이 경로가 없으면 D-03 은
+        // "읽을 것이 없는 읽기" 로 남는다.
+        Remember(_world.World.NpcIdOf(slot).Value, player, InteractAffinity,
+            RelationshipTags.Talked, EpisodeKind.Dialogue, now);
+
         return true;
+    }
+
+    /// <summary>
+    /// 기억 저장소 (D-03). null 이면 아무것도 쓰지 않는다 — <b>기본이 꺼짐이다</b>.
+    /// </summary>
+    public IMemoryStore? Memory { get; init; }
+
+    /// <summary>기억에 쓴 줄 수 (D-03). 대역 요약에 찍는다.</summary>
+    public long MemoryWrites { get; private set; }
+
+    /// <summary>
+    /// 관계와 기억을 한 줄씩 남긴다 (D-03).
+    ///
+    /// <para>
+    /// <b>결과를 기다리지 않는다.</b> 인메모리·파일 저장소는 즉시 끝나지만, 외부 저장소
+    /// 어댑터가 붙으면 이 호출이 대역의 틱을 막는다 — 대역의 틱도 틱이다.
+    /// </para>
+    /// </summary>
+    private void Remember(
+        int npc, PlayerId player, int delta, RelationshipTags tags, EpisodeKind kind, Tick now)
+    {
+        if (Memory is not { } memory || player.Value == 0)
+        {
+            return;
+        }
+
+        _ = memory.RecordInteractionAsync(npc, player.Value, delta, now, tags);
+        _ = memory.AppendEpisodeAsync(
+            npc, kind, player.Value, subjectIsPlayer: true, now,
+            salience: (byte)Math.Min(255, Math.Abs(delta) * 2),
+            summaryKey: "dialogue." + kind.ToString().ToLowerInvariant());
+
+        MemoryWrites += 2;
     }
 
     /// <summary>
@@ -410,6 +456,11 @@ public sealed class PlayerRegistry
         _world.Needs.Restore(slot, -damage, 0, now);
 
         Attacks++;
+
+        // D-03 — 맞은 것도 기억이다. 우호가 한 번에 무너지는 것이 핵심이다:
+        // 거래 세 번(+30)을 공격 한 번(-30)이 되돌린다.
+        Remember(_world.World.NpcIdOf(slot).Value, player, AttackAffinity,
+            RelationshipTags.Attacked, EpisodeKind.Combat, now);
 
         return true;
     }

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Globalization;
 using Microsoft.Extensions.FileProviders;
 using Npc.Contracts;
 using Npc.Core;
@@ -15,6 +16,7 @@ using Npc.Host.Replan;
 using Npc.Llm;
 using Npc.MasterData;
 using Npc.MasterData.Authoring;
+using Npc.Memory;
 using Npc.Planning;
 using Npc.Runtime;
 using Npc.Sim;
@@ -385,6 +387,32 @@ if (adminAuth.Enabled || options.DevControl)
         return result.Ok ? Results.Ok(result) : Results.BadRequest(result);
     });
 
+    // 플레이어 기억 삭제 (D-03). <b>개인정보 요건이라 감사 로그에 반드시 남긴다</b> —
+    // 지웠다는 사실 자체가 증빙이고, 지운 줄 수가 그 증빙의 내용이다.
+    app.MapDelete(AdminEndpoints.ForgetPlayerRoute, async (
+        HttpContext context, int player, string? reason) =>
+    {
+        if (host.Memory is not { } store)
+        {
+            return Results.BadRequest(new AdminResult(
+                false, "기억 저장소가 꺼져 있다 (--memory)", []));
+        }
+
+        if (player <= 0)
+        {
+            return Results.BadRequest(new AdminResult(false, "player 는 1 이상이어야 한다", []));
+        }
+
+        int removed = await store.ForgetPlayerAsync(player, CancellationToken.None);
+        await store.FlushAsync(CancellationToken.None);
+
+        audit.Write(new AuditEntry(
+            host.Clock.Current.Value, "memory.forget", player.ToString(CultureInfo.InvariantCulture),
+            Client(context), reason ?? "(사유 없음)", $"{removed}줄 삭제"));
+
+        return Results.Ok(new AdminResult(true, $"플레이어 {player} 의 기록 {removed}줄을 지웠다", []));
+    });
+
     // 호환: 예전 경로를 남긴다. 켜기만 하던 시절의 스크립트가 아직 있다.
     app.MapPost("/control/killswitch", (HttpContext context, string? target) =>
     {
@@ -397,7 +425,8 @@ if (adminAuth.Enabled || options.DevControl)
     Console.Out.WriteLine(
         $"admin: POST {AdminEndpoints.KillSwitchRoute}?target=T2|T1|PlanStore&state=on|off&reason=..."
         + $" · POST {AdminEndpoints.SnapshotRoute}"
-        + $" · POST {AdminEndpoints.ReloadRoute}?scope=planstore|content");
+        + $" · POST {AdminEndpoints.ReloadRoute}?scope=planstore|content"
+        + $" · DELETE {AdminEndpoints.ForgetPlayerRoute}?player=N");
 }
 
 await app.StartAsync(CancellationToken.None);
@@ -647,6 +676,14 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>벽시계 청구 캡 (C-02). 꺼져 있어도 인스턴스는 있다.</summary>
     public BillingGuard Billing { get; init; } = null!;
+
+    /// <summary>
+    /// 기억·관계 저장소 (D-03). <c>--memory</c> 를 안 주면 null 이다.
+    ///
+    /// <b>호스트는 쓰기까지 든다</b> — 삭제 API(개인정보 요건)와 종료 시 <c>Flush</c> 때문이다.
+    /// 재계획 워커에는 <c>IMemoryReader</c> 로만 준다: 타입이 곧 권한이다.
+    /// </summary>
+    public IMemoryStore? Memory { get; init; }
 
     /// <summary>
     /// 무중단 리로드 (A-07). <c>POST /admin/reload</c> 와 <c>--watch</c> 가 부른다.
@@ -1131,10 +1168,30 @@ internal sealed class NpcHost : IAsyncDisposable
 
         var alarms = new CooldownAlarmSink(alarmTarget, options.AlarmCooldownSeconds);
 
+        // ── 기억·관계 저장소 (D-03) ──────────────────────────────
+        // 켜지 않으면 null 이고 서픽스에 relationship_band 가 실리지 않는다.
+        // <b>쓰기 주체는 우리가 아니다</b> — 게임서버·대화 서비스가 쓰고 우리는 읽는다.
+        IMemoryStore? memory = null;
+
+        if (options.MemoryDir is { Length: > 0 } memoryDir)
+        {
+            FileMemoryStore opened = FileMemoryStore.Open(memoryDir);
+            memory = opened;
+
+            string ttl = options.MemoryTtlDays == 0
+                ? "보존 무제한"
+                : $"보존 {options.MemoryTtlDays} 게임일";
+
+            log.WriteLine(
+                $"memory: {opened.Path} · 관계 {opened.RelationshipCount} · "
+                + $"기억 {opened.EpisodeCount} · {ttl}"
+                + (opened.Loaded ? string.Empty : " (새 파일)"));
+        }
+
         // ── 재계획 티어 (docs/14 §4). --tier 가 결정한다 ──
         TierWiring tiers = TierWiring.Build(
             options, data, masterDataDir, store, plans, replanQueue, handoff, snapshots,
-            individualPool, swapper, zoneStates, clock, log, switches, alarms);
+            individualPool, swapper, zoneStates, clock, log, switches, alarms, memory);
 
         var meter = new NpcMeter(
             store, bands, plans, replanQueue, cognition, interrupts, link, loop, clock, data,
@@ -1223,6 +1280,7 @@ internal sealed class NpcHost : IAsyncDisposable
             Restore = restore,
             Webhook = webhook,
             Billing = billing,
+            Memory = memory,
 
             // A-07 — 리로드는 기동 때 읽은 것과 같은 경로·같은 프리픽스를 다시 읽는다.
             // 프리픽스를 여기서 다시 만들지 않는 것이 핵심이다: 다시 만들면 그 사이에 바뀐
@@ -1329,6 +1387,25 @@ internal sealed class NpcHost : IAsyncDisposable
             {
                 await workers.CancelAsync().ConfigureAwait(false);
                 await _tiers.StopAsync().ConfigureAwait(false);
+
+                // D-03 — 기억을 확정한다. <b>워커를 세운 뒤다</b>: 돌고 있는 동안 쓰면
+                // 방금 읽은 밴드와 파일 안의 값이 어긋난 회차가 남는다.
+                if (Memory is { } memoryStore)
+                {
+                    if (_options.MemoryTtlDays > 0)
+                    {
+                        long cutoff = _clock.Current.Value - _clock.TicksForGameDays(_options.MemoryTtlDays);
+
+                        if (cutoff > 0)
+                        {
+                            await memoryStore
+                                .PruneAsync(new Tick(cutoff), CancellationToken.None)
+                                .ConfigureAwait(false);
+                        }
+                    }
+
+                    await memoryStore.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+                }
 
                 try
                 {

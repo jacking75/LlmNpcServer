@@ -21,12 +21,15 @@ public sealed class ArchitectureTests
         ["Npc.Narrative"] = ["Npc.Core", "Npc.MasterData"],
         ["Npc.Runtime"] = ["Npc.Contracts", "Npc.Core", "Npc.MasterData", "Npc.Planning"],
         ["Npc.Llm"] = ["Npc.Core", "Npc.MasterData"],
+
+        // D-03. 기억·관계 저장소. Core 만 본다 — 마스터데이터도 런타임도 모른다.
+        ["Npc.Memory"] = ["Npc.Core"],
         ["Npc.Gateway"] = ["Npc.Contracts", "Npc.Wire"],
         ["Npc.Sim"] = ["Npc.Contracts", "Npc.MasterData"],
         ["Npc.Host"] =
         [
             "Npc.Contracts", "Npc.Core", "Npc.MasterData", "Npc.Planning",
-            "Npc.Runtime", "Npc.Llm", "Npc.Gateway", "Npc.Sim",
+            "Npc.Runtime", "Npc.Llm", "Npc.Memory", "Npc.Gateway", "Npc.Sim",
         ],
     };
 
@@ -36,6 +39,17 @@ public sealed class ArchitectureTests
         string[] refs = ProjectReferencesOf("Npc.Runtime");
 
         Assert.DoesNotContain("Npc.Llm", refs);
+    }
+
+    /// <summary>
+    /// <b>런타임은 기억 저장소도 모른다</b> (D-03). 참조가 생기면 틱 루프 안에서
+    /// 저장소를 읽는 길이 열리고, 그 읽기는 <c>await</c> 이거나 <c>lock</c> 이다 — 둘 다 금지다.
+    /// </summary>
+    [Fact]
+    public void Architecture_RuntimeDoesNotReferenceMemory()
+    {
+        Assert.DoesNotContain("Npc.Memory", ProjectReferencesOf("Npc.Runtime"));
+        Assert.DoesNotContain("Npc.Memory", ProjectReferencesOf("Npc.Planning"));
     }
 
     [Fact]

@@ -209,6 +209,7 @@ Npc.Runtime    ←  Core, MasterData, Contracts, Planning
 Npc.Planning   ←  Core, MasterData
 Npc.Narrative  ←  Core, MasterData          (정의 설명 카드. LLM·시각·난수 없음)
 Npc.Llm        ←  Core, MasterData (+ Microsoft.Extensions.AI)
+Npc.Memory     ←  Core.  외부 NuGet 의존 0 (D-03)
 Npc.Wire       ←  Contracts (+ MemoryPack)
 Npc.Gateway    ←  Contracts, Wire
 Npc.Sim        ←  Contracts, MasterData
@@ -224,13 +225,16 @@ Npc.Host       ←  전부
 
 ```
 testbed/Npc.TestBed.Protocol  ←  Wire
-testbed/Npc.TestGameServer    ←  Sim, MasterData, Wire, Protocol
+testbed/Npc.TestGameServer    ←  Sim, MasterData, Wire, Protocol, Memory (D-03 — 기억은 게임서버가 쓴다)
 testbed/Npc.TestClient        ←  MasterData, Protocol   (net10.0-windows · 미착수)
 ```
 
 **`Npc.Tests` 는 `Npc.TestClient` 를 참조하지 않는다** — 참조하면 테스트 프로젝트가 `net10.0-windows` 로 끌려간다.
 
 - **`Npc.Runtime`은 `Npc.Llm`을 참조하지 않는다.** 참조가 생기면 틱 루프에 LLM이 들어올 길이 열린다.
+- **`Npc.Runtime`·`Npc.Planning` 은 `Npc.Memory` 도 참조하지 않는다** (D-03). 기억 조회는
+  `await` 이거나 `lock` 이고 둘 다 틱 루프 금지다. 읽는 것은 재계획 워커이고, 워커가 받는 타입은
+  `IMemoryReader`(읽기 전용)다 — **쓰기 주체는 게임서버와 대화 서비스다.**
 - `Npc.Runtime → Npc.Planning`은 허용한다. `CognitionScheduler.Scan`이 `PlanStore`·`ReplanQueue`를 직접 받기 때문이다. `Npc.Planning`은 `Core`·`MasterData`만 참조하므로 이 간선으로 LLM이 들어올 길은 없다.
 - `Npc.Core`와 `Npc.Contracts`에 NuGet 패키지를 추가하지 않는다. 순수 로직만.
 - **`Npc.Narrative` 는 잎이다.** `Npc.Host`·런타임이 참조하지 않는다 — 서버가 도는 데 설명 카드는

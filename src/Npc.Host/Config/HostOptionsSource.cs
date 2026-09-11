@@ -76,6 +76,8 @@ public static class HostOptionsSource
         new("--snapshot-dir", true),
         new("--snapshot-interval-s", true),
         new("--snapshot-keep", true),
+        new("--memory", true),
+        new("--memory-ttl-days", true),
         new("--restore", true),
         new("--shutdown-timeout-s", true),
         new("--tick-sync-stall-s", true),

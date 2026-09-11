@@ -23,6 +23,9 @@
     <ProjectReference Include="..\..\src\Npc.Sim\Npc.Sim.csproj" />
     <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
     <ProjectReference Include="..\..\src\Npc.Wire\Npc.Wire.csproj" />
+
+    <!-- D-03 — 기억을 쓰는 것은 게임서버다. 대역도 같은 자리에서 쓴다. -->
+    <ProjectReference Include="..\..\src\Npc.Memory\Npc.Memory.csproj" />
     <ProjectReference Include="..\Npc.TestBed.Protocol\Npc.TestBed.Protocol.csproj" />
   </ItemGroup>
 

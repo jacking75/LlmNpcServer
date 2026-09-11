@@ -42,6 +42,7 @@ public sealed class ShadowBuffer
         CurrentPoi = new ushort[capacity];
         HostilePlayer = new int[capacity];
         HostileFaction = new ushort[capacity];
+        RecentPlayer = new int[capacity];
         PatrolCursor = new byte[capacity];
         Occupant = new int[capacity];
         Instance = new ushort[capacity];
@@ -115,6 +116,9 @@ public sealed class ShadowBuffer
 
     /// <summary>그 플레이어의 세력 code (D-04).</summary>
     public ushort[] HostileFaction { get; }
+
+    /// <summary>가장 최근에 상대한 플레이어 (D-03).</summary>
+    public int[] RecentPlayer { get; }
 
     /// <summary>다음에 갈 순찰 지점의 순번 (D-04).</summary>
     public byte[] PatrolCursor { get; }

@@ -75,6 +75,14 @@ public sealed record GameServerOptions
     /// </summary>
     public string? Scenario { get; init; }
 
+    /// <summary>
+    /// 기억 저장소 폴더 (D-03). null 이면 쓰지 않는다.
+    ///
+    /// <b>대역이 쓰고 NPC 서버가 읽는다.</b> 두 프로세스에 같은 폴더를 주면
+    /// "거래 세 번 한 상인이 우호로 보인다" 를 손으로 확인할 수 있다.
+    /// </summary>
+    public string? MemoryDir { get; init; }
+
     /// <summary>액션 실패 주입 확률 0~1.</summary>
     public double FailRate { get; init; }
 
@@ -153,6 +161,7 @@ public sealed record GameServerOptions
           --time-scale N         시간 압축 (기본 60). NPC 서버와 같아야 한다
           --masterdata <dir>     마스터데이터 디렉터리 (기본 ./masterdata)
           --scenario <jsonl>     이벤트 주입. KillSwitch 줄은 무시한다
+          --memory <dir>         NPC 기억 저장소 폴더 (D-03). 대역이 쓴다
           --fail-rate <0~1>      액션 실패 주입
           --drop-rate <0~1>      명령 유실 주입
           --dynamic-roster       런타임 스폰·디스폰 (B-05). NPC 서버도 켜야 붙는다
@@ -352,6 +361,16 @@ public sealed record GameServerOptions
 
                 case "--dynamic-roster":
                     result = result with { DynamicRoster = true };
+                    break;
+
+                case "--memory":
+                    if (!TryValue(args, ref i, arg, out string? memoryDir, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { MemoryDir = memoryDir };
                     break;
 
                 case "--scenario":

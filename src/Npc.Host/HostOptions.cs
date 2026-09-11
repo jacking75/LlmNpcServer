@@ -361,6 +361,23 @@ public sealed record HostOptions
     /// <summary>보존할 스냅샷 수. 기본 3. 최신 것이 깨졌을 때 물러날 자리다.</summary>
     public int SnapshotKeep { get; init; } = 3;
 
+    /// <summary>
+    /// 기억 저장소 폴더 (D-03). null 이면 <b>꺼져 있다</b> — 밴드가 서픽스에 실리지 않는다.
+    ///
+    /// <para>
+    /// <b>기본이 꺼짐인 이유.</b> 기억은 게임서버·대화 서비스가 쓰는 것이고,
+    /// 그것들이 없는 회차에서 빈 저장소를 켜 두면 "켜져 있는데 아무것도 안 나온다" 가 된다.
+    /// </para>
+    /// </summary>
+    public string? MemoryDir { get; init; }
+
+    /// <summary>
+    /// 기억 보존 기간(게임 일). 0 이면 지우지 않는다 (D-03).
+    ///
+    /// <b>기준은 벽시계가 아니라 게임 틱이다</b> (CLAUDE.md §2.3).
+    /// </summary>
+    public int MemoryTtlDays { get; init; }
+
     /// <summary>복원 정책 (A-01). 기본 <c>auto</c>.</summary>
     public RestoreMode Restore { get; init; } = RestoreMode.Auto;
 
@@ -495,6 +512,8 @@ public sealed record HostOptions
           --profile dev|service   실행 프로파일. service 는 --days 0 과 스냅샷을 강제한다
           --snapshot-dir <dir>    NPC 상태 스냅샷 디렉터리 (기본 ./state)
           --snapshot-interval-s N 스냅샷 주기 초. 0=끔 (기본: service 60 · dev 꺼짐)
+          --memory <dir>       NPC 기억·관계 저장소 폴더 (D-03). 없으면 꺼짐
+          --memory-ttl-days N  기억 보존 게임 일. 0=지우지 않음
           --snapshot-keep N       보존할 스냅샷 수 (기본 3)
           --restore auto|none|<path>  복원 정책 (기본 auto). 조건이 안 맞으면 시드로 기동한다
           --shutdown-timeout-s N  정상 종료 예산 초 (기본 15). 넘기면 종료 코드 2
@@ -1142,6 +1161,26 @@ public sealed record HostOptions
                         SnapshotEnabled = snapshotInterval > 0,
                         SnapshotSpecified = true,
                     };
+                    break;
+
+                case "--memory":
+                    if (!TryValue(args, ref i, arg, out string? memoryDir, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { MemoryDir = memoryDir };
+                    break;
+
+                case "--memory-ttl-days":
+                    if (!TryInt(args, ref i, arg, 0, 3_650, out int memoryTtl, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { MemoryTtlDays = memoryTtl };
                     break;
 
                 case "--snapshot-keep":

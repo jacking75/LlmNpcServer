@@ -123,6 +123,10 @@ public readonly record struct TierThroughputRow(
 /// </param>
 /// <param name="Tiers">티어별 처리율. 티어가 꺼져 있으면 빈 배열이다.</param>
 /// <param name="StaleDiscarded">낡아서 폐기하고 재삽입한 요청 수 (T4-04).</param>
+/// <param name="BandsAttached">
+/// 관계 밴드를 서픽스에 실은 횟수 (D-03). <b>기억 저장소를 켰는데 0 이면</b>
+/// 저장소가 비어 있다는 뜻이다 — 게임서버가 아직 아무것도 안 썼다.
+/// </param>
 public readonly record struct ReplanPanel(
     int QueueDepth,
     double EnqueuedPerSecond,
@@ -136,7 +140,8 @@ public readonly record struct ReplanPanel(
     long UrgentDropped = 0,
     int[]? ScoreHistogram = null,
     TierThroughputRow[]? Tiers = null,
-    long StaleDiscarded = 0);
+    long StaleDiscarded = 0,
+    long BandsAttached = 0);
 
 /// <summary>미스가 많은 버킷 하나. docs/13 §6 의 <c>top_miss</c>.</summary>
 /// <param name="Bucket"><c>blacksmith@Dawn.Peace.Fair</c> 표기.</param>
@@ -697,7 +702,8 @@ internal sealed class NpcMeter : ITickObserver, IDisposable
                 UrgentDropped: _replanQueue.UrgentDropped,
                 ScoreHistogram: Histogram(),
                 Tiers: TierRows(seconds),
-                StaleDiscarded: _tiers?.Individual?.Discarded ?? 0),
+                StaleDiscarded: _tiers?.Individual?.Discarded ?? 0,
+                BandsAttached: _tiers?.BandsAttached ?? 0),
             Cache: CacheOf(_cache.Snapshot()),
             LlmCalls: _compile?.Calls ?? 0,
             Cost: CostOf(),

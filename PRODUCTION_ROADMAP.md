@@ -91,7 +91,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 
 - [ ] **D-01** 대화 서비스 (`Npc.Dialogue`, 별도 프로세스) · 응답 계약 · 폴백 · 인젝션 방어 — P2 · XL · 의존 D-02, D-03, B-08
 - [x] **D-02** 대사 테이블(`dialogue_lines.json`) · 로컬라이즈 테이블 · 검증 V14 — P1 · M · 의존 없음 — **완료. `Lexicon` 을 파일 읽는 계층으로 바꾸지는 않았다** — 대신 두 벌이 어긋나지 않게 테스트가 대조한다
-- [ ] **D-03** NPC 기억·관계 저장소 (구조체 · 보존·삭제 정책) — P2 · L · 의존 A-01
+- [x] **D-03** NPC 기억·관계 저장소 (구조체 · 보존·삭제 정책) — P2 · L · 의존 A-01 — **완료. 단 외부 저장소(Redis·PostgreSQL) 어댑터는 없다** — 붙여 볼 인스턴스가 없어 만들지 않았다. `IMemoryStore` 가 자리를 잡고, 실제로 도는 구현은 인메모리·파일 둘이다
 - [x] **D-04** 개체별 행동 파라미터 (`patrol_route` · `aggro_radius` · `faction` · `dialogue_profile`) — P1 · M · 의존 F-04 — **완료. 단 `aggro_radius_m` 은 읽는 명령이 없다** — `SetAggro` 를 내는 액션이 `actions.json` 에 없고 액션 상한이 37/40 이라 만들지 않았다. 저장·조회만 한다
 
 ### 트랙 E — LLM 이 이 서버를 잘 이해하고 쓰게 만든다
@@ -264,7 +264,7 @@ M3 은 M0 의 A-05(관측) 뒤에 붙인다. M5 는 제품 요구가 확정된 �
 |---|---|---|---|
 | 대사 텍스트 | **없음** | `Speak(DialogueId)` 만. 대사 테이블 파일 없음. `DialogueId` 는 `actions.json` 의 `emits.map.Dialogue` 심볼 `SortedSet` 첨자(`ActionCatalog.cs:218-219`) | D-02 |
 | 자유 대화 | **없음** | 설계도만 `docs/FAQ.html` Q8 | D-01 |
-| 기억·관계 | **없음** | `Memory\|History\|Relationship\|Reputation` grep 0건. 있는 것은 서픽스용 휘발성 `NpcSnapshot`(인벤 8·recent 3·직전 결말) | D-03 |
+| 기억·관계 | **구현됨** | `src/Npc.Memory/` — 관계·기억·평판 3종. NPC 서버는 읽기만 하고 서픽스에는 3단 밴드 하나가 실린다 (외부 저장소 어댑터는 없다) | D-03 |
 | 로컬라이즈 | **없음** | `name_key` 만 있고 문구 테이블 없음. `Lexicon.cs` 하드코딩 한국어 | D-02 |
 | 개체 파라미터 | **구현됨** | `npc_overrides.json` 5필드가 `npc_instances.json` 위에 id 로 병합된다 (`aggro_radius_m` 만 읽는 명령이 없다) | D-04 |
 
@@ -1598,6 +1598,20 @@ CI 야간에 `--sample 48 --runs 1` 로 회귀만(비용 상한 $0.5), 릴리스
 **규칙 충돌 확인.** §2.5 플레이어 문자열 금지 — enum/id 만. §3 의존 — `Npc.Runtime` 은 `Npc.Memory` 를 참조하지 않는다(호스트가 읽어 스냅샷에 넣는다).
 
 **크기·의존.** L. 의존 A-01.
+
+**구현 결과.** `src/Npc.Memory/`(Core 만 참조, 외부 NuGet 0) — `IMemoryReader`/`IMemoryStore` · `Relationship`·`EpisodeSummary`·`Reputation` · `InMemoryStore` · `FileMemoryStore`. 밴드 enum 은 `src/Npc.Core/Memory/RelationshipBand.cs`. 호스트는 `--memory <dir>`·`--memory-ttl-days N`, 삭제는 `DELETE /admin/memory/forget?player=N`.
+
+- **NPC 서버는 읽기만 한다.** 워커에 주는 타입이 `IMemoryReader` 다 — **타입이 곧 권한이다**. 무슨 일이 있었는지 아는 것은 게임서버(거래·퀘스트·전투)와 대화 서비스이고, 두 곳이 같은 사실을 기록하면 어긋나는 날이 온다. 쓰는 예시는 대역(`PlayerRegistry.TryInteract`/`TryAttack`)에 넣었다 — 없으면 D-03 은 "읽을 것이 없는 읽기" 로 남는다.
+- **`Npc.Runtime`·`Npc.Planning` 은 이 프로젝트를 참조하지 않는다.** 기억 조회는 `await` 이거나 `lock` 이고 둘 다 틱 루프 금지다 — `Architecture_RuntimeDoesNotReferenceMemory` 가 강제한다.
+- **서픽스에 실리는 것은 3단 enum 하나다.** 호감도 원값을 실으면 모델이 그 숫자를 플랜에 되쓰려 하고, 플레이어 id 를 실으면 §2.5 위반이다. 밴드는 **가장 먼저 덜어내는** 항목이다(4토큰짜리 장식이라 예산이 빠듯하면 지킬 것이 아니다).
+- **조회 키가 필요했다.** "이 NPC 가 지금 누구를 상대하는가" 를 알 방법이 없어 `NpcStore.RecentPlayer`(int 한 칸)를 넣었다. `int` 여야 하는 이유는 워커가 다른 스레드에서 읽기 때문이다 — 인벤토리·`Recent` 링 버퍼는 여러 필드라 찢어진 값을 본다. 그래서 개체 스냅샷에 **밴드만** 싣는다.
+- **자연어를 저장하지 않는다.** 한 줄이 가진 문자열 필드는 `summary_key`(로컬라이즈 키) 하나이고, `Records_HaveNoFreeTextField` 가 타입 수준에서 강제한다 — 프롬프트 인젝션과 개인정보를 동시에 피하는 방법이 그것뿐이다.
+- **Redis·PostgreSQL 어댑터는 안 만들었다.** 이 저장소에는 그것을 돌려 볼 인스턴스가 없고, **한 번도 붙여 보지 않은 어댑터는 없는 것보다 나쁘다**("있다" 고 읽힌다). `IMemoryStore` 가 자리를 잡아 두었고, 그 자리에 외부 의존 없이 실제로 도는 파일 구현 하나를 넣었다(임시 파일 → 바꿔 끼우기라 중간에 죽어도 옛 파일이 남는다).
+- 스냅샷 형식 v5 에 `RecentPlayer` 가 들어갔다. 기억 자체는 스냅샷에 담지 않는다 — **프로세스 밖의 것**이다.
+
+**미측정.** 외부 저장소 지연·용량은 재지 않았다(붙일 것이 없다). 보존 기간 값은 운영 정책이 정한다.
+
+**테스트.** `tests/Npc.Tests/Memory/MemoryStoreTests.cs`(9) · `RelationshipSuffixTests.cs`(6) · `tests/Npc.Tests/TestBed/MemoryWriteTests.cs`(3). 완료 조건은 `MemoryWriteTests.ThreeInteractions_MakeTheNpcFriendly` 가 **대역의 실제 경로로** 지킨다. 로그 계기는 `/metrics` 의 `replan.bandsAttached` 다 — 저장소를 켰는데 0 이면 게임서버가 아직 아무것도 안 썼다는 뜻이다.
 
 ---
 

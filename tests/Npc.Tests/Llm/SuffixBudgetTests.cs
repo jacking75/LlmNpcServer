@@ -172,7 +172,10 @@ public sealed class SuffixBudgetTests
                 (byte)(255 - i)));
         }
 
-        return new NpcSnapshot(inventory.ToImmutable(), recent.ToImmutable(), PlanOutcome.FailedAtStep, 9);
+        // D-03 — 관계 밴드도 최악에 포함한다. 가장 긴 표기가 friendly 다.
+        return new NpcSnapshot(
+            inventory.ToImmutable(), recent.ToImmutable(), PlanOutcome.FailedAtStep, 9,
+            RelationshipBand.Friendly);
     }
 
     /// <summary>

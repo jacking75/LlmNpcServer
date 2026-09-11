@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Npc.Contracts;
 using Npc.MasterData;
+using Npc.Memory;
 using Npc.TestBed.Protocol;
 using Npc.TestGameServer.Client;
 using Npc.TestGameServer.Link;
@@ -224,7 +225,17 @@ public sealed class GameServer : IAsyncDisposable
 
         GameWorld world = GameWorld.Create(options, data, roster, instances);
         var mirror = new MirrorLog();
-        var players = new PlayerRegistry(world, data, options);
+        // D-03 — 대역이 기억을 쓴다. NPC 서버에 같은 폴더를 주면 그 결과가 밴드로 읽힌다.
+        FileMemoryStore? memory = options.MemoryDir is { Length: > 0 } memoryDir
+            ? FileMemoryStore.Open(memoryDir)
+            : null;
+
+        if (memory is not null)
+        {
+            log.WriteLine($"memory: {memory.Path} · 관계 {memory.RelationshipCount}");
+        }
+
+        var players = new PlayerRegistry(world, data, options) { Memory = memory };
 
         world.Players = players.Tick;
 
@@ -340,6 +351,13 @@ public sealed class GameServer : IAsyncDisposable
     {
         LinkSession? session = _link.Session;
 
+        // D-03 — 저장소가 없으면 줄에서 아예 뺀다. 보간 문자열 안에서 조건을 접으면
+        // string.Create 의 핸들러가 받지 못한다 (CS1620).
+        string memory = _players.Memory is null
+            ? string.Empty
+            : string.Create(
+                CultureInfo.InvariantCulture, $"memory {_players.MemoryWrites} | ");
+
         return string.Create(
             CultureInfo.InvariantCulture,
             $"tick {Tick} | link {(session is { IsActive: true } ? "up" : "down")} | " +
@@ -347,7 +365,7 @@ public sealed class GameServer : IAsyncDisposable
             $"players {_players.Count} | clients {_clients.Count} | " +
             $"interact {_players.Interacts}/{_players.InteractsOutOfRange} | " +
             $"attack {_players.Attacks}/{_players.AttacksOutOfRange} | " +
-            $"p99 {TickP99Millis:F2} ms");
+            $"{memory}p99 {TickP99Millis:F2} ms");
     }
 
     /// <inheritdoc />
@@ -356,6 +374,12 @@ public sealed class GameServer : IAsyncDisposable
         await _clients.DisposeAsync().ConfigureAwait(false);
         await _link.DisposeAsync().ConfigureAwait(false);
         await _world.DisposeAsync().ConfigureAwait(false);
+
+        // D-03 — 기억을 확정한다. 여기서 안 쓰면 대역이 종료될 때 그 회차의 관계가 통째로 사라진다.
+        if (_players.Memory is { } memory)
+        {
+            await memory.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+        }
     }
 
     // ---------------------------------------------------------------- 루프

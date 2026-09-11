@@ -36,6 +36,14 @@ public static class AdminEndpoints
     public const string ReloadRoute = "/admin/reload";
 
     /// <summary>
+    /// 플레이어 기억 삭제 경로 (D-03 · 개인정보 요건).
+    ///
+    /// <b>탈퇴 처리의 종착지다.</b> 관계·기억·평판 셋 다 지운다 —
+    /// 하나라도 남으면 "지웠다" 고 말할 수 없다.
+    /// </summary>
+    public const string ForgetPlayerRoute = "/admin/memory/forget";
+
+    /// <summary>
     /// 킬스위치를 켜거나 끈다.
     /// </summary>
     /// <param name="switches">킬스위치 상태.</param>

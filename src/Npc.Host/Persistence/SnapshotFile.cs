@@ -53,7 +53,7 @@ public static class SnapshotFile
     /// <summary>
     /// 형식 버전. 배치가 바뀌면 올린다. 다른 버전은 복원하지 않는다.
     ///
-    /// <b>5 — <c>HostileFaction</c>·<c>PatrolCursor</c> 배열이 들어갔다</b> (D-04).
+    /// <b>5 — <c>HostileFaction</c>·<c>PatrolCursor</c>(D-04)·<c>RecentPlayer</c>(D-03) 배열이 들어갔다.</b>
     /// <b>4 — <c>HostilePlayer</c> 배열이 들어갔다</b> (B-06).
     /// <b>3 — <c>Occupant</c>(슬롯 거주자) 배열이 들어갔다</b> (B-05).
     /// <b>2 — <c>Instance</c> 배열이 <c>CurrentPoi</c> 뒤에 들어갔다</b> (B-02).
@@ -139,6 +139,7 @@ public static class SnapshotFile
             WriteI32(writer, buffer.HostilePlayer, n);
             WriteU16(writer, buffer.HostileFaction, n);
             writer.Write(buffer.PatrolCursor, 0, n);
+            WriteI32(writer, buffer.RecentPlayer, n);
             WriteI32(writer, buffer.Occupant, n);
             WriteU16(writer, buffer.Instance, n);
             WriteU16(writer, buffer.HomePoi, n);
@@ -304,6 +305,7 @@ public static class SnapshotFile
             ReadI32(reader, shadow.HostilePlayer, n);
             ReadU16(reader, shadow.HostileFaction, n);
             reader.Read(shadow.PatrolCursor, 0, n);
+            ReadI32(reader, shadow.RecentPlayer, n);
             ReadI32(reader, shadow.Occupant, n);
             ReadU16(reader, shadow.Instance, n);
             ReadU16(reader, shadow.HomePoi, n);

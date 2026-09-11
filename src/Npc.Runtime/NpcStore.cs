@@ -123,6 +123,22 @@ public sealed class NpcStore
     public ushort[] HostileFaction = [];
 
     /// <summary>
+    /// 가장 최근에 이 NPC 와 무언가를 한 플레이어 (D-03). 0 = 없음.
+    ///
+    /// <para>
+    /// <b>기억 저장소의 조회 키다.</b> 재계획 서픽스에 실을 <c>relationship_band</c> 는
+    /// (NPC, 플레이어) 쌍에 달려 있는데, "어느 플레이어인가" 를 알 방법이 이것 말고 없다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>int</c> 하나인 것이 중요하다.</b> 재계획 워커가 다른 스레드에서 읽는다 —
+    /// <c>Recent</c> 링 버퍼는 여러 필드라 찢어진 값을 볼 수 있지만 이 배열은 원자적이다.
+    /// 한 틱 낡은 값을 봐도 밴드 판정이 흔들릴 뿐이다.
+    /// </para>
+    /// </summary>
+    public int[] RecentPlayer = [];
+
+    /// <summary>
     /// 이 슬롯에 앉은 인스턴스 정의 id (B-05). <b>0 = 빈 슬롯이다</b> —
     /// <c>npc_instances.json</c> 의 id 는 1 부터라 0 을 "없음" 으로 쓸 수 있다.
     ///
@@ -292,6 +308,7 @@ public sealed class NpcStore
 
         HostilePlayer = new int[capacity];
         HostileFaction = new ushort[capacity];
+        RecentPlayer = new int[capacity];
         Occupant = new int[capacity];
         Instance = new ushort[capacity];
         HomePoi = new ushort[capacity];
@@ -361,6 +378,7 @@ public sealed class NpcStore
         Array.Copy(CurrentPoi, buffer.CurrentPoi, Count);
         Array.Copy(HostilePlayer, buffer.HostilePlayer, Count);
         Array.Copy(HostileFaction, buffer.HostileFaction, Count);
+        Array.Copy(RecentPlayer, buffer.RecentPlayer, Count);
         Array.Copy(PatrolCursor, buffer.PatrolCursor, Count);
         Array.Copy(Occupant, buffer.Occupant, Count);
         Array.Copy(Instance, buffer.Instance, Count);
@@ -408,6 +426,7 @@ public sealed class NpcStore
         Array.Copy(buffer.CurrentPoi, CurrentPoi, Count);
         Array.Copy(buffer.HostilePlayer, HostilePlayer, Count);
         Array.Copy(buffer.HostileFaction, HostileFaction, Count);
+        Array.Copy(buffer.RecentPlayer, RecentPlayer, Count);
         Array.Copy(buffer.PatrolCursor, PatrolCursor, Count);
         Array.Copy(buffer.Occupant, Occupant, Count);
         Array.Copy(buffer.Instance, Instance, Count);
@@ -617,6 +636,7 @@ public sealed class NpcStore
         Occupant[slot] = 0;
         HostilePlayer[slot] = 0;
         HostileFaction[slot] = 0;
+        RecentPlayer[slot] = 0;
         Flags[slot] = default;
         PlanId[slot] = 0;
         StepIndex[slot] = 0;
@@ -679,6 +699,7 @@ public sealed class NpcStore
             hash = Mix(hash, CurrentPoi[i]);
             hash = Mix(hash, (ulong)(uint)HostilePlayer[i]);
             hash = Mix(hash, HostileFaction[i]);
+            hash = Mix(hash, (ulong)(uint)RecentPlayer[i]);
             hash = Mix(hash, PatrolCursor[i]);
             hash = Mix(hash, (ulong)(uint)Occupant[i]);
             hash = Mix(hash, Instance[i]);

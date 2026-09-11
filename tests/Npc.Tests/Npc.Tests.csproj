@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Npc.Planning\Npc.Planning.csproj" />
     <ProjectReference Include="..\..\src\Npc.Runtime\Npc.Runtime.csproj" />
     <ProjectReference Include="..\..\src\Npc.Llm\Npc.Llm.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Memory\Npc.Memory.csproj" />
     <ProjectReference Include="..\..\src\Npc.Gateway\Npc.Gateway.csproj" />
     <!-- P6 와이어 프로토콜 (docs/20 §4). Npc.TestClient 는 참조하지 않는다 — net10.0-windows 로 끌려간다. -->
     <ProjectReference Include="..\..\src\Npc.Wire\Npc.Wire.csproj" />

@@ -250,6 +250,8 @@ dotnet run -c Release --project src/Npc.Host -- \
 | `--snapshot-dir <dir>` | NPC 상태 스냅샷 디렉터리 (기본 `./state`) |
 | `--snapshot-interval-s N` | 스냅샷 주기 초. `0`=끔. **이 값이 상태 손실 창의 상한이다** |
 | `--snapshot-keep N` | 보존할 스냅샷 수 (기본 3). 최신 것이 깨졌을 때 물러날 자리다 |
+| `--memory <dir>` | NPC 기억·관계 저장소 (D-03). 없으면 꺼짐 — **NPC 서버는 읽기만 한다** |
+| `--memory-ttl-days N` | 기억 보존 게임 일. `0`=지우지 않음. 기준은 벽시계가 아니라 틱이다 |
 | `--restore auto\|none\|<path>` | 복원 정책 (기본 `auto`). 해시가 안 맞으면 시드로 기동한다 |
 | `--shutdown-timeout-s N` | 정상 종료 예산 초 (기본 15). 넘기면 **종료 코드 2** |
 | `--tick-sync-stall-s N` | `TickSync` 가 멈춰도 되는 상한 초. `0`=끔 (기본 5) |

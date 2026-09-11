@@ -34,6 +34,7 @@
     <ProjectReference Include="..\Npc.Planning\Npc.Planning.csproj" />
     <ProjectReference Include="..\Npc.Runtime\Npc.Runtime.csproj" />
     <ProjectReference Include="..\Npc.Llm\Npc.Llm.csproj" />
+    <ProjectReference Include="..\Npc.Memory\Npc.Memory.csproj" />
     <ProjectReference Include="..\Npc.Gateway\Npc.Gateway.csproj" />
     <ProjectReference Include="..\Npc.Sim\Npc.Sim.csproj" />
   </ItemGroup>

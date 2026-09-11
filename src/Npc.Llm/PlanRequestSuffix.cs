@@ -56,7 +56,8 @@ public readonly record struct NpcSnapshot(
     ImmutableArray<InventorySlot> Inventory,
     ImmutableArray<RecentEvent> Recent,
     PlanOutcome LastOutcome = PlanOutcome.Unknown,
-    int LastFailedStep = -1);
+    int LastFailedStep = -1,
+    RelationshipBand Band = RelationshipBand.Unknown);
 
 /// <summary>
 /// 플랜 생성 요청. docs/12 §2.
@@ -154,6 +155,11 @@ public static class PlanRequestSuffix
     ///   <item>4 — 인벤토리를 빼고 실패 설명을 절반으로 줄인다</item>
     ///   <item>5 — 성향·목표까지 뺀다. 최후다 — 이 단계에서는 "무엇이 유효한가"가 "어떤 성격인가"를 이긴다</item>
     /// </list>
+    ///
+    /// <para>
+    /// <b><c>relationship_band</c>(D-03)는 가장 먼저 빠진다.</b> 4토큰짜리 장식이라
+    /// 예산이 빠듯하면 지킬 것이 아니다 — 플랜의 유효성을 결정하지 않는다.
+    /// </para>
     /// </summary>
     private static string Compose(in PlanRequest request, MasterDataSet data, int trim)
     {
@@ -252,6 +258,14 @@ public static class PlanRequestSuffix
         if (inventory.Count > 0)
         {
             json["inventory"] = inventory;
+        }
+
+        // D-03 — 관계는 3단 enum 하나다. 호감도 원값을 실으면 모델이 그 숫자를 플랜에
+        // 되쓰려 하고, 플레이어 id 를 실으면 CLAUDE.md §2.5 를 어긴다.
+        // <b>가장 먼저 빠진다</b> — 4토큰짜리 장식이라 예산이 빠듯하면 지킬 것이 아니다.
+        if (trim < 1 && snapshot.Band != RelationshipBand.Unknown)
+        {
+            json["relationship_band"] = RelationshipBands.ToText(snapshot.Band);
         }
 
         if (trim < 1)

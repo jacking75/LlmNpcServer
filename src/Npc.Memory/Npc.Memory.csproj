@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    NPC 기억·관계 저장소 (D-03). docs/reference_masterdata.html §13.
+
+    CLAUDE.md §3 — Core 만 참조한다. 외부 NuGet 의존 0.
+    <b>Npc.Runtime 은 이 프로젝트를 참조하지 않는다.</b> 기억은 틱 루프 밖의 것이고,
+    참조가 생기면 틱 안에서 저장소를 읽는 길이 열린다 (Npc.Llm 과 같은 논거).
+  -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Memory</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Core\Npc.Core.csproj" />
+  </ItemGroup>
+
+</Project>
