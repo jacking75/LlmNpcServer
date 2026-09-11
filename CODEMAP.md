@@ -117,6 +117,7 @@
 | **API 명세가 필요하다 (툴·에이전트)** | `src/Npc.Host/Api/OpenApiCatalog.cs` → `docs/openapi.json` · 살아 있는 서버는 `GET /openapi/v1.json` | **생성물이다.** 라우트를 더하면 `Routes` 에 한 줄 — `OpenApiTests` 가 대조한다 |
 | **여러 NPC 를 한 번에 본다 · 검색한다** | `src/Npc.Host/Api/QueryEndpoints.cs`(`/npcs`·`/npc/{id}/context`·`/buckets`) · `QueryStream.cs`(SSE) | **도구·대화·운영 전용이다.** 런타임 게임 로직이 의존하면 링크를 우회한 동기 호출이 된다 |
 | **NPC 하나를 추적하고 싶다** | `src/Npc.Host/Api/NpcTraceEndpoint.cs` |
+| **모델·프롬프트를 바꾸고 품질·비용을 잰다** | `tools/Npc.Eval`(러너·심사원) · `tools/Npc.Eval.Core`(다양성·실패 집계·게이트·보고서) — **게이트 기준은 `EvalGate` 한 곳에만 있다.** 골든 러너는 여기 없다: `dotnet test --filter Category=Golden` 의 결과를 `--golden-rate` 로 넣는다 |
 | **컨테이너·릴리스** | `deploy/` (Dockerfile · compose · k8s · Grafana) · 버전은 `src/Npc.Host/HostVersion.cs` · 패키지 버전은 `Directory.Packages.props` 한 곳 |
 | **CI 파이프라인을 짠다** | 워크플로 파일을 두지 않는다 — `build.ps1` · `npc validate` · `npc regen --check` 세 명령이 파이프라인의 내용이다 |
 | **NPC id 가 슬롯인가 인스턴스 id 인가** | 와이어는 **전역 인스턴스 id** 다 (A-08) — `src/Npc.Core/GlobalIdMap.cs`(역방향 표) · `src/Npc.Runtime/NpcStore.cs`(`Bind`·`SlotOf`·`GlobalOf`) · 경계는 `EventApplier.Apply` 와 `PlanExecutor.ContextOf` 두 곳뿐이다 |

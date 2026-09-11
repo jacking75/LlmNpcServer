@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    평가 파이프라인의 판정·집계·보고서 (C-04).
+
+    <b>LLM 을 부르지 않는다.</b> 여기 있는 것은 전부 "이미 나온 숫자를 어떻게 읽는가" 이고,
+    그래야 가짜 엔진으로 파이프라인 종단을 테스트할 수 있다 — 게이트 판정이 실제 호출을
+    필요로 하면 그 로직은 영원히 릴리스 전에만 돌게 된다.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Eval.Core</RootNamespace>
+    <AssemblyName>Npc.Eval.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Npc.Tests" />
+  </ItemGroup>
+
+</Project>

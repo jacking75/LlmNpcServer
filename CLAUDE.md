@@ -81,6 +81,9 @@ dotnet run -c Release --project src/Npc.Host -- --loopback --npcs 500 --time-sca
 
 # 부하
 dotnet run -c Release --project src/Npc.Host -- --loopback --npcs 5000 --time-scale 60 --days 7
+
+# 평가 파이프라인 (C-04). LLM 호출·비용 발생 — 엔진 키가 있어야 돈다
+dotnet run --project tools/Npc.Eval -- --engines <a>,<b> --sample 48 --budget-usd 0.5 --out docs/measurements/eval_<ver>/
 ```
 
 `TreatWarningsAsErrors=true`다. 경고를 억제(`#pragma warning disable`)하지 말고 고친다.
@@ -243,8 +246,16 @@ tools/Npc.Cli       ←  Contracts, Core, MasterData, Narrative, Planning, Sim  
 tools/Npc.Conformance ← Contracts, Gateway, MasterData, Wire   (게임서버 적합성 키트)
 tools/Npc.Prebake   ←  Core, MasterData, Planning, Llm, Sim
 tools/Npc.Narrate   ←  Contracts, Core, Gateway, MasterData, Narrative
+tools/Npc.Eval.Core ←  외부 의존 0. 판정·집계·보고서만 (C-04)
+tools/Npc.Eval      ←  Npc.Eval.Core, **Npc.Prebake**, Core, MasterData, Planning, Llm
 tools/gen_*.cs      ←  #:project 로 MasterData (파생물 잠금 갱신)
-```
+```
+
+**`Npc.Eval → Npc.Prebake` 가 도구끼리의 유일한 간선이다** (C-04). `BulkRunner` 가
+"같은 프리픽스로 버킷 표본을 생성한다" 를 이미 하고 있고, 평가가 그것을 다시 만들면
+두 러너가 갈라져 **"프리베이크에서는 되는데 평가에서는 안 된다"** 가 생긴다 — 그때
+어느 쪽이 진실인지 알 방법이 없다. `Npc.Eval.Core` 는 그 간선 밖에 두어
+**LLM 없이 게이트 로직을 테스트**할 수 있게 한다.
 
 ---
 

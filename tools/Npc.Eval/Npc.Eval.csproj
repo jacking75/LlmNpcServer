@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    단일 평가 파이프라인 (C-04).
+
+    <b>Npc.Prebake 를 참조한다</b> — 도구가 도구를 참조하는 유일한 자리다 (CLAUDE.md §3).
+    BulkRunner 가 "같은 프리픽스로 버킷 표본을 생성한다" 를 이미 하고 있고, 그것을 다시
+    쓰면 두 러너가 갈라져 "프리베이크에서는 되는데 평가에서는 안 된다" 가 생긴다.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Npc.Eval</RootNamespace>
+    <AssemblyName>Npc.Eval</AssemblyName>
+    <NoWarn>$(NoWarn);MEAI001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Npc.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npc.Eval.Core\Npc.Eval.Core.csproj" />
+    <ProjectReference Include="..\Npc.Prebake\Npc.Prebake.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Planning\Npc.Planning.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Llm\Npc.Llm.csproj" />
+  </ItemGroup>
+
+</Project>
