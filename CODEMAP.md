@@ -85,6 +85,7 @@
 | **프롬프트 서픽스에 값 추가** | `src/Npc.Llm/PlanRequestSuffix.cs` | **300 토큰 상한.** `SuffixBudgetTests` 가 막고, 문자열은 `PromptIsolationTests` 가 막는다 |
 | **`reasoning` 이 이상한 것을 담고 있다** | `src/Npc.Llm/ReasoningSanitizer.cs` · 금칙어는 `masterdata/prompt/blocklist.txt` | 플랜 자체는 건드리지 않는다 |
 | **프리픽스가 안 고정된다 · 캐시 미적중** | `src/Npc.Llm/PromptPrefix.cs` | SHA 유니크 2개 이상이면 경보. 기동 시 1회 조립 |
+| **성능이 나빠졌는지 판정한다** | `npc perf --check` → `tools/Npc.Cli/PerfCommand.cs` · 입력은 `docs/measurements/W10_load.csv` · 기준선은 `docs/measurements/perf_baseline.csv`(커밋) | **워크플로가 아니라 명령이다** — 로컬에서 같은 답이 나와야 고칠 수 있다. 기준선 갱신은 `--write-baseline --apply` 로 사람이 정한다 |
 | **생성된 플랜을 사람이 검수한다** | `npc review --sample 40` → `tools/Npc.Cli/Review/`(`ReviewSampler`·`ReviewCommand`·`ReviewRecord`) · 기록은 `docs/measurements/review.jsonl` · 결과는 `planstore/pinned/` | **폴백으로 대체된 버킷도 표본에 든다** — 그쪽이 "왜 실패했나" 를 말해 준다. `[e] 수정` 은 4단 재검증을 거쳐야 저장된다 |
 | **문서·MCP 가 에이전트에게 실제로 도움이 되는지 잰다** | `tests/agent-bench/`(과제 10종) · `tools/agent-bench.ps1` · 기록은 `docs/measurements/agent_bench.csv` · 판정은 `docs/reference_metrics.html` §13.5 | **채점기부터 시험한다** — `-SelfTest` 가 "아무것도 안 했는데 통과" 를 잡는다. 러너는 에이전트를 부르지 않는다 |
 | **LLM 호스트가 이 저장소의 도구를 부르게 한다** | `.mcp.json`(호스트 설정) · `tools/Npc.Mcp/Program.cs` · 툴은 `tools/Npc.Mcp/Tools/*.cs` · 목록은 `McpToolSet` | **툴은 로직을 갖지 않는다** — `Npc.Cli` 의 같은 함수를 부른다. 쓰기 툴은 `--allow-write` 없이는 **목록에 뜨지 않는다** |

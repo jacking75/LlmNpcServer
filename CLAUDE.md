@@ -63,6 +63,7 @@ dotnet test --filter Category=Gate             # 실측 산출물이 있어야 �
 dotnet test --filter Category=Load             # 부하 (수 분. 측정 CSV 를 덮어쓴다)
 dotnet test "--filter Category!=Golden&Category!=Gate&Category!=Load"   # CI 기본 (= .\build.ps1)
 dotnet format --verify-no-changes              # 스타일 검사
+dotnet run --project tools/Npc.Cli -- perf --check   # 성능 회귀 판정 (G-03). 부하 CSV 를 기준선에 견준다
 ```
 
 ```powershell

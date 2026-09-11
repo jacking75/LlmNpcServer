@@ -51,6 +51,8 @@ public static class Program
           plan explain <파일> | narrate <파일>
           buckets [--archetype <id>] [--state missing|fallback|pinned|generated]
           pin <버킷>
+          perf --check [--csv <부하 CSV>] [--baseline <기준선>]
+               --write-baseline --apply       지금 결과를 기준선으로 (사람이 정한다)
           review [--sample 40] [--seed N] [--archetype <id>] [--out <jsonl>]
                  [--list]                      무엇을 검수하게 되는지 미리 본다
                  [--bucket <키> --verdict accept|edit|reject --reason 1..4
@@ -126,6 +128,7 @@ public static class Program
             "buckets" => BucketsCommand.Run(ctx),
             "pin" => PinCommand.Run(ctx),
             "review" => Review.ReviewCommand.Run(ctx),
+            "perf" => PerfCommand.Run(ctx),
 
             // 의존 태스크가 없다. "지원하지 않는다" 와 "아직 없다" 는 다른 말이라 구별해 낸다.
             "serve" => Pending(error, command, "B-08 읽기 전용 질의 API"),

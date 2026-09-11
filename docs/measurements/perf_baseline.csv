@@ -1,0 +1,15 @@
+cell,tick_p99_ms,scan_per_tick,bytes_per_tick,tick_overruns,sequence_gaps,scan_cap
+n1000-x600-none-b20-w2-max,0.31,109,0,0,0,-1
+n1000-x600-none-b20-w2-max-uncapped,0.38,106,0,0,0,0
+n10000-x600-none-b20-w2-max,0.97,150,0,0,0,-1
+n10000-x600-none-b20-w2-max-uncapped,2.544,658,0,0,0,0
+n2500-x600-none-b20-w2-max,0.529,150,0,0,0,-1
+n2500-x600-none-b20-w2-max-uncapped,0.601,243,0,0,0,0
+n500-x600-none-b0-w2-max,0.297,0,0,0,0,-1
+n500-x600-none-b20-w2-max,0.123,56,0,0,0,-1
+n500-x600-none-b20-w2-max-uncapped,0.156,54,0,0,0,0
+n5000-x60-none-b20-w2-max,0.408,150,0,0,0,-1
+n5000-x600-none-b100-w2-max,0.5,150,0,0,0,-1
+n5000-x600-none-b20-w2-max,1.122,150,0,0,0,-1
+n5000-x600-none-b20-w2-max-uncapped,2.911,614,0,0,0,0
+n5000-x600-none-b20-w2-paced,1.674,150,0,0,0,-1
