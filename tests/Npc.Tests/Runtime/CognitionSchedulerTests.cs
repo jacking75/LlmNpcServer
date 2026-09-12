@@ -207,14 +207,17 @@ public sealed class CognitionSchedulerTests
             queue.Clear();
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (long tick = 0; tick < 1_000; tick++)
-        {
-            r.Scanner.Scan(new Tick(tick), queue);
-            queue.Clear();
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, AllocationProbe.MinimumBytes(
+            () =>
+            {
+                for (long tick = 0; tick < 1_000; tick++)
+                {
+                    r.Scanner.Scan(new Tick(tick), queue);
+                    queue.Clear();
+                }
+            },
+            warmup: 1,
+            windows: 3));
     }
 
     /// <summary>모든 NPC 가 자기 밴드의 주기대로 판정된다 — 굶는 NPC 가 없다.</summary>

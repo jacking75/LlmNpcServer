@@ -338,10 +338,7 @@ public sealed class BucketTransitionTriggerTests
 
         Churn(rig, target, 20);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        Churn(rig, target, 20);
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() => Churn(rig, target, 20), warmup: 1, windows: 3));
 
         static void Churn(Rig rig, ZoneId zone, int rounds)
         {

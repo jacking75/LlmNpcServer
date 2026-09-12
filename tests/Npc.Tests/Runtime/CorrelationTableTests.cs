@@ -88,13 +88,13 @@ public sealed class CorrelationTableTests
             table.Next(i % 16);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            table.Next(i % 16);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 10_000; i++)
+            {
+                table.Next(i % 16);
+            }
+        }));
     }
 
     [Fact]

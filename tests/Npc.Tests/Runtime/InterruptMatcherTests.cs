@@ -178,12 +178,12 @@ public sealed class InterruptMatcherTests
             r.Matcher.Handle(in ev, new Tick(i), r.Executor, sink, r.Queue);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            r.Matcher.Handle(in ev, new Tick(i), r.Executor, sink, r.Queue);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 10_000; i++)
+            {
+                r.Matcher.Handle(in ev, new Tick(i), r.Executor, sink, r.Queue);
+            }
+        }));
     }
 }

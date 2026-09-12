@@ -111,13 +111,13 @@ public sealed class CompiledPlanTests
             _ = plan.NeedsReplan(state);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            _ = plan.NeedsReplan(state);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 10_000; i++)
+            {
+                _ = plan.NeedsReplan(state);
+            }
+        }));
     }
 
     /// <summary>docs/03 §8 — Plan_RoundTrip. JSON → Compiled → JSON 왕복 시 의미가 같아야 한다.</summary>

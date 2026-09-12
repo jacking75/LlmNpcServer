@@ -121,10 +121,7 @@ public sealed class ReplanSnapshotTests
 
         Churn(snapshots, 20_000);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        Churn(snapshots, 20_000);
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() => Churn(snapshots, 20_000)));
 
         static void Churn(ReplanSnapshots snapshots, int rounds)
         {

@@ -60,4 +60,8 @@ public static class AllocationProbe
 
         return minimum;
     }
+
+    // 비동기판은 두지 않는다. Func<Task> 를 창 안에서 await 하면 상태 기계가 할당돼
+    // 계기가 측정 대상이 아니라 자기 자신을 잰다 (TcpLink_FlushDoesNotAllocate 에서 136B).
+    // 비동기 경로의 할당을 보려면 "동기로 끝나는가" 를 단언하고 동기 구간만 재라.
 }

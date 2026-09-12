@@ -229,18 +229,24 @@ public sealed class PlanExecutorTests
             }
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        int from = 100;
 
-        for (int t = 100; t < 200; t++)
-        {
-            h.Executor.Step(new Tick(t), sink);
-            for (int i = 0; i < h.Store.Count; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(
+            () =>
             {
-                h.Store.StepStatus[i] = (byte)StepStatus.Ready;
-            }
-        }
+                for (int t = from; t < from + 100; t++)
+                {
+                    h.Executor.Step(new Tick(t), sink);
+                    for (int i = 0; i < h.Store.Count; i++)
+                    {
+                        h.Store.StepStatus[i] = (byte)StepStatus.Ready;
+                    }
+                }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+                from += 100;
+            },
+            warmup: 1,
+            windows: 3));
     }
 
     [Fact]

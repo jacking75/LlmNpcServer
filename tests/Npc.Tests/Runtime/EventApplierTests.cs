@@ -335,14 +335,16 @@ public sealed class EventApplierTests
             h.Applier.Apply(in warm);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
-        {
-            GameEvent ev = Event(GameEventKind.NpcTransform, sequence++) with { Pos = new WorldPos(i, 0, 0) };
-            h.Applier.Apply(in ev);
-        }
+        long next = sequence;
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
+        {
+            for (int i = 0; i < 10_000; i++)
+            {
+                GameEvent ev = Event(GameEventKind.NpcTransform, next++) with { Pos = new WorldPos(i, 0, 0) };
+                h.Applier.Apply(in ev);
+            }
+        }));
     }
 
     [Fact]

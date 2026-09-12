@@ -163,13 +163,13 @@ public sealed class PoiBinderTests
             _ = s_binder.TryBind(PoiSymbol.NearestField, ctx, out _);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            _ = s_binder.TryBind(PoiSymbol.NearestField, ctx, out _);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 1_000; i++)
+            {
+                _ = s_binder.TryBind(PoiSymbol.NearestField, ctx, out _);
+            }
+        }));
     }
 
     [Fact]

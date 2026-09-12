@@ -287,17 +287,16 @@ public sealed class DynamicRosterTests
             rig.Roster.TryActivate(ids[i % Capacity], new Tick(i), out _);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int i = 0; i < 64; i++)
+        long delta = AllocationProbe.MinimumBytes(() =>
         {
-            int id = ids[i % Capacity];
+            for (int i = 0; i < 64; i++)
+            {
+                int id = ids[i % Capacity];
 
-            rig.Roster.Deactivate(id);
-            rig.Roster.TryActivate(id, new Tick(100 + i), out _);
-        }
-
-        long delta = GC.GetAllocatedBytesForCurrentThread() - before;
+                rig.Roster.Deactivate(id);
+                rig.Roster.TryActivate(id, new Tick(100 + i), out _);
+            }
+        });
 
         Assert.True(delta == 0, $"스폰·디스폰 64회에 {delta}B 할당됐다");
     }

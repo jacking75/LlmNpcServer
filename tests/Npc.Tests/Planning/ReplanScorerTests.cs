@@ -205,19 +205,14 @@ public sealed class ReplanScorerTests
         var state = new NpcReplanState(1, WorldFlags.InCombat, 0, 40);
         float sink = 0;
 
-        for (int i = 0; i < 20_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            sink += ReplanScorer.Score(in state, plan, new Tick(i), Weights.Default);
-        }
+            for (int i = 0; i < 20_000; i++)
+            {
+                sink += ReplanScorer.Score(in state, plan, new Tick(i), Weights.Default);
+            }
+        }));
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int i = 0; i < 20_000; i++)
-        {
-            sink += ReplanScorer.Score(in state, plan, new Tick(i), Weights.Default);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         Assert.True(sink > 0);
     }
 }

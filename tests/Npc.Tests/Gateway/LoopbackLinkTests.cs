@@ -108,19 +108,20 @@ public sealed class LoopbackLinkTests
             }
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        NpcCommand local = command;
 
-        for (int i = 0; i < 10_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            link.Enqueue(in command);
-
-            if (link.Pending >= 1_000)
+            for (int i = 0; i < 10_000; i++)
             {
-                _ = link.FlushAsync(CancellationToken.None);
-            }
-        }
+                link.Enqueue(in local);
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+                if (link.Pending >= 1_000)
+                {
+                    _ = link.FlushAsync(CancellationToken.None);
+                }
+            }
+        }));
     }
 
     /// <summary>SimWorld 에 직결하면 명령이 이벤트로 돌아온다.</summary>

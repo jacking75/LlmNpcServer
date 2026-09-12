@@ -110,6 +110,13 @@ public sealed class TickAllocationTests
         Rig rig = NewRig(Npcs);
 
         // JIT 승격이 측정 창 안에서 일어나면 할당으로 보인다.
+        //
+        // 여기만 AllocationProbe(여러 창의 최솟값)를 안 쓴다. 두 가지 때문이다 —
+        // (1) 뒤에서 GC.CollectionCount(0) 델타도 같이 보는데 그건 프로세스 전역이라
+        //     창을 여러 번 여는 것과 맞지 않는다,
+        // (2) 이 클래스는 AllocationCollection(병렬 끔)에 있고 WarmupTicks 가 넉넉해
+        //     승격이 창 밖으로 이미 밀려 있다.
+        // 다른 할당 테스트는 둘 다 아니라서 전부 AllocationProbe 로 옮겼다.
         for (long tick = 1; tick <= WarmupTicks; tick++)
         {
             rig.Loop.RunTick(new Tick(tick));

@@ -290,10 +290,7 @@ public sealed class ReplanQueueTests
         // JIT 티어 승격이 끝날 때까지 돌린다.
         Churn(queue, 30_000);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        Churn(queue, 10_000);
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() => Churn(queue, 10_000)));
 
         static void Churn(ReplanQueue queue, int rounds)
         {
@@ -328,14 +325,13 @@ public sealed class ReplanQueueTests
             queue.TryEnqueue(i % 5_000, (i * 7) % 900);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int i = 0; i < 20_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            queue.TryEnqueue(i % 5_000, (i * 7) % 900);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 20_000; i++)
+            {
+                queue.TryEnqueue(i % 5_000, (i * 7) % 900);
+            }
+        }));
     }
 
     /// <summary>T4-19 — 점수 분포. 마지막 칸이 인터럽트 전용이다 (docs/14 §8).</summary>

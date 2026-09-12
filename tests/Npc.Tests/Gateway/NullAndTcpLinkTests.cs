@@ -58,13 +58,15 @@ public sealed class NullAndTcpLinkTests
             link.Enqueue(in command);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
-        {
-            link.Enqueue(in command);
-        }
+        NpcCommand local = command;
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
+        {
+            for (int i = 0; i < 10_000; i++)
+            {
+                link.Enqueue(in local);
+            }
+        }));
     }
 
     [Fact]
@@ -328,17 +330,23 @@ public sealed class NullAndTcpLinkTests
             await link.FlushAsync(CancellationToken.None);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int i = 0; i < Iterations; i++)
+        // await 를 창 안에 두지 않는다. 비동기 람다는 상태 기계를 할당하므로
+        // 계기가 측정 대상이 아니라 자기 자신을 재게 된다 (실측 136B).
+        // 센더가 없으니 Flush 는 동기로 끝나야 하고, 그 사실 자체가 이 테스트가 지킬 것이다 —
+        // 틱 루프 안에서 Flush 가 비동기로 넘어가면 그것이 곧 결함이다 (CLAUDE.md §2.1).
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            NpcCommand c = Command(i);
+            for (int i = 0; i < Iterations; i++)
+            {
+                NpcCommand c = Command(i);
 
-            link.Enqueue(in c);
-            await link.FlushAsync(CancellationToken.None);
-        }
+                link.Enqueue(in c);
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+                ValueTask flush = link.FlushAsync(CancellationToken.None);
+
+                Assert.True(flush.IsCompletedSuccessfully, "Flush 가 동기로 끝나지 않았다.");
+            }
+        }));
     }
 
     // ---------------------------------------------------------------- T6-08 수신 경로

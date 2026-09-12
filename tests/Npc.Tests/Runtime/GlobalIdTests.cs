@@ -68,7 +68,15 @@ public sealed class GlobalIdTests
         Assert.Equal(GlobalIdMap.NotFound, map.SlotOf(-1));
     }
 
-    /// <summary><b>조회는 할당 0 이다.</b> 이벤트 배수 구간에서 이벤트마다 돈다.</summary>
+    /// <summary>
+    /// <b>조회는 할당 0 이다.</b> 이벤트 배수 구간에서 이벤트마다 돈다.
+    ///
+    /// <para>
+    /// 예열 8회로 재던 때는 전체 스위트에서 간헐적으로 4KB 대가 잡혔다 — 코드가 아니라
+    /// <b>계층 JIT 재컴파일</b>이 측정 창에 떨어진 것이다. <see cref="AllocationProbe"/> 가
+    /// 여러 창의 최솟값을 쓴다: 진짜 할당은 모든 창에 나오고 재컴파일은 한두 창에만 나온다.
+    /// </para>
+    /// </summary>
     [Fact]
     public void Map_LookupDoesNotAllocate()
     {
@@ -79,21 +87,15 @@ public sealed class GlobalIdTests
             map.Bind(i, i - 1);
         }
 
-        // 예열.
-        for (int i = 0; i < 8; i++)
-        {
-            _ = map.SlotOf(i + 1);
-        }
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
         int sum = 0;
 
-        for (int i = 0; i < 10_000; i++)
+        long delta = AllocationProbe.MinimumBytes(() =>
         {
-            sum += map.SlotOf((i % 100) + 1);
-        }
-
-        long delta = GC.GetAllocatedBytesForCurrentThread() - before;
+            for (int i = 0; i < 10_000; i++)
+            {
+                sum += map.SlotOf((i % 100) + 1);
+            }
+        });
 
         Assert.True(delta == 0, $"조회 10,000회에 {delta}B 할당됐다");
         Assert.True(sum > 0);

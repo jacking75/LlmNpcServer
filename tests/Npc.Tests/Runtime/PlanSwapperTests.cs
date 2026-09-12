@@ -164,13 +164,13 @@ public sealed class PlanSwapperTests
             swapper.ApplyPendingSwaps(executor);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            swapper.ApplyPendingSwaps(executor);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 1_000; i++)
+            {
+                swapper.ApplyPendingSwaps(executor);
+            }
+        }));
     }
 
     private static void Complete(Rig r, CorrelationId correlation, long tick)

@@ -123,13 +123,13 @@ public sealed class GameClockTests
             clock.TryAdvance(out _);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            clock.TryAdvance(out _);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 10_000; i++)
+            {
+                clock.TryAdvance(out _);
+            }
+        }));
     }
 
     /// <summary>T1-29 완료 조건 — 게임 로직에 DateTime 이 0 개여야 한다 (CLAUDE.md §2.3).</summary>

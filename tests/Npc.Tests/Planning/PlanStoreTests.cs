@@ -411,12 +411,12 @@ public sealed class PlanStoreTests
             _ = store.Resolve(bucket);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            _ = store.Resolve(bucket);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 10_000; i++)
+            {
+                _ = store.Resolve(bucket);
+            }
+        }));
     }
 }

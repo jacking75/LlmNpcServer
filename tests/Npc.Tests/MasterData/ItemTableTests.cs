@@ -92,13 +92,13 @@ public sealed class ItemTableTests
             _ = s_table.ComputeFlags(inventory);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            _ = s_table.ComputeFlags(inventory);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 1_000; i++)
+            {
+                _ = s_table.ComputeFlags(inventory);
+            }
+        }));
     }
 
     [Fact]

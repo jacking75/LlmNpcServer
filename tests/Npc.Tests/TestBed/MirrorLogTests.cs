@@ -124,16 +124,15 @@ public sealed class MirrorLogTests
             log.ReadCommands(cursor, into);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int i = 0; i < Rounds; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            log.Record(Command(i), slot: i, new Tick(i));
-            log.Record(Event(i), slot: i);
-            log.ReadCommands(cursor, into);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < Rounds; i++)
+            {
+                log.Record(Command(i), slot: i, new Tick(i));
+                log.Record(Event(i), slot: i);
+                log.ReadCommands(cursor, into);
+            }
+        }));
     }
 
     private static NpcCommand Command(int i) => new()

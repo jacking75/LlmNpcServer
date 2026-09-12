@@ -129,16 +129,22 @@ public sealed class SnapshotDeterminismTests
         GC.WaitForPendingFinalizers();
         GC.Collect();
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long from = 201;
 
-        for (long tick = 201; tick <= 400; tick++)
-        {
-            port.Request();
-            rig.Loop.RunTick(new Tick(tick));
-            port.Release();
-        }
+        Assert.Equal(0, AllocationProbe.MinimumBytes(
+            () =>
+            {
+                for (long tick = from; tick < from + 200; tick++)
+                {
+                    port.Request();
+                    rig.Loop.RunTick(new Tick(tick));
+                    port.Release();
+                }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+                from += 200;
+            },
+            warmup: 1,
+            windows: 3));
     }
 
     private sealed record Rig(

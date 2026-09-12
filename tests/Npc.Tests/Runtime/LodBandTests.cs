@@ -193,13 +193,13 @@ public sealed class LodBandTests
             bands.Rebalance();
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1_000; i++)
+        Assert.Equal(0, AllocationProbe.MinimumBytes(() =>
         {
-            store.Lod[i % 2_000] = (byte)(i % 4);
-            bands.Rebalance();
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 1_000; i++)
+            {
+                store.Lod[i % 2_000] = (byte)(i % 4);
+                bands.Rebalance();
+            }
+        }));
     }
 }
