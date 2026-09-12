@@ -13,12 +13,13 @@ public sealed class MasterDataSetTests
     [Fact]
     public void MasterData_LoadsEveryTable()
     {
-        Assert.Equal(37, s_data.Actions.Count);
-        Assert.Equal(TestPaths.ArchetypeCount, s_data.Archetypes.Count);
-        Assert.Equal(12, s_data.Zones.Count);
-        Assert.Equal(243, s_data.Pois.Count);
-        Assert.True(s_data.Items.Items.Length >= 70);
-        Assert.True(s_data.Interrupts.Count >= 12);
+        // 로드 스모크다. 개수를 못박지 않는다 — 콘텐츠가 늘 때마다 깨지고, 깨져도 결함이 아니다.
+        Assert.NotEmpty(s_data.Actions.Actions);
+        Assert.NotEmpty(s_data.Archetypes.Archetypes);
+        Assert.NotEmpty(s_data.Zones.Zones);
+        Assert.NotEmpty(s_data.Pois.Pois);
+        Assert.NotEmpty(s_data.Items.Items);
+        Assert.NotEmpty(s_data.Interrupts.Rules);
         Assert.Equal(TestPaths.TotalKeys, s_data.Buckets.DeclaredTotalKeys);
     }
 

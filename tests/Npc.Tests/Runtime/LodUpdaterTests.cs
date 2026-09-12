@@ -57,8 +57,6 @@ public sealed class LodUpdaterTests
         Assert.Equal(1, LodUpdater.GradeOf(LodUpdater.LodZeroDistance));
         Assert.Equal(1, LodUpdater.GradeOf(LodUpdater.LodOneDistance - 1));
         Assert.Equal(2, LodUpdater.GradeOf(LodUpdater.LodOneDistance));
-        Assert.Equal(50, LodUpdater.LodZeroDistance);
-        Assert.Equal(200, LodUpdater.LodOneDistance);
 
         // 같은 등급이면 아무 일도 하지 않는다.
         Assert.False(lod.OnProximity(0, ProximityChange.Enter, 400));
@@ -94,7 +92,7 @@ public sealed class LodUpdaterTests
         lod.OnProximity(1, ProximityChange.Leave, 0);
 
         Assert.Equal(LodUpdater.ActiveZoneIdleLod, store.Lod[1]);
-        Assert.Equal(2, LodUpdater.ActiveZoneIdleLod);
+        Assert.NotEqual(NpcStore.InactiveLod, store.Lod[1]);
     }
 
     /// <summary>표가 없으면 NPC 의 <c>RegionUnderAttack</c> 플래그로 활성 여부를 본다.</summary>

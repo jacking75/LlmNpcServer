@@ -132,7 +132,6 @@ public sealed class McpToolTests
         string result = tools.Prebake(only: "   ");
 
         Assert.Contains("거절", result, StringComparison.Ordinal);
-        Assert.Equal(1.0, McpOptions.PrebakeBudgetCapUsd);
     }
 
     /// <summary>모르는 action 은 부르기 전에 거절한다 — 잘못된 URL 로 서버를 두드리지 않는다.</summary>

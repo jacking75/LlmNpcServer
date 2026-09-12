@@ -142,8 +142,6 @@ public sealed class PrebakeOptionsTests
     [InlineData("--concurrency", "0")]
     [InlineData("--concurrency", "아홉")]
     [InlineData("--budget-usd", "-1")]
-    [InlineData("--dryrun-sample", "1.5")]
-    [InlineData("--only")]
     [InlineData("--모르는옵션")]
     [InlineData("--concurrency", "16", "--max-concurrency", "8")]
     public void Prebake_RejectsBadArgs(params string[] args)

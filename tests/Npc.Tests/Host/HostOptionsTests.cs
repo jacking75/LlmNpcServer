@@ -133,12 +133,11 @@ public sealed class HostOptionsTests
         Assert.True(options.NoLlm);
     }
 
-    /// <summary>T1-57 완료 조건 — 링크 3종이 인자만으로 갈린다.</summary>
+    /// <summary>
+    /// T1-57 완료 조건 — 링크가 인자만으로 갈린다. 전부 <c>Enum.TryParse(ignoreCase)</c> 한 줄을 지나므로
+    /// 이름 하나와 대소문자 하나면 된다. null·record·replay 는 <c>LinkSwapTests</c> 가 실제로 갈아끼워 본다.
+    /// </summary>
     [Theory]
-    [InlineData("null", LinkKind.Null)]
-    [InlineData("record", LinkKind.Record)]
-    [InlineData("replay", LinkKind.Replay)]
-    [InlineData("loopback", LinkKind.Loopback)]
     [InlineData("tcp", LinkKind.Tcp)]
     [InlineData("NULL", LinkKind.Null)]
     public void Options_SwapLinkByArgument(string text, LinkKind expected)
@@ -159,21 +158,17 @@ public sealed class HostOptionsTests
         Assert.Equal(0.05, options.DropRate, 6);
     }
 
-    [Theory]
-    [InlineData("--npcs")]
-    [InlineData("--time-scale")]
-    [InlineData("--days")]
-    [InlineData("--link")]
-    [InlineData("--scenario")]
-    public void Options_RejectMissingValue(string flag)
+    /// <summary>값 없는 플래그. 모든 옵션이 <c>TryValue</c> 하나를 지나므로 대표 하나면 된다.</summary>
+    [Fact]
+    public void Options_RejectMissingValue()
     {
-        Assert.False(HostOptions.TryParse([flag], out _, out string? error));
+        Assert.False(HostOptions.TryParse(["--npcs"], out _, out string? error));
         Assert.NotNull(error);
     }
 
+    // 기제가 다른 것만: int 하한 · double 상한 초과 · double 하한 미만 · enum 파싱 실패.
     [Theory]
     [InlineData("--npcs", "0")]
-    [InlineData("--time-scale", "0")]
     [InlineData("--fail-rate", "1.5")]
     [InlineData("--drop-rate", "-0.1")]
     [InlineData("--link", "carrier-pigeon")]

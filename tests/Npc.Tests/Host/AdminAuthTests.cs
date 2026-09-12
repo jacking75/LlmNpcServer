@@ -29,13 +29,13 @@ public sealed class AdminAuthTests
         Assert.Equal(0, auth.Rejected);
     }
 
+    // 기제가 다른 넷만 둔다: 헤더 없음 / 접두만 있고 값이 빈 것 / 스킴 없는 생토큰 / 스킴은 맞고 값이 틀린 것.
+    // ""·"Basic abc" 는 null 과 같은 TryReadBearer 실패 경로다.
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
     [InlineData("Bearer ")]
-    [InlineData("Basic abc")]
-    [InlineData("Bearer wrong-token")]
     [InlineData("s3cr3t-token")]
+    [InlineData("Bearer wrong-token")]
     public void BadHeader_Is401(string? header)
     {
         var auth = new AdminAuth(Token);

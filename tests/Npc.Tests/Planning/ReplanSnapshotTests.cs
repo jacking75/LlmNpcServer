@@ -72,8 +72,8 @@ public sealed class ReplanSnapshotTests
         const WorldFlags Before = WorldFlags.AtHome | WorldFlags.IsDawn | WorldFlags.IsRested;
         const WorldFlags After = WorldFlags.AtWorkplace | WorldFlags.IsDay | WorldFlags.IsRested;
 
-        Assert.Equal(4, ReplanSnapshots.Drift(Before, After));
-        Assert.Equal(4, ReplanSnapshots.DefaultMaxDrift);
+        // 상한과 정확히 같은 드리프트다 — 경계는 "이하" 라 통과해야 한다.
+        Assert.Equal(ReplanSnapshots.DefaultMaxDrift, ReplanSnapshots.Drift(Before, After));
 
         snapshots.Capture(0, Before, new Tick(1), 2f);
 

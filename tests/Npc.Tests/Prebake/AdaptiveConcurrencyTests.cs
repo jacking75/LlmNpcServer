@@ -108,10 +108,8 @@ public sealed class AdaptiveConcurrencyTests
         Assert.Equal(20, throttled.FirstThrottleConcurrency);
         Assert.Equal(10, throttled.RecommendedStart);
 
-        // 기본 초기값은 8 이다. 상위 계획의 "동시 32" 는 추정치이고 실측 근거가 없다.
-        Assert.Equal(8, AdaptiveConcurrency.DefaultStart);
-        Assert.Equal(8, new AdaptiveConcurrency().Start);
-        Assert.Equal(16, AdaptiveConcurrency.DefaultSuccessStreak);
+        // 인자 없는 생성자는 기본 초기값에서 출발한다. 상위 계획의 "동시 32" 는 추정치라 쓰지 않는다.
+        Assert.Equal(AdaptiveConcurrency.DefaultStart, new AdaptiveConcurrency().Start);
     }
 
     /// <summary>초기값은 하한·상한 사이로 잡힌다.</summary>

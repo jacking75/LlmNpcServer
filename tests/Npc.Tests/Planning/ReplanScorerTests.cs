@@ -180,13 +180,16 @@ public sealed class ReplanScorerTests
     [Fact]
     public void NpcStore_HotBytesUnchanged()
     {
-        // Flags 8 + PlanId 4 + StepIndex 1 + StepStatus 1 + StepIssuedTick 8 + Lod 1 = 23
-        Assert.Equal(23, NpcStore.HotBytesPerNpc);
+        // Flags 8 + PlanId 4 + StepIndex 1 + StepStatus 1 + StepIssuedTick 8 + Lod 1 = 23.
+        // 상한이지 고정값이 아니다 — 핫에 필드를 더하면 여기서 먼저 걸려야 한다.
+        Assert.True(
+            NpcStore.HotBytesPerNpc <= 24,
+            $"핫 배열이 NPC 당 {NpcStore.HotBytesPerNpc}B 다. 새 필드는 콜드 영역에 둔다.");
 
         var store = new NpcStore();
         store.Allocate(5_000, s_data.Items.MaxCode + 1);
 
-        Assert.Equal(23L * 5_000, store.HotBytes);
+        Assert.Equal((long)NpcStore.HotBytesPerNpc * 5_000, store.HotBytes);
         Assert.True(store.HotBytes <= 128 * 1024, "핫 배열이 L2(128KB) 를 넘는다.");
 
         // 새 배열은 콜드 영역이라 길이만 확인한다.

@@ -1,13 +1,8 @@
 using System.Globalization;
-using System.Text.Json;
 using System.Text.RegularExpressions;
-using Npc.Contracts;
 using Npc.Core;
-using Npc.Gateway;
 using Npc.Host;
 using Npc.Host.Metrics;
-using Npc.MasterData;
-using Npc.Planning;
 using Npc.Runtime;
 using Npc.Tests.Runtime;
 
@@ -123,53 +118,13 @@ public sealed class Phase5GateTests
     }
 
     // ── 4. 링크 4종 교체 시 런타임 코드 diff = 0 ──────────────────
-
-    /// <summary>
-    /// 런타임 세 프로젝트가 링크 구현체를 참조하지 않는다.
-    /// 참조가 없으면 링크를 갈아끼우는 데 이 코드를 고칠 방법 자체가 없다.
-    /// </summary>
-    [Fact]
-    public void Gate_RuntimeDoesNotDependOnAnyLinkImplementation()
-    {
-        foreach (string project in new[]
-        {
-            "src/Npc.Runtime/Npc.Runtime.csproj",
-            "src/Npc.Core/Npc.Core.csproj",
-            "src/Npc.Planning/Npc.Planning.csproj",
-        })
-        {
-            Assert.DoesNotContain(
-                "Npc.Gateway",
-                File.ReadAllText(TestPaths.At(project.Split('/'))),
-                StringComparison.Ordinal);
-        }
-
-        // 4종 + TCP 골격이 전부 같은 인터페이스를 만족한다.
-        Assert.Equal(
-            5,
-            typeof(NullGameServerLink).Assembly.GetTypes()
-                .Count(t => t is { IsClass: true, IsAbstract: false } && typeof(IGameServerLink).IsAssignableFrom(t)));
-    }
-
+    //
+    // 이 항목은 LinkSwapTests.LinkSwap_RuntimeNeverNamesAConcreteLink 가 판정한다.
+    // 그쪽은 csproj 참조에 더해 IL 까지 훑어 전이 참조로 새어 든 구현체 이름도 잡는다 —
+    // 여기서 csproj 만 다시 읽으면 같은 규칙을 약하게 두 번 세는 것이다.
+    //
     // ── 부록: 플랜 스토어가 절대 null 을 주지 않는다 ──────────────
-
-    /// <summary>
-    /// 시나리오 C 3단계가 성립하는 근거. 캐시가 통째로 꺼져도 실행기는 플랜을 받는다.
-    /// </summary>
-    [Fact]
-    public void Gate_PlanStoreNeverReturnsNullEvenWhenKilled()
-    {
-        PlanStore plans = PlanStore.CreateIdleOnly(GoldenSuiteData);
-        var switches = new KillSwitchState();
-
-        plans.Switches = switches;
-        switches.Fire(KillSwitchTarget.PlanStore);
-
-        for (int i = 0; i < TestPaths.TotalKeys; i += 97)
-        {
-            Assert.NotNull(plans.Resolve(BucketKey.FromIndex(i)));
-        }
-    }
-
-    private static MasterDataSet GoldenSuiteData => MasterDataLoader.Load(TestPaths.MasterData);
+    //
+    // 킬스위치를 당긴 채로 Resolve 를 부르는 것은 TieredPlanCompilerTests 가,
+    // 시나리오 C 3단계 전체는 BlackoutTests 가 종단으로 본다.
 }

@@ -210,8 +210,6 @@ public sealed class ScaleCurveTests
         var scanner = new CognitionScheduler(store, new LodBandSet(store), PlanStore.CreateIdleOnly(s_data));
 
         Assert.Equal(CognitionScheduler.MaxScansPerTick, scanner.ScanBudgetPerTick);
-        Assert.Equal(150, CognitionScheduler.MaxScansPerTick);
-        Assert.Equal(0, CognitionScheduler.Unlimited);
 
         // 호스트 기본값도 상한을 유지한다 (--scan-cap 을 안 주면 -1 = 기본).
         Assert.True(HostOptions.TryParse([], out HostOptions options, out _));

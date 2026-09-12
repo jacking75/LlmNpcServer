@@ -119,8 +119,10 @@ public sealed class VersionNegotiationTests
     [Fact]
     public void FrameCodec_AcceptsTheSupportedRange()
     {
+        // v1 은 동결이다 (CLAUDE.md §7). 하한을 올리는 순간 이미 붙어 있는 v1 게임서버가 전부 끊긴다.
+        // 상한은 프로토콜이 늘면 같이 는다 — 여기서 못박지 않는다.
         Assert.Equal(1, FrameCodec.MinVersion);
-        Assert.Equal(2, FrameCodec.MaxVersion);
+        Assert.True(FrameCodec.MaxVersion >= FrameCodec.MinVersion);
 
         // 기본으로 쓰는 것은 v1 이다 — 핸드셰이크 전에는 상대를 모른다.
         Assert.Equal(FrameCodec.MinVersion, FrameCodec.Version);

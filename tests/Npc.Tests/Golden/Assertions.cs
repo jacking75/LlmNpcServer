@@ -522,10 +522,8 @@ public sealed class GoldenAssertionTests
         """;
 
     [Fact]
-    public void Kinds_AreTheNineDeclaredInSpec()
+    public void Kinds_AreDistinct()
     {
-        // docs/15 §2 표는 8행이지만 contains_action / not_contains 가 한 행에 묶여 있다.
-        Assert.Equal(9, GoldenAssertions.Kinds.Length);
         Assert.Equal(GoldenAssertions.Kinds.Length, GoldenAssertions.Kinds.Distinct(StringComparer.Ordinal).Count());
     }
 
@@ -561,13 +559,19 @@ public sealed class GoldenAssertionTests
     }
 
     [Fact]
-    public void Validates_RejectsUnknownStage()
+    public void Assertions_RejectUnknownParameters()
     {
-        AssertionOutcome outcome = Run(
-            Subject("blacksmith@Morning.Peace.Fair", SmithDayJson), Spec("validates", stage: "Nonsense"));
+        GoldenSubject subject = Subject("blacksmith@Morning.Peace.Fair", SmithDayJson);
 
-        Assert.False(outcome.Passed);
-        Assert.Contains("검증 단계가 아니다", outcome.Detail, StringComparison.Ordinal);
+        AssertionOutcome stage = Run(subject, Spec("validates", stage: "Nonsense"));
+
+        Assert.False(stage.Passed);
+        Assert.Contains("검증 단계가 아니다", stage.Detail, StringComparison.Ordinal);
+
+        AssertionOutcome category = Run(subject, Spec("produces_item_of", category: "siege_engine"));
+
+        Assert.False(category.Passed);
+        Assert.Contains("category", category.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -605,17 +609,6 @@ public sealed class GoldenAssertionTests
 
         Assert.False(outcome.Passed);
         Assert.Contains("iron_sword", outcome.Detail, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ProducesItemOf_RejectsUnknownCategory()
-    {
-        AssertionOutcome outcome = Run(
-            Subject("blacksmith@Morning.Peace.Fair", SmithDayJson),
-            Spec("produces_item_of", category: "siege_engine"));
-
-        Assert.False(outcome.Passed);
-        Assert.Contains("category", outcome.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -769,27 +762,23 @@ public sealed class GoldenAssertionTests
     }
 
     [Fact]
-    public void Fixture_RejectsUnknownAssertionKind()
+    public void Fixture_RejectsUnknownNames()
     {
-        const string Json = """
+        // 모르는 단언 종류는 파싱 단계에서 던진다 — 채점기가 조용히 건너뛰면 골든이 거짓 합격을 낸다.
+        using (JsonDocument kind = JsonDocument.Parse("""
             {
               "id": "G-999",
               "input": { "bucket": "blacksmith@Evening.War.Cold" },
               "assertions": [ { "kind": "smells_right" } ]
             }
-            """;
+            """))
+        {
+            InvalidDataException error = Assert.Throws<InvalidDataException>(
+                () => GoldenFixture.Parse(kind.RootElement, s_data, "inline"));
 
-        using JsonDocument document = JsonDocument.Parse(Json);
+            Assert.Contains("smells_right", error.Message, StringComparison.Ordinal);
+        }
 
-        InvalidDataException error = Assert.Throws<InvalidDataException>(
-            () => GoldenFixture.Parse(document.RootElement, s_data, "inline"));
-
-        Assert.Contains("smells_right", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Fixture_RejectsUnknownFlagAndItem()
-    {
         Assert.Throws<InvalidDataException>(() => ParseInput("""
             { "bucket": "blacksmith@Evening.War.Cold", "flags": ["IsVeryTired"] }
             """));

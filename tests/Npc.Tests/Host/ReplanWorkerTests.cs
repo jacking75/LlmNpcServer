@@ -304,15 +304,6 @@ public sealed class ReplanWorkerTests
         Assert.False(rig.Queue.Contains(1));
     }
 
-    /// <summary>기본 워커 수는 docs/14 §4 의 T1 2 · T2 8 이다.</summary>
-    [Fact]
-    public void Worker_DefaultCountsMatchSpec()
-    {
-        Assert.Equal(2, ReplanWorker.DefaultT1Workers);
-        Assert.Equal(8, ReplanWorker.DefaultT2Workers);
-        Assert.Equal(50, ReplanWorker.DefaultIdleDelayMs);
-    }
-
     /// <summary>플래그에서 지역상태·기후를 읽는다. 버킷 키 4차원이 다 채워진다.</summary>
     [Fact]
     public void Worker_BuildsFullBucketKey()

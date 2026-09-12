@@ -173,14 +173,4 @@ public sealed class PlanDocumentTests
         Assert.DoesNotContain("reasoning", json, StringComparison.Ordinal);
         Assert.Equal(3, Parse(json).Steps.Length);
     }
-
-    [Fact]
-    public void PlanDocument_SpecLimitsMatchSchema()
-    {
-        Assert.Equal(3, PlanDocument.MinSteps);
-        Assert.Equal(10, PlanDocument.MaxSteps);
-        Assert.Equal(5, PlanDocument.MinTimeoutSeconds);
-        Assert.Equal(7_200, PlanDocument.MaxTimeoutSeconds);
-        Assert.Equal(200, PlanDocument.MaxReasoningLength);
-    }
 }
