@@ -312,7 +312,11 @@ public sealed class BulkRunner
 
         foreach (BucketOutcome? outcome in outcomes)
         {
-            final.Add(outcome ?? default);
+            // <b>돌지 못한 버킷의 자리표시자다.</b> default(BucketOutcome) 를 그대로 넣으면
+            // Actions 가 default(ImmutableArray) 라 보고서를 쓸 때 터진다 — 그리고 그것은
+            // <b>예산 캡에 걸려 중단했을 때만</b> 일어나므로, 캡이 실제로 작동한 회차의
+            // 기록이 통째로 사라진다. 캡은 기록을 지키려고 있는 것이다.
+            final.Add(outcome ?? Skipped(buckets[final.Count]));
         }
 
         return new BulkRunReport(
@@ -330,6 +334,18 @@ public sealed class BulkRunner
         LlmPlanCompiler compiler, BucketKey bucket, CancellationToken cancellationToken) =>
         await compiler.CompileAsync(
             new PlanRequest(bucket, _data.InitialFlags(bucket)), cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// 돌지 못한 버킷의 자리표시자. <b>비어 있되 <c>default</c> 는 아니다.</b>
+    ///
+    /// <para>
+    /// 예산 캡·취소로 중단하면 뒤쪽 버킷은 한 번도 컴파일되지 않는다. 그 자리를
+    /// <c>default</c> 로 두면 <c>ImmutableArray</c> 필드가 초기화되지 않은 상태가 되고,
+    /// 보고서를 쓰는 쪽이 그것을 순회하다 터진다.
+    /// </para>
+    /// </summary>
+    private static BucketOutcome Skipped(BucketKey bucket) =>
+        new(bucket, default, default, PlanOrigin.Fallback, string.Empty, []);
 
     /// <summary>통과한 플랜은 스토어에 넣는다 — 뒤 버킷이 인접 재사용으로 빌려 갈 수 있다.</summary>
     private BucketOutcome Record(BucketKey bucket, in PlanCompileResult result)

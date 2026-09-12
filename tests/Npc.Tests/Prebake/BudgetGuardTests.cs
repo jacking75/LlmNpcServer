@@ -66,6 +66,12 @@ public sealed class BudgetGuardTests
 
         Assert.True(stopped.StoppedByBudget, "예산 캡에 걸리지 않았다.");
         Assert.True(tight.Exhausted);
+
+        // <b>돌지 못한 버킷의 자리도 보고서에 쓸 수 있어야 한다.</b>
+        // 여기가 default(ImmutableArray) 면 jsonl 을 쓰는 쪽이 터지고,
+        // 그러면 <b>캡이 실제로 작동한 회차의 기록만</b> 통째로 사라진다 —
+        // 실제로 2,475버킷 회차가 그렇게 날아갔다. 캡은 기록을 지키려고 있는 것이다.
+        Assert.All(stopped.Outcomes, o => Assert.False(o.Actions.IsDefault));
         Assert.InRange(stopped.AttemptedCount, 1, 23);
         Assert.Equal(24, stopped.Total);
 
