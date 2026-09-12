@@ -457,7 +457,7 @@ public sealed class NullAndTcpLinkTests
         // 1세션 — 시퀀스 1~3.
         await server.WaitForSessionAsync(1, cts.Token);
         await server.SendEventsAsync(Events(1, 3));
-        await WaitAsync(() => link.Stats.EventsReceived >= 3, cts.Token);
+        await WaitAsync(() => link.Stats.EventsReceived >= 3, cts.Token, "1세션 이벤트 3건");
 
         // 세션을 끊는다. 링크는 Degraded 를 거쳐 재접속한다.
         server.Break();
@@ -465,7 +465,7 @@ public sealed class NullAndTcpLinkTests
         // 2세션 — 게임서버가 시퀀스를 <b>이어서</b> 보낸다 (리셋하지 않는다).
         await server.WaitForSessionAsync(2, cts.Token);
         await server.SendEventsAsync(Events(4, 3));
-        await WaitAsync(() => link.Stats.EventsReceived >= 6, cts.Token);
+        await WaitAsync(() => link.Stats.EventsReceived >= 6, cts.Token, "재접속 후 이벤트 6건");
 
         await cts.CancelAsync();
         await run;
@@ -503,12 +503,12 @@ public sealed class NullAndTcpLinkTests
         Task run = link.RunAsync(cts.Token);
 
         await server.WaitForSessionAsync(1, cts.Token);
-        await WaitAsync(() => link.State == LinkState.Connected, cts.Token);
+        await WaitAsync(() => link.State == LinkState.Connected, cts.Token, "1세션 Connected");
 
         server.Break();
 
         await server.WaitForSessionAsync(2, cts.Token);
-        await WaitAsync(() => link.State == LinkState.Connected, cts.Token);
+        await WaitAsync(() => link.State == LinkState.Connected, cts.Token, "재접속 후 Connected");
 
         await cts.CancelAsync();
         await run;
@@ -551,23 +551,38 @@ public sealed class NullAndTcpLinkTests
         Assert.Equal(1, server.Sessions);
     }
 
-    /// <summary>테스트용 짧은 주기. 실서비스 값(1초/3초/250ms)으로는 테스트가 느려진다.</summary>
+    /// <summary>
+    /// 테스트용 짧은 주기. 실서비스 값(1초/3초/250ms)으로는 테스트가 느려진다.
+    ///
+    /// <para>
+    /// <b>하트비트 타임아웃만 길다.</b> 이것은 지연이 아니라 상한이라 늘려도 happy path 는
+    /// 하나도 안 느려진다. 짧게 두면 전체 스위트를 돌릴 때 테스트 호스트가 잠깐 굶는 것만으로
+    /// 세션이 죽은 것으로 판정돼 <b>계획에 없던 Degraded → 재접속</b>이 끼어든다 —
+    /// 그러면 <see cref="TcpLink_StateTransitions"/> 의 전이 순서가 어긋나고
+    /// <see cref="TcpLink_ReconnectKeepsSequenceMonotonic"/> 의 세션 번호가 밀린다.
+    /// 여기 있는 어떤 테스트도 "하트비트가 끊겼을 때" 를 보지 않으므로 상한을 넉넉히 둔다.
+    /// </para>
+    /// </summary>
     private static TcpLinkOptions Fast() => Mine() with
     {
         HeartbeatInterval = TimeSpan.FromMilliseconds(30),
-        HeartbeatTimeout = TimeSpan.FromMilliseconds(2_000),
+        HeartbeatTimeout = TimeSpan.FromSeconds(30),
         ReconnectBackoff = TimeSpan.FromMilliseconds(20),
         MaxReconnectBackoff = TimeSpan.FromMilliseconds(50),
     };
 
-    private static async Task WaitAsync(Func<bool> until, CancellationToken ct)
+    /// <summary>
+    /// 조건이 설 때까지 기다린다. 시한을 넘기면 <b>무엇을 기다리다 못 봤는지</b> 적고 실패한다 —
+    /// 맨 <c>TaskCanceledException</c> 은 진짜 회귀인지 느린 기계인지 구별할 단서를 안 준다.
+    /// </summary>
+    private static async Task WaitAsync(Func<bool> until, CancellationToken ct, string what)
     {
         while (!until() && !ct.IsCancellationRequested)
         {
-            await Task.Delay(5, ct);
+            await Task.Delay(5, CancellationToken.None);
         }
 
-        ct.ThrowIfCancellationRequested();
+        Assert.True(until(), $"시한 안에 '{what}' 를 못 봤다.");
     }
 
     /// <summary>
@@ -648,10 +663,10 @@ public sealed class NullAndTcpLinkTests
         {
             while (Sessions < n && !ct.IsCancellationRequested)
             {
-                await Task.Delay(5, ct);
+                await Task.Delay(5, CancellationToken.None);
             }
 
-            ct.ThrowIfCancellationRequested();
+            Assert.True(Sessions >= n, $"시한 안에 {n}세션째가 안 붙었다 (지금 {Sessions}).");
         }
     }
 

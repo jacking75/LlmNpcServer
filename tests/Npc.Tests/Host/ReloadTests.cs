@@ -260,9 +260,15 @@ public sealed class ReloadTests
 
                 // 루프가 돌기 시작할 때까지. <b>상한을 둔다</b> — 무한 대기는 회차가 끝난 뒤에도
                 // 스레드를 잡고 있어 테스트 호스트가 안 죽는다.
-                for (int spin = 0; spin < 10_000 && host.Loop.TicksProcessed == 0; spin++)
+                //
+                // 상한이 회전수가 아니라 <b>시각</b>인 이유: 스레드 풀이 굶으면 10,000 회전이
+                // 호스트가 첫 틱을 돌리기도 전에 다 타 버리고, 그러면 아래 루프가 한 번도
+                // 안 돌아 "리로드가 한 번도 안 돌았다" 로 실패한다. 부분 필터로 돌릴 때 실제로 그랬다.
+                long deadline = Environment.TickCount64 + 30_000;
+
+                while (host.Loop.TicksProcessed == 0 && Environment.TickCount64 < deadline)
                 {
-                    await Task.Yield();
+                    await Task.Delay(1, CancellationToken.None);
                 }
 
                 for (int i = 0; i < 3 && host.Loop.TicksProcessed > 0; i++)

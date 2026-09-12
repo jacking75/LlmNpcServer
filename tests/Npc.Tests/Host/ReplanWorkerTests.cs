@@ -138,7 +138,14 @@ public sealed class ReplanWorkerTests
         await worker.StartAsync(cts.Token);
 
         // 워커가 컴파일러 안에 들어와 스레드를 점유한 채 붙잡혔다.
-        Assert.True(entered.Wait(TimeSpan.FromSeconds(10)), "워커가 컴파일러에 들어오지 않았다.");
+        //
+        // 안쪽 시한을 바깥 cts 와 맞춘다. 이 테스트는 StubCompiler 가 풀 스레드 둘을 동기로
+        // 붙잡는데, 전체 스위트를 병렬로 돌릴 때는 스레드 풀이 그 둘을 내주기까지 시간이 걸린다
+        // (풀은 최소치를 넘으면 초당 한둘씩만 늘린다). 10초라는 짧은 안쪽 시한은 근거가 없었고
+        // 부하가 걸린 회차에서만 터졌다 — 풀이 30초 안에 두 건을 못 잡으면 그건 진짜 문제다.
+        Assert.True(
+            entered.Wait(TimeSpan.FromSeconds(30)),
+            $"워커가 컴파일러에 들어오지 않았다 (호출 {compiler.Calls}회).");
 
         // 이 시점부터 아래 200틱까지 이 스레드는 틱만 돈다. 붙잡힌 워커의 스레드와 겹칠 수 없다.
         int tickThread = Environment.CurrentManagedThreadId;
