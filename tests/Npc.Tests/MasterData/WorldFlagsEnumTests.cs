@@ -20,19 +20,91 @@ public sealed class WorldFlagsEnumTests
             .ToArray();
     }
 
-    /// <summary>docs/01 §1 이 예시로 든 값들. 여기가 밀리면 프리베이크 플랜이 전부 무효다.</summary>
-    [Theory]
-    [InlineData(nameof(WorldFlags.AtHome), 0)]
-    [InlineData(nameof(WorldFlags.AtWorkplace), 1)]
-    [InlineData(nameof(WorldFlags.HasFood), 8)]
-    [InlineData(nameof(WorldFlags.IsSleeping), 21)]
-    [InlineData(nameof(WorldFlags.InCombat), 43)]
-    public void WorldFlags_SampleBitsMatchSpec(string name, int bit)
-    {
-        WorldFlags expected = (WorldFlags)(1UL << bit);
+    /// <summary>2026-09-12 시점에 프리베이크된 플랜 2,880개가 깔고 있는 배치.</summary>
+    private static readonly (int Bit, string Id)[] s_frozen =
+    [
+        ( 0, nameof(WorldFlags.AtHome)),
+        ( 1, nameof(WorldFlags.AtWorkplace)),
+        ( 2, nameof(WorldFlags.AtMarket)),
+        ( 3, nameof(WorldFlags.AtTavern)),
+        ( 4, nameof(WorldFlags.AtTemple)),
+        ( 5, nameof(WorldFlags.AtGate)),
+        ( 6, nameof(WorldFlags.AtField)),
+        ( 7, nameof(WorldFlags.InWilderness)),
+        ( 8, nameof(WorldFlags.HasFood)),
+        ( 9, nameof(WorldFlags.HasWater)),
+        (10, nameof(WorldFlags.HasTool)),
+        (11, nameof(WorldFlags.HasRawMaterial)),
+        (12, nameof(WorldFlags.HasProduct)),
+        (13, nameof(WorldFlags.HasCoin)),
+        (14, nameof(WorldFlags.InventoryFull)),
+        (15, nameof(WorldFlags.HasWeapon)),
+        (16, nameof(WorldFlags.IsRested)),
+        (17, nameof(WorldFlags.IsHungry)),
+        (18, nameof(WorldFlags.IsThirsty)),
+        (19, nameof(WorldFlags.IsInjured)),
+        (20, nameof(WorldFlags.IsExhausted)),
+        (21, nameof(WorldFlags.IsSleeping)),
+        (24, nameof(WorldFlags.IsDawn)),
+        (25, nameof(WorldFlags.IsDay)),
+        (26, nameof(WorldFlags.IsEvening)),
+        (27, nameof(WorldFlags.IsNight)),
+        (28, nameof(WorldFlags.HasCustomer)),
+        (29, nameof(WorldFlags.HasCompanion)),
+        (30, nameof(WorldFlags.IsAlone)),
+        (31, nameof(WorldFlags.OnDuty)),
+        (32, nameof(WorldFlags.ShopOpen)),
+        (33, nameof(WorldFlags.MarketOpen)),
+        (34, nameof(WorldFlags.GatesOpen)),
+        (35, nameof(WorldFlags.RegionPeaceful)),
+        (36, nameof(WorldFlags.RegionUnderAttack)),
+        (37, nameof(WorldFlags.WeatherHarsh)),
+        (38, nameof(WorldFlags.ResourceDepleted)),
+        (39, nameof(WorldFlags.PathBlocked)),
+        (40, nameof(WorldFlags.ThreatNearby)),
+        (41, nameof(WorldFlags.PlayerNearby)),
+        (42, nameof(WorldFlags.AllyNearby)),
+        (43, nameof(WorldFlags.InCombat)),
+        (44, nameof(WorldFlags.HostilePlayerNearby)),
+    ];
 
-        Assert.True(WorldFlagTable.TryParse(name, out WorldFlags actual));
-        Assert.Equal(expected, actual);
+    /// <summary>
+    /// <b>bit 번호 동결.</b> CLAUDE.md §2.4 — code 와 bit 는 절대 재배치하지 않는다.
+    ///
+    /// <para>
+    /// 재배치는 <b>컴파일도 되고 검증도 통과한다.</b> 생성기는 범위(0~63)와 중복만 보고
+    /// <see cref="WorldFlags_EnumMatchesJsonExactly"/> 는 JSON 과 enum 이 <i>서로</i> 맞는지만 본다 —
+    /// 둘이 나란히 움직이면 아무도 모른다. 그 상태로 돌면 프리베이크된 플랜이 조용히 다른
+    /// 전제조건을 들고 실행된다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>추가는 이 표를 깨지 않는다.</b> 새 플래그는 뒤에 붙고 여기에 줄을 더하는 것은 선택이다.
+    /// 깨지는 경우는 기존 번호가 <b>움직였거나 사라졌을 때</b>뿐이고, 그것이 잡으려는 것이다.
+    /// 액션 쪽 대응물은 <c>ActionsDataTests.ActionsJson_SpikeCodesAreStable</c> 다.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void WorldFlags_BitsAreFrozen()
+    {
+        Dictionary<string, int> actual = JsonFlags().ToDictionary(f => f.Id, f => f.Bit, StringComparer.Ordinal);
+        List<string> moved = [];
+
+        foreach ((int bit, string id) in s_frozen)
+        {
+            if (!actual.TryGetValue(id, out int now))
+            {
+                moved.Add($"{id}: bit {bit} 이었는데 사라졌다");
+            }
+            else if (now != bit)
+            {
+                moved.Add($"{id}: bit {bit} → {now}");
+            }
+        }
+
+        Assert.True(
+            moved.Count == 0,
+            "bit 이 움직였다. 프리베이크된 플랜이 전부 무효다 — " + string.Join(" / ", moved));
     }
 
     [Fact]

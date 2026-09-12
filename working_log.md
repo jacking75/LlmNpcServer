@@ -13,9 +13,10 @@ CLAUDE.md §5.1 방침("지우면 어떤 현실적인 결함을 놓치는가")�
 - **중복 게이트 2건** — IL 까지 훑는 `LinkSwapTests` 와 종단으로 보는 `BlackoutTests` 가 상위집합이다.
 - 검토했지만 **남긴 것**: 와이어 참조 20행(C++·파이썬 코덱 드리프트), 결정론 스캐너 대조군,
   `/npc/{id}` 라우트(대시보드 HTML 과 손으로 둘 유지), Phase1 게이트(폴백 완비 + V9 만 건너뜀).
-- 1,752 → **1,709건**. 경고 0 · 실패 0 · `dotnet format` 통과.
-- **남은 구멍 하나**: 플래그 `bit` 번호를 못박는 테스트가 없다. 액션은
-  `ActionsJson_SpikeCodesAreStable` 이 있는데 플래그는 재배치해도 빌드가 통과한다.
+- 1,752 → **1,705건**. 경고 0 · 실패 0 · `dotnet format` 통과.
+- 검토 중 드러난 구멍 하나를 같이 막았다 — 플래그 `bit` 를 못박는 것이 없었다.
+  `WorldFlags_SampleBitsMatchSpec`(5개 표본)을 43개 전량 동결 `WorldFlags_BitsAreFrozen` 으로 바꿨다.
+  실제로 `IsHungry` 를 17 → 45 로 옮겨 빨간불이 되는 것을 확인했다.
 
 ## 2026-09-12 02:40 KST · G-03 성능 회귀 판정 (`npc perf --check`)
 
