@@ -2,7 +2,7 @@ using Npc.Llm;
 
 namespace Npc.Tests.Llm;
 
-/// <summary>C-06 — <c>reasoning</c> 정화. PRODUCTION_ROADMAP §6 C-06.</summary>
+/// <summary>C-06 — <c>reasoning</c> 정화. PRODUCTION_ROADMAP C-06.</summary>
 public sealed class ReasoningSanitizerTests
 {
     [Fact]

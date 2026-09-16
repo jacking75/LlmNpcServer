@@ -4,7 +4,7 @@ using Npc.Planning;
 
 namespace Npc.Tests.Host;
 
-/// <summary>A-05 · C-02 — 경보 싱크와 예산 임계. PRODUCTION_ROADMAP §4 A-05 · §6 C-02.</summary>
+/// <summary>A-05 · C-02 — 경보 싱크와 예산 임계. PRODUCTION_ROADMAP A-05 · C-02.</summary>
 public sealed class AlarmSinkTests
 {
     [Fact]

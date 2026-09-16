@@ -4,7 +4,7 @@ using Npc.Host.Replan;
 
 namespace Npc.Tests.Host;
 
-/// <summary>C-02 — 벽시계 청구 캡. PRODUCTION_ROADMAP §6 C-02.</summary>
+/// <summary>C-02 — 벽시계 청구 캡. PRODUCTION_ROADMAP C-02.</summary>
 public sealed class BillingGuardTests
 {
     [Fact]

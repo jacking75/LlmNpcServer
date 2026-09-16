@@ -5,7 +5,7 @@ using Npc.Runtime;
 
 namespace Npc.Tests.Runtime;
 
-/// <summary>A-10 — 게임 시각 복원과 <c>TickSync</c> 워치독. PRODUCTION_ROADMAP §4 A-10.</summary>
+/// <summary>A-10 — 게임 시각 복원과 <c>TickSync</c> 워치독. PRODUCTION_ROADMAP A-10.</summary>
 public sealed class GameClockOriginTests
 {
     private static readonly MasterDataSet s_data = MasterDataLoader.Load(TestPaths.MasterData);

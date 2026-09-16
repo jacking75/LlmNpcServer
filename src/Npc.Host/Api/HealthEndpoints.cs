@@ -67,7 +67,7 @@ public sealed class HealthProbe : ILoopProbe
 }
 
 /// <summary>
-/// 헬스체크 세 종 (A-03 · PRODUCTION_ROADMAP §4).
+/// 헬스체크 세 종 (A-03 · PRODUCTION_ROADMAP A-03).
 ///
 /// <b>오케스트레이터가 재시작시킬 근거</b>가 여기 있다. <c>/status</c> 는 링크가 죽어도 200 이라
 /// liveness 로 쓸 수 없다.

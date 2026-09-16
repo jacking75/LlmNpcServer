@@ -7,7 +7,7 @@ using Npc.Runtime;
 
 namespace Npc.Tests.Persistence;
 
-/// <summary>A-01 — 복원 조건. PRODUCTION_ROADMAP §4 A-01 설계 7항.</summary>
+/// <summary>A-01 — 복원 조건. PRODUCTION_ROADMAP A-01 (복원 조건 — 형식 버전 · 마스터데이터 해시 · 로스터 해시 셋이 맞을 때만 복원한다).</summary>
 public sealed class SnapshotRestoreTests : IDisposable
 {
     private const string MasterHash = "aaaa1111";

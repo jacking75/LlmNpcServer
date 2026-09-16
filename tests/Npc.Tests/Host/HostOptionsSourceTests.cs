@@ -3,7 +3,7 @@ using Npc.Host.Config;
 
 namespace Npc.Tests.Host;
 
-/// <summary>A-04 — 설정 소스 통합. PRODUCTION_ROADMAP §4 A-04.</summary>
+/// <summary>A-04 — 설정 소스 통합. PRODUCTION_ROADMAP A-04.</summary>
 public sealed class HostOptionsSourceTests : IDisposable
 {
     private readonly string _dir = Path.Combine(

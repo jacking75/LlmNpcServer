@@ -4,7 +4,7 @@ using Npc.Planning;
 
 namespace Npc.Tests.Planning;
 
-/// <summary>C-07 — 개체 스필오버 서브 쿼터. PRODUCTION_ROADMAP §6 C-07.</summary>
+/// <summary>C-07 — 개체 스필오버 서브 쿼터. PRODUCTION_ROADMAP C-07.</summary>
 public sealed class SpilloverQuotaTests
 {
     [Fact]

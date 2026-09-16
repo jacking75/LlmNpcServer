@@ -2,7 +2,7 @@ using Npc.Host;
 
 namespace Npc.Tests.Host;
 
-/// <summary>A-02 — 정상 종료 시퀀스. PRODUCTION_ROADMAP §4 A-02.</summary>
+/// <summary>A-02 — 정상 종료 시퀀스. PRODUCTION_ROADMAP A-02.</summary>
 public sealed class HostShutdownTests
 {
     [Fact]

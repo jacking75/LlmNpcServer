@@ -7,7 +7,7 @@ using Npc.Runtime;
 
 namespace Npc.Tests.Persistence;
 
-/// <summary>A-01 — 스냅샷 왕복. PRODUCTION_ROADMAP §4 A-01.</summary>
+/// <summary>A-01 — 스냅샷 왕복. PRODUCTION_ROADMAP A-01.</summary>
 public sealed class SnapshotRoundTripTests : IDisposable
 {
     private const int Npcs = 64;

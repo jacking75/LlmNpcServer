@@ -4,7 +4,7 @@ using Npc.Host.Api;
 
 namespace Npc.Tests.Host;
 
-/// <summary>A-03 — 프로브 세 종. PRODUCTION_ROADMAP §4 A-03.</summary>
+/// <summary>A-03 — 프로브 세 종. PRODUCTION_ROADMAP A-03.</summary>
 public sealed class HealthEndpointTests
 {
     [Fact]

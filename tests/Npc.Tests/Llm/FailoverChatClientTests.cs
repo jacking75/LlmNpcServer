@@ -4,7 +4,7 @@ using Npc.Llm;
 
 namespace Npc.Tests.Llm;
 
-/// <summary>C-01 — 제공사 페일오버 체인. PRODUCTION_ROADMAP §6 C-01.</summary>
+/// <summary>C-01 — 제공사 페일오버 체인. PRODUCTION_ROADMAP C-01.</summary>
 public sealed class FailoverChatClientTests
 {
     [Fact]

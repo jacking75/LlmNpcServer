@@ -4,7 +4,7 @@ using Npc.Wire.V2;
 
 namespace Npc.Tests.Wire;
 
-/// <summary>A-06 — 링크 상호 인증. PRODUCTION_ROADMAP §4 A-06.</summary>
+/// <summary>A-06 — 링크 상호 인증. PRODUCTION_ROADMAP A-06.</summary>
 [Trait("Category", "Wire")]
 public sealed class LinkAuthTests
 {

@@ -4,7 +4,7 @@ using Npc.Host.Api;
 
 namespace Npc.Tests.Host;
 
-/// <summary>A-11 — 킬스위치 가역화 · 감사 로그. PRODUCTION_ROADMAP §4 A-11.</summary>
+/// <summary>A-11 — 킬스위치 가역화 · 감사 로그. PRODUCTION_ROADMAP A-11.</summary>
 public sealed class AdminEndpointTests : IDisposable
 {
     private readonly string _dir = Path.Combine(

@@ -4,7 +4,7 @@ using Npc.Wire.V2;
 
 namespace Npc.Tests.Wire;
 
-/// <summary>B-01 — 프로토콜·계약 협상. PRODUCTION_ROADMAP §5 B-01.</summary>
+/// <summary>B-01 — 프로토콜·계약 협상. PRODUCTION_ROADMAP B-01.</summary>
 [Trait("Category", "Wire")]
 public sealed class VersionNegotiationTests
 {

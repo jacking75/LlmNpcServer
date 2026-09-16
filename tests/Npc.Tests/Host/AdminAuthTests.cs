@@ -2,7 +2,7 @@ using Npc.Host.Api;
 
 namespace Npc.Tests.Host;
 
-/// <summary>A-06 — 관리·질의 API 인증. PRODUCTION_ROADMAP §4 A-06.</summary>
+/// <summary>A-06 — 관리·질의 API 인증. PRODUCTION_ROADMAP A-06.</summary>
 public sealed class AdminAuthTests
 {
     private const string Token = "s3cr3t-token";
