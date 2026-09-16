@@ -79,6 +79,163 @@ public static class JsonSurgeon
         return Verified(json[..start] + rawValue + json[end..]);
     }
 
+    /// <summary>이 객체에 그 최상위 속성이 있는가.</summary>
+    /// <param name="json">객체 하나를 담은 JSON.</param>
+    /// <param name="property">속성 이름.</param>
+    public static bool HasTopLevel(string json, string property)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(json);
+        ArgumentException.ThrowIfNullOrEmpty(property);
+
+        try
+        {
+            _ = ValueRange(json, property);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 최상위 속성을 바꾸거나, 없으면 넣는다 (T10).
+    ///
+    /// <b><see cref="SetTopLevel"/> 은 없는 속성에 던진다.</b> 폼 편집기는 원래 없던 필드를
+    /// 넣어야 한다 — 대장장이에게는 <c>duty_hours</c> 가 없고, 근무 시간대를 주려면 새로 만들어야 한다.
+    /// </summary>
+    /// <param name="json">객체 하나를 담은 JSON.</param>
+    /// <param name="property">속성 이름.</param>
+    /// <param name="rawValue">새 값의 JSON 표현.</param>
+    /// <param name="beforeProperty">
+    /// 이 속성 앞에 넣는다. null 이거나 없으면 마지막 속성 뒤에 넣는다 —
+    /// <b>키 순서는 로더에 영향이 없지만 사람이 읽는 순서는 스키마 순서다.</b>
+    /// </param>
+    public static string SetOrAddTopLevel(
+        string json, string property, string rawValue, string? beforeProperty = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(json);
+        ArgumentException.ThrowIfNullOrEmpty(property);
+        ArgumentException.ThrowIfNullOrEmpty(rawValue);
+
+        if (HasTopLevel(json, property))
+        {
+            return SetTopLevel(json, property, rawValue);
+        }
+
+        string entry = "\"" + property + "\": " + rawValue;
+
+        if (beforeProperty is { Length: > 0 } anchor && HasTopLevel(json, anchor))
+        {
+            int at = LineStart(json, NameStart(json, anchor));
+            string indent = json[at..NameStart(json, anchor)];
+
+            return Verified(json[..at] + indent + entry + "," + Environment.NewLine + json[at..]);
+        }
+
+        // 마지막 비공백 = 닫는 중괄호. 그 앞의 마지막 내용 뒤에 쉼표로 잇는다.
+        int close = json.LastIndexOf('}');
+        int last = close - 1;
+
+        while (last > 0 && char.IsWhiteSpace(json[last]))
+        {
+            last--;
+        }
+
+        string closeIndent = CloseIndent(json, close);
+
+        return Verified(
+            json[..(last + 1)] + "," + Environment.NewLine + closeIndent + "  " + entry + json[(last + 1)..]);
+    }
+
+    /// <summary>
+    /// 최상위 속성을 지운다. 값이 비어 원래 없던 상태로 돌아갈 때 쓴다 —
+    /// <b><c>null</c> 로 두는 것과 없는 것은 diff 에서 다르게 읽힌다.</b>
+    /// </summary>
+    /// <param name="json">객체 하나를 담은 JSON.</param>
+    /// <param name="property">속성 이름.</param>
+    public static string RemoveTopLevel(string json, string property)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(json);
+        ArgumentException.ThrowIfNullOrEmpty(property);
+
+        if (!HasTopLevel(json, property))
+        {
+            return json;
+        }
+
+        (int _, int valueEnd) = ValueRange(json, property);
+        int start = LineStart(json, NameStart(json, property));
+        int end = valueEnd;
+
+        // 뒤따르는 쉼표와 줄바꿈까지 같이 지운다. 없으면 앞의 쉼표를 지운다.
+        while (end < json.Length && (json[end] == ' ' || json[end] == '\t'))
+        {
+            end++;
+        }
+
+        if (end < json.Length && json[end] == ',')
+        {
+            end++;
+
+            while (end < json.Length && (json[end] == '\r' || json[end] == '\n'))
+            {
+                end++;
+            }
+
+            return Verified(json[..start] + json[end..]);
+        }
+
+        int before = start - 1;
+
+        while (before > 0 && char.IsWhiteSpace(json[before]))
+        {
+            before--;
+        }
+
+        if (before > 0 && json[before] == ',')
+        {
+            return Verified(json[..before] + json[end..]);
+        }
+
+        return Verified(json[..start] + json[end..]);
+    }
+
+    /// <summary>이 속성 이름 토큰이 시작하는 위치 (여는 따옴표).</summary>
+    private static int NameStart(string json, string property)
+    {
+        byte[] utf8 = Encoding.UTF8.GetBytes(json);
+        var reader = new Utf8JsonReader(utf8, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip });
+
+        int depth = 0;
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.PropertyName && depth == 1
+                && reader.ValueTextEquals(property))
+            {
+                return ByteToChar(json, utf8, (int)reader.TokenStartIndex);
+            }
+
+            depth += reader.TokenType switch
+            {
+                JsonTokenType.StartObject or JsonTokenType.StartArray => 1,
+                JsonTokenType.EndObject or JsonTokenType.EndArray => -1,
+                _ => 0,
+            };
+        }
+
+        throw new InvalidOperationException($"'{property}' 필드가 없다.");
+    }
+
+    /// <summary>이 위치가 속한 줄의 시작 (들여쓰기 앞).</summary>
+    private static int LineStart(string json, int at)
+    {
+        int i = json.LastIndexOf('\n', Math.Max(0, at - 1));
+
+        return i < 0 ? 0 : i + 1;
+    }
+
     /// <summary>
     /// 배열 항목 하나의 스칼라 필드를 바꾼다. 가중치 재배분이 이것을 쓴다.
     /// </summary>
