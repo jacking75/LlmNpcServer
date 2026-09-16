@@ -99,7 +99,8 @@
             case 2:
                 <label>
                     <span>일터 유형<FieldInfo File="archetypes.json" Path="/workplace_poi_type" /></span>
-                    <select @bind="_workplace">
+                    @* 예측이 이 값에 달려 있다 — 바뀌면 같이 다시 센다. *@
+                    <select @bind="_workplace" @bind:after="Placement">
                         <option value="">없음 — 일터로 출근하지 않는다</option>
                         @foreach (string type in _workplaceTypes)
                         {
