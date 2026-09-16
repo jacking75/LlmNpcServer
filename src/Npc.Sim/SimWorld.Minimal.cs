@@ -320,52 +320,24 @@ public sealed partial class SimWorld
         return list.Length > 0 ? list[0] : default;
     }
 
-    /// <summary>지금 위치에서 가장 가까운 그 타입의 POI. 거리 행렬 조회뿐이라 싸다.</summary>
-    private PoiId Nearest(PoiType type, ArchetypeId archetype)
-    {
-        PoiId from = PoiOf(0);
-        PoiId best = default;
-        float bestDistance = float.PositiveInfinity;
-
-        foreach (PoiId id in _data.Pois.OfType(type))
-        {
-            if (!_data.Pois[id].CanEnter(archetype))
-            {
-                continue;
-            }
-
-            float distance = from.Value == 0 ? 0 : _data.Pois.Distance(from, id);
-
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                best = id;
-            }
-        }
-
-        return best;
-    }
+    /// <summary>
+    /// 지금 위치에서 가장 가까운 그 타입의 POI.
+    /// <b>규칙은 <see cref="PoiTable.NearestEnterable(PoiType, PoiId, ArchetypeId)"/> 하나다</b> —
+    /// 동작 예측(T22)이 같은 함수를 쓰므로 둘이 갈릴 수 없다.
+    /// </summary>
+    private PoiId Nearest(PoiType type, ArchetypeId archetype) =>
+        _data.Pois.NearestEnterable(type, PoiOf(0), archetype);
 
     /// <summary>
-    /// 이 스텝의 소요 시간(게임 초). 액션의 <c>duration</c> 정의를 그대로 쓴다.
-    /// 지터는 시드에서 나온다 — 여기서 <c>Random</c> 을 만들면 판정이 흔들린다.
+    /// 이 스텝의 소요 시간(게임 초).
+    /// <b>기대값은 <see cref="ActionDuration.Seconds"/> 하나가 계산한다</b> — 동작 예측(T22)이
+    /// 같은 함수를 쓰므로 화면이 적는 "약 3분" 과 드라이런이 도는 시간이 갈릴 수 없다.
+    /// 여기서 더하는 것은 지터뿐이고, 그것도 시드에서 나온다 — <c>Random</c> 을 만들면 판정이 흔들린다.
     /// </summary>
     private double DurationSeconds(
         ActionDef action, in CompiledStep step, PoiId from, PoiId to, double elapsedSeconds, int stepIndex)
     {
-        double seconds = action.Duration.Kind switch
-        {
-            DurationKind.Fixed => action.Duration.BaseSeconds,
-            DurationKind.Distance => Travel(action, from, to),
-            DurationKind.Param => step.Count > 0 ? step.Count : action.Duration.BaseSeconds,
-            DurationKind.UntilTime => UntilTime(action, step, elapsedSeconds),
-            _ => action.Duration.BaseSeconds,
-        };
-
-        if (seconds <= 0)
-        {
-            seconds = 1;
-        }
+        double seconds = ActionDuration.Seconds(_data, action, step, from, to, elapsedSeconds);
 
         // "아침까지 잔다"는 아침에 일어난다는 뜻이다. 여기에 지터를 주면 하루가 24시간이
         // 아니게 되고, 오차가 사이클마다 누적돼 멀쩡한 일과가 V4.INFINITE_LOOP 으로 걸린다.
@@ -380,51 +352,6 @@ public sealed partial class SimWorld
             - span;
 
         return seconds * (1.0 + (jitter / 100.0));
-    }
-
-    private double Travel(ActionDef action, PoiId from, PoiId to)
-    {
-        if (from.Value == 0 || to.Value == 0 || from == to)
-        {
-            return action.Duration.BaseSeconds;
-        }
-
-        float distance = _data.Pois.Distance(from, to);
-
-        if (float.IsInfinity(distance))
-        {
-            return action.Duration.BaseSeconds;
-        }
-
-        return action.Duration.BaseSeconds + (distance * action.Duration.PerMeterSeconds);
-    }
-
-    /// <summary>지정한 시간대가 될 때까지. 하루를 넘기면 다음 날 그 시각이다.</summary>
-    private double UntilTime(ActionDef action, in CompiledStep step, double elapsedSeconds)
-    {
-        ParamDef? param = action.Param(action.Duration.Param ?? string.Empty);
-
-        if (param is null || step.ArgFlags >= param.EnumValues.Length)
-        {
-            return action.Duration.BaseSeconds;
-        }
-
-        if (!Enum.TryParse(param.EnumValues[step.ArgFlags], out TimeOfDay target))
-        {
-            return action.Duration.BaseSeconds;
-        }
-
-        (int from, int _) = _data.Buckets.GameHoursOf(target);
-
-        double nowHours = elapsedSeconds / 3600.0 % 24.0;
-        double waitHours = from - nowHours;
-
-        if (waitHours <= 0)
-        {
-            waitHours += 24;
-        }
-
-        return waitHours * 3600.0;
     }
 
     /// <summary>

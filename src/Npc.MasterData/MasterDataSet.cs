@@ -179,6 +179,81 @@ public sealed class PoiTable
     /// <summary>이 subtype 의 POI (code 오름차순).</summary>
     public ImmutableArray<PoiId> OfSubtype(string subtype) =>
         _bySubtype.TryGetValue(subtype, out ImmutableArray<PoiId> list) ? list : [];
+
+    /// <summary>
+    /// 이 위치에서 가장 가까운, <paramref name="who"/> 가 들어갈 수 있는 그 타입의 POI (T22).
+    ///
+    /// <para>
+    /// <b>규칙을 여기 둔 이유는 하나다</b> — <c>SimWorld</c>(게임서버 대역)와 동작 예측이
+    /// 각자 "가장 가까운 것" 을 고르면 둘이 다른 POI 를 고를 수 있고, 그러면 화면이 그리는
+    /// 경로와 드라이런이 도는 경로가 갈린다. 런타임 <c>PoiBinder</c> 는 별도다 —
+    /// 그쪽은 같은 POI 로 몰리는 것을 막으려 가까운 후보 몇 개 중 해시로 고르고,
+    /// 틱 루프 할당 0 규약 때문에 <c>stackalloc</c> 으로 짜여 있다.
+    /// </para>
+    ///
+    /// <para>동률은 code 오름차순이다. 후보가 없으면 <c>default</c>.</para>
+    /// </summary>
+    /// <param name="type">찾을 POI 타입.</param>
+    /// <param name="from">기준 위치. 0 이면 거리를 0 으로 본다(첫 후보를 고른다).</param>
+    /// <param name="who">근무 허가를 볼 아키타입.</param>
+    public PoiId NearestEnterable(PoiType type, PoiId from, ArchetypeId who)
+    {
+        PoiId best = default;
+        float bestDistance = float.PositiveInfinity;
+
+        foreach (PoiId id in OfType(type))
+        {
+            if (!this[id].CanEnter(who))
+            {
+                continue;
+            }
+
+            float distance = from.Value == 0 ? 0 : Distance(from, id);
+
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = id;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>같은 규칙을 여러 타입에 걸쳐. 앞 타입을 먼저 보고, 없을 때만 다음으로 간다.</summary>
+    /// <param name="types">우선순위 순의 POI 타입.</param>
+    /// <param name="from">기준 위치.</param>
+    /// <param name="who">근무 허가를 볼 아키타입.</param>
+    public PoiId NearestEnterable(ReadOnlySpan<PoiType> types, PoiId from, ArchetypeId who)
+    {
+        foreach (PoiType type in types)
+        {
+            PoiId found = NearestEnterable(type, from, who);
+
+            if (found.Value != 0)
+            {
+                return found;
+            }
+        }
+
+        return default;
+    }
+
+    /// <summary>이 타입의 첫 번째(code 최소) 출입 가능 POI. 거리 정보가 없을 때 쓴다.</summary>
+    /// <param name="type">POI 타입.</param>
+    /// <param name="who">근무 허가를 볼 아키타입.</param>
+    public PoiId FirstEnterable(PoiType type, ArchetypeId who)
+    {
+        foreach (PoiId id in OfType(type))
+        {
+            if (this[id].CanEnter(who))
+            {
+                return id;
+            }
+        }
+
+        return default;
+    }
 }
 
 /// <summary>

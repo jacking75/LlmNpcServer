@@ -189,6 +189,51 @@ public static class Lexicon
         ["Emote"] = "몸짓",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
+    /// <summary>
+    /// 액션의 <b>서술형</b>. 캡션이 문장이 되려면 "일하기한다" 가 아니라 "일한다" 여야 한다.
+    /// <see cref="Actions"/> 와 키가 같아야 한다 — <c>Lexicon_CoversEveryAction</c> 이 강제한다.
+    /// </summary>
+    public static readonly FrozenDictionary<string, string> ActionVerbs = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["MoveTo"] = "이동한다",
+        ["Follow"] = "따라간다",
+        ["Wander"] = "돌아다닌다",
+        ["Flee"] = "달아난다",
+        ["Patrol"] = "순찰한다",
+        ["Work"] = "일한다",
+        ["Gather"] = "모은다",
+        ["Mine"] = "캔다",
+        ["Farm"] = "농사짓는다",
+        ["Fish"] = "낚는다",
+        ["Craft"] = "만든다",
+        ["Cook"] = "요리한다",
+        ["Repair"] = "고친다",
+        ["Talk"] = "대화한다",
+        ["Trade"] = "판다",
+        ["Greet"] = "인사한다",
+        ["Gossip"] = "잡담한다",
+        ["Pray"] = "기도한다",
+        ["Perform"] = "공연한다",
+        ["Eat"] = "먹는다",
+        ["Drink"] = "마신다",
+        ["Sleep"] = "잔다",
+        ["Rest"] = "쉰다",
+        ["Bathe"] = "씻는다",
+        ["Attack"] = "공격한다",
+        ["Defend"] = "사수한다",
+        ["Guard"] = "경계를 선다",
+        ["CallForHelp"] = "도움을 청한다",
+        ["Retreat"] = "물러난다",
+        ["PickUp"] = "줍는다",
+        ["Drop"] = "버린다",
+        ["Store"] = "보관한다",
+        ["Withdraw"] = "꺼낸다",
+        ["Equip"] = "장비한다",
+        ["Wait"] = "기다린다",
+        ["Observe"] = "지켜본다",
+        ["Emote"] = "몸짓한다",
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+
     /// <summary>POI subtype 27종. 서술에는 개체 id 가 아니라 이 이름이 나간다.</summary>
     public static readonly FrozenDictionary<string, string> Places = new Dictionary<string, string>(StringComparer.Ordinal)
     {
@@ -435,6 +480,9 @@ public static class Lexicon
 
     /// <summary>액션 id → 한국어. 모르면 id 그대로.</summary>
     public static string Action(string id) => Actions.GetValueOrDefault(id, id);
+
+    /// <summary>액션 id → 서술형("일한다"). 모르면 표기 + "한다".</summary>
+    public static string ActionVerb(string id) => ActionVerbs.GetValueOrDefault(id, Action(id) + "한다");
 
     /// <summary>아키타입 id → 직군. 모르는 id 는 <see cref="ArchetypeGroup.Other"/>.</summary>
     public static ArchetypeGroup Group(string id) => Groups.GetValueOrDefault(id, ArchetypeGroup.Other);
