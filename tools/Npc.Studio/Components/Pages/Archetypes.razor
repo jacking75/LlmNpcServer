@@ -1,0 +1,181 @@
+@page "/archetypes"
+@page "/archetypes/{Id}"
+@inject StudioSession Session
+@inject StudioWorkspace Workspace
+@inject NavigationManager Nav
+
+<PageTitle>직업 · NPC Studio</PageTitle>
+
+@if (string.IsNullOrEmpty(Id))
+{
+    <section class="panel">
+        <div class="panel-head">
+            <div><small>ARCHETYPES</small><h1>직업 @(Session.Catalog.Archetypes.Length)개</h1><p class="page-lead">직업은 NPC 의 종류다. 정의 하나를 수백 명이 함께 쓴다.</p></div>
+            <a class="manual" href="/archetypes/new">+ 새 직업 만들기</a>
+        </div>
+        <div class="side-tools">
+            <input placeholder="직업 검색 (한국어 · id)" @bind="_search" @bind:event="oninput" />
+        </div>
+        <div class="card-grid">
+            @foreach (StudioArchetype item in Filtered)
+            {
+                <a class="entity-card" href="@("/archetypes/" + item.Id)">
+                    <strong>@Lexicon.Archetype(item.Id)</strong>
+                    <small>@item.Id · code @item.Code</small>
+                    <p>@item.Description</p>
+                    <span class="entity-meta">@item.Population 명 · 일터 @item.Workplace</span>
+                </a>
+            }
+        </div>
+    </section>
+}
+else if (_document is null)
+{
+    <section class="empty-state"><div class="empty-icon">◇</div><h1>@Id 을(를) 찾지 못했다</h1><p>@_error</p></section>
+}
+else
+{
+    <section class="hero-card">
+        <div>
+            <small>ARCHETYPE · @Id</small>
+            <h1>@Lexicon.Archetype(Id)</h1>
+            <p>@Summary?.Description</p>
+        </div>
+        <div class="stat-grid">
+            <div><strong>@Summary?.Population</strong><span>예상 인구</span></div>
+            <div><strong>@Summary?.Weight.ToString("0.####")</strong><span>가중치</span></div>
+            <div><strong>@Summary?.Workplace</strong><span>일터</span></div>
+        </div>
+    </section>
+
+    <nav class="content-tabs">
+        <button class="@TabClass("card")" @onclick='() => SetTab("card")'>설명 카드</button>
+        <button class="@TabClass("json")" @onclick='() => SetTab("json")'>JSON 편집</button>
+    </nav>
+
+    @if (Tab == "json")
+    {
+        <section class="panel editor-panel">
+            <div class="panel-head">
+                <div><small>archetypes.json</small><h2>@Id 항목</h2></div>
+                <button class="primary" @onclick="Save" disabled="@Session.Catalog.ReadOnly">검증하고 저장</button>
+            </div>
+            <div class="draft-grid">
+                <div><div class="pane-label">JSON 초안</div><textarea class="code-editor" spellcheck="false" value="@_editor" @oninput="OnInput"></textarea></div>
+                <div class="live-preview">
+                    <div class="preview-head">
+                        <span>실시간 설명</span>
+                        @if (string.IsNullOrEmpty(_previewError)) { <span class="live-dot">● 반영됨</span> } else { <span class="preview-bad">JSON 확인 필요</span> }
+                    </div>
+                    @if (!string.IsNullOrEmpty(_previewError))
+                    {
+                        <div class="preview-error"><strong>현재 초안을 설명할 수 없다.</strong><span>@_previewError</span><small>아래에는 마지막으로 정상 해석한 설명을 유지한다.</small></div>
+                    }
+                    <MarkdownView Content="@_previewCard" Class="preview-card" />
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="panel">
+            <div class="panel-head"><div><small>현재 저장된 정의 기준</small><h2>아키타입 카드</h2></div></div>
+            <MarkdownView Content="@_previewCard" />
+        </section>
+    }
+}
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    [CascadingParameter] public StudioLayout? Layout { get; set; }
+    [SupplyParameterFromQuery(Name = "tab")] public string? QueryTab { get; set; }
+
+    private StudioArchetypeDocument? _document;
+    private string _editor = string.Empty;
+    private string _previewCard = string.Empty;
+    private string _previewError = string.Empty;
+    private string _error = string.Empty;
+    private string _search = string.Empty;
+    private string? _tab;
+    private int _previewVersion;
+
+    private string Tab => _tab ?? QueryTab ?? "card";
+    private StudioArchetype? Summary => Session.Catalog.Archetypes.FirstOrDefault(a => a.Id == Id);
+
+    private IEnumerable<StudioArchetype> Filtered =>
+        Session.Catalog.Archetypes.Where(a =>
+            string.IsNullOrWhiteSpace(_search)
+            || a.Id.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || Lexicon.Archetype(a.Id).Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnParametersSet()
+    {
+        Layout?.SetHelp(Help);
+
+        if (string.IsNullOrEmpty(Id))
+        {
+            _document = null;
+            return;
+        }
+
+        if (_document?.Id == Id) return;
+
+        _tab = null;
+        Load();
+    }
+
+    private void Load()
+    {
+        try
+        {
+            _document = Workspace.LoadArchetype(Id!);
+            _editor = _document.Json;
+            _previewCard = _document.Card;
+            _previewError = string.Empty;
+            _error = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _document = null;
+            _error = ex.Message;
+        }
+    }
+
+    private void SetTab(string tab) => _tab = tab;
+
+    private string TabClass(string tab) => Tab == tab ? "active" : string.Empty;
+
+    private void Save()
+    {
+        try
+        {
+            Session.Apply(Workspace.SaveArchetype(Id!, _editor));
+            Load();
+        }
+        catch (Exception ex) { Session.Notify(ex.Message, true); }
+    }
+
+    private async Task OnInput(ChangeEventArgs args)
+    {
+        _editor = args.Value?.ToString() ?? string.Empty;
+        int version = ++_previewVersion;
+        await Task.Delay(400);
+        if (version != _previewVersion) return;
+
+        try
+        {
+            _previewCard = Workspace.PreviewArchetype(Id!, _editor);
+            _previewError = string.Empty;
+        }
+        catch (Exception ex) { _previewError = ex.Message; }
+    }
+
+    private RenderFragment Help => @<div>
+        <p>직업(아키타입)은 <strong>NPC 의 종류</strong>다. 성격 · 할 수 있는 행동 · 일터 · 하루 일과가 여기 모여 있다.</p>
+        <ul>
+            <li>목록에서 하나를 골라 그 직업이 어떤 존재인지 읽는다.</li>
+            <li>JSON 편집 탭은 고급이다. 오른쪽이 바꾼 값을 곧바로 설명으로 보여 준다.</li>
+            <li>새 직업은 <a href="/archetypes/new">새 직업 만들기</a> 에서 만든다.</li>
+        </ul>
+    </div>;
+}

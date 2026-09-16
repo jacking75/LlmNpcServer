@@ -438,7 +438,11 @@ public sealed class StudioWorkspace(StudioOptions options)
                 AtomicWrite(Path.Combine(options.MasterData, file), content);
             }
 
-            return new StudioSaveResult(true, $"{candidates.Count}개 파일을 저장했다.", issues);
+            return new StudioSaveResult(
+                true,
+                $"{candidates.Count}개 파일을 저장했다.",
+                issues,
+                [.. candidates.Keys.OrderBy(f => f, StringComparer.Ordinal)]);
         }
         finally
         {
@@ -628,4 +632,19 @@ public sealed record StudioNpcOverrideDraft(
 public sealed record StudioIssue(string Code, string Detail, string File, string Path, string FixHint);
 
 /// <summary>저장 결과.</summary>
-public sealed record StudioSaveResult(bool Saved, string Message, ImmutableArray<StudioIssue> Issues);
+/// <param name="Saved">저장했는가.</param>
+/// <param name="Message">사람이 읽는 결과 문구.</param>
+/// <param name="Issues">저장 후보를 검증한 결과.</param>
+/// <param name="Files">
+/// 실제로 쓰인 파일 이름. 파급 패널(T16)이 이것을 모아 "이제 무엇을 해야 하나" 를 낸다 —
+/// 세션이 파일 목록을 모르면 <c>ImpactAnalyzer</c> 에게 물어볼 것이 없다.
+/// </param>
+public sealed record StudioSaveResult(
+    bool Saved,
+    string Message,
+    ImmutableArray<StudioIssue> Issues,
+    ImmutableArray<string> Files = default)
+{
+    /// <summary>쓰인 파일. 기본값이면 빈 배열이다.</summary>
+    public ImmutableArray<string> Files { get; init; } = Files.IsDefault ? [] : Files;
+}

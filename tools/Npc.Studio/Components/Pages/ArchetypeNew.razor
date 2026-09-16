@@ -1,0 +1,64 @@
+@page "/archetypes/new"
+@inject StudioSession Session
+@inject StudioWorkspace Workspace
+@inject NavigationManager Nav
+
+<PageTitle>새 직업 · NPC Studio</PageTitle>
+
+<section class="panel create-panel">
+    <div class="panel-head"><div><small>NEW ARCHETYPE</small><h1>새 직업 만들기</h1></div></div>
+    <p class="lead">기존 직업을 복제하고 그 인구 일부를 새 직업으로 나눈다. 폴백 플랜과 버킷 수도 함께 갱신하므로 중간에 깨진 상태를 만들지 않는다.</p>
+    <div class="form-grid">
+        <label><span>새 ID</span><input placeholder="beekeeper" @bind="_newId" /></label>
+        <label>
+            <span>복제 원본</span>
+            <select @bind="_fromId">
+                @foreach (StudioArchetype a in Session.Catalog.Archetypes)
+                {
+                    <option value="@a.Id">@Lexicon.Archetype(a.Id) (@a.Id · @a.Weight.ToString("0.####"))</option>
+                }
+            </select>
+        </label>
+        <label><span>인구 가중치</span><input type="number" min="0.0001" max="0.9999" step="0.0001" @bind="_newWeight" /></label>
+    </div>
+    <div class="callout">저장 후 설명은 <code>TODO:</code>로 생성된다. 반드시 세계관에 맞는 문장으로 바꿔야 한다 — 이 문장은 LLM 프롬프트에 그대로 실린다.</div>
+    <div class="button-row">
+        <button class="primary" @onclick="Create" disabled="@Session.Catalog.ReadOnly">검증하고 생성</button>
+        <a class="manual" href="/archetypes">취소</a>
+    </div>
+</section>
+
+@code {
+    [CascadingParameter] public StudioLayout? Layout { get; set; }
+
+    private string _newId = string.Empty;
+    private string _fromId = string.Empty;
+    private double _newWeight = 0.001;
+
+    protected override void OnInitialized()
+    {
+        Layout?.SetHelp(Help);
+        _fromId = Session.Catalog.Archetypes.FirstOrDefault()?.Id ?? "blacksmith";
+    }
+
+    private void Create()
+    {
+        try
+        {
+            string id = _newId.Trim();
+            StudioSaveResult result = Workspace.CreateArchetype(id, _fromId, _newWeight);
+            Session.Apply(result);
+
+            if (result.Saved)
+            {
+                Nav.NavigateTo("/archetypes/" + id);
+            }
+        }
+        catch (Exception ex) { Session.Notify(ex.Message, true); }
+    }
+
+    private RenderFragment Help => @<div>
+        <p>새 직업을 만들면 <strong>여러 파일이 같이 바뀐다</strong> — 직업 정의 · 하루 일과 · 버킷 수.</p>
+        <p>인구는 0 에서 나오지 않는다. 복제 원본에서 뗀다 — 전체 가중치 합은 언제나 1.0 이어야 한다(V5).</p>
+    </div>;
+}

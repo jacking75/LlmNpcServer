@@ -1,0 +1,16 @@
+@using Npc.Studio.Components.Layout
+
+<Router AppAssembly="@typeof(Npc.Studio.Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(StudioLayout)" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(StudioLayout)">
+            <section class="empty-state">
+                <div class="empty-icon">◇</div>
+                <h1>없는 주소다</h1>
+                <p>왼쪽 메뉴에서 다시 고른다. <a href="/">시작 화면으로</a></p>
+            </section>
+        </LayoutView>
+    </NotFound>
+</Router>

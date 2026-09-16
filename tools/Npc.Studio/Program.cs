@@ -1,6 +1,6 @@
 using Microsoft.Extensions.FileProviders;
-using Npc.Studio.Components;
 using Npc.Studio.Services;
+using App = Npc.Studio.Components.App;
 
 namespace Npc.Studio;
 
@@ -23,6 +23,9 @@ public static class Program
         builder.WebHost.UseUrls($"http://{options.Bind}:{options.Port}");
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<StudioWorkspace>();
+
+        // 회로(브라우저 탭)마다 하나. 화면이 여럿으로 갈렸으므로 카탈로그를 공유한다 (T01).
+        builder.Services.AddScoped<StudioSession>();
         builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
         WebApplication app = builder.Build();

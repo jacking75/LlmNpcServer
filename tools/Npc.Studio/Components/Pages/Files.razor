@@ -1,0 +1,102 @@
+@page "/files"
+@page "/files/{Name}"
+@inject StudioSession Session
+@inject StudioWorkspace Workspace
+
+<PageTitle>고급 · JSON · NPC Studio</PageTitle>
+
+@if (string.IsNullOrEmpty(Name))
+{
+    <section class="panel">
+        <div class="panel-head"><div><small>ADVANCED</small><h1>JSON 파일 원문 편집</h1><p class="page-lead">고급이다. 폼으로 되는 일은 폼에서 한다 — 원문 편집은 폼이 없는 파일에만 쓴다.</p></div></div>
+        <div class="entity-list files">
+            @foreach (string file in EditableFiles)
+            {
+                <a class="entity" href="@("/files/" + file)">
+                    <span class="file-dot"></span><span><strong>@file</strong><small>@FileDescription(file)</small></span>
+                </a>
+            }
+        </div>
+    </section>
+}
+else
+{
+    <section class="panel editor-panel">
+        <div class="panel-head">
+            <div><small>MASTERDATA</small><h1>@Name</h1><p>@FileDescription(Name)</p></div>
+            <button class="primary" @onclick="Save" disabled="@Session.Catalog.ReadOnly">검증하고 저장</button>
+        </div>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="preview-error"><strong>읽지 못했다</strong><span>@_error</span></div>
+        }
+        <textarea class="code-editor file-editor" spellcheck="false" @bind="_editor"></textarea>
+    </section>
+}
+
+@code {
+    /// <summary>Studio 가 원문 편집을 허용하는 파일. 생성물은 여기 없다.</summary>
+    public static readonly string[] EditableFiles =
+    [
+        "npc_overrides.json", "archetypes.json", "fallback_plans.json", "interrupts.json",
+        "pois.json", "zones.json", "items.json", "actions.json", "factions.json",
+        "dialogue_lines.json", "context_buckets.json", "world_flags.json",
+    ];
+
+    [Parameter] public string? Name { get; set; }
+    [CascadingParameter] public StudioLayout? Layout { get; set; }
+
+    private string _editor = string.Empty;
+    private string _error = string.Empty;
+    private string _loaded = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        Layout?.SetHelp(Help);
+
+        if (string.IsNullOrEmpty(Name) || _loaded == Name) return;
+
+        try
+        {
+            _editor = Workspace.LoadFile(Name);
+            _loaded = Name;
+            _error = string.Empty;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private void Save()
+    {
+        try
+        {
+            StudioSaveResult result = Workspace.SaveFile(Name!, _editor);
+            Session.Apply(result);
+
+            if (result.Saved) _editor = Workspace.LoadFile(Name!);
+        }
+        catch (Exception ex) { Session.Notify(ex.Message, true); }
+    }
+
+    /// <summary>파일 한 줄 설명. 목록과 상세가 같은 문장을 쓴다.</summary>
+    public static string FileDescription(string file) => file switch
+    {
+        "npc_overrides.json" => "개별 NPC 순찰·세력·성격",
+        "archetypes.json" => "직업·성향·허용 행동",
+        "fallback_plans.json" => "LLM 장애 시 기본 행동",
+        "interrupts.json" => "돌발 상황 즉시 반응",
+        "pois.json" => "장소·정원·위치",
+        "zones.json" => "지역과 인접 관계",
+        "items.json" => "아이템과 제작법",
+        "actions.json" => "행동 카탈로그",
+        "factions.json" => "세력 정의",
+        "dialogue_lines.json" => "대사 주제",
+        "context_buckets.json" => "캐시 공간",
+        "world_flags.json" => "세계 상태 비트",
+        _ => string.Empty,
+    };
+
+    private RenderFragment Help => @<div>
+        <p>여기는 <strong>고급</strong>이다. 원문을 잘못 고치면 저장이 거절된다(원본은 그대로다).</p>
+        <p><code>actions.json</code> · <code>world_flags.json</code> · <code>context_buckets.json</code> 은 번호 체계를 흔든다 — 추가는 뒤에만 한다.</p>
+    </div>;
+}

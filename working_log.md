@@ -1,5 +1,12 @@
 # 작업 로그
 
+## 2026-09-16 19:55 KST · Studio 화면을 URL 라우팅으로 쪼갰다 (T01)
+
+- `Home.razor` 508줄을 `Pages/` 10개 화면과 `Layout/StudioLayout.razor` 로 나눴다. 모든 화면이 URL 을 갖는다.
+- 회로당 카탈로그·검증 결과·바꾼 파일을 공유하는 `Services/StudioSession.cs` (Scoped) 를 넣었다.
+- `StudioSaveResult` 에 쓰인 파일 목록을 실었다 — 파급 패널(T16)이 볼 근거다.
+- 기존 기능은 그대로다. Studio 테스트 9건 통과.
+
 ## 2026-09-16 18:42 KST · NPC Studio 초보자 개선 계획서를 작성했다 (18:23 초안 · 18:42 2차 개정)
 
 - 루트에 `STUDIO_IMPROVEMENT_PLAN.md` 를 만들었다. 상단에 태스크 34건 체크리스트와 판정 시나리오 S1~S6 를 두었다.

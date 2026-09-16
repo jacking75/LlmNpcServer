@@ -1,0 +1,155 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject StudioSession Session
+@inject NavigationManager Nav
+
+<CascadingValue Value="this" IsFixed="true">
+    <header class="topbar">
+        <div class="brand">
+            <a class="brand-link" href="/">
+                <span class="brand-mark">N</span>
+                <div><strong>NPC Studio</strong><small>NPC 정의를 읽고 · 예측하고 · 만든다</small></div>
+            </a>
+        </div>
+        <div class="top-actions">
+            <span class="path" title="@Session.Catalog.Directory">@Session.Catalog.Directory</span>
+            @if (Session.Catalog.ReadOnly)
+            {
+                <span class="badge warn">읽기 전용</span>
+            }
+            <button class="secondary" @onclick="Validate">전체 검증</button>
+            <button class="secondary" @onclick="Reload">새로고침</button>
+            <button class="secondary" @onclick="ToggleHelp">도움말</button>
+            <a class="manual" href="/docs/npc_studio_manual.html" target="_blank">매뉴얼</a>
+        </div>
+    </header>
+
+    <div class="workspace">
+        <aside class="sidebar">
+            <nav class="studio-nav">
+                @foreach ((string Url, string Label, string Hint) item in Navigation)
+                {
+                    <a class="nav-item @NavClass(item.Url)" href="@item.Url">
+                        <strong>@item.Label</strong><small>@item.Hint</small>
+                    </a>
+                }
+            </nav>
+        </aside>
+
+        <main class="main">
+            @Body
+        </main>
+
+        <aside class="inspector">
+            <div class="inspector-head"><span>검증 결과</span><span class="count @(Session.Issues.IsEmpty ? "ok" : "bad")">@Session.Issues.Length</span></div>
+            @if (Session.Issues.IsEmpty)
+            {
+                <div class="all-good"><span>✓</span><strong>전체 검증 통과</strong><p>현재 마스터데이터에서 V1~V15 위반이 없다.</p></div>
+            }
+            else
+            {
+                <div class="issue-list">
+                    @foreach (StudioIssue issue in Session.Issues.Take(30))
+                    {
+                        <article class="issue">
+                            <strong>@issue.Code · @issue.File</strong>
+                            <code>@issue.Path</code>
+                            <p>@issue.Detail</p>
+                            @if (!string.IsNullOrEmpty(issue.FixHint)) { <small>@issue.FixHint</small> }
+                        </article>
+                    }
+                </div>
+            }
+            <div class="guardrails">
+                <h3>편집 안전장치</h3>
+                <ul>
+                    <li>생성물은 편집 목록에서 제외한다.</li>
+                    <li>저장 전 전체 검증을 수행한다.</li>
+                    <li>로더가 거절하면 원본을 유지한다.</li>
+                    <li>ID와 code 재배치를 허용하지 않는다.</li>
+                </ul>
+            </div>
+        </aside>
+    </div>
+
+    @if (_helpOpen)
+    {
+        <div class="help-drawer">
+            <div class="help-head"><strong>이 화면에서 할 수 있는 것</strong><button class="icon-btn" @onclick="ToggleHelp">×</button></div>
+            <div class="help-body">
+                @if (_help is not null)
+                {
+                    @_help
+                }
+                else
+                {
+                    <p>이 화면에는 아직 안내가 없다.</p>
+                }
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(Session.Toast))
+    {
+        <div class="toast @(Session.ToastIsError ? "error" : "success")" @onclick="Session.ClearToast">@Session.Toast</div>
+    }
+</CascadingValue>
+
+@code {
+    private RenderFragment? _help;
+    private bool _helpOpen;
+
+    /// <summary>좌측 내비. 순서가 초보자 여정 순서다 — 알기 → 보기 → 예측 → 만들기.</summary>
+    private static readonly (string Url, string Label, string Hint)[] Navigation =
+    [
+        ("/", "시작", "무엇을 할 수 있나"),
+        ("/archetypes", "직업", "NPC 의 종류"),
+        ("/npcs", "NPC", "생성된 개체 5,000명"),
+        ("/map", "마을 지도", "지역 전체"),
+        ("/places", "지역·장소", "사는 곳 · 일하는 곳"),
+        ("/interrupts", "돌발 반응", "위험할 때"),
+        ("/actions", "행동 카탈로그", "NPC 가 할 수 있는 것"),
+        ("/live", "라이브 관찰", "실행 중인 서버"),
+        ("/issues", "검증·진단", "문제와 주의"),
+        ("/files", "고급 · JSON", "원문 편집"),
+    ];
+
+    protected override void OnInitialized() => Session.Changed += OnChanged;
+
+    /// <summary>페이지가 도움말 내용을 건다. 페이지가 바뀌면 다시 건다.</summary>
+    public void SetHelp(RenderFragment? help)
+    {
+        _help = help;
+        StateHasChanged();
+    }
+
+    /// <summary>도움말 서랍을 연다 (T31 따라하기가 부른다).</summary>
+    public void OpenHelp()
+    {
+        _helpOpen = true;
+        StateHasChanged();
+    }
+
+    private void ToggleHelp() => _helpOpen = !_helpOpen;
+
+    private void Validate() => Session.Validate();
+
+    private void Reload()
+    {
+        Session.Reload();
+        Session.Notify("마스터데이터를 다시 읽었다.");
+    }
+
+    private string NavClass(string url)
+    {
+        string path = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimEnd('/');
+
+        return url == "/"
+            ? (path == "/" ? "active" : string.Empty)
+            : (path.StartsWith(url, StringComparison.Ordinal) ? "active" : string.Empty);
+    }
+
+    public void Dispose() => Session.Changed -= OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+}

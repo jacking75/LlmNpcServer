@@ -1,0 +1,41 @@
+@page "/"
+@inject StudioSession Session
+
+<PageTitle>NPC Studio</PageTitle>
+
+<section class="hero-card">
+    <div>
+        <small>NPC STUDIO</small>
+        <h1>이 마을의 NPC 를 읽고 · 예측하고 · 만든다</h1>
+        <p class="page-lead">JSON 을 열지 않고도 직업이 어떤 존재인지 읽고, 하루를 어떻게 보내는지 보고, 새 직업을 만들 수 있다.</p>
+    </div>
+    <div class="stat-grid">
+        <div><strong>@Session.Catalog.Archetypes.Length</strong><span>직업</span></div>
+        <div><strong>@Session.Catalog.InstanceCount</strong><span>NPC</span></div>
+        <div><strong>@Session.Issues.Length</strong><span>검증 문제</span></div>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-head"><div><small>START</small><h2>무엇을 하시겠습니까</h2></div></div>
+    <div class="card-grid">
+        <a class="entity-card" href="@FirstArchetypeUrl"><strong>직업을 살펴본다</strong><p>대장장이 · 위병 · 사제가 어떤 존재인지 읽는다.</p></a>
+        <a class="entity-card" href="/npcs"><strong>NPC 한 명을 고친다</strong><p>순찰로 · 세력 같은 개별 설정을 바꾼다.</p></a>
+        <a class="entity-card" href="/archetypes/new"><strong>새 직업을 만든다</strong><p>기존 직업을 닮은 새 직업을 추가한다.</p></a>
+        <a class="entity-card" href="/files"><strong>고급 · JSON 원문</strong><p>폼이 없는 파일을 직접 고친다.</p></a>
+    </div>
+</section>
+
+@code {
+    [CascadingParameter] public StudioLayout? Layout { get; set; }
+
+    private string FirstArchetypeUrl =>
+        Session.Catalog.Archetypes.FirstOrDefault() is { } first ? "/archetypes/" + first.Id : "/archetypes";
+
+    protected override void OnInitialized() => Layout?.SetHelp(Help);
+
+    private RenderFragment Help => @<div>
+        <p>왼쪽 메뉴가 화면 지도다. <strong>직업 → NPC → 장소</strong> 순으로 내려간다.</p>
+        <p>오른쪽 칸은 언제나 <strong>검증 결과</strong>다. 0 이면 이 마스터데이터로 서버가 뜬다.</p>
+    </div>;
+}
