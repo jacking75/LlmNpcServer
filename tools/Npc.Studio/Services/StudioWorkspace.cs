@@ -1587,10 +1587,19 @@ public sealed class StudioWorkspace(StudioOptions options)
     /// <summary>
     /// 백업을 두는 곳. <b><c>masterdata/</c> 안에 두지 않는다</b> —
     /// <c>CopyMasterData</c>·<c>ContentHash</c> 가 폴더 전체를 보므로 백업이 입력으로 섞인다.
+    ///
+    /// <b>편집 대상 폴더마다 따로 둔다.</b> 한 곳에 모으면 연습장·다른 <c>masterdata/</c> 의
+    /// 백업이 같은 목록에 섞이고, 되돌리기가 남의 파일을 덮어쓴다.
     /// </summary>
-    private static string BackupRoot =>
+    private string BackupRoot =>
         Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NpcStudio", "backup");
+            options.BackupRoot.Length > 0
+                ? options.BackupRoot
+                : Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "NpcStudio",
+                    "backup"),
+            FolderKey(_directory));
 
     /// <summary>백업 보존 기간(일). 지난 것은 저장할 때 지운다.</summary>
     public const int BackupDays = 30;
@@ -1598,23 +1607,31 @@ public sealed class StudioWorkspace(StudioOptions options)
     /// <summary>되돌릴 수 있는 백업 (최신 순).</summary>
     public ImmutableArray<StudioBackup> Backups()
     {
-        if (!Directory.Exists(BackupRoot))
+        lock (_gate)
         {
-            return [];
-        }
+            string root = BackupRoot;
 
-        var list = ImmutableArray.CreateBuilder<StudioBackup>();
-
-        foreach (string folder in Directory.EnumerateDirectories(BackupRoot))
-        {
-            foreach (string file in Directory.EnumerateFiles(folder, "*.json"))
+            if (!Directory.Exists(root))
             {
-                list.Add(new StudioBackup(
-                    Path.GetFileName(folder), Path.GetFileName(file), file, File.GetLastWriteTime(file)));
+                return [];
             }
-        }
 
-        return [.. list.OrderByDescending(b => b.SavedAt)];
+            var list = ImmutableArray.CreateBuilder<StudioBackup>();
+
+            foreach (string folder in Directory.EnumerateDirectories(root))
+            {
+                string stamp = Path.GetFileName(folder);
+
+                foreach (string file in Directory.EnumerateFiles(folder, "*.json"))
+                {
+                    list.Add(new StudioBackup(stamp, Path.GetFileName(file), file, StampTime(stamp)));
+                }
+            }
+
+            // 폴더 이름이 저장한 시각이다. 파일의 수정 시각으로 세우지 않는다 —
+            // File.Copy 가 원본의 시각을 그대로 옮기므로 그 값은 "저장한 때" 가 아니다.
+            return [.. list.OrderByDescending(b => b.Stamp, StringComparer.Ordinal)];
+        }
     }
 
     /// <summary>
@@ -1638,7 +1655,7 @@ public sealed class StudioWorkspace(StudioOptions options)
     }
 
     /// <summary>쓰기 직전의 원본을 백업한다. 실패해도 저장을 막지 않는다 — 백업은 보조다.</summary>
-    private static void Backup(string path, string file)
+    private void Backup(string path, string file)
     {
         try
         {
@@ -1647,13 +1664,20 @@ public sealed class StudioWorkspace(StudioOptions options)
                 return;
             }
 
-            string folder = Path.Combine(
-                BackupRoot, DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture));
+            string root = BackupRoot;
+            string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            string folder = Path.Combine(root, stamp);
+
+            // 같은 초에 두 번 저장하면 앞의 백업이 덮인다 — 첫 번째 상태로 되돌릴 곳이 없어진다.
+            for (int n = 2; File.Exists(Path.Combine(folder, file)); n++)
+            {
+                folder = Path.Combine(root, string.Create(CultureInfo.InvariantCulture, $"{stamp}-{n}"));
+            }
 
             Directory.CreateDirectory(folder);
             File.Copy(path, Path.Combine(folder, file), overwrite: true);
 
-            Prune();
+            Prune(root);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1661,11 +1685,11 @@ public sealed class StudioWorkspace(StudioOptions options)
         }
     }
 
-    private static void Prune()
+    private static void Prune(string root)
     {
         DateTime cutoff = DateTime.Now.AddDays(-BackupDays);
 
-        foreach (string folder in Directory.EnumerateDirectories(BackupRoot))
+        foreach (string folder in Directory.EnumerateDirectories(root))
         {
             if (Directory.GetLastWriteTime(folder) < cutoff)
             {
@@ -1673,6 +1697,23 @@ public sealed class StudioWorkspace(StudioOptions options)
             }
         }
     }
+
+    /// <summary>폴더 경로를 파일 이름으로 쓸 수 있는 짧은 키로 바꾼다.</summary>
+    private static string FolderKey(string directory)
+    {
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)).ToUpperInvariant();
+        byte[] hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(full));
+
+        return Convert.ToHexString(hash, 0, 6).ToLowerInvariant();
+    }
+
+    /// <summary>백업 폴더 이름에서 저장 시각을 읽는다. 읽지 못하면 <see cref="DateTime.MinValue"/>.</summary>
+    private static DateTime StampTime(string stamp) =>
+        stamp.Length >= 15
+        && DateTime.TryParseExact(
+            stamp[..15], "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime at)
+            ? at
+            : DateTime.MinValue;
 
     private static void EnsureItemId(string json, string expected)
     {

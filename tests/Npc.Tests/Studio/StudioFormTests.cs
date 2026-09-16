@@ -20,6 +20,10 @@ public sealed class StudioFormTests : IDisposable
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(), "npc-studio-form-" + Guid.NewGuid().ToString("N")[..8]);
 
+    /// <summary>되돌리기 백업. 기본 위치(%LOCALAPPDATA%)에 시험 부스러기를 남기지 않는다.</summary>
+    private readonly string _backups = Path.Combine(
+        Path.GetTempPath(), "npc-studio-form-backup-" + Guid.NewGuid().ToString("N")[..8]);
+
     public StudioFormTests() => CopyDirectory(TestPaths.MasterData, _directory);
 
     /// <summary>
@@ -294,11 +298,12 @@ public sealed class StudioFormTests : IDisposable
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);
+        if (Directory.Exists(_backups)) Directory.Delete(_backups, recursive: true);
         GC.SuppressFinalize(this);
     }
 
     private StudioWorkspace CreateWorkspace() =>
-        new(new StudioOptions(_directory, "127.0.0.1", 25_056, ReadOnly: false));
+        new(new StudioOptions(_directory, "127.0.0.1", 25_056, ReadOnly: false) { BackupRoot = _backups });
 
     private static void CopyDirectory(string source, string destination)
     {

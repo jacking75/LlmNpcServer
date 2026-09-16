@@ -16,6 +16,12 @@ public sealed record StudioOptions(string MasterData, string Bind, int Port, boo
     /// <summary>대시보드 토큰 (A-06). 비면 헤더를 붙이지 않는다.</summary>
     public string Token { get; init; } = string.Empty;
 
+    /// <summary>
+    /// 되돌리기 백업을 두는 곳 (T18). 비면 <c>%LOCALAPPDATA%/NpcStudio/backup</c> 이다.
+    /// <b><c>masterdata/</c> 안을 가리키지 않는다</b> — 백업이 입력으로 섞인다.
+    /// </summary>
+    public string BackupRoot { get; init; } = string.Empty;
+
     /// <summary>기본값과 명령행을 합친다.</summary>
     public static StudioOptions Parse(string[] args)
     {
