@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text;
 using Npc.Contracts;
 using Npc.Core;
@@ -12,8 +13,107 @@ namespace Npc.Narrative;
 /// <b>거리를 여기서만 셀 수 있다.</b> 플랜의 예상 소요 시간이 이동 시간에 좌우되는데,
 /// 이동 거리는 개체 바인딩 이후에야 정해진다 — 그래서 아키타입 카드는 타임아웃 합만 낸다.
 /// </summary>
+/// <summary>
+/// 개체 하나에서 뽑은 사실들 (T07). 아키타입 카드가 <b>정의</b>라면 이것은 <b>개체</b>다.
+/// </summary>
+/// <param name="Npc">인스턴스 원본.</param>
+/// <param name="ArchetypeId">직업 id.</param>
+/// <param name="ZoneId">지역 id.</param>
+/// <param name="Home">집 POI.</param>
+/// <param name="Workplace">일터 POI. 없으면 null.</param>
+/// <param name="CommuteMeters">집 ↔ 일터 거리(m). 일터가 없으면 0.</param>
+/// <param name="CanEnterWorkplace">일터에 근무 허가가 있는가.</param>
+public readonly record struct InstanceFacts(
+    NpcInstanceDef Npc,
+    string ArchetypeId,
+    string ZoneId,
+    PoiDef Home,
+    PoiDef? Workplace,
+    float CommuteMeters,
+    bool CanEnterWorkplace);
+
 public static class InstanceCard
 {
+    /// <summary>개체 하나의 사실들 (T07). 화면·예측이 카드 대신 이것을 읽는다.</summary>
+    /// <param name="data">마스터데이터.</param>
+    /// <param name="npc">인스턴스.</param>
+    public static InstanceFacts Facts(MasterDataSet data, in NpcInstanceDef npc)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        PoiDef? workplace = npc.Workplace == default ? null : data.Pois[npc.Workplace];
+
+        return new InstanceFacts(
+            npc,
+            data.Archetypes[npc.Archetype].Id,
+            data.Zones[npc.Zone].Id,
+            data.Pois[npc.Home],
+            workplace,
+            workplace is null ? 0 : data.Pois.Distance(npc.Home, npc.Workplace),
+            workplace is null || workplace.CanEnter(npc.Archetype));
+    }
+
+    /// <summary>
+    /// "이 NPC 가 누구인가" 를 한 문장으로 (T07). 표를 읽기 전에 사람이 먼저 읽는 줄이다.
+    /// </summary>
+    /// <param name="data">마스터데이터.</param>
+    /// <param name="npc">인스턴스.</param>
+    public static string Sentence(MasterDataSet data, in NpcInstanceDef npc)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        InstanceFacts facts = Facts(data, npc);
+        string zone = Lexicon.Zone(data, facts.ZoneId);
+        string job = Lexicon.ArchetypeName(data, facts.ArchetypeId);
+        var sb = new StringBuilder(256);
+
+        sb.Append('#').Append(npc.Id).Append(" 은 ").Append(Lexicon.With(zone, "의", "의"))
+          .Append(' ').Append(Lexicon.With(job, "이다", "다")).Append(". ");
+
+        sb.Append(Lexicon.PlaceName(facts.Home)).Append("에 살고 ");
+
+        if (facts.Workplace is { } work)
+        {
+            sb.Append(Lexicon.PlaceName(work)).Append("에서 일한다 (걸어서 약 ")
+              .Append(Md.F(facts.CommuteMeters, 0)).Append(" m). ");
+        }
+        else
+        {
+            sb.Append("일터는 없다. ");
+        }
+
+        var extras = new List<string>(4);
+
+        if (!npc.PatrolRoute.IsDefaultOrEmpty)
+        {
+            extras.Add($"순찰로 {npc.PatrolRoute.Length}곳");
+        }
+
+        if (npc.Faction != default && data.Factions is { } factions)
+        {
+            extras.Add("세력 " + factions.NameOf(npc.Faction));
+        }
+
+        if (npc.ScheduleOffsetMinutes != 0)
+        {
+            extras.Add(npc.ScheduleOffsetMinutes > 0
+                ? $"일정이 {npc.ScheduleOffsetMinutes}분 늦다"
+                : $"일정이 {-npc.ScheduleOffsetMinutes}분 이르다");
+        }
+
+        if (npc.AggroRadiusM != 0)
+        {
+            extras.Add($"경계 반경 {npc.AggroRadiusM} m");
+        }
+
+        if (extras.Count > 0)
+        {
+            sb.Append(string.Join(" · ", extras)).Append('.');
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
     /// <summary>NPC 한 마리. <paramref name="index"/> 는 <c>NpcStore</c> 첨자다.</summary>
     public static string Render(MasterDataSet data, NpcInstanceTable instances, int index)
     {
