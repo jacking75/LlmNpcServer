@@ -17,6 +17,10 @@
             {
                 <span class="badge warn">읽기 전용</span>
             }
+            @if (Session.Catalog.IsSandbox)
+            {
+                <a class="badge warn" href="/" title="연습장이다 — 원본은 그대로다">연습장 · @Session.Catalog.Sandbox</a>
+            }
             <button class="secondary" @onclick="Validate">전체 검증</button>
             <button class="secondary" @onclick="Reload">새로고침</button>
             <button class="secondary" @onclick="ToggleHelp">도움말</button>

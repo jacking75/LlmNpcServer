@@ -1,0 +1,50 @@
+@* T31 — 따라하기. 스스로 체크된다: 화면에 들어가고 버튼을 누르면 세션이 표시한다. *@
+@implements IDisposable
+@inject StudioSession Session
+
+<h4>@Title</h4>
+<ul class="checklist">
+    @foreach ((string Key, string Label) item in Items)
+    {
+        bool done = Session.Steps.Contains(item.Key);
+        <li class="@(done ? "done" : "")"><span>@(done ? "✓" : "○")</span><span>@item.Label</span></li>
+    }
+</ul>
+<p class="related">진행은 이 브라우저 탭에만 남는다. 새로고침하면 처음부터다.</p>
+
+@code {
+    /// <summary>첫 10분 코스. 각 줄은 세션 이벤트 하나에 걸린다.</summary>
+    private static readonly (string Key, string Label)[] FirstTen =
+    [
+        ("archetype", "직업 하나를 연다"),
+        ("forecast", "하루 재생을 눌러 본다"),
+        ("situation", "위협 등장을 눌러 반응을 본다"),
+        ("edit", "편집 탭에서 용기를 내려 반응이 바뀌는 것을 본다"),
+        ("sandbox", "연습장을 만든다"),
+        ("save", "연습장에서 저장해 본다"),
+    ];
+
+    /// <summary>두 번째 코스 — 새 직업 만들기 (S2 절차).</summary>
+    private static readonly (string Key, string Label)[] NewJob =
+    [
+        ("wizard", "새 직업 마법사를 연다"),
+        ("wizard-group", "이름과 직군을 고른다"),
+        ("wizard-population", "닮은 직업과 인구를 정한다"),
+        ("wizard-workplace", "일터를 고르고 정원을 확인한다"),
+        ("wizard-plan", "하루 일과를 짠다"),
+        ("wizard-done", "만들고 파생물을 다시 만든다"),
+    ];
+
+    /// <summary>어느 코스인가. <c>new-job</c> 이면 두 번째 코스다.</summary>
+    [Parameter] public string Course { get; set; } = "first";
+
+    private string Title => Course == "new-job" ? "새 직업 10분" : "첫 10분";
+
+    private (string Key, string Label)[] Items => Course == "new-job" ? NewJob : FirstTen;
+
+    protected override void OnInitialized() => Session.Changed += Refresh;
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Session.Changed -= Refresh;
+}

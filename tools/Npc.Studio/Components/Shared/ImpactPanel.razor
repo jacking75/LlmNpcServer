@@ -1,0 +1,116 @@
+@* T16 — 저장 뒤 "이제 무엇을 해야 하나". 화면에 문장을 박지 않고 ImpactAnalyzer 에게 묻는다. *@
+@using Npc.MasterData.Authoring
+@implements IDisposable
+@inject StudioSession Session
+@inject StudioWorkspace Workspace
+@inject GeneratorRunner Generator
+
+@if (_impact is { } impact)
+{
+    <div class="impact-cards">
+        @if (!impact.Changed.IsEmpty)
+        {
+            <div class="impact"><strong>이번 세션에서 바뀐 파일</strong><span>@string.Join(" · ", impact.Changed)</span></div>
+        }
+
+        @if (impact.NeedsGameServerRedeploy)
+        {
+            <div class="impact hot">
+                <strong>게임서버를 다시 배포해야 한다</strong>
+                <span>구조 해시가 바뀐다 — 지금 붙어 있는 게임서버는 핸드셰이크에서 거절된다.</span>
+            </div>
+        }
+
+        @if (impact.PrefixChanged)
+        {
+            <div class="impact hot">
+                <strong>미리 구운 플랜이 전량 무효다</strong>
+                <span>프롬프트 프리픽스가 바뀐다. 다시 구우려면 <code>dotnet run --project tools/Npc.Prebake</code> 를 돌린다.</span>
+            </div>
+        }
+        else if (impact.NeedsPrebake)
+        {
+            <div class="impact">
+                <strong>미리 구운 플랜 일부가 무효다</strong>
+                <span>바뀐 것만 다시 구우면 된다 — 프리베이크에 <code>--resume</code> 을 준다.</span>
+            </div>
+        }
+
+        @foreach (DerivedStatus status in impact.Regenerate)
+        {
+            <div class="impact hot">
+                <strong>@status.Artifact 을(를) 다시 만들어야 한다</strong>
+                <span>@(status.Reason.Length > 0 ? status.Reason : "입력이 바뀐다") · <code>@status.Generator</code></span>
+                <div class="inline-row">
+                    <button class="secondary" @onclick="() => Regenerate(status)" disabled="@(Session.Catalog.ReadOnly || Generator.Busy || !CanRun)">다시 만들기</button>
+                    @if (!Generator.Available)
+                    {
+                        <span>생성기를 찾지 못했다 — 저장소 안에서 실행해야 한다.</span>
+                    }
+                    else if (!CanRun)
+                    {
+                        <span>연습장에서는 다시 만들 수 없다 — 생성기가 원본 <code>masterdata/</code> 를 읽는다. 원본에 적용한 뒤 만든다.</span>
+                    }
+                    else
+                    {
+                        <span><code>@Generator.CommandOf(status)</code> · <code>npc_instances.json</code> 이 다시 만들어진다 — 손편집은 <code>npc_overrides.json</code> 에만 남는다.</span>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (RestartNeeded)
+        {
+            <div class="impact">
+                <strong>NPC 서버를 다시 띄워야 반영된다</strong>
+                <span>하루 일과·돌발 반응은 기동 시 한 번 읽는다.</span>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(Generator.Output))
+        {
+            <pre class="generator-output">@Generator.Output</pre>
+        }
+    </div>
+}
+
+@code {
+    private Impact? _impact;
+
+    private bool CanRun => Generator.Available && Generator.CanRunFor(Workspace.CurrentDirectory);
+
+    /// <summary>플랜이 아니라 코드가 판정한다 — 기동 시 한 번 읽는 파일이 바뀌면 재기동이다.</summary>
+    private bool RestartNeeded =>
+        Session.ChangedFiles.Any(f =>
+            f is "fallback_plans.json" or "interrupts.json" or "context_buckets.json");
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += Refresh;
+        Compute();
+    }
+
+    protected override void OnParametersSet() => Compute();
+
+    private void Compute()
+    {
+        try { _impact = ImpactAnalyzer.Of(Workspace.CurrentDirectory, Session.ChangedFiles); }
+        catch (Exception) { _impact = null; }
+    }
+
+    private void Refresh()
+    {
+        Compute();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Regenerate(DerivedStatus status)
+    {
+        await Generator.RunAsync(status, Workspace.CurrentDirectory);
+        Session.Reload();
+        Session.Notify(Generator.LastSucceeded ? $"{status.Artifact} 을(를) 다시 만들었다." : "생성기가 실패했다.", !Generator.LastSucceeded);
+    }
+
+    /// <summary>회로가 끊길 때 이벤트를 놓는다.</summary>
+    public void Dispose() => Session.Changed -= Refresh;
+}

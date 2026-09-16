@@ -28,14 +28,224 @@ public sealed class StudioWorkspace(StudioOptions options)
         WriteIndented = true,
     };
 
+    /// <summary>
+    /// 지금 보고 있는 디렉터리 (T30). 원본이거나 연습장이다.
+    /// <b><c>_gate</c> 안에서만 바꾼다</b> — 읽는 중에 바뀌면 절반은 원본, 절반은 연습장을 읽는다.
+    /// </summary>
+    private string _directory = options.MasterData;
+
+    /// <summary>연습장 이름. 원본을 보고 있으면 빈 문자열이다.</summary>
+    private string _sandbox = string.Empty;
+
+    /// <summary>연습장 이름 (T30).</summary>
+    public string SandboxName
+    {
+        get { lock (_gate) { return _sandbox; } }
+    }
+
+    /// <summary>지금 읽고 쓰는 디렉터리. 연습장이면 연습장 경로다.</summary>
+    public string CurrentDirectory
+    {
+        get { lock (_gate) { return _directory; } }
+    }
+
+    /// <summary>원본 마스터데이터 경로. 연습장에서도 바뀌지 않는다.</summary>
+    public string OriginDirectory => options.MasterData;
+
+    /// <summary>
+    /// 연습장을 연다 (T30). 원본을 통째로 복사하고 이후 저장은 전부 그 사본으로 간다.
+    ///
+    /// <b>초보자가 손대지 못하는 가장 큰 이유가 "망가뜨릴까 봐" 다.</b> 실습서는
+    /// <c>lab/&lt;이름&gt;/masterdata</c> 사본을 쓰라고 하는데 Studio 에는 그 개념이 없었다.
+    /// </summary>
+    /// <param name="name">연습장 이름. 파일 이름에 쓸 수 있는 글자만.</param>
+    public string OpenSandbox(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        string safe = new([.. name.Trim().Select(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' ? c : '-')]);
+
+        lock (_gate)
+        {
+            string target = Path.Combine(SandboxRoot(), "studio-" + safe, "masterdata");
+
+            if (Directory.Exists(target))
+            {
+                Directory.Delete(target, recursive: true);
+            }
+
+            Directory.CreateDirectory(target);
+            CopyFrom(options.MasterData, target);
+
+            _directory = target;
+            _sandbox = safe;
+
+            return target;
+        }
+    }
+
+    /// <summary>연습장을 닫고 원본으로 돌아간다. 파일은 남는다.</summary>
+    public void CloseSandbox()
+    {
+        lock (_gate)
+        {
+            _directory = options.MasterData;
+            _sandbox = string.Empty;
+        }
+    }
+
+    /// <summary>연습장을 지우고 원본으로 돌아간다.</summary>
+    public void DiscardSandbox()
+    {
+        lock (_gate)
+        {
+            if (_sandbox.Length == 0)
+            {
+                return;
+            }
+
+            string folder = Path.GetDirectoryName(_directory)!;
+
+            _directory = options.MasterData;
+            _sandbox = string.Empty;
+
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 연습장이 원본과 다른 파일 (이름 오름차순). 바이트 비교다 — 서식까지 같아야 같다고 본다.
+    /// </summary>
+    public ImmutableArray<string> SandboxChanges()
+    {
+        lock (_gate)
+        {
+            if (_sandbox.Length == 0)
+            {
+                return [];
+            }
+
+            var changed = ImmutableArray.CreateBuilder<string>();
+
+            foreach (string file in s_editableFiles.OrderBy(f => f, StringComparer.Ordinal))
+            {
+                string mine = Path.Combine(_directory, file);
+                string origin = Path.Combine(options.MasterData, file);
+
+                if (!File.Exists(mine) || !File.Exists(origin))
+                {
+                    continue;
+                }
+
+                if (!File.ReadAllBytes(mine).AsSpan().SequenceEqual(File.ReadAllBytes(origin)))
+                {
+                    changed.Add(file);
+                }
+            }
+
+            return changed.ToImmutable();
+        }
+    }
+
+    /// <summary>
+    /// 연습장에서 바뀐 파일을 원본에 옮긴다. <b>원본에서 다시 검증한다</b> —
+    /// 연습장에서 통과한 것이 원본에서도 통과한다는 보장은 없다 (생성물이 다를 수 있다).
+    /// </summary>
+    public StudioSaveResult ApplyToOrigin()
+    {
+        EnsureWritable();
+
+        lock (_gate)
+        {
+            ImmutableArray<string> changed = SandboxChangesLocked();
+
+            if (changed.IsEmpty)
+            {
+                return new StudioSaveResult(false, "연습장에서 바뀐 파일이 없다.", []);
+            }
+
+            var candidates = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            foreach (string file in changed)
+            {
+                candidates[file] = File.ReadAllText(Path.Combine(_directory, file));
+            }
+
+            string sandbox = _directory;
+            _directory = options.MasterData;
+
+            try
+            {
+                StudioSaveResult result = ValidateAndWrite(candidates);
+
+                return result.Saved
+                    ? result with { Message = $"연습장의 {changed.Length}개 파일을 원본에 적용했다." }
+                    : result;
+            }
+            finally
+            {
+                _directory = sandbox;
+            }
+        }
+    }
+
+    private ImmutableArray<string> SandboxChangesLocked()
+    {
+        if (_sandbox.Length == 0)
+        {
+            return [];
+        }
+
+        var changed = ImmutableArray.CreateBuilder<string>();
+
+        foreach (string file in s_editableFiles.OrderBy(f => f, StringComparer.Ordinal))
+        {
+            string mine = Path.Combine(_directory, file);
+            string origin = Path.Combine(options.MasterData, file);
+
+            if (File.Exists(mine) && File.Exists(origin)
+                && !File.ReadAllBytes(mine).AsSpan().SequenceEqual(File.ReadAllBytes(origin)))
+            {
+                changed.Add(file);
+            }
+        }
+
+        return changed.ToImmutable();
+    }
+
+    /// <summary>
+    /// 연습장을 둘 곳. 저장소 안이면 <c>lab/</c> (실습서와 같은 자리, gitignore 됨),
+    /// 밖이면 <c>%LOCALAPPDATA%\NpcStudio\lab\</c>.
+    /// </summary>
+    private string SandboxRoot()
+    {
+        DirectoryInfo? directory = new(options.MasterData);
+
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "NpcServer.sln")))
+            {
+                return Path.Combine(directory.FullName, "lab");
+            }
+
+            directory = directory.Parent;
+        }
+
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NpcStudio", "lab");
+    }
+
     /// <summary>현재 카탈로그와 검증 상태를 읽는다.</summary>
     public StudioCatalog LoadCatalog()
     {
         lock (_gate)
         {
-            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
-            MasterDataValidationReport report = MasterDataValidator.Validate(options.MasterData);
-            string instancesPath = Path.Combine(options.MasterData, "npc_instances.json");
+            MasterDataSet data = MasterDataLoader.Load(_directory);
+            MasterDataValidationReport report = MasterDataValidator.Validate(_directory);
+            string instancesPath = Path.Combine(_directory, "npc_instances.json");
             int instances = File.Exists(instancesPath)
                 ? NpcInstanceTable.Load(instancesPath, data).Count
                 : 0;
@@ -53,11 +263,20 @@ public sealed class StudioWorkspace(StudioOptions options)
             ];
 
             return new StudioCatalog(
-                options.MasterData,
+                _directory,
                 options.ReadOnly,
                 archetypes,
                 instances,
-                ToIssues(report));
+                ToIssues(report))
+            {
+                PoiCount = data.Pois.Count,
+                ZoneCount = data.Zones.Count,
+                InterruptCount = data.Interrupts.Count,
+                ActionCount = data.Actions.Count,
+                ItemCount = data.Items.Items.Length,
+                StaleArtifacts = [.. DerivedArtifacts.Stale(_directory).Select(s => s.Artifact)],
+                Sandbox = SandboxName,
+            };
         }
     }
 
@@ -66,7 +285,7 @@ public sealed class StudioWorkspace(StudioOptions options)
     {
         lock (_gate)
         {
-            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            MasterDataSet data = MasterDataLoader.Load(_directory);
             string source = Read("archetypes.json");
             (int start, int end) = JsonSurgeon.ItemRange(source, "archetypes", "id", id);
 
@@ -81,7 +300,7 @@ public sealed class StudioWorkspace(StudioOptions options)
 
         lock (_gate)
         {
-            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            MasterDataSet data = MasterDataLoader.Load(_directory);
             string source = Read("archetypes.json");
             (int start, int end) = JsonSurgeon.ItemRange(source, "archetypes", "id", id);
             string candidate = source[..start] + itemJson + source[end..];
@@ -101,9 +320,9 @@ public sealed class StudioWorkspace(StudioOptions options)
     {
         lock (_gate)
         {
-            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            MasterDataSet data = MasterDataLoader.Load(_directory);
             NpcInstanceTable instances = NpcInstanceTable.Load(
-                Path.Combine(options.MasterData, "npc_instances.json"), data);
+                Path.Combine(_directory, "npc_instances.json"), data);
             HashSet<int> overridden = LoadOverrideIds();
             var result = ImmutableArray.CreateBuilder<StudioNpcSummary>(instances.Count);
 
@@ -133,9 +352,9 @@ public sealed class StudioWorkspace(StudioOptions options)
     {
         lock (_gate)
         {
-            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            MasterDataSet data = MasterDataLoader.Load(_directory);
             NpcInstanceTable instances = NpcInstanceTable.Load(
-                Path.Combine(options.MasterData, "npc_instances.json"), data);
+                Path.Combine(_directory, "npc_instances.json"), data);
             int index = id - 1;
 
             if ((uint)index >= (uint)instances.Count || instances[index].Id != id)
@@ -152,9 +371,9 @@ public sealed class StudioWorkspace(StudioOptions options)
     {
         lock (_gate)
         {
-            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            MasterDataSet data = MasterDataLoader.Load(_directory);
             NpcInstanceTable instances = NpcInstanceTable.Load(
-                Path.Combine(options.MasterData, "npc_instances.json"), data);
+                Path.Combine(_directory, "npc_instances.json"), data);
             int index = id - 1;
             if ((uint)index >= (uint)instances.Count || instances[index].Id != id)
             {
@@ -205,9 +424,9 @@ public sealed class StudioWorkspace(StudioOptions options)
 
         lock (_gate)
         {
-            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            MasterDataSet data = MasterDataLoader.Load(_directory);
             NpcInstanceTable instances = NpcInstanceTable.Load(
-                Path.Combine(options.MasterData, "npc_instances.json"), data);
+                Path.Combine(_directory, "npc_instances.json"), data);
             int index = draft.Id - 1;
             if ((uint)index >= (uint)instances.Count || instances[index].Id != draft.Id)
             {
@@ -316,7 +535,7 @@ public sealed class StudioWorkspace(StudioOptions options)
 
         lock (_gate)
         {
-            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            MasterDataSet data = MasterDataLoader.Load(_directory);
 
             if (!data.Archetypes.TryGet(fromId, out ArchetypeDef sourceDef))
             {
@@ -338,7 +557,7 @@ public sealed class StudioWorkspace(StudioOptions options)
             string archetypes = Read("archetypes.json");
             (int start, int end) = JsonSurgeon.ItemRange(archetypes, "archetypes", "id", fromId);
             string draft = archetypes[start..end];
-            int code = CodeAllocator.Next(options.MasterData, "archetypes.json");
+            int code = CodeAllocator.Next(_directory, "archetypes.json");
 
             draft = JsonSurgeon.SetTopLevel(draft, "id", Text(id));
             draft = JsonSurgeon.SetTopLevel(draft, "code", code.ToString(CultureInfo.InvariantCulture));
@@ -394,7 +613,7 @@ public sealed class StudioWorkspace(StudioOptions options)
     {
         lock (_gate)
         {
-            return ToIssues(MasterDataValidator.Validate(options.MasterData));
+            return ToIssues(MasterDataValidator.Validate(_directory));
         }
     }
 
@@ -435,7 +654,7 @@ public sealed class StudioWorkspace(StudioOptions options)
 
             foreach ((string file, string content) in candidates)
             {
-                AtomicWrite(Path.Combine(options.MasterData, file), content);
+                AtomicWrite(Path.Combine(_directory, file), content);
             }
 
             return new StudioSaveResult(
@@ -450,23 +669,28 @@ public sealed class StudioWorkspace(StudioOptions options)
         }
     }
 
-    private void CopyMasterData(string destination)
+    private void CopyMasterData(string destination) => CopyFrom(_directory, destination);
+
+    /// <summary>마스터데이터 한 벌을 복사한다. <c>localization/</c> 까지 같이 간다 (V14 가 그것을 본다).</summary>
+    private static void CopyFrom(string source, string destination)
     {
-        foreach (string file in Directory.EnumerateFiles(options.MasterData))
+        Directory.CreateDirectory(destination);
+
+        foreach (string file in Directory.EnumerateFiles(source))
         {
-            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)));
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
         }
 
-        string localization = Path.Combine(options.MasterData, "localization");
+        string localization = Path.Combine(source, LocalizationTable.FolderName);
 
         if (Directory.Exists(localization))
         {
-            string target = Path.Combine(destination, "localization");
+            string target = Path.Combine(destination, LocalizationTable.FolderName);
             Directory.CreateDirectory(target);
 
             foreach (string file in Directory.EnumerateFiles(localization))
             {
-                File.Copy(file, Path.Combine(target, Path.GetFileName(file)));
+                File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: true);
             }
         }
     }
@@ -520,7 +744,7 @@ public sealed class StudioWorkspace(StudioOptions options)
         }
     }
 
-    private string Read(string fileName) => File.ReadAllText(Path.Combine(options.MasterData, fileName));
+    private string Read(string fileName) => File.ReadAllText(Path.Combine(_directory, fileName));
 
     private HashSet<int> LoadOverrideIds()
     {
@@ -571,7 +795,32 @@ public sealed record StudioCatalog(
     bool ReadOnly,
     ImmutableArray<StudioArchetype> Archetypes,
     int InstanceCount,
-    ImmutableArray<StudioIssue> Issues);
+    ImmutableArray<StudioIssue> Issues)
+{
+    /// <summary>장소 수. 시작 화면의 "마을 한눈에" 타일이 쓴다.</summary>
+    public int PoiCount { get; init; }
+
+    /// <summary>지역 수.</summary>
+    public int ZoneCount { get; init; }
+
+    /// <summary>돌발 반응 규칙 수.</summary>
+    public int InterruptCount { get; init; }
+
+    /// <summary>행동 수. 상한 40 중 몇 개인지 화면이 적는다.</summary>
+    public int ActionCount { get; init; }
+
+    /// <summary>아이템 수.</summary>
+    public int ItemCount { get; init; }
+
+    /// <summary>낡은 파생물 이름. 비어 있으면 최신이다 (T16·T17).</summary>
+    public ImmutableArray<string> StaleArtifacts { get; init; } = [];
+
+    /// <summary>연습장 이름 (T30). 원본을 보고 있으면 빈 문자열이다.</summary>
+    public string Sandbox { get; init; } = string.Empty;
+
+    /// <summary>지금 보고 있는 것이 연습장인가.</summary>
+    public bool IsSandbox => Sandbox.Length > 0;
+}
 
 /// <summary>아키타입 목록 한 줄.</summary>
 public sealed record StudioArchetype(

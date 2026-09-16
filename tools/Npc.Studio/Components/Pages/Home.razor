@@ -1,5 +1,7 @@
 @page "/"
 @inject StudioSession Session
+@inject StudioWorkspace Workspace
+@inject NavigationManager Nav
 
 <PageTitle>NPC Studio</PageTitle>
 
@@ -7,35 +9,174 @@
     <div>
         <small>NPC STUDIO</small>
         <h1>이 마을의 NPC 를 읽고 · 예측하고 · 만든다</h1>
-        <p class="page-lead">JSON 을 열지 않고도 직업이 어떤 존재인지 읽고, 하루를 어떻게 보내는지 보고, 새 직업을 만들 수 있다.</p>
+        <p class="page-lead">
+            JSON 을 열지 않고도 직업이 어떤 존재인지 읽고, 하루를 어떻게 보내는지 보고, 새 직업을 만들 수 있다.
+            <strong>직업</strong>은 NPC 의 종류, <strong>NPC</strong>는 그 종류로 생성된 개체,
+            <strong>장소</strong>는 사는 곳·일하는 곳이다.
+        </p>
     </div>
-    <div class="stat-grid">
-        <div><strong>@Session.Catalog.Archetypes.Length</strong><span>직업</span></div>
-        <div><strong>@Session.Catalog.InstanceCount</strong><span>NPC</span></div>
-        <div><strong>@Session.Issues.Length</strong><span>검증 문제</span></div>
+</section>
+
+<section class="panel">
+    <div class="panel-head"><div><small>OVERVIEW</small><h2>마을 한눈에</h2></div></div>
+    <div class="card-grid">
+        <a class="entity-card" href="/archetypes"><strong>@(Session.Catalog.Archetypes.Length) 직업</strong><p>NPC 의 종류. 성격·행동·하루 일과가 여기 모여 있다.</p></a>
+        <a class="entity-card" href="/npcs"><strong>@(Session.Catalog.InstanceCount) NPC</strong><p>직업으로 생성된 개체. 한 명만 다르게 할 수 있다.</p></a>
+        <a class="entity-card" href="/places"><strong>@(Session.Catalog.PoiCount) 장소</strong><p>집·일터·시장·선술집. 정원과 여는 시간이 있다.</p></a>
+        <a class="entity-card" href="/map"><strong>@(Session.Catalog.ZoneCount) 지역</strong><p>장소들의 묶음. 이웃으로 이어진다.</p></a>
     </div>
 </section>
 
 <section class="panel">
     <div class="panel-head"><div><small>START</small><h2>무엇을 하시겠습니까</h2></div></div>
     <div class="card-grid">
-        <a class="entity-card" href="@FirstArchetypeUrl"><strong>직업을 살펴본다</strong><p>대장장이 · 위병 · 사제가 어떤 존재인지 읽는다.</p></a>
-        <a class="entity-card" href="/npcs"><strong>NPC 한 명을 고친다</strong><p>순찰로 · 세력 같은 개별 설정을 바꾼다.</p></a>
-        <a class="entity-card" href="/archetypes/new"><strong>새 직업을 만든다</strong><p>기존 직업을 닮은 새 직업을 추가한다.</p></a>
-        <a class="entity-card" href="/files"><strong>고급 · JSON 원문</strong><p>폼이 없는 파일을 직접 고친다.</p></a>
+        <a class="entity-card" href="@FirstArchetypeUrl">
+            <strong>직업을 살펴본다</strong>
+            <p>대장장이가 어디 살고 무엇을 하고 위험하면 어떻게 하는지 읽는다.</p>
+            <span class="entity-meta">약 3분</span>
+        </a>
+        <a class="entity-card" href="@(FirstArchetypeUrl + "?tab=forecast")">
+            <strong>NPC 가 어떻게 움직이는지 본다</strong>
+            <p>정의만으로 계산한 하루를 지도 위에서 재생한다. 위협이 오면 어떻게 하는지도 본다.</p>
+            <span class="entity-meta">약 3분</span>
+        </a>
+        <a class="entity-card" href="/archetypes/new">
+            <strong>새 직업을 만든다</strong>
+            <p>직군을 고르고 인구를 나누고 하루 일과를 짠다. 검증까지 한 번에 간다.</p>
+            <span class="entity-meta">약 10분</span>
+        </a>
+        <a class="entity-card" href="/npcs">
+            <strong>NPC 한 명을 고친다</strong>
+            <p>순찰로를 지도에서 찍어 바꾼다. 명단을 다시 만들어도 남는다.</p>
+            <span class="entity-meta">약 5분</span>
+        </a>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-head"><div><small>STATUS</small><h2>지금 상태</h2></div></div>
+    <div class="facts">
+        <div class="fact">
+            <h3>검증</h3>
+            @if (Session.Issues.IsEmpty)
+            {
+                <p><span class="ok-mark">✓</span> V1~V15 위반이 없다. 이 마스터데이터로 서버가 뜬다.</p>
+            }
+            else
+            {
+                <p><span class="bad-mark">✗</span> 문제 @(Session.Issues.Length)건이 있다. <a href="/issues">고치러 가기</a></p>
+            }
+        </div>
+
+        <div class="fact">
+            <h3>해야 할 일</h3>
+            @if (Session.Catalog.StaleArtifacts.IsEmpty && Session.ChangedFiles.IsEmpty)
+            {
+                <p>없다. 파생물이 최신이고 이번 세션에서 바꾼 파일도 없다.</p>
+            }
+            else
+            {
+                <ImpactPanel />
+            }
+        </div>
+
+        <div class="fact">
+            <h3>연습장</h3>
+            @if (Session.Catalog.IsSandbox)
+            {
+                <p><span class="warn-mark">●</span> 지금은 <strong>연습장 @Session.Catalog.Sandbox</strong> 을 보고 있다. 여기서 무엇을 해도 원본은 그대로다.</p>
+                <div class="inline-row">
+                    <button class="secondary" @onclick="Compare">원본과 비교</button>
+                    <button class="primary" @onclick="ApplyToOrigin" disabled="@Session.Catalog.ReadOnly">원본에 적용</button>
+                    <button class="secondary" @onclick="CloseSandbox">원본으로 돌아가기</button>
+                    <button class="secondary danger" @onclick="Discard">연습장 버리기</button>
+                </div>
+                @if (_changes is { } changes)
+                {
+                    <p>@(changes.IsEmpty ? "원본과 같다 — 아직 바꾼 것이 없다." : "원본과 다른 파일: " + string.Join(" · ", changes))</p>
+                }
+            }
+            else
+            {
+                <p><strong>원본입니다.</strong> 실험은 연습장에서 한다 — 원본을 통째로 복사하고, 거기서 저장해도 원본 바이트는 변하지 않는다.</p>
+                <div class="inline-row">
+                    <input placeholder="연습장 이름" @bind="_sandboxName" />
+                    <button class="secondary" @onclick="OpenSandbox" disabled="@Session.Catalog.ReadOnly">연습장 만들기</button>
+                </div>
+            }
+        </div>
+
+        <div class="fact">
+            <h3>처음이라면</h3>
+            <p>이 다섯 낱말만 알면 된다.</p>
+            @foreach (string term in Terms)
+            {
+                <div class="fact-row"><span>@term</span><span>@FieldGuide.Glossary[term]</span></div>
+            }
+            <p><button class="secondary" @onclick="OpenHelp">따라하기 열기</button></p>
+        </div>
     </div>
 </section>
 
 @code {
     [CascadingParameter] public StudioLayout? Layout { get; set; }
 
+    private static readonly string[] Terms = ["직업", "NPC", "장소", "하루 일과", "돌발 반응"];
+
+    private string _sandboxName = DateTime.Now.ToString("MMdd", System.Globalization.CultureInfo.InvariantCulture);
+    private ImmutableArray<string>? _changes;
+
     private string FirstArchetypeUrl =>
         Session.Catalog.Archetypes.FirstOrDefault() is { } first ? "/archetypes/" + first.Id : "/archetypes";
 
     protected override void OnInitialized() => Layout?.SetHelp(Help);
 
+    private void OpenHelp() => Layout?.OpenHelp();
+
+    private void OpenSandbox()
+    {
+        try
+        {
+            string path = Workspace.OpenSandbox(_sandboxName);
+            Session.Reload();
+            Session.MarkStep("sandbox");
+            Session.Notify($"연습장을 만들었다: {path}");
+        }
+        catch (Exception ex) { Session.Notify(ex.Message, true); }
+    }
+
+    private void CloseSandbox()
+    {
+        Workspace.CloseSandbox();
+        _changes = null;
+        Session.Reload();
+        Session.Notify("원본으로 돌아왔다.");
+    }
+
+    private void Discard()
+    {
+        Workspace.DiscardSandbox();
+        _changes = null;
+        Session.Reload();
+        Session.Notify("연습장을 버렸다.");
+    }
+
+    private void Compare() => _changes = Workspace.SandboxChanges();
+
+    private void ApplyToOrigin()
+    {
+        try
+        {
+            StudioSaveResult result = Workspace.ApplyToOrigin();
+            Session.Apply(result);
+            _changes = Workspace.SandboxChanges();
+        }
+        catch (Exception ex) { Session.Notify(ex.Message, true); }
+    }
+
     private RenderFragment Help => @<div>
         <p>왼쪽 메뉴가 화면 지도다. <strong>직업 → NPC → 장소</strong> 순으로 내려간다.</p>
         <p>오른쪽 칸은 언제나 <strong>검증 결과</strong>다. 0 이면 이 마스터데이터로 서버가 뜬다.</p>
+        <TutorialChecklist />
     </div>;
 }

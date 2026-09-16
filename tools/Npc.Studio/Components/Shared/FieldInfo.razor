@@ -1,0 +1,48 @@
+@* T04 — 필드 옆 ⓘ. JS 없이 CSS 팝오버다 (hover·focus 둘 다 열린다). *@
+@if (_help is { } help)
+{
+    <span class="field-info">
+        <button type="button" aria-label="@(help.Title + " 설명")">ⓘ</button>
+        <span class="field-pop" role="tooltip">
+            <strong>@help.Title</strong>
+            <p>@help.What</p>
+            <p>@((MarkupString)Emphasis(help.Why))</p>
+            @if (!string.IsNullOrEmpty(help.Caution))
+            {
+                <p class="caution">@((MarkupString)Emphasis(help.Caution))</p>
+            }
+            @if (!help.Related.IsDefaultOrEmpty)
+            {
+                <p class="related">근거 @string.Join(" · ", help.Related)</p>
+            }
+        </span>
+    </span>
+}
+
+@code {
+    /// <summary>마스터데이터 파일 이름.</summary>
+    [Parameter, EditorRequired] public string File { get; set; } = string.Empty;
+
+    /// <summary>항목 안 경로 (<c>/duty_hours</c>).</summary>
+    [Parameter, EditorRequired] public string Path { get; set; } = string.Empty;
+
+    private FieldHelp? _help;
+
+    protected override void OnParametersSet() => _help = FieldGuide.Of(File, Path);
+
+    /// <summary><c>**굵게**</c> 만 처리한다. 사전 문장은 우리가 쓴 것이라 그 이상은 필요 없다.</summary>
+    private static string Emphasis(string text)
+    {
+        string escaped = System.Net.WebUtility.HtmlEncode(text);
+        string[] parts = escaped.Split("**");
+        var sb = new System.Text.StringBuilder(escaped.Length + 16);
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (i % 2 == 1) sb.Append("<strong>").Append(parts[i]).Append("</strong>");
+            else sb.Append(parts[i]);
+        }
+
+        return sb.ToString();
+    }
+}

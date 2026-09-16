@@ -22,6 +22,10 @@ public sealed class StudioWorkspaceTests : IDisposable
         Assert.Equal(TestPaths.ArchetypeCount, catalog.Archetypes.Length);
         Assert.Equal(5_000, catalog.InstanceCount);
         Assert.Empty(catalog.Issues);
+        Assert.True(catalog.PoiCount > 0);
+        Assert.True(catalog.ZoneCount > 0);
+        Assert.True(catalog.InterruptCount > 0);
+        Assert.False(catalog.IsSandbox);
     }
 
     [Fact]
@@ -157,6 +161,56 @@ public sealed class StudioWorkspaceTests : IDisposable
         Assert.Contains(catalog.Archetypes, a => a.Id == "test_smith");
         Assert.Contains("fb_test_smith", File.ReadAllText(Path.Combine(_directory, "fallback_plans.json")), StringComparison.Ordinal);
         Assert.Empty(catalog.Issues);
+    }
+
+    /// <summary>
+    /// T30 — 연습장에서 저장해도 원본은 바이트 하나 변하지 않는다.
+    /// 이것이 성립하지 않으면 "망쳐도 된다" 가 거짓말이 되고, 초보자는 다시 손대지 못한다.
+    /// </summary>
+    [Fact]
+    public void Sandbox_CopiesAndIsolatesWrites()
+    {
+        StudioWorkspace workspace = CreateWorkspace();
+        string originPath = Path.Combine(_directory, "archetypes.json");
+        byte[] before = File.ReadAllBytes(originPath);
+
+        string sandbox = workspace.OpenSandbox("t30");
+
+        try
+        {
+            Assert.True(Directory.Exists(sandbox));
+            Assert.Equal("t30", workspace.SandboxName);
+            Assert.Equal(sandbox, workspace.CurrentDirectory);
+            Assert.True(File.Exists(Path.Combine(sandbox, "localization", "ko-KR.json")));
+            Assert.Empty(workspace.SandboxChanges());
+
+            StudioArchetypeDocument document = workspace.LoadArchetype("blacksmith");
+            string edited = JsonSurgeon.SetTopLevel(document.Json, "desc", "\"연습장에서만 바꾼 설명이다.\"");
+
+            Assert.True(workspace.SaveArchetype("blacksmith", edited).Saved);
+            Assert.Equal<string>(["archetypes.json"], workspace.SandboxChanges());
+
+            // 원본은 그대로다.
+            Assert.Equal(before, File.ReadAllBytes(originPath));
+
+            StudioSaveResult applied = workspace.ApplyToOrigin();
+
+            Assert.True(applied.Saved, applied.Message);
+            Assert.Contains("연습장에서만 바꾼 설명이다.", File.ReadAllText(originPath), StringComparison.Ordinal);
+
+            workspace.DiscardSandbox();
+
+            Assert.Equal(string.Empty, workspace.SandboxName);
+            Assert.Equal(_directory, workspace.CurrentDirectory);
+            Assert.False(Directory.Exists(sandbox));
+        }
+        finally
+        {
+            workspace.CloseSandbox();
+
+            string folder = Path.GetDirectoryName(sandbox)!;
+            if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
     }
 
     [Fact]

@@ -82,7 +82,7 @@ else
         </div>
         <div class="override-grid">
             <div class="wide patrol-field">
-                <span class="field-title">순찰 경로 POI</span>
+                <span class="field-title">순찰 경로 POI<FieldInfo File="npc_overrides.json" Path="/patrol_route" /></span>
                 <div class="patrol-picker">
                     <div class="selected-route">
                         <strong>선택한 순서</strong>
@@ -129,10 +129,10 @@ else
                     <small>쉼표나 줄바꿈으로 구분한다. 목록에 없는 ID는 저장 검증에서 거절된다.</small>
                 </details>
             </div>
-            <label><span>경계 반경(m)</span><input type="number" min="0" max="200" placeholder="아키타입 기본값" @bind="_aggro" /></label>
-            <label><span>세력</span><select @bind="_faction"><option value="">미지정</option>@foreach (string faction in _editor.Factions) { <option value="@faction">@faction</option> }</select></label>
-            <label><span>대화 프로필</span><input placeholder="guard_stern_01" @bind="_dialogue" /></label>
-            <label><span>일정 오프셋(분)</span><input type="number" min="-120" max="120" placeholder="추가 오프셋 없음" @bind="_offset" /></label>
+            <label><span>경계 반경(m)<FieldInfo File="npc_overrides.json" Path="/aggro_radius_m" /></span><input type="number" min="0" max="200" placeholder="아키타입 기본값" @bind="_aggro" /></label>
+            <label><span>세력<FieldInfo File="npc_overrides.json" Path="/faction" /></span><select @bind="_faction"><option value="">미지정</option>@foreach (string faction in _editor.Factions) { <option value="@faction">@faction</option> }</select></label>
+            <label><span>대화 프로필<FieldInfo File="npc_overrides.json" Path="/dialogue_profile" /></span><input placeholder="guard_stern_01" @bind="_dialogue" /></label>
+            <label><span>일정 오프셋(분)<FieldInfo File="npc_overrides.json" Path="/schedule_offset_min" /></span><input type="number" min="-120" max="120" placeholder="추가 오프셋 없음" @bind="_offset" /></label>
         </div>
     </section>
 }
