@@ -1,19 +1,32 @@
 using System.Collections.Immutable;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Npc.Studio.Services;
 
-/// <summary>실행 중인 서버가 말하는 NPC 하나 (T28).</summary>
-/// <param name="Id">NPC 번호.</param>
+/// <summary>
+/// 실행 중인 서버가 말하는 NPC 하나 (T28).
+/// <b>필드 이름의 정답은 <c>docs/openapi.json</c> 의 <c>NpcSummary</c> 다</b> —
+/// 여기서 지어내면 화면이 조용히 빈 값을 그린다.
+/// </summary>
+/// <param name="Id">NPC 번호 (<c>npc</c>).</param>
+/// <param name="Slot">NpcStore 슬롯.</param>
 /// <param name="Archetype">직업 id.</param>
 /// <param name="Zone">지금 있는 지역.</param>
 /// <param name="Poi">지금 있는 장소.</param>
 /// <param name="Action">지금 하는 행동.</param>
-/// <param name="Step">플랜의 몇 번째 스텝인가.</param>
-/// <param name="Flags">지금 서 있는 상태.</param>
+/// <param name="Lod">인지 LOD 밴드.</param>
+/// <param name="StepStatus">스텝 상태 (<c>Ready</c>·<c>Waiting</c>…).</param>
+/// <param name="PlanKind">지금 도는 플랜의 종류.</param>
 public sealed record LiveNpc(
-    int Id, string Archetype, string Zone, string Poi, string Action, int Step, string Flags);
+    int Id,
+    int Slot,
+    string Archetype,
+    string Zone,
+    string Poi,
+    string Action,
+    int Lod,
+    string StepStatus,
+    string PlanKind);
 
 /// <summary>서버 상태 한 줄 (T28).</summary>
 /// <param name="Connected">붙었는가.</param>
@@ -33,12 +46,6 @@ public sealed record LiveSnapshot(bool Connected, string Message, ImmutableArray
 /// </summary>
 public sealed class LiveClient(StudioOptions options) : IDisposable
 {
-    private static readonly JsonSerializerOptions s_json = new(JsonSerializerDefaults.Web)
-    {
-        PropertyNameCaseInsensitive = true,
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-    };
-
     private readonly HttpClient _http = Create(options);
 
     /// <summary>서버 주소. 비면 이 화면을 쓰지 않는다.</summary>
@@ -102,13 +109,15 @@ public sealed class LiveClient(StudioOptions options) : IDisposable
         foreach (JsonElement item in array.EnumerateArray())
         {
             list.Add(new LiveNpc(
-                Int(item, "id"),
+                Int(item, "npc"),
+                Int(item, "slot"),
                 Text(item, "archetype"),
                 Text(item, "zone"),
                 Text(item, "poi"),
                 Text(item, "action"),
-                Int(item, "step"),
-                Text(item, "flags")));
+                Int(item, "lod"),
+                Text(item, "stepStatus"),
+                Text(item, "planKind")));
         }
 
         return list.ToImmutable();
