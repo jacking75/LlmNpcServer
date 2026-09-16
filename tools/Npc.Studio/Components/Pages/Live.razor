@@ -1,9 +1,144 @@
 @page "/live"
+@implements IDisposable
+@inject LiveClient Client
+@inject StudioPlaces Places
 
 <PageTitle>라이브 관찰 · NPC Studio</PageTitle>
 
-<section class="empty-state">
-    <div class="empty-icon">◇</div>
-    <h1>라이브 관찰</h1>
-    <p>아직 준비 중인 화면이다.</p>
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <small>LIVE</small>
+            <h1>실행 중인 서버</h1>
+            <p class="page-lead">
+                예측은 <strong>기대 경로</strong>다. 실제를 같은 화면에 놓아야 "예측이 맞는가" 가 보인다.
+                여기는 <code>/npcs</code> 를 1초마다 읽는다.
+            </p>
+        </div>
+        <div class="button-row compact">
+            <button class="primary" @onclick="Toggle" disabled="@(!Client.Configured)">@(_running ? "❚❚ 멈춤" : "▶ 관찰 시작")</button>
+        </div>
+    </div>
+
+    @if (!Client.Configured)
+    {
+        <div class="empty-state">
+            <div class="empty-icon">◇</div>
+            <h1>서버 주소가 없다</h1>
+            <p>Studio 를 <code>--server http://127.0.0.1:&lt;port&gt;</code> 로 띄우면 이 화면이 돈다.</p>
+            <p>토큰이 필요하면 <code>--token &lt;값&gt;</code> 도 준다 (A-06).</p>
+        </div>
+    }
+    else
+    {
+        <div class="facts">
+            <div class="fact">
+                <h3>연결</h3>
+                <p class="@(_snapshot.Connected ? "ok-mark" : "bad-mark")">@_snapshot.Message</p>
+                <p>받은 NPC @_snapshot.Npcs.Length 명</p>
+            </div>
+
+            @if (!_snapshot.Npcs.IsEmpty)
+            {
+                <div class="fact">
+                    <h3>지역별</h3>
+                    @foreach (IGrouping<string, LiveNpc> zone in _snapshot.Npcs.GroupBy(n => n.Zone).OrderByDescending(g => g.Count()))
+                    {
+                        <div class="fact-row">
+                            <span>@(zone.Key.Length == 0 ? "—" : zone.Key)</span>
+                            <span class="trait-track" style="width:200px"><span class="trait-fill" style="width:@(Percent(zone.Count()))%"></span></span>
+                            <span>@zone.Count() 명</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="fact">
+                    <h3>지금 무엇을 하나</h3>
+                    @foreach (IGrouping<string, LiveNpc> action in _snapshot.Npcs.GroupBy(n => n.Action).OrderByDescending(g => g.Count()).Take(12))
+                    {
+                        <div class="fact-row">
+                            <span>@Lexicon.Action(action.Key)</span>
+                            <span>@action.Count() 명</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="fact">
+                    <h3>앞 40명</h3>
+                    <div class="step-list" style="max-height:420px">
+                        @foreach (LiveNpc npc in _snapshot.Npcs.Take(40))
+                        {
+                            <a class="npc-row" href="@("/npcs/" + npc.Id)">
+                                <span class="npc-id">#@npc.Id</span>
+                                <span>
+                                    <strong>@Lexicon.Archetype(npc.Archetype)</strong>
+                                    <small>@npc.Zone · @npc.Poi · @Lexicon.Action(npc.Action) · 스텝 @npc.Step</small>
+                                </span>
+                            </a>
+                        }
+                    </div>
+                    <p class="related">NPC 를 누르면 그 개체의 <strong>예측</strong> 화면으로 간다 — 예측 스텝과 실제 스텝을 견준다.</p>
+                </div>
+            }
+        </div>
+    }
 </section>
+
+@code {
+    [CascadingParameter] public StudioLayout? Layout { get; set; }
+
+    private LiveSnapshot _snapshot = new(false, "아직 읽지 않았다.", []);
+    private CancellationTokenSource? _loop;
+    private bool _running;
+
+    protected override void OnInitialized() => Layout?.SetHelp(Help);
+
+    private async Task Toggle()
+    {
+        if (_running)
+        {
+            Stop();
+            return;
+        }
+
+        _running = true;
+        _loop = new CancellationTokenSource();
+
+        await Poll(_loop.Token);
+    }
+
+    private async Task Poll(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            _snapshot = await Client.SnapshotAsync(token);
+            await InvokeAsync(StateHasChanged);
+
+            try { await Task.Delay(1000, token); }
+            catch (TaskCanceledException) { break; }
+        }
+    }
+
+    private void Stop()
+    {
+        _running = false;
+        _loop?.Cancel();
+        _loop?.Dispose();
+        _loop = null;
+    }
+
+    private int Percent(int count)
+    {
+        int max = Math.Max(1, _snapshot.Npcs.GroupBy(n => n.Zone).Max(g => g.Count()));
+
+        return (int)Math.Round(count * 100.0 / max);
+    }
+
+    /// <summary>회로가 끊기면 폴링을 멈춘다.</summary>
+    public void Dispose() => Stop();
+
+    private RenderFragment Help => @<div>
+        <p>실행 중인 NPC 서버의 대시보드 API 를 읽는다. <strong>서버를 참조하지 않는다</strong> — HTTP 로만 본다.</p>
+        <p>응답 모양의 정답은 <code>docs/openapi.json</code> 이다.</p>
+    </div>;
+}

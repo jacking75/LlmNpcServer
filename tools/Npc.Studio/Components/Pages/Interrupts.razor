@@ -1,9 +1,160 @@
 @page "/interrupts"
+@inject StudioSession Session
+@inject StudioWorkspace Workspace
 
 <PageTitle>돌발 반응 · NPC Studio</PageTitle>
 
-<section class="empty-state">
-    <div class="empty-icon">◇</div>
-    <h1>돌발 반응</h1>
-    <p>아직 준비 중인 화면이다.</p>
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <small>interrupts.json</small>
+            <h1>돌발 반응 @(_rules.Length)개</h1>
+            <p class="page-lead">
+                <strong>LLM 이 만들지 않는다.</strong> 돌발 반응은 반응 속도가 생명이라 결정론 규칙으로만 돈다.
+                우선순위가 높은 것부터 보고, 같으면 id 오름차순이다.
+            </p>
+        </div>
+    </div>
+
+    <div class="preview-layout">
+        <div class="facts">
+            @foreach (InterruptRule rule in _rules)
+            {
+                <div class="fact">
+                    <h3>@rule.Priority · @rule.Id</h3>
+                    <div class="fact-row"><span>언제<FieldInfo File="interrupts.json" Path="/when" /></span><span>@InterruptExplain.When(rule)</span></div>
+                    <div class="fact-row"><span>무엇을<FieldInfo File="interrupts.json" Path="/then" /></span><span>@Then(rule)</span></div>
+                    <div class="fact-row"><span>그 뒤<FieldInfo File="interrupts.json" Path="/replan/urgency" /></span><span>재계획 긴급도 @rule.Urgency</span></div>
+                    <div class="fact-row"><span>걸리는 직업</span><span>@Archetypes(rule)</span></div>
+                </div>
+            }
+        </div>
+
+        <div>
+            <div class="step-card">
+                <small>이 직업이면?</small>
+                <h3>상황별 반응</h3>
+                <label>
+                    직업
+                    <select @onchange="OnArchetype">
+                        @foreach (StudioArchetype a in Session.Catalog.Archetypes)
+                        {
+                            <option value="@a.Id" selected="@(a.Id == _archetype)">@Lexicon.Archetype(a.Id)</option>
+                        }
+                    </select>
+                </label>
+                <div class="situation-row">
+                    @foreach (Situation preset in ReactionForecast.Presets)
+                    {
+                        Situation situation = preset;
+                        <button class="secondary" @onclick="() => Pick(situation)">@preset.Label</button>
+                    }
+                </div>
+
+                @if (_reaction is { } reaction)
+                {
+                    <h4>@reaction.Sentence</h4>
+                    <div class="why-panel">
+                        <table>
+                            <thead><tr><th>규칙</th><th>판정</th></tr></thead>
+                            <tbody>
+                                @foreach (RuleCheck check in reaction.Checks)
+                                {
+                                    <tr class="@(check.Matched ? "matched" : "")">
+                                        <td><code>@check.Rule.Id</code></td>
+                                        <td>
+                                            @if (check.Matched)
+                                            {
+                                                <span class="ok-mark">✓ 이 규칙이 걸린다</span>
+                                            }
+                                            else
+                                            {
+                                                @foreach (string failed in check.Failed)
+                                                {
+                                                    <div>· @failed.Replace("`", string.Empty, StringComparison.Ordinal)</div>
+                                                }
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            <p class="related">편집은 고급이다 — <a href="/files/interrupts.json">JSON 원문</a>에서 한다.</p>
+        </div>
+    </div>
 </section>
+
+@code {
+    [CascadingParameter] public StudioLayout? Layout { get; set; }
+
+    private ImmutableArray<InterruptRule> _rules;
+    private string _archetype = string.Empty;
+    private string _situation = "threat";
+    private Reaction? _reaction;
+
+    protected override void OnInitialized()
+    {
+        Layout?.SetHelp(Help);
+        _rules = Workspace.WithData((data, _) => InterruptExplain.Ordered(data));
+        _archetype = Session.Catalog.Archetypes.FirstOrDefault()?.Id ?? string.Empty;
+        Run();
+    }
+
+    private void OnArchetype(ChangeEventArgs args)
+    {
+        _archetype = args.Value?.ToString() ?? _archetype;
+        Run();
+    }
+
+    private void Pick(Situation situation)
+    {
+        _situation = situation.Id;
+        Run();
+    }
+
+    private void Run()
+    {
+        if (_archetype.Length == 0) return;
+
+        string archetype = _archetype;
+        string situationId = _situation;
+
+        _reaction = Workspace.WithData<Reaction?>((data, instances) =>
+        {
+            if (!data.Archetypes.TryGet(archetype, out ArchetypeDef def)) return null;
+
+            ForecastSubject subject = DayForecast.Representative(data, instances, def.Code);
+            Situation situation = ReactionForecast.Presets.First(p => p.Id == situationId);
+
+            return ReactionForecast.Run(data, def, situation, subject, subject.Home);
+        });
+    }
+
+    private string Then(InterruptRule rule) =>
+        Workspace.WithData((data, _) => InterruptExplain.Then(data, rule));
+
+    private string Archetypes(InterruptRule rule) =>
+        Workspace.WithData((data, _) =>
+        {
+            ImmutableArray<string> matched =
+            [
+                .. data.Archetypes.Archetypes
+                    .Where(a => ArchetypeCard.MatchingInterrupts(data, a).Any(r => r.Id == rule.Id))
+                    .Select(a => Lexicon.Archetype(a.Id)),
+            ];
+
+            return matched.IsEmpty
+                ? "없다 — 성향·전투 가능 조건에 맞는 직업이 없다"
+                : matched.Length == data.Archetypes.Count
+                    ? "전부"
+                    : $"{matched.Length}개 — {string.Join(" · ", matched.Take(8))}{(matched.Length > 8 ? " …" : string.Empty)}";
+        });
+
+    private RenderFragment Help => @<div>
+        <p>돌발 반응은 <strong>규칙</strong>이다. LLM 을 기다리지 않는다 — 먼저 도망치고 새 계획은 나중에 받는다.</p>
+        <p>오른쪽에서 직업과 상황을 고르면 <strong>왜 그 규칙인가 · 왜 다른 규칙은 아닌가</strong>가 나온다.</p>
+    </div>;
+}

@@ -1,0 +1,49 @@
+@* T05·T10 — 카테고리 × 행동. 읽기는 칩, 편집은 체크다. *@
+
+<div class="action-matrix">
+    @foreach ((string Category, ImmutableArray<StudioActionChip> Chips) row in Rows)
+    {
+        <div class="action-row">
+            <span>@row.Category</span>
+            <div class="chips">
+                @foreach (StudioActionChip chip in row.Chips)
+                {
+                    @if (Editable)
+                    {
+                        <span class="chip @(chip.Allowed ? "on" : "off")" title="@chip.Id">
+                            <label>
+                                <input type="checkbox" checked="@chip.Allowed" @onchange="e => Toggle(chip.Id, e)" />
+                                @chip.Name
+                            </label>
+                        </span>
+                    }
+                    else if (chip.Allowed)
+                    {
+                        <span class="chip on" title="@chip.Id">@chip.Name</span>
+                    }
+                    else if (ShowDenied)
+                    {
+                        <span class="chip off" title="@chip.Id">@chip.Name</span>
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>카테고리별 행동 칩.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<(string Category, ImmutableArray<StudioActionChip> Chips)> Rows { get; set; }
+
+    /// <summary>체크박스로 만들 것인가.</summary>
+    [Parameter] public bool Editable { get; set; }
+
+    /// <summary>허용하지 않는 행동도 흐리게 보일 것인가.</summary>
+    [Parameter] public bool ShowDenied { get; set; } = true;
+
+    /// <summary>토글된 행동 id 와 새 상태.</summary>
+    [Parameter] public EventCallback<(string Id, bool Allowed)> Toggled { get; set; }
+
+    private Task Toggle(string id, ChangeEventArgs args) =>
+        Toggled.InvokeAsync((id, args.Value is true));
+}

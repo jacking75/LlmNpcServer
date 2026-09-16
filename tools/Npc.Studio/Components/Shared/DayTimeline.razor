@@ -1,0 +1,41 @@
+@* T06·T22 — 하루 띠. 폭은 예측 시간에 비례한다 (T22 전에는 타임아웃 합이었다). *@
+
+<div>
+    <div class="timeline">
+        @foreach (TimelineCell cell in Cells)
+        {
+            int index = cell.Index;
+            <span class="timeline-seg @(cell.Bad ? "bad" : "")" data-seg="@index"
+                  style="flex:@cell.Share.ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture);background:@cell.Color"
+                  title="@cell.Title" @onclick="() => Select(index)">@cell.Label</span>
+        }
+    </div>
+    <div class="timeline-scale">
+        @for (int hour = 0; hour < 24; hour += 4)
+        {
+            <span>@($"{hour:00}:00")</span>
+        }
+    </div>
+    @if (!Duty.IsDefaultOrEmpty)
+    {
+        <div class="duty-band" title="근무 시간대">
+            @foreach (Npc.Core.TimeOfDay time in Enum.GetValues<Npc.Core.TimeOfDay>())
+            {
+                <span class="@(Duty.Contains(time) ? "duty-on" : "duty-off")" title="@(Lexicon.Of(time))"></span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>띠 칸.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<TimelineCell> Cells { get; set; }
+
+    /// <summary>근무 시간대. 비면 근무 띠를 그리지 않는다.</summary>
+    [Parameter] public ImmutableArray<Npc.Core.TimeOfDay> Duty { get; set; }
+
+    /// <summary>칸을 누르면 그 세그먼트 첨자.</summary>
+    [Parameter] public EventCallback<int> Selected { get; set; }
+
+    private Task Select(int index) => Selected.InvokeAsync(index);
+}

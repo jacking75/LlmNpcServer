@@ -47,10 +47,14 @@ window.behaviorPreview = (function () {
     }
   }
 
+  // 탭이 숨으면 브라우저가 rAF 를 멈춘다. 돌아왔을 때 그동안의 간격을 한 번에 더하면
+  // 인형이 순간이동하므로 한 프레임의 실시간 간격을 0.25초로 자른다.
+  const MaxFrameSeconds = 0.25;
+
   function step(now) {
     views.forEach(function (view) {
       if (!view.playing) { view.last = now; return; }
-      const dt = view.last ? (now - view.last) / 1000 : 0;
+      const dt = view.last ? Math.min((now - view.last) / 1000, MaxFrameSeconds) : 0;
       view.last = now;
       view.time += dt * view.speed;
       if (view.time >= view.duration) view.time = view.time % Math.max(1, view.duration);

@@ -1,0 +1,99 @@
+@* T07 — 지역 하나의 지도. 좌표는 지역 안에서만 실제다 (지역끼리 합칠 절대 좌표가 없다). *@
+
+<svg class="zone-map" viewBox="@ViewBox" preserveAspectRatio="xMidYMid meet" style="height:@(Height)px">
+    @if (!Route.IsDefaultOrEmpty)
+    {
+        <polyline class="route-line" points="@RoutePoints" />
+    }
+    @if (!Path.IsDefaultOrEmpty)
+    {
+        <polyline class="path-line" points="@PathPoints" />
+    }
+
+    @foreach (StudioPoiChoice poi in Pois)
+    {
+        string id = poi.Id;
+        <circle class="poi-dot @(poi.IsHome ? "home" : poi.IsWorkplace ? "work" : "")"
+                cx="@Num(poi.X)" cy="@Num(poi.Z)" r="@Num(Radius)"
+                fill="@StudioView.PoiColor(poi.Kind)"
+                @onclick="() => Click(id)">
+            <title>@poi.Label · @poi.Type / @Lexicon.Place(poi.Subtype) · 정원 @poi.Capacity</title>
+        </circle>
+        @if (Highlight == poi.Id)
+        {
+            <circle cx="@Num(poi.X)" cy="@Num(poi.Z)" r="@Num(Radius * 2.2f)" fill="none" stroke="#ffb15c" stroke-width="@Num(Radius * 0.4f)" />
+        }
+    }
+
+    @foreach (StudioPoiChoice poi in Pois.Where(p => p.IsHome || p.IsWorkplace || Highlight == p.Id))
+    {
+        @* <g> 로 감싸는 이유: Razor 는 코드 블록 첫 태그의 <text> 를 제어 키워드로 읽는다. *@
+        <g class="poi-label">
+            <text x="@Num(poi.X)" y="@Num(poi.Z - (Radius * 1.8f))" text-anchor="middle" font-size="@Num(Radius * 1.6f)">@poi.Label</text>
+        </g>
+    }
+
+    @ChildContent
+</svg>
+
+@code {
+    /// <summary>그릴 장소.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<StudioPoiChoice> Pois { get; set; }
+
+    /// <summary>SVG viewBox. <see cref="StudioForecastService.ViewBoxOf"/> 가 만든다.</summary>
+    [Parameter, EditorRequired] public string ViewBox { get; set; } = "0 0 100 100";
+
+    /// <summary>순찰로 POI id (순서대로).</summary>
+    [Parameter] public ImmutableArray<string> Route { get; set; }
+
+    /// <summary>하루 동안 지나는 길 (POI id 순서).</summary>
+    [Parameter] public ImmutableArray<string> Path { get; set; }
+
+    /// <summary>강조할 POI id.</summary>
+    [Parameter] public string Highlight { get; set; } = string.Empty;
+
+    /// <summary>점을 누르면 그 POI id.</summary>
+    [Parameter] public EventCallback<string> PoiClicked { get; set; }
+
+    /// <summary>인형 레이어 등 (T24).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>화면 높이(px).</summary>
+    [Parameter] public int Height { get; set; } = 380;
+
+    /// <summary>점 반지름. viewBox 크기에서 정한다 — 지역마다 좌표 범위가 다르다.</summary>
+    private float Radius => Span / 90f;
+
+    private float Span
+    {
+        get
+        {
+            string[] parts = ViewBox.Split(' ');
+
+            return parts.Length == 4
+                && float.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float w)
+                && float.TryParse(parts[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float h)
+                ? Math.Max(w, h)
+                : 100f;
+        }
+    }
+
+    private string RoutePoints => Points(Route);
+
+    private string PathPoints => Points(Path);
+
+    private string Points(ImmutableArray<string> ids)
+    {
+        if (ids.IsDefaultOrEmpty) return string.Empty;
+
+        return string.Join(" ", ids
+            .Select(id => Pois.FirstOrDefault(p => p.Id == id))
+            .Where(p => p is not null)
+            .Select(p => $"{Num(p!.X)},{Num(p.Z)}"));
+    }
+
+    private Task Click(string id) => PoiClicked.InvokeAsync(id);
+
+    private static string Num(float value) =>
+        value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

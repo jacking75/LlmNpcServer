@@ -18,6 +18,37 @@
             }
         </div>
     </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <small>UNDO</small>
+                <h2>되돌리기</h2>
+                <p class="page-lead">저장하기 직전의 원본을 @StudioWorkspace.BackupDays 일간 남긴다. 되돌린 상태도 다시 검증한다.</p>
+            </div>
+            <button class="secondary" @onclick="LoadBackups">목록 새로고침</button>
+        </div>
+        @if (_backups.IsDefaultOrEmpty)
+        {
+            <p style="padding:0 18px 18px" class="related">아직 백업이 없다. 한 번 저장하면 생긴다.</p>
+        }
+        else
+        {
+            <div class="facts">
+                <div class="fact">
+                    @foreach (StudioBackup backup in _backups.Take(30))
+                    {
+                        StudioBackup row = backup;
+                        <div class="fact-row">
+                            <span>@backup.SavedAt.ToString("MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</span>
+                            <span><code>@backup.File</code></span>
+                            <button class="secondary" @onclick="() => Restore(row)" disabled="@Session.Catalog.ReadOnly">이 상태로 되돌리기</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </section>
 }
 else
 {
@@ -49,12 +80,31 @@ else
     private string _editor = string.Empty;
     private string _error = string.Empty;
     private string _loaded = string.Empty;
+    private ImmutableArray<StudioBackup> _backups;
+
+    private void LoadBackups() => _backups = Workspace.Backups();
+
+    private void Restore(StudioBackup backup)
+    {
+        try
+        {
+            Session.Apply(Workspace.Restore(backup));
+            LoadBackups();
+        }
+        catch (Exception ex) { Session.Notify(ex.Message, true); }
+    }
 
     protected override void OnParametersSet()
     {
         Layout?.SetHelp(Help);
 
-        if (string.IsNullOrEmpty(Name) || _loaded == Name) return;
+        if (string.IsNullOrEmpty(Name))
+        {
+            if (_backups.IsDefault) LoadBackups();
+            return;
+        }
+
+        if (_loaded == Name) return;
 
         try
         {

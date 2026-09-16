@@ -1,0 +1,58 @@
+@* T32 — 전역 검색. 직업·NPC·장소·행동·규칙을 한 칸에서 찾는다. *@
+@inject StudioWorkspace Workspace
+@inject NavigationManager Nav
+
+<span class="search-box">
+    <input type="search" placeholder="직업 · NPC 번호 · 장소 (Ctrl+K)" value="@_query"
+           @oninput="OnInput" @onfocus="() => _open = true" @onblur="Close" />
+    @if (_open && _query.Length > 0)
+    {
+        <span class="search-results">
+            @if (int.TryParse(_query.Trim(), out int npc) && npc > 0)
+            {
+                <a href="@("/npcs/" + npc)"><strong>NPC #@npc</strong><br /><small>개체로 간다</small></a>
+            }
+            @foreach (StudioSearchEntry entry in Results)
+            {
+                <a href="@entry.Url"><strong>@entry.Label</strong> <small>@entry.Kind · @entry.Key</small></a>
+            }
+            @if (!Results.Any() && !int.TryParse(_query.Trim(), out _))
+            {
+                <a href="#"><small>찾은 것이 없다.</small></a>
+            }
+        </span>
+    }
+</span>
+
+@code {
+    private ImmutableArray<StudioSearchEntry> _index;
+    private string _query = string.Empty;
+    private bool _open;
+
+    private IEnumerable<StudioSearchEntry> Results =>
+        _index.Where(e =>
+                e.Label.Contains(_query, StringComparison.OrdinalIgnoreCase)
+                || e.Key.Contains(_query, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(e => e.Label.StartsWith(_query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(e => e.Kind, StringComparer.Ordinal)
+            .Take(20);
+
+    protected override void OnInitialized()
+    {
+        try { _index = Workspace.SearchIndex(); }
+        catch (Exception) { _index = []; }
+    }
+
+    private void OnInput(ChangeEventArgs args)
+    {
+        _query = args.Value?.ToString() ?? string.Empty;
+        _open = true;
+    }
+
+    /// <summary>링크를 누를 틈을 준다 — blur 가 먼저 오면 목록이 사라져 클릭이 안 먹는다.</summary>
+    private async Task Close()
+    {
+        await Task.Delay(180);
+        _open = false;
+    }
+}

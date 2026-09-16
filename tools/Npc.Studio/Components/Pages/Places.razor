@@ -1,9 +1,197 @@
 @page "/places"
+@page "/places/{Zone}"
+@inject StudioSession Session
+@inject StudioPlaces Lookup
+@inject StudioWorkspace Workspace
 
 <PageTitle>지역·장소 · NPC Studio</PageTitle>
 
-<section class="empty-state">
-    <div class="empty-icon">◇</div>
-    <h1>지역·장소</h1>
-    <p>아직 준비 중인 화면이다.</p>
-</section>
+@if (string.IsNullOrEmpty(Zone))
+{
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <small>ZONES</small>
+                <h1>지역 @(_zones.Length)곳</h1>
+                <p class="page-lead">지역은 장소들의 묶음이다. 순찰로와 <code>$nearest_*</code> 는 대부분 같은 지역 안에서 고른다.</p>
+            </div>
+        </div>
+        <div class="card-grid">
+            @foreach (StudioZone zone in _zones)
+            {
+                <a class="entity-card" href="@("/places/" + zone.Id)">
+                    <strong>@zone.Name</strong>
+                    <small>@zone.Id · code @zone.Code</small>
+                    <p>장소 @zone.PoiCount 곳 · 정원 @zone.Capacity · 거주 @zone.Residents 명 · 근무 @zone.Workers 명</p>
+                    <span class="group-band">
+                        @foreach ((Lexicon.ArchetypeGroup Group, int Count) band in zone.Groups)
+                        {
+                            <span style="flex:@band.Count;background:@Lexicon.ColorOf(band.Group)" title="@Lexicon.Of(band.Group) @band.Count 명"></span>
+                        }
+                    </span>
+                    <span class="entity-meta">이웃 @string.Join(" · ", zone.Adjacent)</span>
+                </a>
+            }
+        </div>
+    </section>
+}
+else if (_zone is null)
+{
+    <section class="empty-state"><div class="empty-icon">◇</div><h1>@Zone 을(를) 찾지 못했다</h1></section>
+}
+else
+{
+    <section class="hero-card">
+        <div>
+            <small>ZONE · @_zone.Id</small>
+            <h1>@_zone.Name</h1>
+            <p>장소 @_zone.PoiCount 곳 · 이웃 @string.Join(" · ", _zone.Adjacent)</p>
+        </div>
+        <div class="stat-grid">
+            <div><strong>@_zone.Residents</strong><span>사는 NPC</span></div>
+            <div><strong>@_zone.Workers</strong><span>일하는 NPC</span></div>
+            <div><strong>@_zone.Capacity</strong><span>정원 합</span></div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div><small>MAP</small><h2>어디에 무엇이 있나</h2></div>
+            <button class="secondary" @onclick="() => _adding = !_adding" disabled="@Session.Catalog.ReadOnly">+ 새 장소</button>
+        </div>
+        <div style="padding:0 16px 16px">
+            <ZoneMap Pois="MapPois" ViewBox="@_viewBox" Highlight="@_selected" PoiClicked="Select" Height="380">
+                @foreach ((int Id, float X, float Z, Lexicon.ArchetypeGroup Group) resident in _residents)
+                {
+                    <circle cx="@Num(resident.X)" cy="@Num(resident.Z)" r="@Num(ResidentRadius)"
+                            fill="@Lexicon.ColorOf(resident.Group)" opacity="0.55">
+                        <title>#@resident.Id · @Lexicon.Of(resident.Group)</title>
+                    </circle>
+                }
+            </ZoneMap>
+            <p class="related">작은 점은 여기 사는 NPC 다 (앞 @_residents.Length 명). 색은 직군이다.</p>
+        </div>
+    </section>
+
+    @if (_adding)
+    {
+        <PlaceForm Zone="@Zone" OnSaved="Reload" OnCancel="() => _adding = false" />
+    }
+
+    <section class="panel">
+        <div class="panel-head"><div><small>PLACES</small><h2>장소 @(_places.Length)곳</h2></div></div>
+        <div class="side-tools">
+            <input placeholder="장소 검색 (id · 유형)" @bind="_search" @bind:event="oninput" />
+        </div>
+        <div class="facts">
+            @foreach (StudioPlace place in Filtered)
+            {
+                <div class="fact" id="@place.Poi.Id">
+                    <h3 style="color:@StudioView.PoiColor(place.Poi.Kind)">@place.Poi.Label</h3>
+                    <div class="fact-row"><span>ID<FieldInfo File="pois.json" Path="/id" /></span><span><code>@place.Poi.Id</code> · code @place.Code</span></div>
+                    <div class="fact-row"><span>유형<FieldInfo File="pois.json" Path="/subtype" /></span><span>@place.Poi.Type / @Lexicon.Place(place.Poi.Subtype)</span></div>
+                    <div class="fact-row"><span>정원<FieldInfo File="pois.json" Path="/capacity" /></span><span>@place.Poi.Capacity · 사는 @place.Residents 명 · 일하는 @place.Workers 명</span></div>
+                    <div class="fact-row"><span>여는 시간<FieldInfo File="pois.json" Path="/open_hours" /></span><span>@place.OpenFrom ~ @place.OpenTo</span></div>
+                    <div class="fact-row"><span>도착하면<FieldInfo File="pois.json" Path="/grants" /></span><span><code>@place.Grants</code></span></div>
+                    @if (!place.AllowedArchetypes.IsEmpty)
+                    {
+                        <div class="fact-row"><span>일할 수 있는 직업<FieldInfo File="pois.json" Path="/allowed_archetypes" /></span><span>@string.Join(" · ", place.AllowedArchetypes)</span></div>
+                    }
+                    @if (!place.Resources.IsEmpty)
+                    {
+                        <div class="fact-row"><span>얻을 수 있는 것<FieldInfo File="pois.json" Path="/resources" /></span><span>@string.Join(" · ", place.Resources)</span></div>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter] public string? Zone { get; set; }
+    [CascadingParameter] public StudioLayout? Layout { get; set; }
+    [SupplyParameterFromQuery(Name = "poi")] public string? QueryPoi { get; set; }
+
+    private ImmutableArray<StudioZone> _zones;
+    private ImmutableArray<StudioPlace> _places;
+    private ImmutableArray<(int Id, float X, float Z, Lexicon.ArchetypeGroup Group)> _residents;
+    private StudioZone? _zone;
+    private string _viewBox = "0 0 100 100";
+    private string _selected = string.Empty;
+    private string _search = string.Empty;
+    private string _loaded = string.Empty;
+    private bool _adding;
+
+    private ImmutableArray<StudioPoiChoice> MapPois => [.. _places.Select(p => p.Poi)];
+
+    private IEnumerable<StudioPlace> Filtered =>
+        _places.Where(p =>
+            string.IsNullOrWhiteSpace(_search)
+            || p.Poi.Id.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || p.Poi.Label.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || p.Poi.Type.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private float ResidentRadius
+    {
+        get
+        {
+            string[] parts = _viewBox.Split(' ');
+
+            return parts.Length == 4 && float.TryParse(parts[2], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out float w) ? w / 220f : 1f;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        Layout?.SetHelp(Help);
+
+        if (_zones.IsDefaultOrEmpty) _zones = Lookup.Zones();
+
+        if (string.IsNullOrEmpty(Zone))
+        {
+            _zone = null;
+            return;
+        }
+
+        if (_loaded == Zone)
+        {
+            if (QueryPoi is { Length: > 0 }) _selected = QueryPoi;
+            return;
+        }
+
+        Load();
+    }
+
+    private void Load()
+    {
+        _zone = Lookup.Zone(Zone!);
+        _places = Lookup.Places(Zone!);
+        _residents = Lookup.Residents(Zone!);
+        _viewBox = StudioForecastService.ViewBoxOf(MapPois);
+        _selected = QueryPoi ?? string.Empty;
+        _loaded = Zone!;
+    }
+
+    private void Reload()
+    {
+        _adding = false;
+        _zones = Lookup.Zones();
+        _loaded = string.Empty;
+        Load();
+    }
+
+    private void Select(string id) => _selected = id;
+
+    private static string Num(float value) =>
+        value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private RenderFragment Help => @<div>
+        <p><strong>지역</strong>은 장소들의 묶음이고, <strong>장소</strong>는 집·일터·시장 같은 지점이다.</p>
+        <ul>
+            <li>좌표는 <strong>지역 중심 기준</strong>이다 — 지역끼리 합칠 절대 좌표가 없다.</li>
+            <li>정원이 남아도 <code>allowed_archetypes</code> 에 없으면 그 직업은 일할 수 없다.</li>
+            <li>장소를 더하면 <strong>거리표가 낡는다</strong> — 저장 뒤 파급 패널이 다시 만들라고 한다.</li>
+        </ul>
+    </div>;
+}

@@ -2,6 +2,7 @@
 @page "/npcs/{Id:int}"
 @inject StudioSession Session
 @inject StudioWorkspace Workspace
+@inject StudioForecastService Forecasts
 
 <PageTitle>NPC · NPC Studio</PageTitle>
 
@@ -9,7 +10,11 @@
 {
     <section class="panel">
         <div class="panel-head">
-            <div><small>INSTANCES</small><h1>NPC @Session.Catalog.InstanceCount 명</h1><p class="page-lead">직업으로 생성된 개체다. 명단은 생성물이라 읽기 전용이고, 한 명만 다르게 하려면 개별 설정을 쓴다.</p></div>
+            <div>
+                <small>INSTANCES</small>
+                <h1>NPC @Session.Catalog.InstanceCount 명</h1>
+                <p class="page-lead">직업으로 생성된 개체다. 명단은 생성물이라 읽기 전용이고, 한 명만 다르게 하려면 개별 설정을 쓴다 — 명단을 다시 만들어도 남는다.</p>
+            </div>
         </div>
         <div class="side-tools">
             <input placeholder="번호 · 직업 · 지역 · 장소" @bind="_search" @bind:event="oninput" />
@@ -21,7 +26,9 @@
                 string archetypeKey = "a:" + archetype.Key;
                 bool archetypeOpen = HasSearch || _open.Contains(archetypeKey);
                 <button class="npc-group" @onclick="() => Toggle(archetypeKey)">
-                    <span>@(archetypeOpen ? "▾" : "▸")</span><strong>@Lexicon.Archetype(archetype.Key)</strong><span class="group-count">@archetype.Count()</span>
+                    <span>@(archetypeOpen ? "▾" : "▸")</span>
+                    <strong style="color:@Lexicon.ColorOf(Lexicon.Group(archetype.Key))">@Lexicon.Archetype(archetype.Key)</strong>
+                    <span class="group-count">@archetype.Count()</span>
                 </button>
                 @if (archetypeOpen)
                 {
@@ -52,29 +59,54 @@
         </div>
     </section>
 }
-else if (_editor is null)
+else if (_overview is null || _editor is null)
 {
     <section class="empty-state"><div class="empty-icon">◇</div><h1>NPC @Id 을(를) 찾지 못했다</h1><p>@_error</p></section>
 }
 else
 {
-    <section class="panel npc-card-panel">
-        <div class="panel-head">
-            <div>
-                <small>INSTANCE · NPC @Id</small>
-                <h1>개별 NPC 카드</h1>
-                @if (Summary is { } row)
-                {
-                    <p>@Lexicon.Archetype(row.Archetype) · @row.Zone · @row.Home → @row.Workplace @if (row.HasOverride) { <span class="badge warn">개별 설정 적용</span> }</p>
-                }
-            </div>
+    <section class="hero-card">
+        <div>
+            <small>INSTANCE · NPC @Id</small>
+            <h1>@_overview.ArchetypeName #@Id</h1>
+            <p>@_overview.Sentence</p>
         </div>
-        <MarkdownView Content="@_card" />
+        <div class="stat-grid">
+            <div><strong>@_overview.ZoneName</strong><span>지역</span></div>
+            <div><strong>@(_overview.Facts.CommuteMeters.ToString("0")) m</strong><span>집 ↔ 일터</span></div>
+            <div><strong>@_overview.PatrolRoute.Length</strong><span>순찰 지점</span></div>
+        </div>
     </section>
+
+    <section class="panel">
+        <div class="panel-head"><div><small>MAP</small><h2>어디에 사는가</h2><p class="page-lead">이 지역의 장소다. 좌표는 지역 안에서만 실제다 — 지역끼리 합칠 절대 좌표가 없다.</p></div></div>
+        <div style="padding:0 16px 16px">
+            <ZoneMap Pois="_overview.ZonePois" ViewBox="@_viewBox" Route="_overview.PatrolRoute"
+                     Highlight="@_overview.HomeId" PoiClicked="OnPoiClicked" Height="340" />
+            <p class="related">
+                <span class="chip">집 @_overview.HomeId</span>
+                @if (_overview.WorkplaceId.Length > 0) { <span class="chip">일터 @_overview.WorkplaceId</span> }
+                @if (!_overview.PatrolRoute.IsEmpty) { <span class="chip">순찰로 @string.Join(" → ", _overview.PatrolRoute)</span> }
+            </p>
+            <p class="related">지도를 클릭하면 그 장소가 순찰로에 더해진다 (최대 4곳).</p>
+        </div>
+    </section>
+
+    @if (_forecast is { } preview)
+    {
+        <section class="panel">
+            <div class="panel-head"><div><small>FORECAST</small><h2>이 NPC 의 하루</h2></div></div>
+            <BehaviorPreview View="preview" Duty="Duty" />
+        </section>
+    }
 
     <section class="panel override-panel">
         <div class="panel-head">
-            <div><small>npc_overrides.json</small><h2>NPC @Id 개별 설정</h2><p>생성된 집·일터·스폰은 유지하고 이 NPC만 다른 행동 파라미터를 정의한다.</p></div>
+            <div>
+                <small>npc_overrides.json</small>
+                <h2>개별 설정</h2>
+                <p>생성된 집·일터·스폰은 유지하고 이 NPC만 다른 행동 파라미터를 정의한다.</p>
+            </div>
             <div class="button-row compact">
                 <button class="primary" @onclick="SaveOverride" disabled="@Session.Catalog.ReadOnly">검증하고 저장</button>
                 <button class="secondary danger" @onclick="DeleteOverride" disabled="@(Session.Catalog.ReadOnly || !_editor.Exists)">개별 설정 삭제</button>
@@ -88,7 +120,7 @@ else
                         <strong>선택한 순서</strong>
                         @if (Route.IsEmpty)
                         {
-                            <p>아직 선택한 장소가 없다. 아래 목록에서 순찰할 장소를 추가한다.</p>
+                            <p>아직 선택한 장소가 없다. 지도를 클릭하거나 아래 목록에서 고른다.</p>
                         }
                         else
                         {
@@ -99,7 +131,7 @@ else
                                 StudioPoiChoice? choice = _editor.ZonePois.FirstOrDefault(p => p.Id == poiId);
                                 <div class="route-row">
                                     <span class="route-number">@(index + 1)</span>
-                                    <span><strong>@poiId</strong><small>@Describe(choice)</small></span>
+                                    <span><strong>@(choice?.Label ?? poiId)</strong><small>@Describe(choice)</small></span>
                                     <span class="route-actions">
                                         <button title="앞으로" @onclick="() => Move(routeIndex, -1)" disabled="@(index == 0)">↑</button>
                                         <button title="뒤로" @onclick="() => Move(routeIndex, 1)" disabled="@(index == Route.Length - 1)">↓</button>
@@ -116,13 +148,13 @@ else
                             {
                                 bool selected = Route.Contains(poi.Id, StringComparer.Ordinal);
                                 <button class="poi-choice" @onclick="() => Add(poi.Id)" disabled="@(selected || Route.Length >= 4)">
-                                    <span><strong>@poi.Id</strong><small>@Describe(poi)</small></span><em>@(selected ? "선택됨" : "+ 추가")</em>
+                                    <span><strong>@poi.Label</strong><small>@Describe(poi)</small></span><em>@(selected ? "선택됨" : "+ 추가")</em>
                                 </button>
                             }
                         </div>
                     </div>
                 </div>
-                <small class="field-help">같은 지역의 장소를 최대 4개까지 순서대로 선택한다.</small>
+                <small class="field-help">같은 지역의 장소를 최대 4개까지 순서대로 선택한다. 하루 일과의 <code>$patrol_route</code> 는 첫 지점으로 붙는다.</small>
                 <details class="direct-poi-input">
                     <summary>POI ID를 직접 입력한다</summary>
                     <textarea rows="3" placeholder="guardhouse_001_04, market_stall_001_04" @bind="_patrolText"></textarea>
@@ -130,11 +162,27 @@ else
                 </details>
             </div>
             <label><span>경계 반경(m)<FieldInfo File="npc_overrides.json" Path="/aggro_radius_m" /></span><input type="number" min="0" max="200" placeholder="아키타입 기본값" @bind="_aggro" /></label>
-            <label><span>세력<FieldInfo File="npc_overrides.json" Path="/faction" /></span><select @bind="_faction"><option value="">미지정</option>@foreach (string faction in _editor.Factions) { <option value="@faction">@faction</option> }</select></label>
-            <label><span>대화 프로필<FieldInfo File="npc_overrides.json" Path="/dialogue_profile" /></span><input placeholder="guard_stern_01" @bind="_dialogue" /></label>
+            <label>
+                <span>세력<FieldInfo File="npc_overrides.json" Path="/faction" /></span>
+                <select @bind="_faction"><option value="">미지정</option>@foreach (string faction in _editor.Factions) { <option value="@faction">@faction</option> }</select>
+            </label>
+            <label>
+                <span>대화 프로필<FieldInfo File="npc_overrides.json" Path="/dialogue_profile" /></span>
+                <input list="dialogue-profiles" placeholder="guard_stern_01" @bind="_dialogue" />
+                <datalist id="dialogue-profiles">
+                    <option value="guard_stern_01"></option>
+                    <option value="merchant_warm_01"></option>
+                    <option value="elder_slow_01"></option>
+                </datalist>
+            </label>
             <label><span>일정 오프셋(분)<FieldInfo File="npc_overrides.json" Path="/schedule_offset_min" /></span><input type="number" min="-120" max="120" placeholder="추가 오프셋 없음" @bind="_offset" /></label>
         </div>
     </section>
+
+    <details class="panel">
+        <summary style="padding:14px 18px">전문가 카드</summary>
+        <MarkdownView Content="@_card" />
+    </details>
 }
 
 @code {
@@ -142,7 +190,10 @@ else
     [CascadingParameter] public StudioLayout? Layout { get; set; }
 
     private readonly HashSet<string> _open = new(StringComparer.Ordinal);
+    private StudioNpcOverview? _overview;
     private StudioNpcOverrideEditor? _editor;
+    private StudioForecast? _forecast;
+    private string _viewBox = "0 0 100 100";
     private string _card = string.Empty;
     private string _error = string.Empty;
     private string _search = string.Empty;
@@ -156,8 +207,14 @@ else
     private int _loaded = -1;
 
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
-    private StudioNpcSummary? Summary => Session.Npcs().FirstOrDefault(n => n.Id == Id);
     private ImmutableArray<string> Route => ParseRoute();
+
+    private ImmutableArray<Npc.Core.TimeOfDay> Duty =>
+        _overview is null
+            ? []
+            : Session.Catalog.Archetypes.Any(a => a.Id == _overview.Facts.ArchetypeId)
+                ? Workspace.LoadArchetypeView(_overview.Facts.ArchetypeId).Facts.DutyHours
+                : [];
 
     private IEnumerable<StudioNpcSummary> Filtered =>
         Session.Npcs().Where(n => (!_onlyOverrides || n.HasOverride) && Matches(n));
@@ -165,8 +222,7 @@ else
     private IEnumerable<IGrouping<string, StudioNpcSummary>> Grouped =>
         Filtered.GroupBy(n => n.Archetype).OrderBy(g => g.Key, StringComparer.Ordinal);
 
-    private IEnumerable<StudioPoiChoice> PoiChoices =>
-        _editor?.ZonePois.Where(MatchesPoi) ?? [];
+    private IEnumerable<StudioPoiChoice> PoiChoices => _editor?.ZonePois.Where(MatchesPoi) ?? [];
 
     protected override void OnParametersSet()
     {
@@ -174,7 +230,7 @@ else
 
         if (Id is null)
         {
-            _editor = null;
+            _overview = null;
 
             if (_open.Count == 0 && Session.Npcs().FirstOrDefault() is { } first)
             {
@@ -194,6 +250,9 @@ else
     {
         try
         {
+            _overview = Workspace.LoadNpcOverview(id);
+            _viewBox = StudioForecastService.ViewBoxOf(_overview.ZonePois);
+            _forecast = Forecasts.Load(_overview.Facts.ArchetypeId, id);
             _card = Workspace.LoadNpcCard(id);
             LoadFields(Workspace.LoadNpcOverride(id));
             _loaded = id;
@@ -201,6 +260,7 @@ else
         }
         catch (Exception ex)
         {
+            _overview = null;
             _editor = null;
             _error = ex.Message;
         }
@@ -217,6 +277,8 @@ else
         _offset = editor.ScheduleOffsetMinutes;
     }
 
+    private void OnPoiClicked(string id) => Add(id);
+
     private void SaveOverride()
     {
         try
@@ -225,7 +287,11 @@ else
                 Id!.Value, Route, _aggro, _faction, _dialogue, _offset));
             Session.Apply(result);
 
-            if (result.Saved) LoadNpc(Id.Value);
+            if (result.Saved)
+            {
+                _loaded = -1;
+                LoadNpc(Id.Value);
+            }
         }
         catch (Exception ex) { Session.Notify(ex.Message, true); }
     }
@@ -293,6 +359,7 @@ else
 
         return poi.Id.Contains(query, StringComparison.OrdinalIgnoreCase)
             || poi.Type.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || poi.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
             || poi.Subtype.Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -301,7 +368,7 @@ else
         if (poi is null) return "현재 지역 목록에서 찾을 수 없는 ID다.";
         string relation = poi.IsHome ? " · 이 NPC의 집" : poi.IsWorkplace ? " · 이 NPC의 일터" : string.Empty;
 
-        return $"{poi.Type} / {Lexicon.Place(poi.Subtype)} · 정원 {poi.Capacity} · 좌표 ({poi.X:0.#}, {poi.Z:0.#}){relation}";
+        return $"{poi.Id} · 정원 {poi.Capacity}{relation}";
     }
 
     private void Toggle(string key)
@@ -312,5 +379,10 @@ else
     private RenderFragment Help => @<div>
         <p>NPC 는 직업으로 <strong>생성된 개체</strong>다. 명단(<code>npc_instances.json</code>)은 생성물이라 손대지 않는다.</p>
         <p>한 명만 다르게 하려면 <strong>개별 설정</strong>(<code>npc_overrides.json</code>)을 쓴다 — 명단을 다시 만들어도 남는다.</p>
+        <ul>
+            <li>순찰로는 지도를 클릭한 순서가 방문 순서다.</li>
+            <li>경계 반경·세력은 <strong>게임서버가 쓴다</strong>. NPC 서버는 저장해 넘길 뿐이다.</li>
+            <li>대화 프로필은 <strong>대화 서비스가 읽는다</strong>.</li>
+        </ul>
     </div>;
 }

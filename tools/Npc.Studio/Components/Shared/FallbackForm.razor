@@ -1,0 +1,353 @@
+@* T11 — 하루 일과 편집기. 스텝을 고치면 400ms 뒤 판정과 하루가 다시 그려진다. *@
+@inject StudioSession Session
+@inject StudioWorkspace Workspace
+@inject StudioForecastService Forecasts
+
+@if (_form is null)
+{
+    <section class="empty-state"><div class="empty-icon">◇</div><h1>하루 일과를 찾지 못했다</h1><p>@_error</p></section>
+}
+else
+{
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <small>fallback_plans.json · @_form.Id</small>
+                <h2>하루 일과</h2>
+                <p class="page-lead">LLM 이 전부 실패해도 도는 기본 하루다. 위에서 아래로 실행하고, 마지막 뒤에 첫 스텝으로 돌아간다.</p>
+            </div>
+            <div class="button-row compact">
+                <button class="primary" @onclick="Save" disabled="@(Session.Catalog.ReadOnly || !Dirty)">검증하고 저장</button>
+                <button class="secondary" @onclick="Reset" disabled="@(!Dirty)">되돌리기</button>
+            </div>
+        </div>
+
+        <div class="preview-layout">
+            <div class="form-rows">
+                <label>
+                    <span>하루 목표<FieldInfo File="fallback_plans.json" Path="/goal" /></span>
+                    <input type="text" value="@_form.Goal" @onchange="e => Set(f => f with { Goal = e.Value?.ToString() ?? f.Goal })" />
+                </label>
+
+                <div class="step-editor">
+                    <span>스텝<FieldInfo File="fallback_plans.json" Path="/steps" /></span>
+                    @for (int i = 0; i < _form.Steps.Length; i++)
+                    {
+                        int index = i;
+                        StudioPlanStep step = _form.Steps[i];
+                        StepTrace? verdict = index < _preview.Trace.Length ? _preview.Trace[index] : null;
+
+                        <div class="step-editor-row">
+                            <span>@(index + 1)</span>
+                            <select @onchange="e => ChangeAction(index, e)">
+                                @foreach (StudioActionInfo action in _choices!.Actions)
+                                {
+                                    <option value="@action.Id" selected="@(action.Id == step.Action)">@action.Name (@action.Id)</option>
+                                }
+                            </select>
+                            <span>
+                                @foreach (StudioParamInfo param in ParamsOf(step.Action))
+                                {
+                                    string name = param.Name;
+                                    <span class="inline-row">
+                                        <small>@name</small>
+                                        @switch (param.Type)
+                                        {
+                                            case "PoiRef":
+                                            case "Route":
+                                                <select @onchange="e => ChangeArg(index, name, Quote(e.Value))">
+                                                    <option value="">—</option>
+                                                    @foreach (StudioSymbolInfo symbol in _choices.Symbols)
+                                                    {
+                                                        <option value="@symbol.Symbol" disabled="@(!symbol.Bindable)"
+                                                                selected="@(Arg(step, name) == symbol.Symbol)">
+                                                            @symbol.Name (@symbol.Symbol)@(symbol.Bindable ? "" : " — 붙일 수 없다")
+                                                        </option>
+                                                    }
+                                                </select>
+                                                break;
+
+                                            case "ItemRef":
+                                                <select @onchange="e => ChangeArg(index, name, Quote(e.Value))">
+                                                    <option value="">—</option>
+                                                    @foreach (string item in (name == "recipe" ? _choices.Recipes : _choices.Items))
+                                                    {
+                                                        <option value="@item" selected="@(Arg(step, name) == item)">@Lexicon.Item(item) (@item)</option>
+                                                    }
+                                                </select>
+                                                break;
+
+                                            case "Enum":
+                                                <select @onchange="e => ChangeArg(index, name, Quote(e.Value))">
+                                                    <option value="">—</option>
+                                                    @foreach (string value in param.EnumValues)
+                                                    {
+                                                        <option value="@value" selected="@(Arg(step, name) == value)">@value</option>
+                                                    }
+                                                </select>
+                                                break;
+
+                                            case "Int":
+                                                <input type="number" min="@param.Min" max="@param.Max" value="@Arg(step, name)"
+                                                       @onchange="e => ChangeArg(index, name, Raw(e.Value))" />
+                                                break;
+
+                                            default:
+                                                <input type="text" value="@Arg(step, name)"
+                                                       @onchange="e => ChangeArg(index, name, Quote(e.Value))" />
+                                                break;
+                                        }
+                                    </span>
+                                }
+                            </span>
+                            <span>
+                                <input type="number" min="1" step="30" value="@step.TimeoutSeconds"
+                                       @onchange="e => ChangeTimeout(index, e)" />
+                                <small>@(step.TimeoutSeconds / 60)분</small>
+                            </span>
+                            <span class="route-actions">
+                                <button title="위로" @onclick="() => Move(index, -1)" disabled="@(index == 0)">↑</button>
+                                <button title="아래로" @onclick="() => Move(index, 1)" disabled="@(index == _form.Steps.Length - 1)">↓</button>
+                                <button title="지우기" @onclick="() => Remove(index)">×</button>
+                            </span>
+                        </div>
+
+                        <div class="fact-row">
+                            <span></span>
+                            <span>
+                                @if (verdict is { } v)
+                                {
+                                    @if (v.Ok)
+                                    {
+                                        <span class="ok-mark">✓</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="bad-mark">✗ @v.Code — @v.Reason</span>
+                                    }
+                                }
+                                @if (TooShort(index) is { } warning)
+                                {
+                                    <span class="warn-mark">⚠ @warning</span>
+                                }
+                            </span>
+                        </div>
+                    }
+
+                    <div class="inline-row">
+                        <button class="secondary" @onclick="Add">+ 스텝 추가</button>
+                        <span class="chip">반복 @(_form.Loop ? "함" : "안 함")<FieldInfo File="fallback_plans.json" Path="/loop" /></span>
+                        <span class="chip">스텝 실패 시 @_form.OnStepFail<FieldInfo File="fallback_plans.json" Path="/on_step_fail" /></span>
+                    </div>
+
+                    <p class="@(_preview.Loop.Closed ? "ok-mark" : "bad-mark")">
+                        @(_preview.Loop.Closed ? "✓ " : "✗ ")@_preview.Loop.Message
+                    </p>
+                    @if (!string.IsNullOrEmpty(_preview.Error))
+                    {
+                        <div class="preview-error"><strong>이 초안을 컴파일할 수 없다</strong><span>@_preview.Error</span></div>
+                    }
+                </div>
+            </div>
+
+            <div>
+                @if (_forecast is { } preview)
+                {
+                    <BehaviorPreview View="preview" />
+                }
+                else
+                {
+                    <p class="related">스텝이 컴파일되면 여기서 하루가 재생된다.</p>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+@code {
+    /// <summary>직업 id.</summary>
+    [Parameter, EditorRequired] public string Id { get; set; } = string.Empty;
+
+    /// <summary>저장에 성공하면.</summary>
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private StudioFallbackForm? _form;
+    private StudioFallbackForm? _original;
+    private StudioStepChoices? _choices;
+    private StudioFallbackPreview _preview = new(null, [], new LoopVerdict(false, string.Empty), string.Empty);
+    private StudioForecast? _forecast;
+    private string _error = string.Empty;
+    private string _loaded = string.Empty;
+    private int _version;
+
+    private bool Dirty => _form is not null && _original is not null && !Same(_form, _original);
+
+    protected override void OnParametersSet()
+    {
+        if (_loaded == Id) return;
+
+        Load();
+    }
+
+    private void Load()
+    {
+        try
+        {
+            _form = Workspace.LoadFallbackForm(Id);
+            _original = _form;
+            _choices = Workspace.LoadStepChoices(Id);
+            _loaded = Id;
+            _error = string.Empty;
+            Refresh();
+        }
+        catch (Exception ex)
+        {
+            _form = null;
+            _error = ex.Message;
+        }
+    }
+
+    private void Reset()
+    {
+        _form = _original;
+        Refresh();
+    }
+
+    private async Task Set(Func<StudioFallbackForm, StudioFallbackForm> change)
+    {
+        if (_form is null) return;
+
+        _form = change(_form);
+
+        int version = ++_version;
+        await Task.Delay(400);
+
+        if (version == _version) Refresh();
+    }
+
+    private void Refresh()
+    {
+        try
+        {
+            _preview = Workspace.PreviewFallbackForm(_form!);
+            _forecast = _preview.Plan is { } plan
+                ? Forecasts.LoadPlan(Id, plan, plan.Bucket)
+                : null;
+        }
+        catch (Exception ex)
+        {
+            _preview = new StudioFallbackPreview(null, [], new LoopVerdict(false, ex.Message), ex.Message);
+            _forecast = null;
+        }
+
+        StateHasChanged();
+    }
+
+    private ImmutableArray<StudioParamInfo> ParamsOf(string action) =>
+        _choices?.Actions.FirstOrDefault(a => a.Id == action)?.Params ?? [];
+
+    private static string Arg(StudioPlanStep step, string name) => step.Arg(name).Trim('"');
+
+    private Task ChangeAction(int index, ChangeEventArgs args)
+    {
+        string action = args.Value?.ToString() ?? string.Empty;
+        int timeout = _choices?.Actions.FirstOrDefault(a => a.Id == action)?.DefaultTimeoutSeconds ?? 300;
+
+        // 행동이 바뀌면 인자 정의가 통째로 달라진다 — 남겨 두면 V2.UNKNOWN_ARG 다.
+        return Set(f => f with
+        {
+            Steps = f.Steps.SetItem(index, new StudioPlanStep(action, [], timeout)),
+        });
+    }
+
+    private Task ChangeArg(int index, string name, string raw) =>
+        Set(f => f with
+        {
+            Steps = f.Steps.SetItem(index, f.Steps[index].WithArg(name, raw)),
+        });
+
+    private Task ChangeTimeout(int index, ChangeEventArgs args) =>
+        int.TryParse(args.Value?.ToString(), out int seconds) && seconds > 0
+            ? Set(f => f with { Steps = f.Steps.SetItem(index, f.Steps[index] with { TimeoutSeconds = seconds }) })
+            : Task.CompletedTask;
+
+    private Task Add() =>
+        Set(f => f with
+        {
+            Steps = f.Steps.Add(new StudioPlanStep(
+                _choices!.Actions.FirstOrDefault()?.Id ?? "Wait",
+                [],
+                _choices.Actions.FirstOrDefault()?.DefaultTimeoutSeconds ?? 300)),
+        });
+
+    private Task Remove(int index) => Set(f => f with { Steps = f.Steps.RemoveAt(index) });
+
+    private Task Move(int index, int offset)
+    {
+        int target = index + offset;
+
+        if ((uint)target >= (uint)(_form?.Steps.Length ?? 0)) return Task.CompletedTask;
+
+        return Set(f =>
+        {
+            StudioPlanStep[] steps = [.. f.Steps];
+            (steps[index], steps[target]) = (steps[target], steps[index]);
+
+            return f with { Steps = [.. steps] };
+        });
+    }
+
+    /// <summary>예측 소요가 상한보다 길면 그 스텝은 매번 실패한다 (T11·T29 L7 과 같은 판정).</summary>
+    private string? TooShort(int index)
+    {
+        if (_forecast?.Forecast.Segments.FirstOrDefault(s => s.StepIndex == index && s.Lap == 0) is not { } segment
+            || segment.Seconds == 0)
+        {
+            return null;
+        }
+
+        int timeout = _form!.Steps[index].TimeoutSeconds;
+
+        return timeout > 0 && segment.Seconds > timeout
+            ? $"예상 {segment.Seconds / 60}분인데 상한이 {timeout / 60}분이다 — 매번 실패로 끝난다"
+            : null;
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            StudioSaveResult result = Workspace.SaveFallbackForm(_form!);
+            Session.Apply(result);
+
+            if (result.Saved)
+            {
+                _loaded = string.Empty;
+                Load();
+                await OnSaved.InvokeAsync();
+            }
+        }
+        catch (Exception ex) { Session.Notify(ex.Message, true); }
+    }
+
+    private static string Quote(object? value)
+    {
+        string text = value?.ToString() ?? string.Empty;
+
+        return text.Length == 0 ? string.Empty : "\"" + text + "\"";
+    }
+
+    private static string Raw(object? value) => value?.ToString() ?? string.Empty;
+
+    /// <summary>레코드 기본 같음은 <c>ImmutableArray</c> 참조 비교라 쓸 수 없다.</summary>
+    private static bool Same(StudioFallbackForm a, StudioFallbackForm b) =>
+        string.Equals(a.Goal, b.Goal, StringComparison.Ordinal)
+        && a.Steps.Length == b.Steps.Length
+        && a.Steps.Zip(b.Steps).All(pair =>
+            string.Equals(pair.First.Action, pair.Second.Action, StringComparison.Ordinal)
+            && pair.First.TimeoutSeconds == pair.Second.TimeoutSeconds
+            && pair.First.Args.Length == pair.Second.Args.Length
+            && pair.First.Args.Zip(pair.Second.Args).All(arg =>
+                string.Equals(arg.First.Name, arg.Second.Name, StringComparison.Ordinal)
+                && string.Equals(arg.First.Raw, arg.Second.Raw, StringComparison.Ordinal)));
+}

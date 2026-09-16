@@ -1,0 +1,197 @@
+@* T05 — 개요 보기. JSON 원문 대신 섹션 카드로 "이 직업이 어떤 존재인가" 를 읽는다. *@
+@inject StudioWorkspace Workspace
+
+<section class="panel">
+    <div class="panel-head"><div><small>OVERVIEW</small><h2>이 직업은 어떤 존재인가</h2></div></div>
+
+    <div class="facts">
+        <div class="fact">
+            <h3>얼마나 있나<FieldInfo File="archetypes.json" Path="/population_weight" /></h3>
+            <div class="fact-row">
+                <span>인구</span>
+                <span><strong>@View.Facts.Population 명</strong> / @View.Facts.PopulationBase 명 중 (비율 @View.Facts.Def.PopulationWeight.ToString("0.####"))</span>
+            </div>
+            @foreach (StudioZoneCount zone in View.ByZone.Take(12))
+            {
+                <div class="fact-row">
+                    <span>@zone.ZoneName</span>
+                    <span class="trait-track" style="width:180px"><span class="trait-fill" style="width:@(ZonePercent(zone))%;background:@View.Color"></span></span>
+                    <span>@zone.Count 명 @(zone.Predicted ? "(예측)" : "")</span>
+                </div>
+            }
+            @if (View.ByZone.Any(z => z.Predicted))
+            {
+                <p class="related">명단을 다시 만들면 대략 이렇게 배치된다 — <code>gen_npcs</code> 는 일터 가까운 집을 먼저 준다.</p>
+            }
+        </div>
+
+        <div class="fact">
+            <h3>어디서 살고 일하나</h3>
+            <div class="fact-row">
+                <span>사는 곳<FieldInfo File="archetypes.json" Path="/home_poi_type" /></span>
+                <span>@Lexicon.Place(View.Facts.HomeType) (<code>@View.Facts.HomeType</code>)</span>
+            </div>
+            <div class="fact-row">
+                <span>일터<FieldInfo File="archetypes.json" Path="/workplace_poi_type" /></span>
+                @if (View.Facts.WorkplaceType is { } workplace)
+                {
+                    <span>
+                        @Lexicon.Place(workplace) (<code>@workplace</code>) · @View.Facts.WorkplaceSites 곳 ·
+                        정원 합 @View.Facts.WorkplaceCapacity
+                        @if (View.Facts.WorkplaceFits)
+                        {
+                            <span class="ok-mark">✓ 인구 @View.Facts.Population 명을 감당한다</span>
+                        }
+                        else
+                        {
+                            <span class="bad-mark">✗ 인구 @View.Facts.Population 명을 못 받는다 (V10)</span>
+                        }
+                    </span>
+                }
+                else
+                {
+                    <span>없다 — 일터로 출근하지 않는 직업이다.</span>
+                }
+            </div>
+        </div>
+
+        <div class="fact">
+            <h3>언제 일하나<FieldInfo File="archetypes.json" Path="/duty_hours" /></h3>
+            @if (View.Facts.DutyHours.IsEmpty)
+            {
+                <p>
+                    근무 시간대가 없다 — "근무 중" 상태가 서지 않는다.
+                    @if (View.Facts.DutyMissingButNeeded)
+                    {
+                        <span class="bad-mark">✗ 그런데 @string.Join("·", View.Facts.DutyActionsAllowed) 을(를) 허용한다. 재계획이 폭주한다 (V12)</span>
+                    }
+                    else
+                    {
+                        <span class="ok-mark">✓ 경계 근무·순찰도 허용하지 않아 문제가 없다</span>
+                    }
+                </p>
+            }
+            else
+            {
+                <p>@string.Join(" · ", View.Facts.DutyHours.Select(Lexicon.Of)) 에 근무한다.</p>
+            }
+            @if (Forecast is { } forecast)
+            {
+                <DayTimeline Cells="StudioView.Cells(forecast.Forecast)" Duty="View.Facts.DutyHours" />
+            }
+        </div>
+
+        <div class="fact">
+            <h3>성격<FieldInfo File="archetypes.json" Path="/traits" /></h3>
+            <TraitBars Diligence="View.Facts.Def.Traits.Diligence" Sociability="View.Facts.Def.Traits.Sociability"
+                       Courage="View.Facts.Def.Traits.Courage" Greed="View.Facts.Def.Traits.Greed" />
+            @if (Forecast is { } reaction && reaction.Reactions.FirstOrDefault(r => r.Situation.Id == "threat") is { } threat)
+            {
+                <p>
+                    <strong>용기 @View.Facts.Def.Traits.Courage</strong> →
+                    위협을 만나면 <strong>@threat.Reaction.Sentence</strong>
+                    @if (threat.Reaction.Matched is { } rule) { <code>@rule.Id</code> }
+                </p>
+            }
+        </div>
+
+        <div class="fact">
+            <h3>할 수 있는 행동<FieldInfo File="archetypes.json" Path="/allowed_actions" /></h3>
+            <p>@View.Facts.AllowedCount 개를 쓸 수 있다. LLM 은 이 안에서만 계획을 짠다.</p>
+            <ActionMatrix Rows="Chips" ShowDenied="true" />
+        </div>
+
+        @if (Forecast is { } preview)
+        {
+            <div class="fact">
+                <h3>하루 미리보기</h3>
+                <p>정의만으로 계산한 하루다. <strong>기대 경로</strong>이지 약속이 아니다.</p>
+                <ZoneMap Pois="preview.ZonePois" ViewBox="@preview.ViewBox" Height="240" />
+                <p><a class="manual" href="@($"/archetypes/{View.Id}?tab=forecast")">▶ 하루 재생하기</a></p>
+            </div>
+        }
+
+        <div class="fact">
+            <h3>위험할 때</h3>
+            @if (View.Facts.Interrupts.IsEmpty)
+            {
+                <p>걸리는 돌발 반응이 없다 — 성향·전투 가능 조건에 하나도 맞지 않는다.</p>
+            }
+            else
+            {
+                @foreach (Npc.MasterData.InterruptRule rule in View.Facts.Interrupts)
+                {
+                    <div class="fact-row">
+                        <span>@rule.Priority</span>
+                        <span><strong>@InterruptExplain.When(rule)</strong> → @Lexicon.Action(ActionName(rule)) @(rule.Poi != Npc.Core.Plan.PoiSymbol.None ? Lexicon.To(Lexicon.Of(rule.Poi)) : "")</span>
+                        <span class="related">@rule.Id</span>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="fact">
+            <h3>시작 소지품<FieldInfo File="archetypes.json" Path="/initial_inventory" /></h3>
+            @if (View.Facts.Inventory.IsEmpty)
+            {
+                <p>없다. 첫 스텝이 도구를 요구하면 그 스텝은 막힌다.</p>
+            }
+            else
+            {
+                <p>@string.Join(" · ", View.Facts.Inventory.Select(i => $"{Lexicon.Item(i.Item)} {i.Count}")) </p>
+                <p class="related">시작 상태 <code>@Npc.Core.WorldFlagTable.Format(View.Facts.StartFlags)</code></p>
+            }
+            @if (!View.Facts.Recipes.IsEmpty)
+            {
+                <div class="fact-row">
+                    <span>주력 제작품<FieldInfo File="archetypes.json" Path="/primary_recipes" /></span>
+                    <span>
+                        @foreach ((string Recipe, string Inputs, int Seconds, bool Exists) recipe in View.Facts.Recipes)
+                        {
+                            <span class="chip @(recipe.Exists ? "on" : "off")">
+                                @Lexicon.Item(recipe.Recipe)
+                                @(recipe.Exists ? $"({(recipe.Inputs.Length == 0 ? "재료 없음" : recipe.Inputs)} → {StudioView.Duration(recipe.Seconds)})" : "레시피 없음 ✗")
+                            </span>
+                        }
+                    </span>
+                </div>
+            }
+        </div>
+
+        <div class="fact">
+            <h3>건강 진단</h3>
+            <p class="related">검증(V1~V15)은 통과하지만 이상할 수 있는 것들이다. 차단이 아니라 주의다.</p>
+            <LintList Findings="View.Lint" Link="@($"/archetypes/{View.Id}?tab=edit")" />
+        </div>
+
+        <details class="fact">
+            <summary>고급 — 번호·키</summary>
+            <div class="fact-row"><span>id<FieldInfo File="archetypes.json" Path="/id" /></span><span><code>@View.Id</code></span></div>
+            <div class="fact-row"><span>code<FieldInfo File="archetypes.json" Path="/code" /></span><span><code>@View.Facts.Def.Code.Value</code></span></div>
+            <div class="fact-row"><span>표시 이름 키<FieldInfo File="archetypes.json" Path="/name_key" /></span><span><code>@View.Facts.Def.NameKey</code></span></div>
+            <div class="fact-row"><span>하루 일과<FieldInfo File="archetypes.json" Path="/fallback_plan" /></span><span><code>@View.Facts.Def.FallbackPlanId</code></span></div>
+            <div class="fact-row"><span>버킷</span><span>시간대 6 × 지역 4 × 기후 3 = 72칸</span></div>
+        </details>
+    </div>
+</section>
+
+@code {
+    /// <summary>읽을 직업.</summary>
+    [Parameter, EditorRequired] public StudioArchetypeView View { get; set; } = default!;
+
+    /// <summary>하루 미리보기. 없으면 지도 절을 숨긴다.</summary>
+    [Parameter] public StudioForecast? Forecast { get; set; }
+
+    private ImmutableArray<(string Category, ImmutableArray<StudioActionChip> Chips)> Chips =>
+        Workspace.WithData((data, _) => StudioView.ActionChips(data, View.Facts.Def));
+
+    private string ActionName(Npc.MasterData.InterruptRule rule) =>
+        Workspace.WithData((data, _) => data.ActionName(rule.Action));
+
+    private int ZonePercent(StudioZoneCount zone)
+    {
+        int max = Math.Max(1, View.ByZone.Max(z => z.Count));
+
+        return (int)Math.Round(zone.Count * 100.0 / max);
+    }
+}

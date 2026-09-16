@@ -1,0 +1,157 @@
+@* T13 — 새 장소 폼. code 는 CodeAllocator 가 정한다. *@
+@inject StudioSession Session
+@inject StudioPlaces Places
+@inject StudioWorkspace Workspace
+
+<section class="panel create-panel">
+    <div class="panel-head"><div><small>pois.json</small><h2>새 장소</h2></div><button class="icon-btn" @onclick="Cancel">×</button></div>
+    <p class="lead">
+        장소를 더하면 <strong>거리표(<code>poi_distances.bin</code>)가 낡는다</strong> —
+        저장 뒤 파급 패널이 다시 만들라고 알려 준다. 번호(<code>code</code>)는 도구가 정한다.
+    </p>
+
+    <div class="form-rows">
+        <label>
+            <span>세부 유형<FieldInfo File="pois.json" Path="/subtype" /></span>
+            <input type="text" value="@_subtype" @onchange="OnSubtype" placeholder="apiary" />
+            <small class="field-help">
+                직업의 일터 유형이 가리키는 값이다. 있는 것: @string.Join(" · ", _knownSubtypes.Take(14))…
+            </small>
+        </label>
+
+        <label>
+            <span>유형<FieldInfo File="pois.json" Path="/type" /></span>
+            <select @bind="_type">
+                @foreach (PoiType type in Enum.GetValues<PoiType>())
+                {
+                    <option value="@type">@type</option>
+                }
+            </select>
+        </label>
+
+        <label>
+            <span>장소 ID<FieldInfo File="pois.json" Path="/id" /></span>
+            <input type="text" @bind="_id" />
+            <small class="field-help">규칙은 <code>유형_번호_지역번호</code> 다. 만든 뒤 바꾸지 않는다.</small>
+        </label>
+
+        <label>
+            <span>정원<FieldInfo File="pois.json" Path="/capacity" /></span>
+            <input type="number" min="1" max="500" @bind="_capacity" />
+        </label>
+
+        <div class="inline-row">
+            <label><span>위치 X<FieldInfo File="pois.json" Path="/pos" /></span><input type="number" step="1" @bind="_x" /></label>
+            <label><span>위치 Z</span><input type="number" step="1" @bind="_z" /></label>
+            <span class="related">지역 중심 기준이다. 아래 지도를 클릭해도 된다.</span>
+        </div>
+
+        <div class="inline-row">
+            <label>
+                <span>여는 시간<FieldInfo File="pois.json" Path="/open_hours" /></span>
+                <select @bind="_openFrom">@foreach (Npc.Core.TimeOfDay t in Enum.GetValues<Npc.Core.TimeOfDay>()) { <option value="@t">@Lexicon.Of(t)</option> }</select>
+            </label>
+            <label>
+                <span>닫는 시간</span>
+                <select @bind="_openTo">@foreach (Npc.Core.TimeOfDay t in Enum.GetValues<Npc.Core.TimeOfDay>()) { <option value="@t">@Lexicon.Of(t)</option> }</select>
+            </label>
+        </div>
+
+        <label>
+            <span>일할 수 있는 직업<FieldInfo File="pois.json" Path="/allowed_archetypes" /></span>
+            <input type="text" @bind="_allowed" placeholder="비우면 제한 없음 (예: beekeeper)" />
+        </label>
+
+        <label>
+            <span>얻을 수 있는 것<FieldInfo File="pois.json" Path="/resources" /></span>
+            <input type="text" @bind="_resources" placeholder="쉼표로 구분 (예: herb, water)" />
+        </label>
+
+        <ZoneMap Pois="_pois" ViewBox="@_viewBox" Height="260" PoiClicked="_ => { }" />
+    </div>
+
+    <div class="button-row">
+        <button class="primary" @onclick="Save" disabled="@Session.Catalog.ReadOnly">검증하고 만들기</button>
+        <button class="secondary" @onclick="Cancel">취소</button>
+    </div>
+</section>
+
+@code {
+    /// <summary>어느 지역에 만드는가.</summary>
+    [Parameter, EditorRequired] public string Zone { get; set; } = string.Empty;
+
+    /// <summary>저장에 성공하면.</summary>
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    /// <summary>취소하면.</summary>
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private ImmutableArray<StudioPoiChoice> _pois;
+    private ImmutableArray<string> _knownSubtypes;
+    private string _viewBox = "0 0 100 100";
+    private string _subtype = string.Empty;
+    private string _id = string.Empty;
+    private PoiType _type = PoiType.Workplace;
+    private int _capacity = 20;
+    private float _x;
+    private float _z;
+    private Npc.Core.TimeOfDay _openFrom = Npc.Core.TimeOfDay.Morning;
+    private Npc.Core.TimeOfDay _openTo = Npc.Core.TimeOfDay.Evening;
+    private string _allowed = string.Empty;
+    private string _resources = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _pois = [.. Places.Places(Zone).Select(p => p.Poi)];
+        _viewBox = StudioForecastService.ViewBoxOf(_pois);
+        _knownSubtypes = [.. _pois.Select(p => p.Subtype).Distinct().Order(StringComparer.Ordinal)];
+
+        if (!_pois.IsEmpty)
+        {
+            _x = (float)Math.Round(_pois.Average(p => p.X));
+            _z = (float)Math.Round(_pois.Average(p => p.Z));
+        }
+    }
+
+    private void OnSubtype(ChangeEventArgs args)
+    {
+        _subtype = args.Value?.ToString()?.Trim() ?? string.Empty;
+
+        if (_subtype.Length > 0)
+        {
+            _id = Places.SuggestId(_subtype, Zone);
+        }
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            StudioSaveResult result = Places.AddPlace(new StudioNewPlace(
+                _id.Trim(),
+                Zone,
+                _type.ToString(),
+                _subtype.Trim(),
+                _x,
+                _z,
+                _capacity,
+                _openFrom.ToString(),
+                _openTo.ToString(),
+                Split(_allowed),
+                Split(_resources)));
+
+            Session.Apply(result);
+
+            if (result.Saved) await OnSaved.InvokeAsync();
+        }
+        catch (Exception ex) { Session.Notify(ex.Message, true); }
+    }
+
+    private Task Cancel() => OnCancel.InvokeAsync();
+
+    private static ImmutableArray<string> Split(string text) =>
+    [
+        .. text.Split([',', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.Ordinal),
+    ];
+}

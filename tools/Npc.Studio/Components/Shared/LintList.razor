@@ -1,0 +1,32 @@
+@* T29 — 건강 진단 목록. 차단이 아니라 주의다. *@
+
+@if (Findings.IsDefaultOrEmpty)
+{
+    <p><span class="ok-mark">✓</span> 주의할 것이 없다.</p>
+}
+else
+{
+    <div class="lint-list">
+        @foreach (LintFinding finding in Findings)
+        {
+            <div class="lint">
+                <strong>@finding.Title</strong>
+                <small>@finding.Detail</small>
+                <span class="fix">고치려면: @finding.Fix</span>
+                @if (!string.IsNullOrEmpty(Link) && !string.IsNullOrEmpty(finding.Field))
+                {
+                    <a href="@(Link + "?field=" + finding.Field.TrimStart('/'))">고치러 가기</a>
+                }
+                <small class="related">@finding.Code</small>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>진단 결과.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<LintFinding> Findings { get; set; }
+
+    /// <summary>"고치러 가기" 가 갈 주소. 비면 링크를 만들지 않는다.</summary>
+    [Parameter] public string Link { get; set; } = string.Empty;
+}

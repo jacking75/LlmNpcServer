@@ -1,0 +1,63 @@
+@* T24 — SVG NPC 인형 (부록 E). 모습이 아니라 상태가 중요하다: 누구(직군)·무엇을 하는 중(상태). *@
+
+<g data-npc-figure="1" data-state="@State" transform="translate(@Num(X) @Num(Z))">
+    <g transform="scale(@Num(Scale)) translate(-12 -30)">
+        <title>@Title</title>
+        <circle cx="12" cy="7" r="5" fill="@Color" stroke="#0a1120" stroke-width="0.8" />
+        <path d="M6 13 h12 v12 h-12 z" fill="@Color" stroke="#0a1120" stroke-width="0.8" />
+        <circle cx="10" cy="7" r="1" fill="#0a1120" />
+        <circle cx="14" cy="7" r="1" fill="#0a1120" />
+        <g transform="translate(19 3)">
+            <circle r="4.5" fill="@Badge" stroke="#0a1120" stroke-width="0.6" />
+            <text x="0" y="1.6" text-anchor="middle" font-size="5" fill="#0a1120" font-weight="700">@Symbol</text>
+        </g>
+        @if (!string.IsNullOrEmpty(Caption))
+        {
+            <g transform="translate(-16 -10)">
+                <rect x="0" y="0" width="56" height="9" rx="3" fill="#0d1626" stroke="#26344c" stroke-width="0.5" />
+                <text x="3" y="6.3" font-size="4.6" fill="#cfdaeb">@Short</text>
+            </g>
+        }
+    </g>
+</g>
+
+@code {
+    /// <summary>지도 좌표 X.</summary>
+    [Parameter] public float X { get; set; }
+
+    /// <summary>지도 좌표 Z.</summary>
+    [Parameter] public float Z { get; set; }
+
+    /// <summary>직군 색 (부록 E).</summary>
+    [Parameter] public string Color { get; set; } = "#8d97a5";
+
+    /// <summary>지금 무엇을 하는 중인가.</summary>
+    [Parameter] public SegmentKind State { get; set; } = SegmentKind.Wait;
+
+    /// <summary>말풍선 문구.</summary>
+    [Parameter] public string Caption { get; set; } = string.Empty;
+
+    /// <summary>접근성 제목 ("#2326 위병 · 대장간으로 걸어간다").</summary>
+    [Parameter] public string Title { get; set; } = string.Empty;
+
+    /// <summary>지도 좌표계 기준 크기 배수. 지도 최소 변의 1/25 쯤이 읽기 좋다.</summary>
+    [Parameter] public float Scale { get; set; } = 1;
+
+    private string Badge => State switch
+    {
+        SegmentKind.Move => "#4a78c2",
+        SegmentKind.Act => "#e8873a",
+        SegmentKind.Sleep => "#3b4a7a",
+        SegmentKind.Wait => "#8d97a5",
+        SegmentKind.Skipped => "#667085",
+        _ => "#ff7185",
+    };
+
+    private string Symbol => StudioView.BadgeOf(State);
+
+    /// <summary>말풍선은 18자에서 자른다 — 넘치면 지도를 덮는다.</summary>
+    private string Short => Caption.Length <= 18 ? Caption : Caption[..17] + "…";
+
+    private static string Num(float value) =>
+        value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

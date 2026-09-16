@@ -1,0 +1,316 @@
+@* T24 — 동작 미리보기. 지도 위 인형이 하루를 걷고, 버튼 하나로 위협에 반응한다. *@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@inject StudioSession Session
+
+<div class="preview-layout">
+    <div>
+        <p class="page-lead">
+            <strong>기대 경로</strong>다. 실제 서버는 스텝마다 흔들리고, LLM 이 상황에 맞는 새 계획을 주며,
+            경로는 게임서버가 계산한다. 소켓 경로에서는 결정론도 아니다.
+        </p>
+
+        <div id="@_elementId">
+            <ZoneMap Pois="View.ZonePois" ViewBox="@View.ViewBox" Path="Path" Highlight="@_reactionTarget" Height="360">
+                <NpcFigure X="@_x" Z="@_z" Color="@View.Color" State="@CurrentKind"
+                           Caption="@CurrentCaption" Title="@Title" Scale="@FigureScale" />
+            </ZoneMap>
+
+            <div class="preview-controls">
+                <button class="primary" @onclick="TogglePlay">@(_playing ? "❚❚ 멈춤" : "▶ 하루 재생")</button>
+                <span class="clock" data-clock="1">@StudioView.Clock(View.Forecast.StartClockSeconds)</span>
+                <label>배속
+                    <select @onchange="OnSpeed">
+                        <option value="60">×60</option>
+                        <option value="600" selected>×600</option>
+                        <option value="3600">×3600</option>
+                    </select>
+                </label>
+                <span>@View.SubjectLabel</span>
+            </div>
+
+            <input class="scrubber" type="range" min="0" max="@View.Forecast.CoveredSeconds" step="60"
+                   data-scrubber="1" @onchange="OnScrub" />
+
+            <DayTimeline Cells="Cells" Duty="Duty" Selected="OnSegmentPicked" />
+        </div>
+
+        <div class="situation-row">
+            @foreach ((Situation Situation, Reaction Reaction) row in View.Reactions)
+            {
+                Situation situation = row.Situation;
+                <button class="secondary" @onclick="() => React(situation)">@situation.Label</button>
+            }
+            @if (_reaction is not null)
+            {
+                <button class="secondary" @onclick="ClearReaction">돌아가기</button>
+            }
+        </div>
+
+        @if (_reaction is { } reaction)
+        {
+            <div class="why-panel">
+                <h4>@_reactionLabel — @reaction.Sentence</h4>
+                <table>
+                    <thead><tr><th>우선순위</th><th>규칙</th><th>판정</th></tr></thead>
+                    <tbody>
+                        @foreach (RuleCheck check in reaction.Checks)
+                        {
+                            <tr class="@(check.Matched ? "matched" : "")">
+                                <td>@check.Rule.Priority</td>
+                                <td><code>@check.Rule.Id</code><br /><small>@InterruptExplain.When(check.Rule)</small></td>
+                                <td>
+                                    @if (check.Matched)
+                                    {
+                                        <span class="ok-mark">✓ 이 규칙이 걸린다</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (string failed in check.Failed)
+                                        {
+                                            <div>· @((MarkupString)Code(failed))</div>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div>
+        <div class="step-card">
+            <small>지금 하는 것</small>
+            <h3>@CurrentCaption</h3>
+            @if (Current is { } segment)
+            {
+                <p>@StudioView.Clock(View.Forecast.StartClockSeconds + segment.StartSeconds) ~
+                   @StudioView.Clock(View.Forecast.StartClockSeconds + segment.EndSeconds)
+                   · @StudioView.Duration(segment.Seconds)</p>
+                <p><code>@WorldFlagTable.Format(segment.FlagsAfter)</code></p>
+                @if (!segment.Inventory.IsDefaultOrEmpty)
+                {
+                    <p>소지품 @string.Join(" · ", segment.Inventory.Select(i => $"{View.ItemName(i.Item)} {(i.Delta > 0 ? "+" : "")}{i.Delta}"))</p>
+                }
+                @if (segment.Code.Length > 0)
+                {
+                    <p class="bad-mark">✗ @segment.Code — @segment.Reason</p>
+                }
+            }
+        </div>
+
+        <div class="step-list">
+            @for (int i = 0; i < View.Forecast.Segments.Length; i++)
+            {
+                int index = i;
+                ForecastSegment row = View.Forecast.Segments[i];
+                <button class="@(index == _segment ? "active" : "") @(row.Code.Length > 0 ? "bad" : "")"
+                        data-seg="@index" @onclick="() => OnSegmentPicked(index)">
+                    @StudioView.Clock(View.Forecast.StartClockSeconds + row.StartSeconds)
+                    · @row.Caption
+                </button>
+            }
+        </div>
+
+        @if (View.Forecast.StoppedForReplan)
+        {
+            <p class="warn-mark">여기서 멈춘다 — @View.Forecast.Loop.Message</p>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>재생할 하루.</summary>
+    [Parameter, EditorRequired] public StudioForecast View { get; set; } = default!;
+
+    /// <summary>근무 시간대 띠.</summary>
+    [Parameter] public ImmutableArray<Npc.Core.TimeOfDay> Duty { get; set; }
+
+    private readonly string _elementId = "preview-" + Guid.NewGuid().ToString("N")[..8];
+    private DotNetObjectReference<BehaviorPreview>? _self;
+    private string _loaded = string.Empty;
+    private bool _playing;
+    private int _segment;
+    private float _x;
+    private float _z;
+    private Reaction? _reaction;
+    private string _reactionLabel = string.Empty;
+    private string _reactionTarget = string.Empty;
+
+    private ImmutableArray<TimelineCell> Cells => StudioView.Cells(View.Forecast);
+
+    private ForecastSegment? Current =>
+        (uint)_segment < (uint)View.Forecast.Segments.Length ? View.Forecast.Segments[_segment] : null;
+
+    private SegmentKind CurrentKind => Current?.Kind ?? SegmentKind.Wait;
+
+    private string CurrentCaption => _reaction is { } r ? r.Sentence : Current?.Caption ?? "—";
+
+    private string Title => $"{View.SubjectLabel} · {CurrentCaption}";
+
+    /// <summary>인형은 지도 최소 변의 1/25 다 (부록 E).</summary>
+    private float FigureScale
+    {
+        get
+        {
+            string[] parts = View.ViewBox.Split(' ');
+
+            return parts.Length == 4
+                && float.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float w)
+                && float.TryParse(parts[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float h)
+                ? Math.Max(w, h) / 25f / 32f
+                : 1f;
+        }
+    }
+
+    private ImmutableArray<string> Path =>
+    [
+        .. View.Forecast.Segments
+            .Where(s => s.Kind == SegmentKind.Move)
+            .Select(s => View.PoiId(s.To))
+            .Where(id => id.Length > 0),
+    ];
+
+    protected override void OnParametersSet()
+    {
+        // 초안이 바뀌면(T25) 키프레임을 갈아 끼운다. 같은 키프레임이면 다시 보내지 않는다.
+        if (_loaded != View.Keyframes)
+        {
+            _loaded = string.Empty;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_loaded == View.Keyframes)
+        {
+            return;
+        }
+
+        _self ??= DotNetObjectReference.Create(this);
+        _loaded = View.Keyframes;
+
+        await Js.InvokeVoidAsync("behaviorPreview.load", _elementId, View.Keyframes, _self);
+    }
+
+    /// <summary>JS 가 세그먼트 경계에서만 부른다 — 프레임마다 서버 왕복을 하지 않는다.</summary>
+    /// <param name="segment">새 세그먼트 첨자.</param>
+    [JSInvokable]
+    public Task OnSegment(int segment)
+    {
+        if (segment >= 0 && segment != _segment)
+        {
+            _segment = segment;
+            Position();
+            StateHasChanged();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task TogglePlay()
+    {
+        _playing = !_playing;
+        Session.MarkStep("forecast");
+
+        await Js.InvokeVoidAsync(_playing ? "behaviorPreview.play" : "behaviorPreview.pause", _elementId);
+    }
+
+    private async Task OnSpeed(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out int speed))
+        {
+            await Js.InvokeVoidAsync("behaviorPreview.speed", _elementId, speed);
+        }
+    }
+
+    private async Task OnScrub(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out int seconds))
+        {
+            await Js.InvokeVoidAsync("behaviorPreview.seek", _elementId, seconds);
+        }
+    }
+
+    private async Task OnSegmentPicked(int index)
+    {
+        _segment = index;
+        Position();
+
+        if ((uint)index < (uint)View.Forecast.Segments.Length)
+        {
+            await Js.InvokeVoidAsync("behaviorPreview.seek", _elementId, View.Forecast.Segments[index].StartSeconds);
+        }
+    }
+
+    private async Task React(Situation situation)
+    {
+        Session.MarkStep("situation");
+
+        (Situation Situation, Reaction Reaction) row =
+            View.Reactions.FirstOrDefault(r => r.Situation.Id == situation.Id);
+
+        _reaction = row.Reaction;
+        _reactionLabel = situation.Label;
+        _reactionTarget = View.PoiId(row.Reaction.TargetPoi);
+
+        _playing = false;
+        await Js.InvokeVoidAsync("behaviorPreview.pause", _elementId);
+
+        // 인형을 목표 장소로 옮긴다 — 실제 서버라면 뛰어간다.
+        if (View.ZonePois.FirstOrDefault(p => p.Id == _reactionTarget) is { } target)
+        {
+            _x = target.X;
+            _z = target.Z;
+        }
+    }
+
+    private void ClearReaction()
+    {
+        _reaction = null;
+        _reactionTarget = string.Empty;
+        Position();
+    }
+
+    private void Position()
+    {
+        if (Current is not { } segment)
+        {
+            return;
+        }
+
+        string id = View.PoiId(segment.To);
+
+        if (View.ZonePois.FirstOrDefault(p => p.Id == id) is { } poi)
+        {
+            _x = poi.X;
+            _z = poi.Z;
+        }
+    }
+
+    /// <summary>실패 문장의 백틱을 코드 표기로. 사전 문장은 우리가 쓴 것이라 이 이상은 필요 없다.</summary>
+    private static string Code(string text)
+    {
+        string escaped = System.Net.WebUtility.HtmlEncode(text);
+        string[] parts = escaped.Split('`');
+        var sb = new System.Text.StringBuilder(escaped.Length + 16);
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (i % 2 == 1) sb.Append("<code>").Append(parts[i]).Append("</code>");
+            else sb.Append(parts[i]);
+        }
+
+        return sb.ToString();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await Js.InvokeVoidAsync("behaviorPreview.dispose", _elementId); }
+        catch (Exception) { /* 회로가 이미 끊겼다. */ }
+
+        _self?.Dispose();
+    }
+}

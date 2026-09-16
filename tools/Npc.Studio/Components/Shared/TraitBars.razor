@@ -1,0 +1,57 @@
+@* T05·T10 — 성향 4개. 읽기는 막대, 편집은 슬라이더다. *@
+
+<div class="trait-bars">
+    @foreach ((string Label, int Value, Action<int> Set) row in Rows)
+    {
+        <div class="trait-bar">
+            <span>@row.Label</span>
+            @if (Editable)
+            {
+                <input type="range" min="0" max="100" step="1" value="@row.Value"
+                       @oninput="e => Change(row.Set, e)" />
+            }
+            else
+            {
+                <span class="trait-track"><span class="trait-fill" style="width:@(row.Value)%"></span></span>
+            }
+            <span>@row.Value</span>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>근면 0~100.</summary>
+    [Parameter] public int Diligence { get; set; }
+
+    /// <summary>사교 0~100.</summary>
+    [Parameter] public int Sociability { get; set; }
+
+    /// <summary>용기 0~100. <b>40 이 위협 반응을 가른다.</b></summary>
+    [Parameter] public int Courage { get; set; }
+
+    /// <summary>탐욕 0~100.</summary>
+    [Parameter] public int Greed { get; set; }
+
+    /// <summary>슬라이더로 만들 것인가.</summary>
+    [Parameter] public bool Editable { get; set; }
+
+    /// <summary>값이 바뀌면 (근면, 사교, 용기, 탐욕).</summary>
+    [Parameter] public EventCallback<(int Diligence, int Sociability, int Courage, int Greed)> Changed { get; set; }
+
+    private IEnumerable<(string Label, int Value, Action<int> Set)> Rows =>
+    [
+        ("근면", Diligence, v => Diligence = v),
+        ("사교", Sociability, v => Sociability = v),
+        ("용기", Courage, v => Courage = v),
+        ("탐욕", Greed, v => Greed = v),
+    ];
+
+    private async Task Change(Action<int> set, ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out int value))
+        {
+            set(Math.Clamp(value, 0, 100));
+            await Changed.InvokeAsync((Diligence, Sociability, Courage, Greed));
+        }
+    }
+}

@@ -1,9 +1,73 @@
 @page "/map"
+@inject StudioPlaces Places
 
 <PageTitle>마을 지도 · NPC Studio</PageTitle>
 
-<section class="empty-state">
-    <div class="empty-icon">◇</div>
-    <h1>마을 지도</h1>
-    <p>아직 준비 중인 화면이다.</p>
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <small>TOWN</small>
+            <h1>마을 전체</h1>
+            <p class="page-lead">
+                이 데이터가 마을 하나다. <strong>지역끼리 합칠 절대 좌표가 없어서</strong> 타일로 배치한다 —
+                타일 안의 좌표만 실제다. 타일을 누르면 그 지역으로 간다.
+            </p>
+        </div>
+    </div>
+
+    <div class="town-grid">
+        @foreach (ZoneTile tile in _tiles)
+        {
+            <a class="town-tile" href="@("/places/" + tile.Zone.Id)" style="grid-column:@(tile.Column + 1);grid-row:@(tile.Row + 1)">
+                <strong>@tile.Zone.Name</strong>
+                <small>@tile.Zone.Id · 거주 @tile.Zone.Residents 명 · 장소 @tile.Zone.PoiCount 곳</small>
+                <span class="group-band">
+                    @foreach ((Lexicon.ArchetypeGroup Group, int Count) band in tile.Zone.Groups)
+                    {
+                        <span style="flex:@band.Count;background:@Lexicon.ColorOf(band.Group)" title="@Lexicon.Of(band.Group) @band.Count 명"></span>
+                    }
+                </span>
+                <small>정원 @tile.Zone.Capacity · 근무 @tile.Zone.Workers 명</small>
+            </a>
+        }
+    </div>
+
+    <div class="facts">
+        <div class="fact">
+            <h3>이웃 관계</h3>
+            @foreach (ZoneTile tile in _tiles)
+            {
+                <div class="fact-row">
+                    <span>@tile.Zone.Name</span>
+                    <span>@(tile.Zone.Adjacent.IsEmpty ? "이웃 없음 — 걸어서 나갈 수 없다" : string.Join(" · ", tile.Zone.Adjacent))</span>
+                </div>
+            }
+        </div>
+        <div class="fact">
+            <h3>직군 색</h3>
+            <div class="chips">
+                @foreach (Lexicon.ArchetypeGroup group in Enum.GetValues<Lexicon.ArchetypeGroup>())
+                {
+                    <span class="chip" style="border-color:@Lexicon.ColorOf(group);color:@Lexicon.ColorOf(group)">@Lexicon.Of(group)</span>
+                }
+            </div>
+        </div>
+    </div>
 </section>
+
+@code {
+    [CascadingParameter] public StudioLayout? Layout { get; set; }
+
+    private ImmutableArray<ZoneTile> _tiles;
+
+    protected override void OnInitialized()
+    {
+        Layout?.SetHelp(Help);
+        _tiles = Places.Tiles();
+    }
+
+    private RenderFragment Help => @<div>
+        <p>타일 하나가 지역 하나다. 색 띠는 그 지역에 사는 NPC 의 <strong>직군 분포</strong>다.</p>
+        <p>타일 배치는 <code>zones.json</code> 의 code 순이다 — 같은 파일이면 언제나 같은 자리다.</p>
+    </div>;
+}

@@ -1,0 +1,175 @@
+@* T27 — 상황별 미리 구운 플랜. 실제 서버 행동의 98.67% 가 여기서 나온다. *@
+@inject PlanStoreReader Store
+@inject StudioForecastService Forecasts
+@inject StudioWorkspace Workspace
+
+@if (!Store.Available)
+{
+    <section class="empty-state">
+        <div class="empty-icon">◇</div>
+        <h1>미리 구운 플랜이 없다</h1>
+        <p>
+            <code>@Store.Directory</code> 를 찾지 못했다. 프리베이크를 돌리면 생긴다 —
+            <code>dotnet run --project tools/Npc.Prebake</code> (튜토리얼 17장).
+        </p>
+        <p>그때까지 이 직업은 하루 일과(폴백)로 돈다.</p>
+    </section>
+}
+else
+{
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <small>planstore</small>
+                <h2>상황별 계획</h2>
+                <p class="page-lead">
+                    LLM 이 미리 만들어 둔 하루다. 시간대 6 × 지역 상태 4 × 기후 3 = 72칸.
+                    빈 칸은 하루 일과(폴백)로 돈다.
+                </p>
+            </div>
+        </div>
+
+        <div class="facts">
+            <div class="fact">
+                <p>
+                    72칸 중
+                    생성 @Count(BucketState.Generated) ·
+                    핀 @Count(BucketState.Pinned) ·
+                    반려 @Count(BucketState.Rejected) ·
+                    없음 @Count(BucketState.Missing)
+                </p>
+                <p class="related">
+                    <span class="chip" style="background:#1f7a4d">핀 — 사람이 손봤다</span>
+                    <span class="chip" style="background:#2f9e6a">생성</span>
+                    <span class="chip" style="background:#a03a4c">반려</span>
+                    <span class="chip" style="background:#131c2c">없음 — 폴백으로 돈다</span>
+                </p>
+
+                <table class="bucket-grid">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            @foreach (Npc.Core.RegionState region in Enum.GetValues<Npc.Core.RegionState>())
+                            {
+                                <th colspan="3">@Lexicon.Of(region)</th>
+                            }
+                        </tr>
+                        <tr>
+                            <th></th>
+                            @foreach (Npc.Core.RegionState region in Enum.GetValues<Npc.Core.RegionState>())
+                            {
+                                @foreach (Npc.Core.Climate climate in Enum.GetValues<Npc.Core.Climate>())
+                                {
+                                    <th>@Lexicon.Of(climate)</th>
+                                }
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (Npc.Core.TimeOfDay time in Enum.GetValues<Npc.Core.TimeOfDay>())
+                        {
+                            <tr>
+                                <th>@Lexicon.Of(time)</th>
+                                @foreach (Npc.Core.RegionState region in Enum.GetValues<Npc.Core.RegionState>())
+                                {
+                                    @foreach (Npc.Core.Climate climate in Enum.GetValues<Npc.Core.Climate>())
+                                    {
+                                        BucketCell cell = Cell(time, region, climate);
+                                        <td>
+                                            <button class="bucket-cell @CssOf(cell.State)"
+                                                    title="@Lexicon.Of(time) · @Lexicon.Of(region) · @Lexicon.Of(climate) — @Describe(cell)"
+                                                    @onclick="() => Pick(cell)"></button>
+                                        </td>
+                                    }
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="related">생성·핀·폴백 대체·반려 내역은 <code>planstore/manifest.json</code> 이 근거다.</p>
+            </div>
+
+            @if (_picked is { } picked)
+            {
+                <div class="fact">
+                    <h3>@Lexicon.Of(picked.Bucket.T) · @Lexicon.Of(picked.Bucket.R) · @Lexicon.Of(picked.Bucket.C)</h3>
+                    @if (picked.State == BucketState.Missing)
+                    {
+                        <p>이 칸에는 미리 구운 플랜이 없다 — <strong>하루 일과(폴백)로 돈다.</strong></p>
+                    }
+                    else if (_forecast is { } preview)
+                    {
+                        <p>목표 <code>@picked.Goal</code> · 출처 @StateName(picked.State)</p>
+                        <BehaviorPreview View="preview" />
+                    }
+                    else
+                    {
+                        <p class="bad-mark">이 플랜을 컴파일하지 못했다 — 마스터데이터가 바뀐 뒤의 낡은 파일일 수 있다.</p>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    /// <summary>직업 id.</summary>
+    [Parameter, EditorRequired] public string ArchetypeId { get; set; } = string.Empty;
+
+    private ImmutableArray<BucketCell> _cells;
+    private BucketCell? _picked;
+    private StudioForecast? _forecast;
+    private string _loaded = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (_loaded == ArchetypeId || !Store.Available) return;
+
+        _cells = Store.Grid(ArchetypeId);
+        _picked = null;
+        _forecast = null;
+        _loaded = ArchetypeId;
+    }
+
+    private BucketCell Cell(Npc.Core.TimeOfDay time, Npc.Core.RegionState region, Npc.Core.Climate climate) =>
+        _cells.FirstOrDefault(c => c.Bucket.T == time && c.Bucket.R == region && c.Bucket.C == climate)
+        ?? new BucketCell(default, BucketState.Missing, string.Empty, string.Empty);
+
+    private int Count(BucketState state) => _cells.Count(c => c.State == state);
+
+    private void Pick(BucketCell cell)
+    {
+        _picked = cell;
+        _forecast = null;
+
+        if (cell.State == BucketState.Missing) return;
+
+        try
+        {
+            if (Store.Compile(ArchetypeId, cell.Bucket) is { } plan)
+            {
+                _forecast = Forecasts.LoadPlan(ArchetypeId, plan, cell.Bucket);
+            }
+        }
+        catch (Exception) { _forecast = null; }
+    }
+
+    private static string CssOf(BucketState state) => state switch
+    {
+        BucketState.Pinned => "bucket-pinned",
+        BucketState.Generated => "bucket-generated",
+        BucketState.Rejected => "bucket-rejected",
+        _ => "bucket-missing",
+    };
+
+    private static string StateName(BucketState state) => state switch
+    {
+        BucketState.Pinned => "핀 (사람이 손봤다)",
+        BucketState.Generated => "생성 (LLM)",
+        BucketState.Rejected => "반려",
+        _ => "없음",
+    };
+
+    private static string Describe(BucketCell cell) =>
+        cell.State == BucketState.Missing ? "없음 — 폴백으로 돈다" : StateName(cell.State) + " · " + cell.Goal;
+}

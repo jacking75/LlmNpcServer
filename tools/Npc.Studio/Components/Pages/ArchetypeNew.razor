@@ -1,29 +1,179 @@
 @page "/archetypes/new"
 @inject StudioSession Session
 @inject StudioWorkspace Workspace
+@inject StudioPlaces Places
 @inject NavigationManager Nav
 
 <PageTitle>새 직업 · NPC Studio</PageTitle>
 
 <section class="panel create-panel">
-    <div class="panel-head"><div><small>NEW ARCHETYPE</small><h1>새 직업 만들기</h1></div></div>
-    <p class="lead">기존 직업을 복제하고 그 인구 일부를 새 직업으로 나눈다. 폴백 플랜과 버킷 수도 함께 갱신하므로 중간에 깨진 상태를 만들지 않는다.</p>
-    <div class="form-grid">
-        <label><span>새 ID</span><input placeholder="beekeeper" @bind="_newId" /></label>
-        <label>
-            <span>복제 원본</span>
-            <select @bind="_fromId">
-                @foreach (StudioArchetype a in Session.Catalog.Archetypes)
-                {
-                    <option value="@a.Id">@Lexicon.Archetype(a.Id) (@a.Id · @a.Weight.ToString("0.####"))</option>
-                }
-            </select>
-        </label>
-        <label><span>인구 가중치</span><input type="number" min="0.0001" max="0.9999" step="0.0001" @bind="_newWeight" /></label>
+    <div class="panel-head">
+        <div>
+            <small>NEW ARCHETYPE</small>
+            <h1>새 직업 만들기</h1>
+            <p class="page-lead">다섯 단계다. 중간에 깨진 상태를 만들지 않는다 — 직업·하루 일과·버킷 수·표시 이름을 한 번에 넣는다.</p>
+        </div>
     </div>
-    <div class="callout">저장 후 설명은 <code>TODO:</code>로 생성된다. 반드시 세계관에 맞는 문장으로 바꿔야 한다 — 이 문장은 LLM 프롬프트에 그대로 실린다.</div>
+
+    <div class="wizard-steps">
+        @for (int i = 0; i < Titles.Length; i++)
+        {
+            <div class="@(i == _step ? "active" : i < _step ? "done" : "")">@(i + 1). @Titles[i]</div>
+        }
+    </div>
+
+    <div class="form-rows">
+        @switch (_step)
+        {
+            case 0:
+                <label>
+                    <span>직업 ID<FieldInfo File="archetypes.json" Path="/id" /></span>
+                    <input type="text" @bind="_id" placeholder="beekeeper" />
+                    <small class="field-help">영문 소문자·숫자·밑줄. 만든 뒤에는 바꿀 수 없다.</small>
+                </label>
+                <div class="inline-row">
+                    <label><span>한국어 이름 (ko-KR)</span><input type="text" @bind="_nameKo" placeholder="양봉가" /></label>
+                    <label><span>영어 이름 (en-US)</span><input type="text" @bind="_nameEn" placeholder="Beekeeper" /></label>
+                </div>
+                <label>
+                    <span>설명<FieldInfo File="archetypes.json" Path="/desc" /></span>
+                    <textarea rows="3" @bind="_desc" placeholder="마을의 양봉가. 벌통을 돌보고 꿀을 거둔다."></textarea>
+                    <small class="field-help">
+                        <strong>LLM 프롬프트에 그대로 실린다.</strong> TODO 로 두면 NPC 가 이상하게 행동한다.
+                        @if (_desc.TrimStart().StartsWith("TODO", StringComparison.OrdinalIgnoreCase)) { <span class="bad-mark">✗ TODO 다</span> }
+                    </small>
+                </label>
+                <div>
+                    <span>직군</span>
+                    <div class="chips">
+                        @foreach (Lexicon.ArchetypeGroup group in Enum.GetValues<Lexicon.ArchetypeGroup>().Where(g => g != Lexicon.ArchetypeGroup.Other))
+                        {
+                            Lexicon.ArchetypeGroup pick = group;
+                            <span class="chip @(_group == group ? "on" : "off")" style="border-color:@Lexicon.ColorOf(group)">
+                                <label><input type="radio" name="group" checked="@(_group == group)" @onchange="() => SetGroup(pick)" /> @Lexicon.Of(group)</label>
+                            </span>
+                        }
+                    </div>
+                    <small class="field-help">직군을 고르면 ② 의 닮은 직업 후보가 그 직군으로 좁혀진다.</small>
+                </div>
+                break;
+
+            case 1:
+                <label>
+                    <span>닮은 직업 (복제 원본)</span>
+                    <select @bind="_from">
+                        @foreach (StudioArchetype a in Candidates)
+                        {
+                            <option value="@a.Id">@Lexicon.Archetype(a.Id) — @a.Population 명 · 일터 @a.Workplace</option>
+                        }
+                    </select>
+                    <small class="field-help">행동·성향·소지품·하루 일과를 이 직업에서 베낀다. 뒤에서 고칠 수 있다.</small>
+                </label>
+                <label>
+                    <span>인구<FieldInfo File="archetypes.json" Path="/population_weight" /></span>
+                    <input type="number" min="1" max="2000" @bind="_population" />
+                    <small class="field-help">비율 @Weight.ToString("0.####") · 전체 5,000명 중</small>
+                </label>
+                <div class="fact">
+                    <h3>어디서 뗄까</h3>
+                    @if (_proposals.IsDefaultOrEmpty)
+                    {
+                        <button class="secondary" @onclick="Propose">재배분 방법 보기</button>
+                    }
+                    else
+                    {
+                        @foreach (RebalanceProposal proposal in _proposals)
+                        {
+                            RebalanceProposal pick = proposal;
+                            <div class="fact-row">
+                                <span><input type="radio" name="rebalance" checked="@(_strategy == proposal.Strategy)" @onchange="() => _strategy = pick.Strategy" /> @StrategyName(proposal.Strategy)</span>
+                                <span>@string.Join(" · ", proposal.Changes.Where(c => c.Delta != 0).Take(4).Select(c => $"{Lexicon.Archetype(c.Archetype)} {c.Delta:+#;-#;0}명"))</span>
+                                <span class="@(proposal.IsValid ? "ok-mark" : "bad-mark")">합 @proposal.Sum.ToString("0.####")</span>
+                            </div>
+                        }
+                        <p class="related">고르는 것은 사람이다 — 인구 분포는 세계관 결정이지 계산 결과가 아니다.</p>
+                    }
+                </div>
+                break;
+
+            case 2:
+                <label>
+                    <span>일터 유형<FieldInfo File="archetypes.json" Path="/workplace_poi_type" /></span>
+                    <select @bind="_workplace">
+                        <option value="">없음 — 일터로 출근하지 않는다</option>
+                        @foreach (string type in _workplaceTypes)
+                        {
+                            <option value="@type">@Lexicon.Place(type) (@type)</option>
+                        }
+                    </select>
+                    <small class="field-help">@WorkplaceVerdict</small>
+                </label>
+                <div class="fact">
+                    <h3>어느 지역에 몇 명 살게 되나</h3>
+                    @if (_placement.IsDefaultOrEmpty)
+                    {
+                        <p class="related">일터를 고르면 예측이 나온다.</p>
+                    }
+                    else
+                    {
+                        @foreach (StudioZoneCount zone in _placement)
+                        {
+                            <div class="fact-row"><span>@zone.ZoneName</span><span>@zone.Count 명</span></div>
+                        }
+                        <p class="related">명단을 다시 만들면 대략 이렇게 배치된다 — <code>gen_npcs</code> 는 일터 가까운 집을 먼저 준다.</p>
+                    }
+                </div>
+                @if (_workplace.Length > 0 && _workplaceTypes.Contains(_workplace, StringComparer.Ordinal) == false)
+                {
+                    <div class="callout">그 세부 유형의 장소가 아직 없다. <a href="/places">지역·장소</a> 에서 먼저 만든다.</div>
+                }
+                break;
+
+            case 3:
+                <div class="fact">
+                    <h3>하루 일과</h3>
+                    <p>
+                        <strong>@Lexicon.Archetype(_from)</strong> 의 하루 일과를 그대로 베껴 온다.
+                        만든 뒤 <strong>하루 일과 탭</strong>에서 스텝을 고치면 지도에서 바로 확인할 수 있다.
+                    </p>
+                    <p class="related">
+                        원본이 쓰는 레시피·아이템이 그대로 들어온다 — 새 직업에 맞지 않으면 그 스텝을 바꾼다.
+                    </p>
+                </div>
+                break;
+
+            default:
+                <div class="fact">
+                    <h3>이렇게 만든다</h3>
+                    <div class="fact-row"><span>직업</span><span><strong>@_nameKo</strong> (<code>@_id</code>) · @Lexicon.Of(_group)</span></div>
+                    <div class="fact-row"><span>설명</span><span>@_desc</span></div>
+                    <div class="fact-row"><span>닮은 직업</span><span>@Lexicon.Archetype(_from)</span></div>
+                    <div class="fact-row"><span>인구</span><span>@_population 명 (비율 @Weight.ToString("0.####"))</span></div>
+                    <div class="fact-row"><span>일터</span><span>@(_workplace.Length == 0 ? "없음" : Lexicon.Place(_workplace))</span></div>
+                    <div class="fact-row"><span>인구 재배분</span><span>@StrategyName(_strategy)</span></div>
+                </div>
+                <div class="fact">
+                    <h3>만든 뒤 해야 할 일</h3>
+                    <ul>
+                        <li><strong>NPC 명단을 다시 만든다</strong> — 그 전에는 이 직업의 NPC 가 한 명도 없다.</li>
+                        <li>프리베이크를 다시 돌린다 — 프롬프트 프리픽스가 바뀌어 미리 구운 플랜이 전량 무효다.</li>
+                        <li>게임서버를 다시 배포한다 — 구조 해시가 바뀐다.</li>
+                    </ul>
+                </div>
+                break;
+        }
+    </div>
+
     <div class="button-row">
-        <button class="primary" @onclick="Create" disabled="@Session.Catalog.ReadOnly">검증하고 생성</button>
+        <button class="secondary" @onclick="Back" disabled="@(_step == 0)">이전</button>
+        @if (_step < Titles.Length - 1)
+        {
+            <button class="primary" @onclick="Next" disabled="@(!CanAdvance)">다음</button>
+        }
+        else
+        {
+            <button class="primary" @onclick="Create" disabled="@Session.Catalog.ReadOnly">검증하고 만들기</button>
+        }
         <a class="manual" href="/archetypes">취소</a>
     </div>
 </section>
@@ -31,34 +181,192 @@
 @code {
     [CascadingParameter] public StudioLayout? Layout { get; set; }
 
-    private string _newId = string.Empty;
-    private string _fromId = string.Empty;
-    private double _newWeight = 0.001;
+    private static readonly string[] Titles = ["이름·직군", "닮은 직업·인구", "일터", "하루 일과", "확인"];
+
+    private int _step;
+    private string _id = string.Empty;
+    private string _nameKo = string.Empty;
+    private string _nameEn = string.Empty;
+    private string _desc = string.Empty;
+    private string _from = string.Empty;
+    private string _workplace = string.Empty;
+    private int _population = 20;
+    private Lexicon.ArchetypeGroup _group = Lexicon.ArchetypeGroup.Craft;
+    private RebalanceStrategy _strategy = RebalanceStrategy.Largest;
+    private ImmutableArray<RebalanceProposal> _proposals;
+    private ImmutableArray<StudioZoneCount> _placement;
+    private ImmutableArray<string> _workplaceTypes;
+
+    private double Weight => Math.Max(0.0001, Math.Round(_population / (double)ArchetypeCard.PopulationBase, 4));
+
+    private IEnumerable<StudioArchetype> Candidates
+    {
+        get
+        {
+            StudioArchetype[] inGroup = [.. Session.Catalog.Archetypes.Where(a => Lexicon.Group(a.Id) == _group)];
+
+            return inGroup.Length > 0 ? inGroup : Session.Catalog.Archetypes;
+        }
+    }
+
+    private bool CanAdvance => _step switch
+    {
+        0 => _id.Trim().Length > 0 && _nameKo.Trim().Length > 0 && _desc.Trim().Length > 0,
+        1 => _from.Length > 0 && _population > 0,
+        _ => true,
+    };
+
+    private string WorkplaceVerdict
+    {
+        get
+        {
+            if (_workplace.Length == 0) return "일터가 없는 직업이다.";
+
+            return Workspace.WithData((data, _) =>
+            {
+                int capacity = data.Pois.OfSubtype(_workplace).Sum(p => data.Pois[p].Capacity);
+                int sites = data.Pois.OfSubtype(_workplace).Length;
+
+                return capacity >= _population
+                    ? $"✓ {sites}곳 · 정원 합 {capacity} ≥ 인구 {_population}"
+                    : $"✗ {sites}곳 · 정원 합 {capacity} < 인구 {_population} — V10 에 걸린다";
+            });
+        }
+    }
 
     protected override void OnInitialized()
     {
         Layout?.SetHelp(Help);
-        _fromId = Session.Catalog.Archetypes.FirstOrDefault()?.Id ?? "blacksmith";
+        Session.MarkStep("wizard");
+
+        _from = Candidates.FirstOrDefault()?.Id ?? Session.Catalog.Archetypes.FirstOrDefault()?.Id ?? string.Empty;
+        _workplaceTypes = Workspace.LoadArchetypeChoices().WorkplaceTypes;
+    }
+
+    private void SetGroup(Lexicon.ArchetypeGroup group)
+    {
+        _group = group;
+        _from = Candidates.FirstOrDefault()?.Id ?? _from;
+        Session.MarkStep("wizard-group");
+    }
+
+    private void Back() => _step = Math.Max(0, _step - 1);
+
+    private void Next()
+    {
+        _step = Math.Min(Titles.Length - 1, _step + 1);
+
+        switch (_step)
+        {
+            case 1:
+                Session.MarkStep("wizard-population");
+                Propose();
+                break;
+            case 2:
+                Session.MarkStep("wizard-workplace");
+                _workplace = Session.Catalog.Archetypes.FirstOrDefault(a => a.Id == _from)?.Workplace is { } w && w != "—"
+                    ? w
+                    : _workplace;
+                Placement();
+                break;
+            case 3:
+                Session.MarkStep("wizard-plan");
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void Propose()
+    {
+        try
+        {
+            _proposals = Workspace.WithData((data, _) =>
+                WeightRebalancer.Propose(data, _id.Trim(), Weight, ArchetypeCard.PopulationBase, NullIfEmpty(_workplace)));
+
+            _strategy = _proposals.FirstOrDefault(p => p.IsValid).Strategy;
+        }
+        catch (Exception ex)
+        {
+            _proposals = [];
+            Session.Notify(ex.Message, true);
+        }
+    }
+
+    private void Placement()
+    {
+        if (_workplace.Length == 0)
+        {
+            _placement = [];
+            return;
+        }
+
+        _placement = Workspace.WithData<ImmutableArray<StudioZoneCount>>((data, _) =>
+        {
+            if (!data.Archetypes.TryGet(_from, out ArchetypeDef source))
+            {
+                return [];
+            }
+
+            ArchetypeDef draft = source with
+            {
+                Id = _id.Trim(),
+                WorkplacePoiType = NullIfEmpty(_workplace),
+                PopulationWeight = Weight,
+            };
+
+            return
+            [
+                .. PlacementForecast.ByZone(data, draft, _population)
+                    .Select(z => new StudioZoneCount(
+                        data.Zones[z.Zone].Id, Lexicon.Zone(data, data.Zones[z.Zone].Id), z.Count, true)),
+            ];
+        });
     }
 
     private void Create()
     {
         try
         {
-            string id = _newId.Trim();
-            StudioSaveResult result = Workspace.CreateArchetype(id, _fromId, _newWeight);
+            string id = _id.Trim();
+
+            ImmutableArray<WeightChange> rebalance =
+                _proposals.FirstOrDefault(p => p.Strategy == _strategy).Changes;
+
+            StudioSaveResult result = Workspace.CreateArchetype(new StudioNewArchetype(
+                id,
+                _desc.Trim(),
+                _from,
+                Weight,
+                NullIfEmpty(_workplace),
+                rebalance.IsDefault ? [] : rebalance,
+                [("ko-KR", _nameKo.Trim()), ("en-US", NameEn)]));
+
             Session.Apply(result);
 
             if (result.Saved)
             {
+                Session.MarkStep("wizard-done");
                 Nav.NavigateTo("/archetypes/" + id);
             }
         }
         catch (Exception ex) { Session.Notify(ex.Message, true); }
     }
 
+    private string NameEn => _nameEn.Trim().Length > 0 ? _nameEn.Trim() : _id.Trim();
+
+    private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
+
+    private static string StrategyName(RebalanceStrategy strategy) => strategy switch
+    {
+        RebalanceStrategy.Largest => "가장 큰 직업에서",
+        RebalanceStrategy.SameTrade => "같은 일터 계열에서",
+        _ => "전원에게서 비례로",
+    };
+
     private RenderFragment Help => @<div>
-        <p>새 직업을 만들면 <strong>여러 파일이 같이 바뀐다</strong> — 직업 정의 · 하루 일과 · 버킷 수.</p>
-        <p>인구는 0 에서 나오지 않는다. 복제 원본에서 뗀다 — 전체 가중치 합은 언제나 1.0 이어야 한다(V5).</p>
+        <p>새 직업을 만들면 <strong>여러 파일이 같이 바뀐다</strong> — 직업 정의 · 하루 일과 · 버킷 수 · 표시 이름.</p>
+        <p>인구는 0 에서 나오지 않는다. 다른 직업에서 뗀다 — 전체 비율 합은 언제나 1.0 이어야 한다(V5).</p>
+        <TutorialChecklist Course="new-job" />
     </div>;
 }
