@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NPC Studio 사용 설명서 — LlmNpcServer</title>
+<style>
+:root{--bg:#0b101a;--panel:#121b2a;--panel2:#172337;--line:#293952;--text:#eef4ff;--muted:#9ba9bd;--cyan:#44d8cf;--violet:#9185ff;--orange:#ffb769;--red:#ff7e91;--code:#080d16}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 75% -10%,#20345a 0,transparent 32%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Pretendard,"Noto Sans KR",sans-serif;line-height:1.75;word-break:keep-all}a{color:var(--cyan)}code,pre{font-family:"Cascadia Code",Consolas,monospace}.layout{display:grid;grid-template-columns:270px minmax(0,900px);max-width:1250px;margin:auto}.toc{height:100vh;position:sticky;top:0;padding:28px 22px;border-right:1px solid var(--line);background:#0d1421}.toc strong{font-size:18px}.toc small{display:block;color:var(--muted);margin-bottom:20px}.toc a{display:block;text-decoration:none;color:var(--muted);padding:7px 10px;border-radius:7px}.toc a:hover{background:var(--panel2);color:var(--text)}main{padding:48px 42px 100px}.hero{border:1px solid var(--line);background:linear-gradient(135deg,#15243b,#101927);border-radius:18px;padding:34px;margin-bottom:48px}.eyebrow{color:var(--cyan);font-weight:800;letter-spacing:.12em;font-size:12px}h1{font-size:38px;line-height:1.25;margin:8px 0 12px}h2{font-size:25px;margin:60px 0 10px;padding-top:18px;border-top:1px solid var(--line)}h3{font-size:18px;margin:30px 0 8px}.lead{font-size:18px;color:#c3cedd;max-width:65ch}.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}.chip{padding:5px 11px;border:1px solid #38506f;border-radius:999px;color:#bdcce0;font-size:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:18px 0}.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:17px}.card strong{display:block;color:var(--cyan);margin-bottom:5px}.card p{margin:0;color:var(--muted);font-size:14px}.note,.warn{border-radius:11px;padding:14px 16px;margin:18px 0}.note{background:#142e32;border:1px solid #23565a}.warn{background:#342419;border:1px solid #6d4827}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:17px;overflow:auto;color:#dce7f7;line-height:1.65}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);margin:16px 0}th,td{text-align:left;vertical-align:top;padding:10px 13px;border-bottom:1px solid var(--line)}th{color:#becbe0;background:var(--panel2)}td{color:#dce5f3}.flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0}.flow span{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}.flow b{color:var(--cyan)}kbd{background:#24334b;border:1px solid #425675;border-bottom-width:2px;border-radius:5px;padding:1px 6px}.ok{color:var(--cyan)}.bad{color:var(--red)}footer{margin-top:70px;color:var(--muted);font-size:13px}@media(max-width:850px){.layout{display:block}.toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}main{padding:28px 18px 70px}h1{font-size:31px}}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc">
+  <strong>NPC Studio</strong><small>사용 설명서</small>
+  <a href="#start">1. 실행</a>
+  <a href="#screen">2. 화면 구성</a>
+  <a href="#inspect">3. NPC 정의 조회</a>
+  <a href="#create">4. 새 직업 생성</a>
+  <a href="#edit">5. JSON 편집</a>
+  <a href="#validate">6. 검증과 저장</a>
+  <a href="#files">7. 파일별 역할</a>
+  <a href="#options">8. 실행 옵션</a>
+  <a href="#trouble">9. 문제 해결</a>
+</nav>
+<main>
+<section class="hero">
+  <div class="eyebrow">LLMNPCSERVER AUTHORING GUI</div>
+  <h1>NPC Studio 사용 설명서</h1>
+  <p class="lead">NPC 직업과 개별 NPC 정의를 브라우저에서 조회·생성·편집하는 도구다. 저장하기 전에 전체 마스터데이터 검증과 실제 로더 검사를 수행해 깨진 JSON이 원본에 들어가지 않게 한다.</p>
+  <div class="chips"><span class="chip">Blazor Server</span><span class="chip">V1~V13 검증</span><span class="chip">서식 보존</span><span class="chip">로컬 전용 기본값</span></div>
+</section>
+
+<section id="start">
+<h2>1. 실행한다</h2>
+<p>저장소 루트의 PowerShell에서 실행한다.</p>
+<h3>바로 빌드하고 실행한다</h3>
+<pre><code>dotnet run -c Release --project tools/Npc.Studio
+# 브라우저에서 http://127.0.0.1:5090 을 연다</code></pre>
+<h3>먼저 빌드한 뒤 실행한다</h3>
+<p>반복 실행하거나 빌드와 실행 단계를 분리하려면 Release DLL을 만든 뒤 직접 실행한다.</p>
+<pre><code>dotnet build tools/Npc.Studio/Npc.Studio.csproj -c Release
+dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll
+# 브라우저에서 http://127.0.0.1:5090 을 연다</code></pre>
+<p>직접 실행할 때도 DLL 뒤에 옵션을 그대로 붙일 수 있다.</p>
+<pre><code>dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 5091</code></pre>
+<div class="note"><b>기본 경계다.</b> Studio는 NPC 서버 본체와 별도 프로세스다. 게임 실행 중인 <code>Npc.Host</code>에 편집 UI를 끼워 넣지 않는다.</div>
+</section>
+
+<section id="screen">
+<h2>2. 화면을 이해한다</h2>
+<div class="grid">
+  <div class="card"><strong>왼쪽 · 탐색</strong><p>아키타입, 개별 NPC, 원천 JSON 파일을 선택한다.</p></div>
+  <div class="card"><strong>가운데 · 작업</strong><p>항목 JSON, 설명 카드, NPC 카드 또는 전체 파일을 편집한다.</p></div>
+  <div class="card"><strong>오른쪽 · 검증</strong><p>V1~V13 오류의 코드, 파일, JSON Pointer, 수정 힌트를 보여 준다.</p></div>
+</div>
+<p>상단의 <b>전체 검증</b>은 디스크에 있는 현재 상태를 다시 읽는다. <b>새로고침</b>은 외부 에디터에서 바뀐 내용까지 다시 불러온다.</p>
+</section>
+
+<section id="inspect">
+<h2>3. NPC 정의를 조회한다</h2>
+<h3>아키타입을 본다</h3>
+<ol>
+  <li>왼쪽에서 <b>아키타입</b>을 선택한다.</li>
+  <li>검색창에 <code>blacksmith</code>처럼 ID를 입력한다.</li>
+  <li><b>JSON 편집</b> 탭에서 원본 항목을 확인한다.</li>
+  <li><b>설명 카드</b> 탭에서 인구, 정원, 성향, 허용 액션, 인터럽트와 폴백을 사람 말로 확인한다.</li>
+</ol>
+<h3>개별 NPC를 본다</h3>
+<ol>
+  <li><b>개별 NPC</b> 탭을 누른다.</li>
+  <li>1~5,000 사이 ID를 넣고 <b>NPC 카드 열기</b>를 누른다.</li>
+  <li>집, 일터, 거리, 순찰로, 세력, 공격 반경과 일정 오프셋을 확인한다.</li>
+</ol>
+<div class="warn"><b>생성물은 읽기 전용이다.</b> <code>npc_instances.json</code>을 직접 편집하지 않는다. 특정 NPC의 차이는 <code>npc_overrides.json</code>에 기록한다.</div>
+</section>
+
+<section id="create">
+<h2>4. 새 NPC 직업을 만든다</h2>
+<ol>
+  <li><b>아키타입 → 새 직업 만들기</b>를 누른다.</li>
+  <li>새 ID를 영문 소문자와 밑줄로 입력한다. 예: <code>beekeeper</code></li>
+  <li>행동과 일터가 비슷한 기존 직업을 복제 원본으로 선택한다.</li>
+  <li>인구 가중치를 입력한다. 이 값은 복제 원본의 현재 가중치보다 작아야 한다.</li>
+  <li><b>검증하고 생성</b>을 누른다.</li>
+</ol>
+<p>Studio는 다음 세 파일을 한 트랜잭션으로 바꾼다.</p>
+<div class="flow"><span><b>archetypes.json</b><br>새 직업 + 원본 인구 분할</span><b>→</b><span><b>fallback_plans.json</b><br>폴백 플랜 복제</span><b>→</b><span><b>context_buckets.json</b><br>버킷 수 갱신</span></div>
+<div class="warn"><b>생성 직후 할 일이다.</b> 설명에는 <code>TODO:</code>가 들어간다. JSON 편집 탭에서 세계관에 맞는 문장, 허용 행동, 목표, 소지품, 근무 시간을 반드시 검토한다. 이후 <code>dotnet run tools/gen_npcs.cs</code>로 개체 명단을 재생성한다.</div>
+</section>
+
+<section id="edit">
+<h2>5. JSON을 편집한다</h2>
+<p><b>JSON 파일</b> 탭에서는 다음 원천 파일을 편집할 수 있다. <code>npc_instances.json</code>, <code>poi_distances.bin</code>, <code>prompt/</code>처럼 다시 생성되는 파일은 목록에 나오지 않는다.</p>
+<p>특정 NPC의 성격을 바꾸려면 <b>개별 NPC → 오버라이드 편집</b>을 누른다. 예시는 다음과 같다.</p>
+<pre><code>{
+  "$schema": "../docs/schema/npc_overrides.schema.json",
+  "version": 1,
+  "overrides": [
+    {
+      "id": 1247,
+      "patrol_route": ["gate_east_001", "guardhouse_001"],
+      "aggro_radius_m": 35,
+      "faction": "town_guard",
+      "dialogue_profile": "stern_guard",
+      "schedule_offset_min": -15
+    }
+  ]
+}</code></pre>
+<p>순찰 지점은 해당 NPC와 같은 존에 있어야 하고 최대 4개다. 공격 반경은 0~200m, 일정 오프셋은 -120~120분이다.</p>
+</section>
+
+<section id="validate">
+<h2>6. 검증하고 저장한다</h2>
+<p>Studio의 저장 버튼은 바로 원본을 덮어쓰지 않는다.</p>
+<div class="flow"><span>임시 작업본 생성</span><b>→</b><span>V1~V13 전체 검증</span><b>→</b><span>MasterDataLoader 로드</span><b>→</b><span>NpcInstanceTable 로드</span><b>→</b><span>원자적 저장</span></div>
+<table>
+<thead><tr><th>결과</th><th>동작</th></tr></thead>
+<tbody>
+<tr><td class="ok">검증 통과</td><td>변경 파일만 원본에 저장하고 화면을 다시 읽는다.</td></tr>
+<tr><td class="bad">검증 실패</td><td>원본을 유지하고 오른쪽에 코드·위치·수정 힌트를 표시한다.</td></tr>
+<tr><td class="bad">로더 실패</td><td>형식은 맞지만 참조를 컴파일할 수 없는 상태다. 역시 저장하지 않는다.</td></tr>
+</tbody>
+</table>
+<p>편집을 마친 뒤에는 Studio 검증에 더해 저장소 루트에서 다음을 실행한다.</p>
+<pre><code>dotnet run --project tools/Npc.Cli -- validate
+dotnet run --project tools/Npc.Cli -- diff
+dotnet run --project tools/Npc.Cli -- regen --check</code></pre>
+</section>
+
+<section id="files">
+<h2>7. 파일별 역할을 구분한다</h2>
+<table>
+<thead><tr><th>파일</th><th>용도</th><th>주의</th></tr></thead>
+<tbody>
+<tr><td><code>archetypes.json</code></td><td>직업, 성향, 행동, 인구</td><td><code>code</code>를 재배치하지 않는다.</td></tr>
+<tr><td><code>npc_overrides.json</code></td><td>특정 NPC의 순찰·세력·대화 성격</td><td>사람이 편집하는 개체 파일이다.</td></tr>
+<tr><td><code>fallback_plans.json</code></td><td>LLM 없이도 실행할 기본 행동</td><td>모든 아키타입에 하나가 필요하다.</td></tr>
+<tr><td><code>actions.json</code></td><td>LLM과 런타임이 쓸 행동 어휘</td><td><code>code</code> 재배치 금지다.</td></tr>
+<tr><td><code>pois.json</code></td><td>집·일터·장소와 정원</td><td>인구를 수용해야 한다.</td></tr>
+<tr><td><code>npc_instances.json</code></td><td>생성된 5,000 NPC 명단</td><td><b>직접 편집 금지</b>다.</td></tr>
+</tbody>
+</table>
+<p>전체 스키마는 <a href="reference_masterdata.html">마스터데이터 레퍼런스</a>에서 확인한다.</p>
+</section>
+
+<section id="options">
+<h2>8. 실행 옵션을 사용한다</h2>
+<pre><code>dotnet run -c Release --project tools/Npc.Studio -- --masterdata ./masterdata --bind 127.0.0.1 --port 5090 --read-only</code></pre>
+<table>
+<thead><tr><th>옵션</th><th>기본값</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>--masterdata</code></td><td><code>./masterdata</code></td><td>열 마스터데이터 폴더다.</td></tr>
+<tr><td><code>--bind</code></td><td><code>127.0.0.1</code></td><td>수신 주소다. 기본값은 로컬에서만 접근된다.</td></tr>
+<tr><td><code>--port</code></td><td><code>5090</code></td><td>웹 포트다.</td></tr>
+<tr><td><code>--read-only</code></td><td>꺼짐</td><td>저장 기능을 막고 조회·검증만 허용한다.</td></tr>
+</tbody>
+</table>
+<div class="warn"><b>외부 공개용 서비스가 아니다.</b> 인증을 제공하지 않으므로 <code>--bind 0.0.0.0</code>으로 인터넷이나 사내 공용망에 직접 노출하지 않는다.</div>
+</section>
+
+<section id="trouble">
+<h2>9. 잘 안 될 때 확인한다</h2>
+<table>
+<thead><tr><th>증상</th><th>확인할 것</th></tr></thead>
+<tbody>
+<tr><td>페이지가 열리지 않는다.</td><td>터미널의 실제 URL과 포트 충돌을 확인한다.</td></tr>
+<tr><td>검증 실패로 저장되지 않는다.</td><td>오른쪽 오류의 파일·JSON Pointer·수정 힌트를 따른다.</td></tr>
+<tr><td>새 직업이 게임에 안 보인다.</td><td><code>dotnet run tools/gen_npcs.cs</code>를 실행하고 충분한 <code>--npcs</code> 수로 기동한다.</td></tr>
+<tr><td>매뉴얼 링크가 404다.</td><td>저장소의 기본 <code>masterdata/</code>를 열었는지 확인한다. 외부 폴더에서는 <code>docs/</code>를 자동으로 찾지 못한다.</td></tr>
+<tr><td>수정한 파일 전체가 diff로 보인다.</td><td>Studio는 원문 서식을 보존한다. 외부 편집기의 줄 끝 설정이 LF인지 확인한다.</td></tr>
+</tbody>
+</table>
+</section>
+
+<footer>관련 문서: <a href="reference_masterdata.html">마스터데이터 레퍼런스</a> · <a href="tutorial/ch07.html">새 직업 만들기 실습</a> · <a href="../README.md">README</a></footer>
+</main>
+</div>
+</body>
+</html>

@@ -464,6 +464,7 @@ testbed/            테스트 베드 — 단방향 잎(아무도 참조하지 �
   Npc.TestClient/        WinForms 클라이언트 (net10.0-windows)
   scenarios/             데모 시나리오 3종 · run_demo.ps1
 tools/
+  Npc.Studio/       NPC 정의 웹 GUI — 조회·생성·JSON 편집·전체 검증
   Npc.Cli/          `npc` CLI — 검증·설명·편집·플랜
   Npc.Prebake/      프리베이크 CLI
   Npc.Narrate/      기록 → 하루 일지 · `card`·`explain` 서브커맨드(Npc.Narrative 껍질)
@@ -491,7 +492,35 @@ dotnet format --verify-no-changes
 **CI 워크플로 파일은 두지 않는다.** 파이프라인이 해야 할 일은 `build.ps1` 한 줄로
 정의되어 있고, 사내 CI 든 GitHub Actions 든 그것을 부르면 된다.
 
-### 콘텐츠 편집 도구 — `npc` CLI
+### NPC 정의 GUI — `Npc Studio`
+
+콘텐츠 담당자가 아키타입과 개별 NPC 정의를 브라우저에서 조회·생성·편집하는 독립 도구다.
+NPC 서버 본체와 별도 프로세스로 실행하며, 기본 주소는 **http://127.0.0.1:5090** 이다.
+
+```powershell
+dotnet run -c Release --project tools/Npc.Studio
+```
+
+| 화면 | 무엇을 하는가 |
+|---|---|
+| **아키타입** | 직업 목록·인구·일터를 보고, 항목 JSON과 결정론 설명 카드를 함께 본다 |
+| **새 직업 만들기** | 기존 직업을 복제해 아키타입·폴백 플랜·버킷 수를 한 번에 만든다 |
+| **개별 NPC** | 1~5,000번 NPC의 집·일터·순찰·세력·일정 오프셋을 카드로 본다 |
+| **JSON 파일** | `npc_overrides.json`을 포함한 사람 편집 원천을 수정한다. 생성물은 목록에서 제외한다 |
+| **검증 결과** | V1~V13 코드·파일·JSON Pointer·수정 힌트를 표시한다 |
+
+저장할 때는 임시 작업본에 **V1~V13 전체 검증 → 실제 로더 → NPC 인스턴스 로더**를 먼저
+적용한다. 하나라도 실패하면 원본 파일을 바꾸지 않는다. 조회 전용으로 열 때는
+`--read-only`를 붙인다.
+
+```powershell
+dotnet run -c Release --project tools/Npc.Studio -- --read-only
+dotnet run -c Release --project tools/Npc.Studio -- --masterdata D:\game\masterdata --port 5091
+```
+
+화면별 절차와 파일 규칙은 [`docs/npc_studio_manual.html`](docs/npc_studio_manual.html)에 있다.
+
+### 콘텐츠 CLI — `npc`
 
 전부 **잎**이다 — 서버가 도는 데 필요 없고, 사람과 LLM 이 쓴다.
 
@@ -682,7 +711,6 @@ NPC 서버를 붙이는 쪽(게임서버)이 알아야 할 것은 **연동 계�
 | 없는 것 | 무엇을 대신 쓰나 |
 |---|---|
 | MCP 서버 | `npc … --json` 을 셸로 부른다 |
-| 웹 편집기(Studio) | `npc scaffold` dry-run + 사람 리뷰 · VS Code 는 스키마·스니펫이 있다 |
 | 대화 생성 | **없다.** 이 서버는 행동 플랜만 만든다 |
 | 세력 테이블 | 패킷의 `Faction` 은 **통과만** 한다 — 값을 정의하는 마스터데이터가 없다 |
 

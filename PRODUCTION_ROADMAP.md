@@ -92,7 +92,7 @@ HTML 갱신 + 이 절의 항목을 `[x]` 로 바꾸고 커밋 해시를 적는�
 ### 트랙 F — NPC 정의 툴 (사람이 쉽게 만들고, LLM 이 만든 것을 사람이 쉽게 읽는다)
 
 - [x] **F-01** `npc` CLI (`tools/Npc.Cli`): validate/explain/next-code/scaffold/diff/card/timeline/plan/regen — P1 · L · 의존 E-04, F-03
-- [ ] **F-02** NPC Studio (웹): 스키마 폼 · 인라인 검증 · 아키타입 카드 · 버킷 그리드 · 플랜 시각화 · LLM 제안 리뷰 — P1 · XL · 의존 E-02, F-03, F-04
+- [ ] **F-02** NPC Studio (웹): **핵심 편집기 구현** — 아키타입·인스턴스 카드, 안전한 JSON 편집, 새 직업 트랜잭션, V1~V13 인라인 결과. 남음: 스키마 자동 폼 · 버킷 그리드 · 플랜 시각화 · LLM 제안 리뷰 · git 커밋 — P1 · XL · 의존 E-02, F-03, F-04
 - [x] **F-03** 설명 생성기 `src/Npc.Narrative` (결정론 · LLM 미사용): 아키타입/플랜/인터럽트/인스턴스 → 한국어 카드 — P1 · M · 의존 없음
 - [x] **F-04** 편집 안전장치: 자동 code/bit 할당 · 가중치 재배분 · 파생물 신선도 잠금 · 서식 보존 JSON 편집 · 검증 V12/V13 — P1 · M · 의존 없음
 - [x] **F-05** `ArchetypeCount` 컴파일 상수 제거 (데이터 주도 버킷 공간) — P1 · M · 의존 없음

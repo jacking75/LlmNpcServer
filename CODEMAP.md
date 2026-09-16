@@ -34,6 +34,7 @@
 | **마스터데이터가 안 읽힌다** | `src/Npc.MasterData/MasterDataLoader.cs` → `MasterDataSet.cs` | `dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata` 로 먼저 재현 |
 | **정의가 무엇을 뜻하는지 알고 싶다** | `src/Npc.Narrative/{ArchetypeCard,PlanExplain,InterruptExplain,InstanceCard}.cs` · 껍질은 `npc card`·`npc explain` | 카드의 ✗ 는 3단 검증기와 **같은 판정**이다(`NarrativeTests`). 갈리면 둘 중 하나가 버그다 |
 | **터미널에서 뭐든 한다** | `tools/Npc.Cli/` — `validate`·`explain`·`card`·`timeline`·`next-code`·`scaffold`·`diff`·`regen`·`plan`·`buckets`·`pin`·`hints` | **CLI 에 로직을 두지 않는다.** 인자를 읽고 코어를 부른다 — MCP(E-03)·Studio(F-02)가 같은 함수를 부른다 |
+| **브라우저에서 NPC 정의를 보고·만든다** | `tools/Npc.Studio/` → `Services/StudioWorkspace.cs` · 화면은 `Components/Home.razor` · 매뉴얼은 `docs/npc_studio_manual.html` | 생성물은 읽기 전용이다. 저장은 임시 복사본의 V1~V13 + 로더 통과 뒤에만 원본에 반영한다 |
 | **표기(한국어 이름)를 고친다** | `src/Npc.Narrative/Lexicon.cs` | 표시 계층이다. 행동을 정하는 값은 여전히 `masterdata/` 가 원천 |
 | **다음 `code`·`bit` 를 알아야 한다** | `src/Npc.MasterData/Authoring/CodeAllocator.cs` | 비트는 **예약 구간을 먼저 채운다**. 재배치 API 는 없다 |
 | **가중치를 재배분한다** | `src/Npc.MasterData/Authoring/WeightRebalancer.cs` | 3안을 내고 **고르는 것은 사람**이다. 반올림 잔차까지 맞춰 V5 를 지킨다 |
@@ -223,6 +224,7 @@ CognitionScheduler.Scan        이탈 판정 → ReplanQueue (ReplanScorer 점�
 | 도구 | 무엇 | 진입 파일 |
 |---|---|---|
 | `tools/Npc.Cli` | **`npc` 명령.** 검증·설명·편집·플랜. 로직은 코어에 있고 여기는 껍질이다 | `Program.cs` |
+| `tools/Npc.Studio` | NPC 정의 웹 GUI. 아키타입·인스턴스 조회, 안전한 JSON 편집, 새 직업 생성 | `Program.cs` · `Services/StudioWorkspace.cs` |
 | `tools/Npc.Prebake` | 플랜 대량 생성 · 매니페스트 | `Program.cs` |
 | `tools/Npc.Narrate` | 명령 기록 → 하루 일지 | `Program.cs` |
 | `tools/gen_*.cs` | 파생물 생성기. `#:project` 로 `Npc.MasterData` 를 참조해 잠금을 갱신한다 | — |

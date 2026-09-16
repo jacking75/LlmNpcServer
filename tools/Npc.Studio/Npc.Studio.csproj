@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- NPC 정의를 조회·편집하는 독립 웹 GUI (F-02). 런타임 호스트와 결합하지 않는다. -->
+  <PropertyGroup>
+    <RootNamespace>Npc.Studio</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Npc.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Npc.Core\Npc.Core.csproj" />
+    <ProjectReference Include="..\..\src\Npc.MasterData\Npc.MasterData.csproj" />
+    <ProjectReference Include="..\..\src\Npc.Narrative\Npc.Narrative.csproj" />
+  </ItemGroup>
+
+</Project>

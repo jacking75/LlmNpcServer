@@ -215,6 +215,7 @@ Npc.Wire       ←  Contracts (+ MemoryPack)
 Npc.Gateway    ←  Contracts, Wire
 Npc.Sim        ←  Contracts, MasterData
 Npc.Host       ←  전부
+tools/Npc.Studio ← Core, MasterData, Narrative (독립 웹 GUI. Host·Runtime 참조 금지)
 ```
 
 `Npc.Wire` 는 링크의 **전송 표현**이다 (`docs/reference_link.html`). `Npc.Contracts` 에 NuGet 의존을
@@ -239,7 +240,7 @@ testbed/Npc.TestClient        ←  MasterData, Protocol   (net10.0-windows · �
 - `Npc.Runtime → Npc.Planning`은 허용한다. `CognitionScheduler.Scan`이 `PlanStore`·`ReplanQueue`를 직접 받기 때문이다. `Npc.Planning`은 `Core`·`MasterData`만 참조하므로 이 간선으로 LLM이 들어올 길은 없다.
 - `Npc.Core`와 `Npc.Contracts`에 NuGet 패키지를 추가하지 않는다. 순수 로직만.
 - **`Npc.Narrative` 는 잎이다.** `Npc.Host`·런타임이 참조하지 않는다 — 서버가 도는 데 설명 카드는
-  필요 없다. 부르는 것은 도구(`npc` CLI · `Npc.Narrate`)와 앞으로의 Studio·MCP 다.
+  필요 없다. 부르는 것은 도구(`npc` CLI · `Npc.Narrate` · `Npc.Studio` · MCP)다.
 - **`Npc.MasterData/Authoring/` 은 편집 도구다** (F-04). 로더 옆에 두되 로더가 의존하지 않는다 —
   기동 경로에 편집 기능이 들어갈 이유가 없다. 예외는 `DerivedArtifacts` 하나로,
   로더가 파생물 신선도를 읽어 `MasterDataSet.StaleArtifacts` 에 싣는다.
@@ -252,6 +253,7 @@ testbed/Npc.TestClient        ←  MasterData, Protocol   (net10.0-windows · �
 ```
 tools/Npc.Cli       ←  Contracts, Core, MasterData, Narrative, Planning, Sim   (npc 명령)
 tools/Npc.Mcp       ←  Npc.Cli, Narrative (+ ModelContextProtocol)   ← 두 번째 도구 간 간선 (E-03)
+tools/Npc.Studio    ←  Core, MasterData, Narrative (+ ASP.NET Core)   (NPC 정의 웹 GUI)
 tools/Npc.Conformance ← Contracts, Gateway, MasterData, Wire   (게임서버 적합성 키트)
 tools/Npc.Prebake   ←  Core, MasterData, Planning, Llm, Sim
 tools/Npc.Narrate   ←  Contracts, Core, Gateway, MasterData, Narrative

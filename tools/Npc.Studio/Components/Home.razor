@@ -1,0 +1,211 @@
+@page "/"
+@inject StudioWorkspace Workspace
+
+<PageTitle>NPC Studio</PageTitle>
+
+<header class="topbar">
+    <div class="brand">
+        <span class="brand-mark">N</span>
+        <div><strong>NPC Studio</strong><small>마스터데이터 오써링 도구</small></div>
+    </div>
+    <div class="top-actions">
+        <span class="path">@(_catalog?.Directory ?? "불러오는 중")</span>
+        @if (_catalog?.ReadOnly == true) { <span class="badge warn">읽기 전용</span> }
+        <button class="secondary" @onclick="ValidateAsync" disabled="@_busy">전체 검증</button>
+        <button class="secondary" @onclick="RefreshAsync" disabled="@_busy">새로고침</button>
+        <a class="manual" href="/docs/npc_studio_manual.html" target="_blank">매뉴얼</a>
+    </div>
+</header>
+
+<div class="workspace">
+    <aside class="sidebar">
+        <nav class="mode-tabs">
+            <button class="@ModeClass("archetype")" @onclick='() => SwitchMode("archetype")'>아키타입</button>
+            <button class="@ModeClass("npc")" @onclick='() => SwitchMode("npc")'>개별 NPC</button>
+            <button class="@ModeClass("file")" @onclick='() => SwitchMode("file")'>JSON 파일</button>
+        </nav>
+
+        @if (_mode == "archetype")
+        {
+            <div class="side-tools">
+                <input placeholder="직업 검색" @bind="_search" @bind:event="oninput" />
+                <button class="primary full" @onclick="OpenCreate">+ 새 직업 만들기</button>
+            </div>
+            <div class="entity-list">
+                @foreach (StudioArchetype item in FilteredArchetypes)
+                {
+                    <button class="entity @SelectedClass(item.Id)" @onclick="() => SelectArchetypeAsync(item.Id)">
+                        <span class="entity-icon">@item.Id[..1].ToUpperInvariant()</span>
+                        <span><strong>@item.Id</strong><small>code @item.Code · @(item.Population)명 · @item.Workplace</small></span>
+                    </button>
+                }
+            </div>
+        }
+        else if (_mode == "npc")
+        {
+            <div class="side-tools">
+                <label>NPC ID</label>
+                <input type="number" min="1" max="@(_catalog?.InstanceCount ?? 5000)" @bind="_npcId" />
+                <button class="primary full" @onclick="LoadNpcAsync">NPC 카드 열기</button>
+                <p class="help">생성된 명단은 읽기 전용이다. 개별 차이는 JSON 파일의 <code>npc_overrides.json</code>에서 편집한다.</p>
+                <button class="secondary full" @onclick='() => SelectFileAsync("npc_overrides.json")'>오버라이드 편집</button>
+            </div>
+        }
+        else
+        {
+            <div class="entity-list files">
+                @foreach (string file in EditableFiles)
+                {
+                    <button class="entity @SelectedClass(file)" @onclick="() => SelectFileAsync(file)">
+                        <span class="file-dot"></span><span><strong>@file</strong><small>@FileDescription(file)</small></span>
+                    </button>
+                }
+            </div>
+        }
+    </aside>
+
+    <main class="main">
+        @if (_busy)
+        {
+            <div class="loading">마스터데이터를 읽는 중이다…</div>
+        }
+        else if (_createOpen)
+        {
+            <section class="panel create-panel">
+                <div class="panel-head"><div><small>NEW ARCHETYPE</small><h1>새 직업 만들기</h1></div><button class="icon-btn" @onclick="CloseCreate">×</button></div>
+                <p class="lead">기존 직업을 복제하고 그 인구 일부를 새 직업으로 나눈다. 폴백 플랜과 버킷 수도 함께 갱신하므로 중간에 깨진 상태를 만들지 않는다.</p>
+                <div class="form-grid">
+                    <label><span>새 ID</span><input placeholder="beekeeper" @bind="_newId" /></label>
+                    <label><span>복제 원본</span><select @bind="_fromId">@foreach (StudioArchetype a in _catalog!.Archetypes) { <option value="@a.Id">@a.Id (@a.Weight.ToString("0.####"))</option> }</select></label>
+                    <label><span>인구 가중치</span><input type="number" min="0.0001" max="0.9999" step="0.0001" @bind="_newWeight" /></label>
+                </div>
+                <div class="callout">저장 후 설명은 <code>TODO:</code>로 생성된다. 반드시 아키타입 JSON에서 세계관에 맞는 문장으로 바꿔야 한다.</div>
+                <div class="button-row"><button class="primary" @onclick="CreateAsync">검증하고 생성</button><button class="secondary" @onclick="CloseCreate">취소</button></div>
+            </section>
+        }
+        else if (_mode == "archetype" && _document is not null)
+        {
+            <section class="hero-card">
+                <div><small>ARCHETYPE · @_selected</small><h1>@_selected</h1><p>@SelectedSummary?.Description</p></div>
+                <div class="stat-grid"><div><strong>@SelectedSummary?.Population</strong><span>예상 인구</span></div><div><strong>@SelectedSummary?.Weight.ToString("0.####")</strong><span>가중치</span></div><div><strong>@SelectedSummary?.Workplace</strong><span>일터</span></div></div>
+            </section>
+            <nav class="content-tabs"><button class="@TabClass("json")" @onclick='() => _tab = "json"'>JSON 편집</button><button class="@TabClass("card")" @onclick='() => _tab = "card"'>설명 카드</button></nav>
+            @if (_tab == "json")
+            {
+                <section class="panel editor-panel">
+                    <div class="panel-head"><div><small>archetypes.json</small><h2>@_selected 항목</h2></div><button class="primary" @onclick="SaveArchetypeAsync" disabled="@(_catalog?.ReadOnly == true)">검증하고 저장</button></div>
+                    <textarea class="code-editor" spellcheck="false" @bind="_editor"></textarea>
+                </section>
+            }
+            else
+            {
+                <section class="panel"><div class="panel-head"><div><small>결정론 설명 생성기</small><h2>아키타입 카드</h2></div></div><pre class="card-text">@_document.Card</pre></section>
+            }
+        }
+        else if (_mode == "npc" && !string.IsNullOrEmpty(_npcCard))
+        {
+            <section class="panel"><div class="panel-head"><div><small>INSTANCE · NPC @_npcId</small><h1>개별 NPC 카드</h1></div></div><pre class="card-text">@_npcCard</pre></section>
+        }
+        else if (_mode == "file" && !string.IsNullOrEmpty(_selected))
+        {
+            <section class="panel editor-panel">
+                <div class="panel-head"><div><small>MASTERDATA</small><h1>@_selected</h1><p>@FileDescription(_selected)</p></div><button class="primary" @onclick="SaveFileAsync" disabled="@(_catalog?.ReadOnly == true)">검증하고 저장</button></div>
+                <textarea class="code-editor file-editor" spellcheck="false" @bind="_editor"></textarea>
+            </section>
+        }
+        else
+        {
+            <section class="empty-state"><div class="empty-icon">◇</div><h1>NPC 정의를 선택한다</h1><p>왼쪽에서 직업, 개별 NPC 또는 JSON 파일을 선택한다.</p></section>
+        }
+    </main>
+
+    <aside class="inspector">
+        <div class="inspector-head"><span>검증 결과</span><span class="count @IssueClass">@_issues.Length</span></div>
+        @if (_issues.IsEmpty)
+        {
+            <div class="all-good"><span>✓</span><strong>전체 검증 통과</strong><p>현재 마스터데이터에서 V1~V13 위반이 없다.</p></div>
+        }
+        else
+        {
+            <div class="issue-list">@foreach (StudioIssue issue in _issues) { <article class="issue"><strong>@issue.Code · @issue.File</strong><code>@issue.Path</code><p>@issue.Detail</p>@if (!string.IsNullOrEmpty(issue.FixHint)) { <small>@issue.FixHint</small> }</article> }</div>
+        }
+        <div class="guardrails"><h3>편집 안전장치</h3><ul><li>생성물은 편집 목록에서 제외한다.</li><li>저장 전 전체 검증을 수행한다.</li><li>로더가 거절하면 원본을 유지한다.</li><li>ID와 code 재배치를 허용하지 않는다.</li></ul></div>
+    </aside>
+</div>
+
+@if (!string.IsNullOrEmpty(_toast))
+{
+    <div class="toast @(_toastError ? "error" : "success")">@_toast</div>
+}
+
+@code {
+    private static readonly string[] EditableFiles = ["npc_overrides.json", "archetypes.json", "fallback_plans.json", "interrupts.json", "pois.json", "zones.json", "items.json", "actions.json", "factions.json", "dialogue_lines.json", "context_buckets.json", "world_flags.json"];
+    private StudioCatalog? _catalog;
+    private StudioArchetypeDocument? _document;
+    private ImmutableArray<StudioIssue> _issues = [];
+    private string _mode = "archetype";
+    private string _tab = "json";
+    private string _selected = string.Empty;
+    private string _editor = string.Empty;
+    private string _search = string.Empty;
+    private int _npcId = 1;
+    private string _npcCard = string.Empty;
+    private bool _busy = true;
+    private bool _createOpen;
+    private string _newId = string.Empty;
+    private string _fromId = "blacksmith";
+    private double _newWeight = 0.001;
+    private string _toast = string.Empty;
+    private bool _toastError;
+
+    protected override void OnInitialized() => Refresh();
+
+    private IEnumerable<StudioArchetype> FilteredArchetypes => _catalog?.Archetypes.Where(a => string.IsNullOrWhiteSpace(_search) || a.Id.Contains(_search, StringComparison.OrdinalIgnoreCase)) ?? [];
+    private StudioArchetype? SelectedSummary => _catalog?.Archetypes.FirstOrDefault(a => a.Id == _selected);
+    private string IssueClass => _issues.IsEmpty ? "ok" : "bad";
+
+    private void Refresh()
+    {
+        try { _catalog = Workspace.LoadCatalog(); _issues = _catalog.Issues; if (_catalog.Archetypes.Length > 0 && string.IsNullOrEmpty(_selected)) SelectArchetype(_catalog.Archetypes[0].Id); }
+        catch (Exception ex) { Toast(ex.Message, true); }
+        finally { _busy = false; }
+    }
+
+    private Task RefreshAsync() { _busy = true; Refresh(); return Task.CompletedTask; }
+    private Task ValidateAsync() { try { _issues = Workspace.Validate(); Toast(_issues.IsEmpty ? "전체 검증을 통과했다." : $"검증 문제 {_issues.Length}건이 있다.", !_issues.IsEmpty); } catch (Exception ex) { Toast(ex.Message, true); } return Task.CompletedTask; }
+    private void SwitchMode(string mode) { _mode = mode; _selected = string.Empty; _document = null; _npcCard = string.Empty; _createOpen = false; }
+    private Task SelectArchetypeAsync(string id) { SelectArchetype(id); return Task.CompletedTask; }
+    private void SelectArchetype(string id) { try { _mode = "archetype"; _selected = id; _document = Workspace.LoadArchetype(id); _editor = _document.Json; _tab = "json"; _createOpen = false; } catch (Exception ex) { Toast(ex.Message, true); } }
+    private Task SelectFileAsync(string file) { try { _mode = "file"; _selected = file; _editor = Workspace.LoadFile(file); _document = null; _createOpen = false; } catch (Exception ex) { Toast(ex.Message, true); } return Task.CompletedTask; }
+    private Task LoadNpcAsync() { try { _npcCard = Workspace.LoadNpcCard(_npcId); _selected = _npcId.ToString(); } catch (Exception ex) { Toast(ex.Message, true); } return Task.CompletedTask; }
+    private void OpenCreate() { _createOpen = true; _newId = string.Empty; _fromId = _catalog?.Archetypes.FirstOrDefault()?.Id ?? "blacksmith"; }
+    private void CloseCreate() => _createOpen = false;
+
+    private Task CreateAsync()
+    {
+        try { StudioSaveResult result = Workspace.CreateArchetype(_newId.Trim(), _fromId, _newWeight); ApplyResult(result); if (result.Saved) { _catalog = Workspace.LoadCatalog(); _issues = _catalog.Issues; SelectArchetype(_newId.Trim()); } }
+        catch (Exception ex) { Toast(ex.Message, true); }
+        return Task.CompletedTask;
+    }
+
+    private Task SaveArchetypeAsync()
+    {
+        try { StudioSaveResult result = Workspace.SaveArchetype(_selected, _editor); ApplyResult(result); if (result.Saved) { _catalog = Workspace.LoadCatalog(); SelectArchetype(_selected); } }
+        catch (Exception ex) { Toast(ex.Message, true); }
+        return Task.CompletedTask;
+    }
+
+    private Task SaveFileAsync()
+    {
+        try { StudioSaveResult result = Workspace.SaveFile(_selected, _editor); ApplyResult(result); if (result.Saved) { _catalog = Workspace.LoadCatalog(); _issues = _catalog.Issues; _editor = Workspace.LoadFile(_selected); } }
+        catch (Exception ex) { Toast(ex.Message, true); }
+        return Task.CompletedTask;
+    }
+
+    private void ApplyResult(StudioSaveResult result) { _issues = result.Issues; Toast(result.Message, !result.Saved); }
+    private void Toast(string message, bool error) { _toast = message; _toastError = error; }
+    private string ModeClass(string mode) => _mode == mode ? "active" : string.Empty;
+    private string TabClass(string tab) => _tab == tab ? "active" : string.Empty;
+    private string SelectedClass(string id) => _selected == id ? "selected" : string.Empty;
+    private static string FileDescription(string file) => file switch { "npc_overrides.json" => "개별 NPC 순찰·세력·성격", "archetypes.json" => "직업·성향·허용 행동", "fallback_plans.json" => "LLM 장애 시 기본 행동", "interrupts.json" => "돌발 상황 즉시 반응", "pois.json" => "장소·정원·위치", "zones.json" => "지역과 인접 관계", "items.json" => "아이템과 제작법", "actions.json" => "행동 카탈로그", "factions.json" => "세력 정의", "dialogue_lines.json" => "대사 주제", "context_buckets.json" => "캐시 공간", "world_flags.json" => "세계 상태 비트", _ => string.Empty };
+}
