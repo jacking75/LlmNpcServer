@@ -35,6 +35,8 @@ public static class Program
           validate                       V1~V13 + 로더 + 파생물 신선도
           explain archetype|action|poi|item|flag|interrupt <id>
           card archetype <id> | npc <첨자> | roster <id>
+          forecast archetype <id> [--bucket <키>] [--npc <번호>]   하루 예측 (T22)
+          lint archetype <id>|all        건강 진단 — 검증은 통과하는데 이상한 정의 (T29)
           timeline archetype <id>        24시간 띠 (근무·폴백 스텝)
           hints [--out <path>]           검증 오류 사전. --out 은 markdown 을 생성한다
           schema [--out <dir>]           JSON Schema 발행 (기본 docs/schema)
@@ -118,6 +120,8 @@ public static class Program
             "explain" => ExplainCommand.Run(ctx),
             "card" => CardCommand.Run(ctx),
             "timeline" => TimelineCommand.Run(ctx),
+            "forecast" => ForecastCommand.Run(ctx),
+            "lint" => LintCommand.Run(ctx),
             "hints" => HintsCommand.Run(ctx),
             "schema" => SchemaCommand.Run(ctx),
             "next-code" => NextCodeCommand.Run(ctx),
