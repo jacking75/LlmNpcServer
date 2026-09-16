@@ -27,6 +27,43 @@ namespace Npc.Narrative;
 /// <c>grants</c>. 셋 중 하나라도 빠뜨리면 카드가 멀쩡한 플랜을 반려로 그린다.
 /// </para>
 /// </summary>
+/// <summary>
+/// 스텝 하나의 판정 (T06). <see cref="PlanExplain.Steps"/> 가 표로 그리는 것과 같은 값이다.
+///
+/// <b>화면은 마크다운 표에서 열을 뽑아 쓸 수 없다.</b> 하루 미리보기(T24)·폴백 편집기(T11)·
+/// 예측 엔진(T22) 이 스텝별 판정·이유·상태를 구조로 필요로 한다.
+/// </summary>
+/// <param name="Index">0부터의 스텝 번호.</param>
+/// <param name="Action">액션 code.</param>
+/// <param name="ActionId">액션의 문자열 id.</param>
+/// <param name="Target">대상 설명 (장소·아이템·상대).</param>
+/// <param name="Requirement">전제 조건 설명.</param>
+/// <param name="Code">실패 코드. 통과면 빈 문자열.</param>
+/// <param name="Reason">실패 이유. 통과면 빈 문자열.</param>
+/// <param name="Before">이 스텝 직전 상태.</param>
+/// <param name="After">이 스텝 뒤 상태.</param>
+/// <param name="TimeoutSeconds">이 스텝의 상한 시간.</param>
+public readonly record struct StepTrace(
+    int Index,
+    ActionId Action,
+    string ActionId,
+    string Target,
+    string Requirement,
+    string Code,
+    string Reason,
+    WorldFlags Before,
+    WorldFlags After,
+    int TimeoutSeconds)
+{
+    /// <summary>이 스텝이 지금 상태에서 실행 가능한가.</summary>
+    public bool Ok => Code.Length == 0;
+}
+
+/// <summary>고리 판정 (T06).</summary>
+/// <param name="Closed">마지막 상태로 첫 스텝을 다시 시작할 수 있는가.</param>
+/// <param name="Message">사람이 읽는 한 문장.</param>
+public readonly record struct LoopVerdict(bool Closed, string Message);
+
 public static class PlanExplain
 {
     /// <summary>플랜 한 장. 머리말 + 스텝 트레이스 + 수지 + 다양성.</summary>
@@ -77,11 +114,44 @@ public static class PlanExplain
         ArgumentNullException.ThrowIfNull(plan);
 
         var sb = new StringBuilder(2 * 1024);
+        ImmutableArray<StepTrace> trace = Trace(data, plan, bucket, archetype);
+
+        Md.TableHead(sb, "#", "액션", "대상", "전제", "판정", "이 스텝 뒤 상태");
+
+        foreach (StepTrace step in trace)
+        {
+            Md.Row(
+                sb,
+                Md.N(step.Index + 1),
+                Md.Code(step.ActionId),
+                Md.Cell(step.Target),
+                Md.Cell(step.Requirement),
+                Md.Cell(step.Ok ? "✓" : "✗ `" + step.Code + "` — " + step.Reason),
+                Md.Code(WorldFlagTable.Format(step.After)));
+        }
+
+        Loop(sb, plan, FinalState(data, plan, bucket, trace));
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// 스텝별 판정을 구조로 (T06). <see cref="Steps"/> 가 이것으로 같은 표를 만든다 —
+    /// <b>표와 구조가 갈리면 화면과 카드가 다른 말을 한다.</b>
+    /// </summary>
+    /// <param name="data">마스터데이터.</param>
+    /// <param name="plan">설명할 플랜.</param>
+    /// <param name="bucket">시작 상태를 정하는 버킷.</param>
+    /// <param name="archetype">POI 심볼 바인딩 가능 여부를 보는 아키타입.</param>
+    public static ImmutableArray<StepTrace> Trace(
+        MasterDataSet data, CompiledPlan plan, BucketKey bucket, ArchetypeId archetype)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(plan);
 
         // 3단 검증기와 같은 시작 상태다 — 버킷 + 아키타입 기본 인벤토리 + 근무 시간대.
         WorldFlags state = data.InitialFlags(bucket);
-
-        Md.TableHead(sb, "#", "액션", "대상", "전제", "판정", "이 스텝 뒤 상태");
+        var result = ImmutableArray.CreateBuilder<StepTrace>(plan.Steps.Length);
 
         ActionId previous = default;
         int repeats = 0;
@@ -95,23 +165,71 @@ public static class PlanExplain
             previous = step.Action;
 
             string code = Verdict(data, archetype, step, flags, state, repeats);
+            WorldFlags before = state;
 
             state = Apply(data, step, flags, state);
 
-            Md.Row(
-                sb,
-                Md.N(i + 1),
-                Md.Code(data.ActionName(step.Action)),
-                Md.Cell(Target(data, step)),
-                Md.Cell(Requirement(flags)),
-                Md.Cell(code.Length == 0 ? "✓" : "✗ `" + code + "` — " + Reason(data, archetype, step, flags, state, code)),
-                Md.Code(WorldFlagTable.Format(state)));
+            // 이유는 적용 뒤 상태로 만든다 — 표가 그렇게 써 왔고, 바꾸면 카드 바이트가 달라진다.
+            result.Add(new StepTrace(
+                i,
+                step.Action,
+                data.ActionName(step.Action),
+                Target(data, step),
+                Requirement(flags),
+                code,
+                code.Length == 0 ? string.Empty : Reason(data, archetype, step, flags, state, code),
+                before,
+                state,
+                step.TimeoutSeconds));
         }
 
-        Loop(sb, plan, state);
-
-        return sb.ToString();
+        return result.ToImmutable();
     }
+
+    /// <summary>고리 판정만 (T06). 화면이 "두 바퀴째부터 재계획" 을 미리 보여 준다.</summary>
+    /// <param name="plan">플랜.</param>
+    /// <param name="finalState">마지막 스텝 뒤 상태.</param>
+    public static LoopVerdict LoopOf(CompiledPlan plan, WorldFlags finalState)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        if (plan.Steps.IsEmpty)
+        {
+            return new LoopVerdict(true, "스텝이 없다.");
+        }
+
+        if (!plan.Loop)
+        {
+            bool rested = (plan.FlagsOf(plan.Steps.Length - 1).Grants & WorldFlags.IsRested) != 0;
+
+            return new LoopVerdict(
+                rested,
+                rested ? "1회 플랜이고 마지막이 휴식이다." : "1회 플랜인데 마지막이 휴식이 아니다 — 끝나면 멈춘다.");
+        }
+
+        StepFlags first = plan.FlagsOf(0);
+        WorldFlags missing = first.Requires & ~finalState;
+        WorldFlags violated = first.Forbids & finalState;
+        bool anyOk = first.RequiresAny == WorldFlags.None || (first.RequiresAny & finalState) != 0;
+
+        if (missing == WorldFlags.None && violated == WorldFlags.None && anyOk)
+        {
+            return new LoopVerdict(true, "고리가 닫힌다 — 하루가 끝없이 돈다.");
+        }
+
+        string why = missing != WorldFlags.None
+            ? $"`{WorldFlagTable.Format(missing)}` 가 없다"
+            : violated != WorldFlags.None
+                ? $"`{WorldFlagTable.Format(violated)}` 가 남아 있다"
+                : $"`{WorldFlagTable.Format(first.RequiresAny)}` 중 하나도 없다";
+
+        return new LoopVerdict(false, "고리가 닫히지 않는다 — 두 바퀴째 첫 스텝에서 " + why + ".");
+    }
+
+    /// <summary>트레이스의 마지막 상태. 스텝이 없으면 시작 상태다.</summary>
+    private static WorldFlags FinalState(
+        MasterDataSet data, CompiledPlan plan, BucketKey bucket, ImmutableArray<StepTrace> trace) =>
+        trace.IsEmpty ? data.InitialFlags(bucket) : trace[^1].After;
 
     /// <summary>
     /// 카드가 그리는 첫 실패. 없으면 <c>StepIndex = -1</c> 이고 <c>Code</c> 가 빈 문자열이다.
@@ -131,29 +249,17 @@ public static class PlanExplain
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(plan);
 
-        WorldFlags state = data.InitialFlags(bucket);
-        ActionId previous = default;
-        int repeats = 0;
+        ImmutableArray<StepTrace> trace = Trace(data, plan, bucket, archetype);
 
-        for (int i = 0; i < plan.Steps.Length; i++)
+        foreach (StepTrace step in trace)
         {
-            CompiledStep step = plan.Steps[i];
-            StepFlags flags = plan.FlagsOf(i);
-
-            repeats = step.Action == previous ? repeats + 1 : 1;
-            previous = step.Action;
-
-            string code = Verdict(data, archetype, step, flags, state, repeats);
-
-            if (code.Length > 0)
+            if (!step.Ok)
             {
-                return (i, code);
+                return (step.Index, step.Code);
             }
-
-            state = Apply(data, step, flags, state);
         }
 
-        return Closing(plan, state);
+        return Closing(plan, FinalState(data, plan, bucket, trace));
     }
 
     /// <summary>고리·종료 판정. 검증기가 스텝 순회를 마친 뒤 보는 것과 같은 순서다.</summary>
@@ -363,8 +469,7 @@ public static class PlanExplain
         StepFlags first = plan.FlagsOf(0);
         WorldFlags missing = first.Requires & ~finalState;
         WorldFlags violated = first.Forbids & finalState;
-        bool anyOk = first.RequiresAny == WorldFlags.None || (first.RequiresAny & finalState) != 0;
-        bool closed = missing == WorldFlags.None && violated == WorldFlags.None && anyOk;
+        bool closed = LoopOf(plan, finalState).Closed;
 
         sb.Append(Md.Mark(closed)).Append(" 고리가 닫힌다 — 마지막 상태 `")
           .Append(WorldFlagTable.Format(finalState)).Append("` 로 1번 스텝을 다시 시작");
