@@ -32,6 +32,7 @@ public sealed record StudioOptions(string MasterData, string Bind, int Port, boo
         string bind = "127.0.0.1";
         string server = string.Empty;
         string token = string.Empty;
+        string backupRoot = string.Empty;
         int port = 25_056;
         bool readOnly = false;
 
@@ -50,6 +51,9 @@ public sealed record StudioOptions(string MasterData, string Bind, int Port, boo
                     break;
                 case "--token" when i + 1 < args.Length:
                     token = args[++i];
+                    break;
+                case "--backup-root" when i + 1 < args.Length:
+                    backupRoot = Path.GetFullPath(args[++i]);
                     break;
                 case "--bind" when i + 1 < args.Length:
                     bind = args[++i];
@@ -76,6 +80,7 @@ public sealed record StudioOptions(string MasterData, string Bind, int Port, boo
             PlanStore = Path.GetFullPath(planStore, Path.GetDirectoryName(resolved) ?? Environment.CurrentDirectory),
             Server = server,
             Token = token,
+            BackupRoot = backupRoot,
         };
     }
 
