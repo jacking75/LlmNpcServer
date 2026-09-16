@@ -176,7 +176,8 @@ public static class ReactionForecast
 
         if (!def.Allows(rule.Action))
         {
-            failed.Add($"{Lexicon.Action(data.ActionName(rule.Action))} 이(가) 허용 행동에 없다");
+            failed.Add(
+                Lexicon.With(Lexicon.Action(data.ActionName(rule.Action)), "이", "가") + " 허용 행동에 없다");
         }
 
         return failed.ToImmutable();
