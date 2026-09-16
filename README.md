@@ -384,7 +384,7 @@ curl -XPOST -H "Authorization: Bearer $NPC_ADMIN_TOKEN"   "localhost:5080/admin/
 | [`docs/book/index.html`](docs/book/index.html) | **코드 이해와 활용 안내서 (13장).** 코드를 읽거나 고쳐야 하면 여기부터 |
 | [`docs/reference_link.html`](docs/reference_link.html) | 게임서버 연동 계약 전문 — N1~N8 · 패킷 · 와이어 · 핸드셰이크 |
 | [`docs/reference_masterdata.html`](docs/reference_masterdata.html) | 마스터데이터 스키마 전문 — 플래그·액션·아키타입·버킷·검증 |
-| [`LLM_NPC_Server_Plan.md`](LLM_NPC_Server_Plan.md) | 왜 이 구조인가 — 판단 근거·리스크 |
+| [`docs/book/ch01.html`](docs/book/ch01.html) | 왜 이 구조인가 — 원안의 문제 · 발상 전환 · 세 겹의 방어선 |
 | [`PRODUCTION_ROADMAP.md`](PRODUCTION_ROADMAP.md) | 상용 투입 로드맵 — 결손 태스크 체크리스트 |
 
 문서 전체 지도는 이 절 맨 아래 "문서" 표에 있다.
@@ -702,7 +702,6 @@ NPC 서버를 붙이는 쪽(게임서버)이 알아야 할 것은 **연동 계�
    docs/book/index.html         코드 이해와 활용 안내서 (13장)
 3. docs/reference_link.html     게임서버에 붙일 때 — 계약 전문
    docs/reference_masterdata.html  콘텐츠를 늘릴 때 — 스키마 전문
-4. LLM_NPC_Server_Plan.md       왜 이 구조인가 (판단 근거 · 리스크)
 ```
 
 > **구현이 끝난 제품이다.** 주차별 작업 지시서와 단계별 설계 사양은 구현 완료로 전부 삭제했다
@@ -722,7 +721,6 @@ NPC 서버를 붙이는 쪽(게임서버)이 알아야 할 것은 **연동 계�
 | [`docs/startup_flow.html`](docs/startup_flow.html) | 기동 흐름 시각화 — 무엇이 어떤 순서로 조립되는가 |
 | [`docs/testbed_guide.html`](docs/testbed_guide.html) | **게임서버 연동 테스트 안내서.** 아키텍처 그림 · 핸드셰이크·틱 루프 애니메이션 · 무엇을 바꾸며 테스트하나 · 코드 분석 순서 |
 | [`testbed/README.md`](testbed/README.md) | **데모 띄우는 법** — 한 줄 실행 · 포트 · 화면 보는 법 · 알려진 한계 |
-| [`LLM_NPC_Server_Plan.md`](LLM_NPC_Server_Plan.md) | 상위 계획 · 타당성 판단 · 아키텍처 · 비용 분석 · 리스크 대장 |
 | [`PRODUCTION_ROADMAP.md`](PRODUCTION_ROADMAP.md) | **상용 투입 로드맵.** 상용 결손 진단 · 태스크 50건(체크리스트) · 구현 방법 · LLM 온보딩 · NPC 정의 툴 |
 | [`docs/measurements/`](docs/measurements/) | 실측 **원자료** (jsonl · csv). 보고서는 `reference_metrics.html` 로 옮겼다 |
 | [`docs/security/threat_model.md`](docs/security/threat_model.md) | **위협 모델.** 자산 · 신뢰 경계 · 위협 T1~T15 와 대응 · 실측 · **잔여 위험** |
