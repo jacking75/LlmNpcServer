@@ -464,7 +464,7 @@ testbed/            테스트 베드 — 단방향 잎(아무도 참조하지 �
   Npc.TestClient/        WinForms 클라이언트 (net10.0-windows)
   scenarios/             데모 시나리오 3종 · run_demo.ps1
 tools/
-  Npc.Studio/       NPC 정의 웹 GUI — 조회·생성·JSON 편집·전체 검증
+  Npc.Studio/       NPC 정의 웹 GUI — 읽기·하루 예측·폼 편집·새 직업 마법사·전체 검증
   Npc.Cli/          `npc` CLI — 검증·설명·편집·플랜
   Npc.Prebake/      프리베이크 CLI
   Npc.Narrate/      기록 → 하루 일지 · `card`·`explain` 서브커맨드(Npc.Narrative 껍질)
@@ -494,39 +494,34 @@ dotnet format --verify-no-changes
 
 ### NPC 정의 GUI — `Npc Studio`
 
-콘텐츠 담당자가 아키타입과 개별 NPC 정의를 브라우저에서 조회·생성·편집하는 독립 도구다.
-NPC 서버 본체와 별도 프로세스로 실행하며, 기본 주소는 **http://127.0.0.1:25056** 이다.
+이 마을의 NPC 를 **읽고 · 예측하고 · 만드는** 독립 웹 도구다. NPC 서버 본체와 별도
+프로세스로 실행하며, 기본 주소는 **http://127.0.0.1:25056** 이다.
+아래 여섯 가지는 전부 **JSON 을 한 번도 보지 않고** 된다.
 
 ```powershell
 dotnet run -c Release --project tools/Npc.Studio
 ```
 
-| 화면 | 무엇을 하는가 |
-|---|---|
-| **아키타입** | JSON 초안과 마크다운으로 렌더링된 결정론 설명을 나란히 보며 수정한다. 입력 후 400ms 안에 설명이 갱신된다 |
-| **새 직업 만들기** | 기존 직업을 복제해 아키타입·폴백 플랜·버킷 수를 한 번에 만든다 |
-| **개별 NPC** | 1~5,000번 NPC를 아키타입→지역으로 묶어 탐색하고, 유형·정원·좌표 설명이 있는 POI 선택기로 순찰 경로와 개별 설정을 편집한다 |
-| **JSON 파일** | `npc_overrides.json`을 포함한 사람 편집 원천을 수정한다. 생성물은 목록에서 제외한다 |
-| **검증 결과** | V1~V13 코드·파일·JSON Pointer·수정 힌트를 표시한다 |
+1. **읽는다** — 직업 하나를 열어 어디서 살고, 무엇을 하고, 위험하면 어떻게 하는지를 3분 안에 읽는다.
+2. **예측한다** — "하루 재생" 으로 집 → 일터 → 선술집 → 집을 지도에서 본다. 소요 시간 계산은 시뮬레이터와 같다.
+3. **바꿔 본다** — 편집 탭에서 용기를 내리면 저장하기 전에 반응이 물러나기 → 도망으로 바뀌는 것을 본다.
+4. **한 명만 고친다** — NPC #2326 의 순찰로를 지도에서 찍어 `npc_overrides.json` 에 넣는다.
+5. **만든다** — 5단계 마법사로 새 직업을 만든다. 인구 재배분·일터 정원·하루 일과·작업 권한을 한 트랜잭션으로.
+6. **안전하게 저장한다** — 연습장에서 실험하고, 저장 전 V1~V15 전체 검증을 돌고, 파급 패널이 다음 할 일을 시키고, 되돌릴 수 있다.
 
-저장할 때는 임시 작업본에 **V1~V13 전체 검증 → 실제 로더 → NPC 인스턴스 로더**를 먼저
-적용한다. 하나라도 실패하면 원본 파일을 바꾸지 않는다. 조회 전용으로 열 때는
-`--read-only`를 붙인다.
-
-Studio는 기본적으로 저장소 루트의 `masterdata/`를 읽는다. 아키타입 정의는
-`masterdata/archetypes.json`, 생성된 5,000명 명단과 집·일터 배치는
-`masterdata/npc_instances.json`, 개별 NPC의 차이는 `masterdata/npc_overrides.json`에서 읽는다.
-개별 NPC 폼에서 저장하면 새 파일을 만들지 않고 **기존 `masterdata/npc_overrides.json`의 해당 ID
-항목을 추가하거나 교체**한다. 오버라이드 삭제는 해당 ID 항목만 제거하며,
-생성물인 `npc_instances.json`은 변경하지 않는다. `--masterdata`를 지정했다면 위 경로의
-`masterdata/` 대신 지정한 디렉터리 안의 같은 파일을 읽고 갱신한다.
+저장은 임시 작업본에 **V1~V15 전체 검증 → 실제 로더 → NPC 인스턴스 로더**를 먼저 적용한다.
+하나라도 실패하면 원본 파일을 바꾸지 않는다. **무변경 저장은 바이트 동일**이다 — 바꾼
+필드만 제자리에서 고치므로 diff 에 서식 변경이 섞이지 않는다. 생성물
+(`npc_instances.json` · `poi_distances.bin` · `prompt/`)은 편집 목록에서 제외한다.
 
 ```powershell
 dotnet run -c Release --project tools/Npc.Studio -- --read-only
 dotnet run -c Release --project tools/Npc.Studio -- --masterdata D:\game\masterdata --port 25057
+dotnet run -c Release --project tools/Npc.Studio -- --server http://127.0.0.1:25055   # 라이브 관찰
 ```
 
-화면별 절차와 파일 규칙은 [`docs/npc_studio_manual.html`](docs/npc_studio_manual.html)에 있다.
+전체 사용법은 [`docs/npc_studio_manual.html`](docs/npc_studio_manual.html) 에 있다 —
+초보자 시나리오 7장 + 저장 안전성 · 고급 · 문제 해결.
 
 ### 콘텐츠 CLI — `npc`
 

@@ -5,193 +5,333 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NPC Studio 사용 설명서 — LlmNpcServer</title>
 <style>
-:root{--bg:#0b101a;--panel:#121b2a;--panel2:#172337;--line:#293952;--text:#eef4ff;--muted:#9ba9bd;--cyan:#44d8cf;--violet:#9185ff;--orange:#ffb769;--red:#ff7e91;--code:#080d16}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 75% -10%,#20345a 0,transparent 32%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Pretendard,"Noto Sans KR",sans-serif;line-height:1.75;word-break:keep-all}a{color:var(--cyan)}code,pre{font-family:"Cascadia Code",Consolas,monospace}.layout{display:grid;grid-template-columns:270px minmax(0,900px);max-width:1250px;margin:auto}.toc{height:100vh;position:sticky;top:0;padding:28px 22px;border-right:1px solid var(--line);background:#0d1421}.toc strong{font-size:18px}.toc small{display:block;color:var(--muted);margin-bottom:20px}.toc a{display:block;text-decoration:none;color:var(--muted);padding:7px 10px;border-radius:7px}.toc a:hover{background:var(--panel2);color:var(--text)}main{padding:48px 42px 100px}.hero{border:1px solid var(--line);background:linear-gradient(135deg,#15243b,#101927);border-radius:18px;padding:34px;margin-bottom:48px}.eyebrow{color:var(--cyan);font-weight:800;letter-spacing:.12em;font-size:12px}h1{font-size:38px;line-height:1.25;margin:8px 0 12px}h2{font-size:25px;margin:60px 0 10px;padding-top:18px;border-top:1px solid var(--line)}h3{font-size:18px;margin:30px 0 8px}.lead{font-size:18px;color:#c3cedd;max-width:65ch}.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}.chip{padding:5px 11px;border:1px solid #38506f;border-radius:999px;color:#bdcce0;font-size:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:18px 0}.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:17px}.card strong{display:block;color:var(--cyan);margin-bottom:5px}.card p{margin:0;color:var(--muted);font-size:14px}.note,.warn{border-radius:11px;padding:14px 16px;margin:18px 0}.note{background:#142e32;border:1px solid #23565a}.warn{background:#342419;border:1px solid #6d4827}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:17px;overflow:auto;color:#dce7f7;line-height:1.65}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);margin:16px 0}th,td{text-align:left;vertical-align:top;padding:10px 13px;border-bottom:1px solid var(--line)}th{color:#becbe0;background:var(--panel2)}td{color:#dce5f3}.flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0}.flow span{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}.flow b{color:var(--cyan)}kbd{background:#24334b;border:1px solid #425675;border-bottom-width:2px;border-radius:5px;padding:1px 6px}.ok{color:var(--cyan)}.bad{color:var(--red)}footer{margin-top:70px;color:var(--muted);font-size:13px}@media(max-width:850px){.layout{display:block}.toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}main{padding:28px 18px 70px}h1{font-size:31px}}
+:root{--bg:#0b101a;--panel:#121b2a;--panel2:#172337;--line:#293952;--text:#eef4ff;--muted:#9ba9bd;--cyan:#44d8cf;--violet:#9185ff;--orange:#ffb769;--red:#ff7e91;--code:#080d16}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 75% -10%,#20345a 0,transparent 32%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Pretendard,"Noto Sans KR",sans-serif;line-height:1.75;word-break:keep-all}a{color:var(--cyan)}code,pre{font-family:"Cascadia Code",Consolas,monospace}.layout{display:grid;grid-template-columns:270px minmax(0,900px);max-width:1250px;margin:auto}.toc{height:100vh;position:sticky;top:0;padding:28px 22px;border-right:1px solid var(--line);background:#0d1421;overflow:auto}.toc strong{font-size:18px}.toc small{display:block;color:var(--muted);margin-bottom:20px}.toc a{display:block;text-decoration:none;color:var(--muted);padding:7px 10px;border-radius:7px}.toc a:hover{background:var(--panel2);color:var(--text)}main{padding:48px 42px 100px}.hero{border:1px solid var(--line);background:linear-gradient(135deg,#15243b,#101927);border-radius:18px;padding:34px;margin-bottom:48px}.eyebrow{color:var(--cyan);font-weight:800;letter-spacing:.12em;font-size:12px}h1{font-size:38px;line-height:1.25;margin:8px 0 12px}h2{font-size:25px;margin:60px 0 10px;padding-top:18px;border-top:1px solid var(--line)}h3{font-size:18px;margin:30px 0 8px}.lead{font-size:18px;color:#c3cedd;max-width:65ch}.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}.chip{padding:5px 11px;border:1px solid #38506f;border-radius:999px;color:#bdcce0;font-size:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:18px 0}.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:17px}.card strong{display:block;color:var(--cyan);margin-bottom:5px}.card p{margin:0;color:var(--muted);font-size:14px}.note,.warn{border-radius:11px;padding:14px 16px;margin:18px 0}.note{background:#142e32;border:1px solid #23565a}.warn{background:#342419;border:1px solid #6d4827}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:17px;overflow:auto;color:#dce7f7;line-height:1.65}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);margin:16px 0}th,td{text-align:left;vertical-align:top;padding:10px 13px;border-bottom:1px solid var(--line)}th{color:#becbe0;background:var(--panel2)}td{color:#dce5f3}.flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0}.flow span{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}.flow b{color:var(--cyan)}kbd{background:#24334b;border:1px solid #425675;border-bottom-width:2px;border-radius:5px;padding:1px 6px}.ok{color:var(--cyan)}.bad{color:var(--red)}.ui{background:#1d2b42;border:1px solid #3b5274;border-radius:6px;padding:1px 7px;color:#dbe6f6;font-size:13px;white-space:nowrap}ol.walk{counter-reset:none;padding-left:22px}ol.walk li{margin:9px 0}.goal{border-left:3px solid var(--cyan);background:#101c26;padding:12px 16px;margin:14px 0;border-radius:0 10px 10px 0}.goal b{color:var(--cyan)}footer{margin-top:70px;color:var(--muted);font-size:13px}@media(max-width:850px){.layout{display:block}.toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}main{padding:28px 18px 70px}h1{font-size:31px}}
 </style>
 </head>
 <body>
 <div class="layout">
 <nav class="toc">
   <strong>NPC Studio</strong><small>사용 설명서</small>
-  <a href="#start">1. 실행</a>
-  <a href="#screen">2. 화면 구성</a>
-  <a href="#inspect">3. NPC 정의 조회</a>
-  <a href="#create">4. 새 직업 생성</a>
-  <a href="#edit">5. JSON 편집</a>
-  <a href="#validate">6. 검증과 저장</a>
-  <a href="#files">7. 파일별 역할</a>
-  <a href="#options">8. 실행 옵션</a>
-  <a href="#trouble">9. 문제 해결</a>
+  <a href="#first">1. 처음이라면</a>
+  <a href="#read">2. 대장장이를 읽는다</a>
+  <a href="#forecast">3. 하루를 재생한다</a>
+  <a href="#npc">4. NPC 한 명을 고친다</a>
+  <a href="#place">5. 장소를 더한다</a>
+  <a href="#job">6. 새 직업을 만든다</a>
+  <a href="#bucket">7. 상황별 계획을 본다</a>
+  <a href="#safe">8. 저장은 어떻게 안전한가</a>
+  <a href="#advanced">9. 고급 · CLI 대응표</a>
+  <a href="#trouble">10. 문제 해결</a>
 </nav>
 <main>
 <section class="hero">
   <div class="eyebrow">LLMNPCSERVER AUTHORING GUI</div>
   <h1>NPC Studio 사용 설명서</h1>
-  <p class="lead">NPC 직업과 개별 NPC 정의를 브라우저에서 조회·생성·편집하는 도구다. 저장하기 전에 전체 마스터데이터 검증과 실제 로더 검사를 수행해 깨진 JSON이 원본에 들어가지 않게 한다.</p>
-  <div class="chips"><span class="chip">Blazor Server</span><span class="chip">V1~V13 검증</span><span class="chip">서식 보존</span><span class="chip">로컬 전용 기본값</span></div>
+  <p class="lead">이 마을의 NPC 를 <b>읽고 · 예측하고 · 만드는</b> 도구다. 1장부터 7장까지는 <b>JSON 을 한 번도 보지 않고</b> 따라갈 수 있다. 각 장은 화면 하나와 목표 하나를 다룬다.</p>
+  <div class="chips"><span class="chip">읽기 3분</span><span class="chip">하루 예측 재생</span><span class="chip">연습장 · 되돌리기</span><span class="chip">저장 전 V1~V15 검증</span></div>
 </section>
 
-<section id="start">
-<h2>1. 실행한다</h2>
-<p>저장소 루트의 PowerShell에서 실행한다.</p>
-<h3>바로 빌드하고 실행한다</h3>
-<pre><code>dotnet run -c Release --project tools/Npc.Studio
-# 브라우저에서 http://127.0.0.1:25056 을 연다</code></pre>
-<h3>먼저 빌드한 뒤 실행한다</h3>
-<p>반복 실행하거나 빌드와 실행 단계를 분리하려면 Release DLL을 만든 뒤 직접 실행한다.</p>
+<section id="first">
+<h2>1. 처음이라면</h2>
+
+<h3>1.1 실행한다</h3>
+<p>저장소 루트의 PowerShell 에서 실행하고 <code>http://127.0.0.1:25056</code> 을 연다.</p>
+<pre><code>dotnet run -c Release --project tools/Npc.Studio</code></pre>
+<p>반복 실행할 때는 빌드와 실행을 나눈다. 옵션은 DLL 뒤에 그대로 붙는다.</p>
 <pre><code>dotnet build tools/Npc.Studio/Npc.Studio.csproj -c Release
-dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll
-# 브라우저에서 http://127.0.0.1:25056 을 연다</code></pre>
-<p>직접 실행할 때도 DLL 뒤에 옵션을 그대로 붙일 수 있다.</p>
-<pre><code>dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 25057</code></pre>
-<div class="note"><b>기본 경계다.</b> Studio는 NPC 서버 본체와 별도 프로세스다. 게임 실행 중인 <code>Npc.Host</code>에 편집 UI를 끼워 넣지 않는다.</div>
-</section>
+dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 25057</code></pre>
+<div class="note"><b>서버 본체와 별도 프로세스다.</b> 게임이 도는 <code>Npc.Host</code> 에 편집 UI 를 끼워 넣지 않는다. 실행 중인 서버는 <b>9장 라이브 관찰</b>에서 HTTP 로만 들여다본다.</div>
 
-<section id="screen">
-<h2>2. 화면을 이해한다</h2>
-<div class="grid">
-  <div class="card"><strong>왼쪽 · 탐색</strong><p>아키타입, 개별 NPC, 원천 JSON 파일을 선택한다.</p></div>
-  <div class="card"><strong>가운데 · 작업</strong><p>항목 JSON, 설명 카드, NPC 카드 또는 전체 파일을 편집한다.</p></div>
-  <div class="card"><strong>오른쪽 · 검증</strong><p>V1~V13 오류의 코드, 파일, JSON Pointer, 수정 힌트를 보여 준다.</p></div>
-</div>
-<p>상단의 <b>전체 검증</b>은 디스크에 있는 현재 상태를 다시 읽는다. <b>새로고침</b>은 외부 에디터에서 바뀐 내용까지 다시 불러온다.</p>
-</section>
-
-<section id="inspect">
-<h2>3. NPC 정의를 조회한다</h2>
-<h3>아키타입을 본다</h3>
-<ol>
-  <li>왼쪽에서 <b>아키타입</b>을 선택한다.</li>
-  <li>검색창에 <code>blacksmith</code>처럼 ID를 입력한다.</li>
-  <li><b>JSON 편집</b> 탭에서 왼쪽 원본과 오른쪽 실시간 설명을 함께 확인한다.</li>
-  <li>JSON 값을 바꾸면 400ms 뒤 설명도 현재 초안에 맞춰 갱신된다. 설명의 제목·표·목록·강조·코드는 마크다운 문법이 보이지 않도록 화면 요소로 렌더링된다. 문법 오류가 있으면 마지막 정상 설명을 유지하면서 오류를 표시한다.</li>
-  <li><b>설명 카드</b> 탭에서 인구, 정원, 성향, 허용 액션, 인터럽트와 폴백을 넓게 확인한다.</li>
-</ol>
-<h3>개별 NPC를 본다</h3>
-<ol>
-  <li><b>개별 NPC</b> 탭을 누른다.</li>
-  <li>아키타입 그룹을 펼친 뒤 지역 그룹을 펼친다.</li>
-  <li>NPC 행을 선택해 집, 일터, 거리, 순찰로, 세력, 공격 반경과 일정 오프셋을 확인한다.</li>
-  <li>ID·직업·지역·집·일터로 검색하거나 <b>오버라이드가 있는 NPC만</b> 필터를 사용한다.</li>
-  <li>카드 아래의 <b>개별 설정</b> 폼에서 순찰 경로, 공격 반경, 세력, 대화 프로필, 일정 오프셋을 입력하고 <b>검증하고 저장</b>을 누른다.</li>
-  <li>순찰 경로는 같은 지역의 장소 목록에서 고른다. 각 항목에 장소 유형·세부 종류·정원·좌표가 나오며, 현재 NPC의 집이나 일터에는 별도 표시가 붙는다.</li>
-  <li><b>+ 추가</b>로 최대 4개를 선택하고 ↑·↓로 방문 순서를 바꾸거나 ×로 제거한다. ID를 알고 있을 때만 <b>POI ID를 직접 입력한다</b>를 펼친다.</li>
-</ol>
-<div class="warn"><b>생성물은 읽기 전용이다.</b> <code>npc_instances.json</code>을 직접 편집하지 않는다. 특정 NPC의 차이는 <code>npc_overrides.json</code>에 기록한다.</div>
-
-<h3>어떤 파일을 읽고 어디에 저장하는가</h3>
-<p>기본 데이터 디렉터리는 저장소 루트의 <code>masterdata/</code>다. <code>--masterdata D:\game\masterdata</code>처럼 지정하면 아래 경로의 앞부분만 그 디렉터리로 바뀐다.</p>
+<h3>1.2 알아야 할 말은 넷뿐이다</h3>
 <table>
-<thead><tr><th>파일</th><th>읽는 내용</th><th>Studio 저장 동작</th></tr></thead>
+<thead><tr><th>말</th><th>뜻</th><th>예</th></tr></thead>
 <tbody>
-<tr><td><code>masterdata/archetypes.json</code></td><td>직업별 기본 행동·성향·허용 액션·인구 가중치</td><td>아키타입 편집 또는 새 직업 생성 시 기존 파일을 갱신한다.</td></tr>
-<tr><td><code>masterdata/npc_instances.json</code></td><td>생성된 NPC 5,000명의 ID·아키타입·지역·집·일터 배치</td><td><b>읽기만 한다.</b> Studio는 이 생성 파일을 수정하지 않는다.</td></tr>
-<tr><td><code>masterdata/npc_overrides.json</code></td><td>특정 NPC에만 적용할 순찰·공격 반경·세력·대화·일정 차이</td><td>개별 NPC 저장 시 기존 파일의 같은 ID 항목을 추가하거나 교체한다. 삭제 시 그 ID 항목만 제거한다.</td></tr>
-<tr><td><code>masterdata/pois.json</code>, <code>zones.json</code>, <code>factions.json</code></td><td>같은 지역에서 선택 가능한 POI와 지역·세력 참조</td><td>개별 NPC 폼에서는 검증과 선택 목록에 사용하며 변경하지 않는다.</td></tr>
+<tr><td><b>직업</b> (아키타입)</td><td>NPC 의 <b>종류</b>다. 성격·할 수 있는 행동·하루 일과가 여기 모여 있다.</td><td>대장장이, 위병, 수련사제</td></tr>
+<tr><td><b>NPC</b> (개체)</td><td>직업으로 <b>생성된 한 명</b>이다. 한 명만 다르게 할 수 있다.</td><td>위병 #2326</td></tr>
+<tr><td><b>장소</b> (POI)</td><td>사는 곳·일하는 곳이다. <b>정원</b>과 여는 시간이 있다.</td><td>대장간, 선술집, 성문</td></tr>
+<tr><td><b>지역</b> (존)</td><td>장소들의 묶음이다. 이웃으로 이어진다.</td><td>장인 구역, 시장</td></tr>
 </tbody>
 </table>
-<div class="note"><b>개별 NPC 저장은 새 파일 생성이 아니다.</b> 검증을 통과하면 현재 마스터데이터 디렉터리의 기존 <code>npc_overrides.json</code>을 원자적으로 갱신한다. 검증에 실패하면 기존 파일은 그대로 유지한다.</div>
+<p>이 넷의 관계는 한 줄이다 — <b>직업</b>이 <b>NPC</b> 를 만들고, NPC 는 <b>지역</b> 안의 <b>장소</b>에서 산다.</p>
+
+<h3>1.3 화면 지도</h3>
+<div class="grid">
+  <div class="card"><strong>왼쪽 · 메뉴</strong><p>초보자 여정 순서다. 시작 → 직업 → NPC → 지도 → 장소 → 돌발 반응 → 행동 → 라이브 → 검증 → 고급.</p></div>
+  <div class="card"><strong>가운데 · 작업</strong><p>고른 것의 개요·예측·편집이 나온다. 주소창에 URL 이 남으므로 링크로 공유할 수 있다.</p></div>
+  <div class="card"><strong>오른쪽 · 검증 결과</strong><p>언제나 여기 있다. <b>0 이면 이 마스터데이터로 서버가 뜬다.</b></p></div>
+</div>
+<p>위쪽 막대에는 <span class="ui">전역 검색</span>(직업·NPC·장소를 한국어나 ID 로), <span class="ui">전체 검증</span>, <span class="ui">새로고침</span>(외부 편집기의 변경까지 다시 읽는다), <span class="ui">도움말</span>(지금 화면에서 할 수 있는 일)이 있다.</p>
+<div class="note"><b>따라하기가 스스로 체크된다.</b> 시작 화면의 <span class="ui">따라하기 열기</span> 를 누르면 <b>첫 10분</b> 체크리스트가 뜬다. 화면에 들어가고 버튼을 누르면 줄이 ✓ 로 바뀐다. 진행은 이 브라우저 탭에만 남는다.</div>
+
+<h3>1.4 망가뜨려도 되나</h3>
+<p>된다. 두 가지 안전장치가 있다.</p>
+<ul>
+  <li><b>연습장</b> — 시작 화면의 <span class="ui">연습장 만들기</span>. 원본을 통째로 복사하고 거기서 편집한다. <b>연습장에서 저장해도 원본은 바이트 하나 변하지 않는다.</b></li>
+  <li><b>저장 전 검증</b> — 저장 버튼은 원본을 바로 덮어쓰지 않는다. 검증이 실패하면 원본은 그대로다. 자세한 것은 <a href="#safe">8장</a>.</li>
+</ul>
 </section>
 
-<section id="create">
-<h2>4. 새 NPC 직업을 만든다</h2>
-<ol>
-  <li><b>아키타입 → 새 직업 만들기</b>를 누른다.</li>
-  <li>새 ID를 영문 소문자와 밑줄로 입력한다. 예: <code>beekeeper</code></li>
-  <li>행동과 일터가 비슷한 기존 직업을 복제 원본으로 선택한다.</li>
-  <li>인구 가중치를 입력한다. 이 값은 복제 원본의 현재 가중치보다 작아야 한다.</li>
-  <li><b>검증하고 생성</b>을 누른다.</li>
+<section id="read">
+<h2>2. 따라하기 — 대장장이를 읽는다</h2>
+<div class="goal"><b>목표.</b> 대장장이가 <b>어디서 살고, 무엇을 하고, 위험하면 어떻게 하는지</b> 를 3분 안에 말할 수 있다. 시작 화면에서 클릭 4회 안이다.</div>
+
+<ol class="walk">
+  <li>왼쪽 <span class="ui">직업</span> 을 누른다. 40개 직업이 직군별로 나온다.</li>
+  <li><b>대장장이</b> 를 고른다. <span class="ui">개요</span> 탭이 기본이다.</li>
+  <li>위에서부터 읽는다 — <b>한 문장 요약 → 사는 곳·일터 → 성향 막대 → 할 수 있는 행동 → 위험할 때 → 인구</b>.</li>
+  <li>모르는 칸이 있으면 이름 옆 <b>ⓘ</b> 를 누른다. 그 필드가 <b>무엇이고 어디에 쓰이는지</b> 가 나온다.</li>
 </ol>
-<p>Studio는 다음 세 파일을 한 트랜잭션으로 바꾼다.</p>
-<div class="flow"><span><b>archetypes.json</b><br>새 직업 + 원본 인구 분할</span><b>→</b><span><b>fallback_plans.json</b><br>폴백 플랜 복제</span><b>→</b><span><b>context_buckets.json</b><br>버킷 수 갱신</span></div>
-<div class="warn"><b>생성 직후 할 일이다.</b> 설명에는 <code>TODO:</code>가 들어간다. JSON 편집 탭에서 세계관에 맞는 문장, 허용 행동, 목표, 소지품, 근무 시간을 반드시 검토한다. 이후 <code>dotnet run tools/gen_npcs.cs</code>로 개체 명단을 재생성한다.</div>
+
+<h3>2.1 개요가 답하는 것</h3>
+<table>
+<thead><tr><th>칸</th><th>읽는 법</th></tr></thead>
+<tbody>
+<tr><td><b>사는 곳 · 일터</b></td><td>유형이다. "집" · "대장간" 처럼 나온다. 실제로 어느 건물인지는 NPC 마다 다르고, 그것은 <a href="#npc">4장</a>에서 본다.</td></tr>
+<tr><td><b>성향</b></td><td>근면 · 사교 · 용기 · 탐욕 넷이 0~100 막대다. <b>용기는 위험할 때의 반응을 가른다</b> — <a href="#forecast">3장</a>에서 직접 내려 본다.</td></tr>
+<tr><td><b>할 수 있는 행동</b></td><td>이 직업에게 허용된 행동이다. 한국어 표기가 앞이고 영어 id 는 부제다.</td></tr>
+<tr><td><b>위험할 때</b></td><td>돌발 반응(인터럽트) 규칙 중 <b>이 직업에 걸리는 것</b>만 추린 것이다. 조건과 결과가 같이 나온다.</td></tr>
+<tr><td><b>인구</b></td><td>전체 NPC 중 이 직업이 몇 명인가. 옆에 <b>지역별 분포</b>가 같이 나온다.</td></tr>
+<tr><td><b>하루 일과</b></td><td>LLM 이 없어도 도는 기본 계획이다. 스텝마다 ✓ / ✗ 판정이 붙는다 — ✗ 는 그 스텝의 전제조건이 안 맞는다는 뜻이다.</td></tr>
+</tbody>
+</table>
+<div class="note"><b>✗ 가 보이면 그것은 발견이다.</b> 정의가 검증은 통과하지만 실제로는 매번 실패하는 스텝일 수 있다. <span class="ui">검증·진단</span> 화면의 <b>건강 진단</b>이 같은 것을 목록으로 모아 준다.</div>
+
+<h3>2.2 전문가 카드</h3>
+<p><span class="ui">전문가 카드</span> 탭은 <b>검수용</b>이다. 근거 파일과 검증 코드(<code>archetypes.json</code> · V5)가 같이 나오고, 값은 영어 id 그대로다. <code>npc card archetype blacksmith</code> 와 같은 내용이다 — 리뷰할 때 쓰고, 처음 읽을 때는 개요를 본다.</p>
 </section>
 
-<section id="edit">
-<h2>5. JSON을 편집한다</h2>
-<p>아키타입 편집기는 저장된 값이 아니라 <b>현재 입력 중인 JSON 초안</b>으로 설명을 만든다. 설명이 정상이어도 저장 시에는 V1~V13 전체 검증을 다시 수행한다.</p>
-<p><b>JSON 파일</b> 탭에서는 다음 원천 파일을 편집할 수 있다. <code>npc_instances.json</code>, <code>poi_distances.bin</code>, <code>prompt/</code>처럼 다시 생성되는 파일은 목록에 나오지 않는다.</p>
-<p>특정 NPC의 성격을 바꾸려면 <b>개별 NPC</b>에서 NPC를 선택한 뒤 카드 아래 <b>개별 설정</b> 폼을 사용한다. <b>오버라이드 편집</b>은 같은 파일 전체를 JSON으로 직접 다뤄야 할 때 사용한다. 저장되는 예시는 다음과 같다.</p>
-<pre><code>{
-  "$schema": "../docs/schema/npc_overrides.schema.json",
-  "version": 1,
-  "overrides": [
-    {
-      "id": 1247,
-      "patrol_route": ["gate_east_001", "guardhouse_001"],
-      "aggro_radius_m": 35,
-      "faction": "town_guard",
-      "dialogue_profile": "stern_guard",
-      "schedule_offset_min": -15
-    }
-  ]
-}</code></pre>
-<p>순찰 지점은 해당 NPC와 같은 존에 있어야 하고 최대 4개다. 공격 반경은 0~200m, 일정 오프셋은 -120~120분이다.</p>
+<section id="forecast">
+<h2>3. 따라하기 — 하루를 재생한다</h2>
+<div class="goal"><b>목표.</b> 정의를 읽는 것에서 <b>"그래서 이 NPC 가 어떻게 움직이지?"</b> 로 넘어간다. 값을 바꾸면 무엇이 달라지는지 눈으로 본다.</div>
+
+<h3>3.1 재생한다</h3>
+<ol class="walk">
+  <li>대장장이 → <span class="ui">하루 미리보기</span> 탭.</li>
+  <li><span class="ui">▶ 하루 재생</span> 을 누른다. 지도 위의 인형이 <b>집 → 대장간(일하기) → 선술집 → 집(잠)</b> 으로 움직인다.</li>
+  <li>위의 <b>24시간 띠</b>에서 아무 구간이나 누르면 그 시각으로 건너뛴다. <span class="ui">배속</span> 으로 속도를 바꾼다.</li>
+  <li>아래 카드가 <b>지금 무엇을 왜 하는지</b> 를 문장으로 말한다.</li>
+</ol>
+<div class="note"><b>예측은 결정론이다.</b> 같은 정의면 언제 눌러도 같은 타임라인이다. 소요 시간은 시뮬레이터(<code>Npc.Sim</code>)가 쓰는 것과 <b>같은 계산</b>이다 — 지터(±) 만 빼고 같다. 두 곳에 같은 식을 두 번 적지 않았다는 뜻이고, 드리프트 테스트가 그것을 지킨다.</div>
+
+<h3>3.2 상황을 준다</h3>
+<p>타임라인 아래 <b>상황 버튼</b>이 일곱 개 있다.</p>
+<div class="flow"><span>위협 등장</span><span>전투 시작</span><span>부상</span><span>적대 플레이어</span><span>플레이어가 말을 건다</span><span>피해 입음</span><span>혼자 위협</span></div>
+<ol class="walk">
+  <li><span class="ui">위협 등장</span> 을 누른다. 대장장이는 <b>물러나기</b>(<code>retreat_on_threat</code>) 로 성문을 향한다.</li>
+  <li>아래 <b>왜</b> 패널이 규칙 판정을 한 줄씩 보여 준다 — 어떤 조건이 맞았고 어떤 것이 안 맞았는지.</li>
+  <li><span class="ui">돌아가기</span> 로 평소 하루로 되돌린다.</li>
+</ol>
+
+<h3>3.3 값을 바꿔 본다 — "기대 경로" 의 뜻</h3>
+<ol class="walk">
+  <li><span class="ui">편집</span> 탭으로 간다. <b>용기</b> 막대를 <b>55 → 30</b> 으로 내린다.</li>
+  <li>저장하지 않아도 <b>오른쪽 예측이 즉시 바뀐다.</b> 같은 <span class="ui">위협 등장</span> 이 이제 <b>도망</b>(<code>flee_on_threat</code>) 이다.</li>
+  <li>"왜" 패널에 <code>flee_on_threat: 용기 30 &lt; 40 ✓</code> 가 뜬다. 규칙의 문턱값이 40 이었고, 30 이 그 아래로 내려간 것이다.</li>
+  <li>아래 <b>변경 요약</b>이 같은 말을 문장으로 적는다 — "용기 55 → 30. 위협 시 물러나기 대신 도망친다."</li>
+</ol>
+<div class="warn"><b>여기까지는 아무것도 저장되지 않았다.</b> 예측은 <b>화면의 초안</b>으로 계산한다. 저장은 <span class="ui">검증하고 저장</span> 을 눌러야 일어나고, 그때 V1~V15 전체 검증을 다시 돈다.</div>
+<p><b>기대 경로</b>란 "이 정의면 NPC 가 이렇게 움직일 것이다" 라는 <b>예측</b>이지 실행 기록이 아니다. 실제 서버에서 명령이 유실되거나 장소가 만원이면 달라진다 — 실제를 보려면 <a href="#advanced">라이브 관찰</a>을 쓴다.</p>
 </section>
 
-<section id="validate">
-<h2>6. 검증하고 저장한다</h2>
-<p>Studio의 저장 버튼은 바로 원본을 덮어쓰지 않는다.</p>
-<div class="flow"><span>임시 작업본 생성</span><b>→</b><span>V1~V13 전체 검증</span><b>→</b><span>MasterDataLoader 로드</span><b>→</b><span>NpcInstanceTable 로드</span><b>→</b><span>원자적 저장</span></div>
+<section id="npc">
+<h2>4. NPC 한 명을 고친다</h2>
+<div class="goal"><b>목표.</b> 위병 #2326 의 순찰로를 <b>지도에서 3곳 찍어</b> 바꾸고 저장한다. 좌표를 손으로 적지 않는다.</div>
+
+<ol class="walk">
+  <li>왼쪽 <span class="ui">NPC</span> → 위쪽 검색에 <code>2326</code>. 직업·지역으로 좁히거나 <b>개별 설정이 있는 NPC만</b> 필터를 쓸 수도 있다.</li>
+  <li>행을 누르면 <b>누구인가 · 어디 사는가 · 무엇을 하는가</b> 가 한 화면에 나온다. 통근 거리와 하루 예측도 이 NPC 기준으로 다시 계산된 값이다.</li>
+  <li><b>어디에 사는가</b> 지도에서 장소를 누르면 순찰 지점으로 들어간다. 집과 일터에는 별도 표시가 붙는다.</li>
+  <li>순서를 ↑ ↓ 로 바꾸고 × 로 뺀다. <b>최대 4곳</b>이고 <b>같은 지역</b>이어야 한다.</li>
+  <li>아래 <b>개별 설정</b> 에서 공격 반경(0~200m) · 세력 · 대화 프로필 · 일정 오프셋(-120~120분)을 채운다. 각 칸의 <b>ⓘ</b> 가 뜻을 말한다.</li>
+  <li><span class="ui">검증하고 저장</span>. 전부 비우고 저장하면 <span class="ui">개별 설정 삭제</span> 와 같다 — 그 NPC 는 직업의 기본값으로 돌아간다.</li>
+</ol>
+
+<div class="warn"><b>생성물은 고치지 않는다.</b> NPC 5,000명 명단(<code>npc_instances.json</code>)은 생성기가 만든다. 한 명만 다르게 하는 값은 <code>npc_overrides.json</code> 에 들어가고, Studio 가 그 파일의 해당 ID 항목만 추가·교체·삭제한다.</div>
+<p>지도 좌표는 <b>지역 안에서만</b> 실제다. 지역끼리 합칠 절대 좌표는 마스터데이터에 없다 — 마을 전체 배치는 <span class="ui">마을 지도</span> 화면이 지역 단위로 보여 준다.</p>
+</section>
+
+<section id="place">
+<h2>5. 장소를 더한다</h2>
+<div class="goal"><b>목표.</b> 양봉장 두 곳을 만들고 거리표를 다시 굽는다.</div>
+
+<ol class="walk">
+  <li>왼쪽 <span class="ui">지역·장소</span> → 지역을 하나 고른다. 그 지역의 장소가 지도와 목록으로 나온다.</li>
+  <li><span class="ui">+ 새 장소</span> 를 누른다.</li>
+  <li>이름 · 유형 · 세부 종류 · <b>정원</b> · 좌표 · 여는 시간을 채운다. <code>code</code> 는 <b>자동으로 다음 번호</b>가 잡힌다 — 번호를 손으로 적거나 재배치하지 않는다.</li>
+  <li><span class="ui">검증하고 만들기</span>. 하나 더 만들어 둘로 채운다.</li>
+  <li>저장 직후 <b>파급 패널</b>이 뜬다: <b>거리표(<code>poi_distances.bin</code>)가 낡았다.</b> <span class="ui">다시 만들기</span> 를 누른다.</li>
+</ol>
+
+<div class="note"><b>왜 저장이 먼저이고 재생성이 나중인가.</b> 장소를 더하면 거리표는 <b>그 순간부터 낡은 것이 맞다</b> — 243개 기준으로 구운 표에 244번째가 없다. 로더는 이것을 옳게 거절하지만, <b>거리표를 다시 구우려면 새 장소가 먼저 파일에 있어야 한다.</b> 그래서 장소 추가만은 "거리표가 낡았다" 를 이유로 저장을 막지 않고, 대신 파급 패널이 바로 다음 할 일을 시킨다. 다른 모든 저장은 이 예외가 없다.</div>
+<p>재생성이 끝나면 <code>derived.lock.json</code> 의 신선도 잠금도 같이 갱신된다. 터미널에서 확인하려면 <code>npc regen --check</code> 다 — 낡은 것이 없으면 0 을 낸다.</p>
+</section>
+
+<section id="job">
+<h2>6. 새 직업을 만든다</h2>
+<div class="goal"><b>목표.</b> "양봉가" 를 만들어 <code>--npcs 5000</code> 기동에 실제로 뜨게 한다.</div>
+
+<p>왼쪽 <span class="ui">직업</span> → <span class="ui">새 직업 만들기</span>. 5단계 마법사다.</p>
+<div class="flow"><span><b>1. 이름·직군</b></span><b>→</b><span><b>2. 닮은 직업·인구</b></span><b>→</b><span><b>3. 일터</b></span><b>→</b><span><b>4. 하루 일과</b></span><b>→</b><span><b>5. 확인</b></span></div>
+
+<table>
+<thead><tr><th>단계</th><th>고르는 것</th><th>화면이 답해 주는 것</th></tr></thead>
+<tbody>
+<tr><td><b>1. 이름·직군</b></td><td>ID(영문 소문자·밑줄) · 한국어 이름 · 직군</td><td>이미 있는 ID 면 바로 막는다. 직군은 색과 분류에 쓴다.</td></tr>
+<tr><td><b>2. 닮은 직업·인구</b></td><td>어디서 뗄까 · 몇 명</td><td><b>인구 가중치의 합은 1 이다.</b> 새 직업의 몫은 어디선가 와야 한다 — <span class="ui">재배분 방법 보기</span> 가 세 가지 방법을 제안하고, 각각 어느 직업이 몇 명 줄어드는지 보여 준다.</td></tr>
+<tr><td><b>3. 일터</b></td><td>일터 유형</td><td><b>정원이 인구를 수용하는가.</b> 모자라면 그 자리에서 말한다 — 장소를 먼저 만들어야 한다(<a href="#place">5장</a>).</td></tr>
+<tr><td><b>4. 하루 일과</b></td><td>스텝 목록</td><td>닮은 직업의 일과를 복제해 고친다. 스텝마다 ✓ / ✗ 판정과 <b>예상 소요 시간</b>이 붙는다.</td></tr>
+<tr><td><b>5. 확인</b></td><td>—</td><td><b>이렇게 만든다</b>(무슨 파일이 어떻게 바뀌는지)와 <b>만든 뒤 해야 할 일</b>을 미리 보여 준다.</td></tr>
+</tbody>
+</table>
+
+<p><span class="ui">검증하고 만들기</span> 를 누르면 네 파일이 <b>한 트랜잭션</b>으로 바뀐다.</p>
+<div class="flow"><span><b>archetypes.json</b><br>새 직업 + 인구 재배분</span><b>→</b><span><b>fallback_plans.json</b><br>하루 일과</span><b>→</b><span><b>context_buckets.json</b><br>버킷 수</span><b>→</b><span><b>pois.json</b><br>일터 작업 권한</span></div>
+<div class="note"><b>일터 작업 권한을 같이 준다.</b> 복제한 일과는 원본 직업의 일터를 가리키는데, 새 직업은 그 장소에서 일할 권한이 없다 — 그대로 저장하면 <code>V3.UNREACHABLE_POI</code> 로 거절된다. 마법사는 같은 트랜잭션에서 해당 장소들에 새 직업의 작업 권한을 넣는다.</div>
+
+<h3>6.1 만든 뒤에 해야 할 일</h3>
+<p>파급 패널이 순서대로 시킨다. 둘 다 <span class="ui">다시 만들기</span> 버튼이 있다.</p>
+<ol class="walk">
+  <li><b>NPC 명단 재생성</b> — 인구 가중치가 바뀌었으므로 5,000명 배치를 다시 뽑는다.</li>
+  <li><b>거리표</b> — 장소를 같이 만들었다면 필요하다.</li>
+  <li><b>프리베이크</b>(선택) — 미리 구운 계획을 새 직업 몫만큼 더 굽는다. 하지 않아도 <b>하루 일과로 돈다</b> — 플랜 스토어는 미스여도 폴백을 주므로 서버는 뜬다.</li>
+</ol>
+<p>마지막으로 설명(<code>desc</code>)을 반드시 사람 문장으로 고친다. 이 문장은 <b>LLM 프롬프트에 그대로 실린다</b> — <code>TODO:</code> 가 남아 있으면 건강 진단이 잡는다.</p>
+<pre><code>dotnet run -c Release --project src/Npc.Host -- --loopback --npcs 5000 --time-scale 600 --days 1 --no-llm</code></pre>
+</section>
+
+<section id="bucket">
+<h2>7. 상황별 계획을 본다</h2>
+<div class="goal"><b>목표.</b> "이 직업은 <b>오후에 · 경계 상태에서 · 폭풍이 칠 때</b> 무엇을 하나" 를 본다.</div>
+
+<p>NPC 는 하루 일과 하나로만 살지 않는다. <b>시간대 × 지역 상태 × 날씨</b> 조합마다 미리 구운 계획이 따로 있다. 직업 하나당 6 × 4 × 3 = <b>72칸</b>이다.</p>
+<ol class="walk">
+  <li><b>수련사제</b> → <span class="ui">상황별</span> 탭. 72칸 격자가 나온다.</li>
+  <li>칸의 색이 상태다 — <b>핀</b>(사람이 검수해 고정) · <b>생성됨</b> · <b>폴백으로 돈다</b>(미리 구운 것이 없음) · <b>없음</b>.</li>
+  <li><b>오후 · 경계 · 폭풍</b> 칸을 누른다. 그 계획이 스텝 판정과 함께 나오고, <b>지도에서 재생</b>된다 — 신전으로 뛰어가 기도하고 쉬었다가 귀가해 잔다.</li>
+  <li>미리 구운 것이 없는 칸은 <b>"폴백으로 돈다"</b> 로 표시된다. 결함이 아니다 — 실제로 도달하는 버킷은 전체의 9% 남짓이고, 나머지는 하루 일과로 돈다.</li>
+</ol>
+<div class="note">이 탭은 <code>--planstore</code> 경로가 있을 때만 나온다. 기본값은 <code>./planstore</code> 다.</div>
+</section>
+
+<section id="safe">
+<h2>8. 저장은 어떻게 안전한가</h2>
+
+<h3>8.1 저장 경로</h3>
+<p>저장 버튼은 원본을 바로 덮어쓰지 않는다.</p>
+<div class="flow"><span>임시 작업본</span><b>→</b><span>V1~V15 전체 검증</span><b>→</b><span>MasterDataLoader 로드</span><b>→</b><span>NpcInstanceTable 로드</span><b>→</b><span>백업</span><b>→</b><span>원자적 저장</span></div>
 <table>
 <thead><tr><th>결과</th><th>동작</th></tr></thead>
 <tbody>
-<tr><td class="ok">검증 통과</td><td>변경 파일만 원본에 저장하고 화면을 다시 읽는다.</td></tr>
-<tr><td class="bad">검증 실패</td><td>원본을 유지하고 오른쪽에 코드·위치·수정 힌트를 표시한다.</td></tr>
-<tr><td class="bad">로더 실패</td><td>형식은 맞지만 참조를 컴파일할 수 없는 상태다. 역시 저장하지 않는다.</td></tr>
+<tr><td class="ok">검증 통과</td><td>바뀐 파일만 저장하고 화면을 다시 읽는다. 파급 패널이 다음 할 일을 말한다.</td></tr>
+<tr><td class="bad">검증 실패</td><td><b>원본을 유지한다.</b> 오른쪽에 코드·사람 말 제목·위치가 나오고, 대부분은 <b>그 자리로 가는 링크</b>가 붙는다.</td></tr>
+<tr><td class="bad">로더 실패</td><td>형식은 맞지만 참조를 컴파일할 수 없다. 역시 저장하지 않는다.</td></tr>
 </tbody>
 </table>
-<p>편집을 마친 뒤에는 Studio 검증에 더해 저장소 루트에서 다음을 실행한다.</p>
-<pre><code>dotnet run --project tools/Npc.Cli -- validate
-dotnet run --project tools/Npc.Cli -- diff
-dotnet run --project tools/Npc.Cli -- regen --check</code></pre>
-</section>
+<div class="note"><b>무변경 저장은 바이트 동일이다.</b> 폼으로 열어 아무것도 바꾸지 않고 저장하면 파일이 한 바이트도 변하지 않는다. 바꾼 필드만 제자리에서 고치고 들여쓰기·키 순서를 원문에서 읽기 때문이다 — 한 줄을 고쳤는데 3,000줄이 바뀐 diff 는 아무도 리뷰할 수 없다.</div>
 
-<section id="files">
-<h2>7. 파일별 역할을 구분한다</h2>
+<h3>8.2 연습장</h3>
+<ol class="walk">
+  <li>시작 화면 → <span class="ui">연습장 만들기</span>. 이름을 준다.</li>
+  <li>위쪽 막대에 <b>연습장 · 이름</b> 배지가 뜬다. 이제 모든 편집은 사본에서 일어난다.</li>
+  <li><span class="ui">원본과 비교</span> 로 무엇이 달라졌는지 본다.</li>
+  <li>마음에 들면 <span class="ui">원본에 적용</span> — 이때도 검증을 다시 돈다. 아니면 <span class="ui">연습장 버리기</span>.</li>
+</ol>
+
+<h3>8.3 되돌리기</h3>
+<p><span class="ui">고급 · JSON</span> 화면의 <b>되돌리기</b> 절에 저장 직전 상태가 시각순으로 쌓인다. <span class="ui">이 상태로 되돌리기</span> 를 누르면 그 내용으로 <b>다시 검증해서</b> 저장한다 — 그 사이에 다른 파일이 바뀌었을 수 있으므로 무조건 덮어쓰지 않는다.</p>
 <table>
-<thead><tr><th>파일</th><th>용도</th><th>주의</th></tr></thead>
+<thead><tr><th>항목</th><th>값</th></tr></thead>
 <tbody>
-<tr><td><code>archetypes.json</code></td><td>직업, 성향, 행동, 인구</td><td><code>code</code>를 재배치하지 않는다.</td></tr>
-<tr><td><code>npc_overrides.json</code></td><td>특정 NPC의 순찰·세력·대화 성격</td><td>사람이 편집하는 개체 파일이다.</td></tr>
-<tr><td><code>fallback_plans.json</code></td><td>LLM 없이도 실행할 기본 행동</td><td>모든 아키타입에 하나가 필요하다.</td></tr>
-<tr><td><code>actions.json</code></td><td>LLM과 런타임이 쓸 행동 어휘</td><td><code>code</code> 재배치 금지다.</td></tr>
-<tr><td><code>pois.json</code></td><td>집·일터·장소와 정원</td><td>인구를 수용해야 한다.</td></tr>
-<tr><td><code>npc_instances.json</code></td><td>생성된 5,000 NPC 명단</td><td><b>직접 편집 금지</b>다.</td></tr>
+<tr><td>두는 곳</td><td><code>%LOCALAPPDATA%\NpcStudio\backup\</code> 아래, <b>편집 대상 폴더마다 따로</b>. <code>--backup-root</code> 로 바꿀 수 있다.</td></tr>
+<tr><td>보존</td><td>30일. 지난 것은 저장할 때 지운다.</td></tr>
+<tr><td>범위</td><td>Studio 가 쓰기 직전의 원본. 외부 편집기의 변경은 여기 없다.</td></tr>
 </tbody>
 </table>
-<p>전체 스키마는 <a href="reference_masterdata.html">마스터데이터 레퍼런스</a>에서 확인한다.</p>
+<div class="warn"><b><code>masterdata/</code> 안에 백업을 두지 않는다.</b> 폴더 전체를 읽는 연습장 복사와 콘텐츠 해시에 백업이 입력으로 섞인다.</div>
+
+<h3>8.4 파급 패널</h3>
+<p>저장 뒤에 나오는 패널이다. <b>무엇이 낡았고 무엇을 다시 만들어야 하는가</b> 를 말하고, 가능한 것은 버튼을 준다.</p>
+<table>
+<thead><tr><th>바꾼 것</th><th>낡는 것</th><th>다음</th></tr></thead>
+<tbody>
+<tr><td>장소 추가·좌표 변경</td><td><code>poi_distances.bin</code></td><td>거리표 다시 만들기</td></tr>
+<tr><td>인구 가중치·직업 추가</td><td><code>npc_instances.json</code></td><td>NPC 명단 재생성</td></tr>
+<tr><td>액션·아키타입 설명</td><td>프롬프트 프리픽스 해시</td><td>프리베이크 재실행(선택). 안 하면 폴백으로 돈다</td></tr>
+</tbody>
+</table>
+<div class="warn"><b>재생성 버튼은 저장소 안에서, 원본 디렉터리에서만 돈다.</b> 생성기는 <code>tools/gen_*.cs</code> 스크립트라 저장소 밖 폴더나 연습장에서는 실행하지 않는다 — 그때는 버튼이 비활성이고 터미널 명령을 알려 준다.</div>
 </section>
 
-<section id="options">
-<h2>8. 실행 옵션을 사용한다</h2>
-<pre><code>dotnet run -c Release --project tools/Npc.Studio -- --masterdata ./masterdata --bind 127.0.0.1 --port 25056 --read-only</code></pre>
+<section id="advanced">
+<h2>9. 고급 — JSON · 전문가 카드 · CLI 대응표</h2>
+
+<h3>9.1 JSON 원문 편집</h3>
+<p><span class="ui">고급 · JSON</span> 화면에서 원천 파일을 직접 편집한다. <b>폼으로 되는 일은 폼에서 한다</b> — 원문 편집은 폼이 없는 파일에만 쓴다. 생성물(<code>npc_instances.json</code> · <code>poi_distances.bin</code> · <code>prompt/</code>)은 목록에 나오지 않는다.</p>
+<p>직업 화면의 <span class="ui">고급 · JSON</span> 탭도 같은 성격이다. 폼과 같은 초안을 보며, 저장하지 않은 변경이 있으면 화면을 떠날 때 확인한다.</p>
+
+<h3>9.2 라이브 관찰</h3>
+<p><span class="ui">라이브 관찰</span> 은 <b>실행 중인 NPC 서버</b>를 같은 지도 위에 얹는다. 예측과 실제를 나란히 본다.</p>
+<pre><code>dotnet run -c Release --project tools/Npc.Studio -- --server http://127.0.0.1:25055 --token &lt;대시보드 토큰&gt;</code></pre>
+<p>HTTP 질의만 한다 — Studio 는 서버 프로세스를 참조하지도, 조작하지도 않는다. 주소가 없으면 이 화면은 "서버 주소가 없다" 로 남는다.</p>
+
+<h3>9.3 실행 옵션</h3>
 <table>
 <thead><tr><th>옵션</th><th>기본값</th><th>의미</th></tr></thead>
 <tbody>
-<tr><td><code>--masterdata</code></td><td><code>./masterdata</code></td><td>열 마스터데이터 폴더다.</td></tr>
-<tr><td><code>--bind</code></td><td><code>127.0.0.1</code></td><td>수신 주소다. 기본값은 로컬에서만 접근된다.</td></tr>
-<tr><td><code>--port</code></td><td><code>25056</code></td><td>웹 포트다.</td></tr>
-<tr><td><code>--read-only</code></td><td>꺼짐</td><td>저장 기능을 막고 조회·검증만 허용한다.</td></tr>
+<tr><td><code>--masterdata</code></td><td><code>./masterdata</code></td><td>열 마스터데이터 폴더.</td></tr>
+<tr><td><code>--planstore</code></td><td><code>./planstore</code></td><td>미리 구운 계획. 없으면 <b>상황별</b> 탭을 숨긴다.</td></tr>
+<tr><td><code>--server</code></td><td>없음</td><td>실행 중인 NPC 서버 주소. 없으면 <b>라이브 관찰</b>을 쓰지 않는다.</td></tr>
+<tr><td><code>--token</code></td><td>없음</td><td>대시보드 토큰. 비면 헤더를 붙이지 않는다.</td></tr>
+<tr><td><code>--backup-root</code></td><td><code>%LOCALAPPDATA%\NpcStudio\backup</code></td><td>되돌리기 백업 위치.</td></tr>
+<tr><td><code>--bind</code></td><td><code>127.0.0.1</code></td><td>수신 주소. 기본값은 로컬에서만 접근된다.</td></tr>
+<tr><td><code>--port</code></td><td><code>25056</code></td><td>웹 포트.</td></tr>
+<tr><td><code>--read-only</code></td><td>꺼짐</td><td>저장을 막고 조회·검증만 허용한다.</td></tr>
 </tbody>
 </table>
-<div class="warn"><b>외부 공개용 서비스가 아니다.</b> 인증을 제공하지 않으므로 <code>--bind 0.0.0.0</code>으로 인터넷이나 사내 공용망에 직접 노출하지 않는다.</div>
+<div class="warn"><b>외부 공개용 서비스가 아니다.</b> 인증이 없으므로 <code>--bind 0.0.0.0</code> 으로 사내 공용망이나 인터넷에 노출하지 않는다.</div>
+
+<h3>9.4 CLI 대응표</h3>
+<p>화면에서 하는 일은 대부분 터미널에서도 된다. 같은 코어를 부르므로 <b>답이 갈리지 않는다.</b></p>
+<table>
+<thead><tr><th>Studio 화면</th><th>같은 일을 하는 명령</th></tr></thead>
+<tbody>
+<tr><td>직업 → 전문가 카드</td><td><code>npc card archetype blacksmith</code></td></tr>
+<tr><td>NPC → 카드</td><td><code>npc card npc 2326</code></td></tr>
+<tr><td>필드 ⓘ · 장소·행동 설명</td><td><code>npc explain archetype|action|poi|item|flag|interrupt &lt;id&gt;</code></td></tr>
+<tr><td>하루 미리보기</td><td><code>npc forecast archetype blacksmith [--bucket &lt;키&gt;] [--npc &lt;번호&gt;]</code></td></tr>
+<tr><td>24시간 띠만</td><td><code>npc timeline archetype blacksmith</code></td></tr>
+<tr><td>검증·진단 → 건강 진단</td><td><code>npc lint archetype blacksmith</code> · <code>npc lint archetype all</code></td></tr>
+<tr><td>오른쪽 검증 결과</td><td><code>npc validate</code></td></tr>
+<tr><td>파급 패널 → 다시 만들기</td><td><code>npc regen</code> · 낡았는지만 보려면 <code>npc regen --check</code></td></tr>
+<tr><td>연습장 → 원본과 비교</td><td><code>npc diff</code></td></tr>
+<tr><td>상황별 격자</td><td><code>npc buckets --archetype acolyte</code> · 고정은 <code>npc pin &lt;버킷&gt;</code></td></tr>
+<tr><td>새 장소의 다음 번호</td><td><code>npc next-code pois</code></td></tr>
+<tr><td>새 직업(비대화)</td><td><code>npc scaffold archetype beekeeper --from shepherd --weight 0.004 --apply</code></td></tr>
+</tbody>
+</table>
 </section>
 
 <section id="trouble">
-<h2>9. 잘 안 될 때 확인한다</h2>
+<h2>10. 문제 해결</h2>
 <table>
 <thead><tr><th>증상</th><th>확인할 것</th></tr></thead>
 <tbody>
-<tr><td>페이지가 열리지 않는다.</td><td>터미널의 실제 URL과 포트 충돌을 확인한다.</td></tr>
-<tr><td>검증 실패로 저장되지 않는다.</td><td>오른쪽 오류의 파일·JSON Pointer·수정 힌트를 따른다.</td></tr>
-<tr><td>새 직업이 게임에 안 보인다.</td><td><code>dotnet run tools/gen_npcs.cs</code>를 실행하고 충분한 <code>--npcs</code> 수로 기동한다.</td></tr>
-<tr><td>매뉴얼 링크가 404다.</td><td>저장소의 기본 <code>masterdata/</code>를 열었는지 확인한다. 외부 폴더에서는 <code>docs/</code>를 자동으로 찾지 못한다.</td></tr>
-<tr><td>수정한 파일 전체가 diff로 보인다.</td><td>Studio는 원문 서식을 보존한다. 외부 편집기의 줄 끝 설정이 LF인지 확인한다.</td></tr>
+<tr><td>페이지가 열리지 않는다.</td><td>터미널의 실제 URL 과 포트 충돌. <code>--port</code> 로 옮긴다.</td></tr>
+<tr><td>검증 실패로 저장되지 않는다.</td><td>오른쪽 오류의 제목과 링크를 따라간다. 대부분 그 자리로 바로 간다.</td></tr>
+<tr><td><code>poi_distances.bin 이 POI 243개 기준인데 pois.json 은 244개다</code></td><td>정상이다. 장소를 더한 직후의 상태다 — 파급 패널의 <b>거리표 다시 만들기</b> 를 누른다(<a href="#place">5장</a>).</td></tr>
+<tr><td><code>V3.UNREACHABLE_POI</code> 가 새 직업에서 난다.</td><td>일터에 그 직업의 작업 권한이 없다. 마법사로 만들면 자동으로 들어간다 — 손으로 만들었다면 해당 장소의 작업 권한 목록에 직업을 더한다.</td></tr>
+<tr><td>새 직업이 기동에 안 보인다.</td><td>NPC 명단 재생성을 했는가. 인구가 0명으로 반올림되지 않았는가(건강 진단이 잡는다).</td></tr>
+<tr><td>하루 미리보기의 인형이 안 움직인다.</td><td>브라우저 탭이 <b>뒤에 있으면</b> 브라우저가 애니메이션을 멈춘다. 탭을 앞으로 가져오거나 24시간 띠를 눌러 시각을 직접 옮긴다.</td></tr>
+<tr><td>재생성 버튼이 비활성이다.</td><td>저장소 밖 폴더이거나 연습장이다. 원본 디렉터리에서 누르거나 터미널에서 <code>npc regen</code>.</td></tr>
+<tr><td>상황별 탭이 없다.</td><td><code>--planstore</code> 경로에 <code>pinned/</code>·<code>plans/</code> 가 있는지 확인한다.</td></tr>
+<tr><td>라이브 관찰이 비어 있다.</td><td><code>--server</code> 를 줬는가. 서버가 대시보드 토큰을 요구하면 <code>--token</code> 도 필요하다.</td></tr>
+<tr><td>수정한 파일 전체가 diff 로 보인다.</td><td>Studio 는 원문 서식을 보존한다. 외부 편집기의 줄 끝 설정이 파일과 같은지 확인한다.</td></tr>
+<tr><td>매뉴얼 링크가 404 다.</td><td>저장소의 기본 <code>masterdata/</code> 를 열었는지 확인한다. 외부 폴더에서는 <code>docs/</code> 를 자동으로 찾지 못한다.</td></tr>
 </tbody>
 </table>
 </section>
 
-<footer>관련 문서: <a href="reference_masterdata.html">마스터데이터 레퍼런스</a> · <a href="tutorial/ch07.html">새 직업 만들기 실습</a> · <a href="../README.md">README</a></footer>
+<footer>관련 문서: <a href="reference_masterdata.html">마스터데이터 레퍼런스</a> · <a href="tutorial/index.html">활용 실습서</a> · <a href="tutorial/ch07.html">새 직업 만들기 실습</a> · <a href="../README.md">README</a></footer>
 </main>
 </div>
 </body>
