@@ -457,6 +457,11 @@ public sealed class StudioWorkspace(StudioOptions options)
             NpcInstanceDef npc = instances[index];
             InstanceFacts facts = InstanceCard.Facts(data, npc);
 
+            // 순찰로가 없는 NPC 는 이 배열이 default 다 — 그대로 Select 하면 NullReference 다.
+            ImmutableArray<string> route = npc.PatrolRoute.IsDefaultOrEmpty
+                ? []
+                : [.. npc.PatrolRoute.Select(p => data.Pois[p].Id)];
+
             return new StudioNpcOverview(
                 npc,
                 facts,
@@ -465,7 +470,7 @@ public sealed class StudioWorkspace(StudioOptions options)
                 Lexicon.Zone(data, facts.ZoneId),
                 Lexicon.Group(facts.ArchetypeId),
                 PoiChoices(data, npc),
-                [.. npc.PatrolRoute.Select(p => data.Pois[p].Id)]);
+                route);
         }
     }
 
