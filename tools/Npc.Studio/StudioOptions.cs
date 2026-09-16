@@ -10,7 +10,7 @@ public sealed record StudioOptions(string MasterData, string Bind, int Port, boo
 
         string masterData = "./masterdata";
         string bind = "127.0.0.1";
-        int port = 5090;
+        int port = 25_056;
         bool readOnly = false;
 
         for (int i = 0; i < args.Length; i++)

@@ -1,0 +1,9 @@
+<div class="markdown-body @Class">@((MarkupString)StudioMarkdown.ToHtml(Content))</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Content { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Class { get; set; } = string.Empty;
+}

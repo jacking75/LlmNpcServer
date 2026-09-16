@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Npc.MasterData;
 using Npc.MasterData.Authoring;
 using Npc.MasterData.Validation;
@@ -22,6 +23,10 @@ public sealed class StudioWorkspace(StudioOptions options)
             "dialogue_lines.json", "factions.json", "npc_overrides.json");
 
     private readonly object _gate = new();
+    private static readonly JsonSerializerOptions s_indentedJson = new(JsonSurgeonText.Options)
+    {
+        WriteIndented = true,
+    };
 
     /// <summary>현재 카탈로그와 검증 상태를 읽는다.</summary>
     public StudioCatalog LoadCatalog()
@@ -69,6 +74,60 @@ public sealed class StudioWorkspace(StudioOptions options)
         }
     }
 
+    /// <summary>저장하지 않은 아키타입 JSON을 현재 마스터데이터와 합쳐 설명 카드로 만든다.</summary>
+    public string PreviewArchetype(string id, string itemJson)
+    {
+        EnsureItemId(itemJson, id);
+
+        lock (_gate)
+        {
+            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            string source = Read("archetypes.json");
+            (int start, int end) = JsonSurgeon.ItemRange(source, "archetypes", "id", id);
+            string candidate = source[..start] + itemJson + source[end..];
+            ArchetypeTable archetypes = ArchetypeTable.Parse(candidate, data.Actions, data.Items);
+
+            if (!archetypes.TryGet(id, out ArchetypeDef draft))
+            {
+                throw new InvalidDataException($"아키타입 '{id}' 초안을 읽지 못했다.");
+            }
+
+            return ArchetypeCard.Render(data, draft);
+        }
+    }
+
+    /// <summary>생성된 NPC를 아키타입·지역으로 탐색할 수 있는 가벼운 목록으로 읽는다.</summary>
+    public ImmutableArray<StudioNpcSummary> LoadNpcDirectory()
+    {
+        lock (_gate)
+        {
+            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            NpcInstanceTable instances = NpcInstanceTable.Load(
+                Path.Combine(options.MasterData, "npc_instances.json"), data);
+            HashSet<int> overridden = LoadOverrideIds();
+            var result = ImmutableArray.CreateBuilder<StudioNpcSummary>(instances.Count);
+
+            foreach (NpcInstanceDef npc in instances.Instances)
+            {
+                string workplace = npc.Workplace == default ? "—" : data.Pois[npc.Workplace].Id;
+                string faction = npc.Faction == default || data.Factions is null
+                    ? "—"
+                    : data.Factions.NameOf(npc.Faction);
+
+                result.Add(new StudioNpcSummary(
+                    npc.Id,
+                    data.Archetypes[npc.Archetype].Id,
+                    data.Zones[npc.Zone].Id,
+                    data.Pois[npc.Home].Id,
+                    workplace,
+                    faction,
+                    overridden.Contains(npc.Id)));
+            }
+
+            return result.ToImmutable();
+        }
+    }
+
     /// <summary>생성된 NPC 한 명을 사람이 읽는 카드로 보여 준다.</summary>
     public string LoadNpcCard(int id)
     {
@@ -85,6 +144,115 @@ public sealed class StudioWorkspace(StudioOptions options)
             }
 
             return InstanceCard.Render(data, instances, index);
+        }
+    }
+
+    /// <summary>개별 NPC의 손편집 오버라이드와 선택 가능한 같은 지역 POI·세력을 읽는다.</summary>
+    public StudioNpcOverrideEditor LoadNpcOverride(int id)
+    {
+        lock (_gate)
+        {
+            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            NpcInstanceTable instances = NpcInstanceTable.Load(
+                Path.Combine(options.MasterData, "npc_instances.json"), data);
+            int index = id - 1;
+            if ((uint)index >= (uint)instances.Count || instances[index].Id != id)
+            {
+                throw new ArgumentOutOfRangeException(nameof(id), $"NPC {id}가 없다.");
+            }
+
+            NpcInstanceDef npc = instances[index];
+            JsonObject root = JsonNode.Parse(Read(NpcInstanceTable.OverrideFileName))?.AsObject()
+                ?? throw new InvalidDataException("npc_overrides.json을 읽지 못했다.");
+            JsonArray overrides = root["overrides"]?.AsArray()
+                ?? throw new InvalidDataException("npc_overrides.json에 overrides 배열이 없다.");
+            JsonObject? item = FindOverride(overrides, id);
+            ImmutableArray<string> route = item?["patrol_route"] is JsonArray routeNode
+                ? [.. routeNode.Select(n => n?.GetValue<string>() ?? string.Empty).Where(v => v.Length > 0)]
+                : [];
+
+            return new StudioNpcOverrideEditor(
+                id,
+                item is not null,
+                route,
+                item?["aggro_radius_m"]?.GetValue<int>(),
+                item?["faction"]?.GetValue<string>() ?? string.Empty,
+                item?["dialogue_profile"]?.GetValue<string>() ?? string.Empty,
+                item?["schedule_offset_min"]?.GetValue<int>(),
+                data.Factions is null ? [] : [.. data.Factions.Factions.Select(f => f.Id)],
+                [.. data.Pois.Pois
+                    .Where(p => p.Zone == npc.Zone)
+                    .OrderBy(p => p.Type)
+                    .ThenBy(p => p.Subtype, StringComparer.Ordinal)
+                    .ThenBy(p => p.Id, StringComparer.Ordinal)
+                    .Select(p => new StudioPoiChoice(
+                        p.Id,
+                        PoiTypeLabel(p.Type),
+                        p.Subtype,
+                        p.Capacity,
+                        p.Pos.X,
+                        p.Pos.Z,
+                        p.Code == npc.Home,
+                        p.Code == npc.Workplace))]);
+        }
+    }
+
+    /// <summary>개별 NPC 오버라이드를 추가·교체한다. 빈 초안이면 해당 항목을 제거한다.</summary>
+    public StudioSaveResult SaveNpcOverride(StudioNpcOverrideDraft draft)
+    {
+        EnsureWritable();
+        ArgumentNullException.ThrowIfNull(draft);
+
+        lock (_gate)
+        {
+            MasterDataSet data = MasterDataLoader.Load(options.MasterData);
+            NpcInstanceTable instances = NpcInstanceTable.Load(
+                Path.Combine(options.MasterData, "npc_instances.json"), data);
+            int index = draft.Id - 1;
+            if ((uint)index >= (uint)instances.Count || instances[index].Id != draft.Id)
+            {
+                throw new ArgumentOutOfRangeException(nameof(draft), $"NPC {draft.Id}가 없다.");
+            }
+
+            string source = Read(NpcInstanceTable.OverrideFileName);
+            JsonObject root = JsonNode.Parse(source)?.AsObject()
+                ?? throw new InvalidDataException("npc_overrides.json을 읽지 못했다.");
+            JsonArray overrides = root["overrides"]?.AsArray()
+                ?? throw new InvalidDataException("npc_overrides.json에 overrides 배열이 없다.");
+            JsonObject? existing = FindOverride(overrides, draft.Id);
+            if (existing is not null) overrides.Remove(existing);
+
+            bool empty = draft.PatrolRoute.IsEmpty
+                && draft.AggroRadiusM is null
+                && string.IsNullOrWhiteSpace(draft.Faction)
+                && string.IsNullOrWhiteSpace(draft.DialogueProfile)
+                && draft.ScheduleOffsetMinutes is null;
+
+            if (!empty)
+            {
+                var item = new JsonObject { ["id"] = draft.Id };
+                if (!draft.PatrolRoute.IsEmpty)
+                {
+                    var route = new JsonArray();
+                    foreach (string poi in draft.PatrolRoute) route.Add(poi);
+                    item["patrol_route"] = route;
+                }
+                if (draft.AggroRadiusM is { } aggro) item["aggro_radius_m"] = aggro;
+                if (!string.IsNullOrWhiteSpace(draft.Faction)) item["faction"] = draft.Faction.Trim();
+                if (!string.IsNullOrWhiteSpace(draft.DialogueProfile)) item["dialogue_profile"] = draft.DialogueProfile.Trim();
+                if (draft.ScheduleOffsetMinutes is { } offset) item["schedule_offset_min"] = offset;
+                overrides.Add(item);
+            }
+
+            string candidate = root.ToJsonString(s_indentedJson) + Environment.NewLine;
+            StudioSaveResult result = ValidateAndWrite(new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [NpcInstanceTable.OverrideFileName] = candidate,
+            });
+
+            return result.Saved
+                ? result with { Message = empty ? $"NPC {draft.Id} 오버라이드를 삭제했다." : $"NPC {draft.Id} 오버라이드를 저장했다." }
+                : result;
         }
     }
 
@@ -350,6 +518,41 @@ public sealed class StudioWorkspace(StudioOptions options)
 
     private string Read(string fileName) => File.ReadAllText(Path.Combine(options.MasterData, fileName));
 
+    private HashSet<int> LoadOverrideIds()
+    {
+        using JsonDocument document = JsonDocument.Parse(Read(NpcInstanceTable.OverrideFileName));
+        var ids = new HashSet<int>();
+
+        if (document.RootElement.TryGetProperty("overrides", out JsonElement overrides))
+        {
+            foreach (JsonElement item in overrides.EnumerateArray())
+            {
+                if (item.TryGetProperty("id", out JsonElement id) && id.TryGetInt32(out int value))
+                {
+                    ids.Add(value);
+                }
+            }
+        }
+
+        return ids;
+    }
+
+    private static JsonObject? FindOverride(JsonArray overrides, int id) =>
+        overrides.OfType<JsonObject>().FirstOrDefault(item => item["id"]?.GetValue<int>() == id);
+
+    private static string PoiTypeLabel(PoiType type) => type switch
+    {
+        PoiType.Home => "집",
+        PoiType.Workplace => "일터",
+        PoiType.Market => "시장",
+        PoiType.Tavern => "선술집",
+        PoiType.Temple => "신전",
+        PoiType.Gate => "성문",
+        PoiType.Field => "농경지",
+        PoiType.Wilderness => "야외",
+        _ => type.ToString(),
+    };
+
     private static string Text(string value) => JsonSerializer.Serialize(value, JsonSurgeonText.Options);
 
     private static ImmutableArray<StudioIssue> ToIssues(MasterDataValidationReport report) =>
@@ -378,6 +581,48 @@ public sealed record StudioArchetype(
 
 /// <summary>편집 대상과 설명 카드.</summary>
 public sealed record StudioArchetypeDocument(string Id, string Json, string Card);
+
+/// <summary>개별 NPC 탐색 목록에 필요한 읽기 전용 요약.</summary>
+public sealed record StudioNpcSummary(
+    int Id,
+    string Archetype,
+    string Zone,
+    string Home,
+    string Workplace,
+    string Faction,
+    bool HasOverride);
+
+/// <summary>개별 NPC 오버라이드 편집 화면 데이터.</summary>
+public sealed record StudioNpcOverrideEditor(
+    int Id,
+    bool Exists,
+    ImmutableArray<string> PatrolRoute,
+    int? AggroRadiusM,
+    string Faction,
+    string DialogueProfile,
+    int? ScheduleOffsetMinutes,
+    ImmutableArray<string> Factions,
+    ImmutableArray<StudioPoiChoice> ZonePois);
+
+/// <summary>순찰 경로 선택기에 표시할 같은 지역 POI 설명.</summary>
+public sealed record StudioPoiChoice(
+    string Id,
+    string Type,
+    string Subtype,
+    int Capacity,
+    float X,
+    float Z,
+    bool IsHome,
+    bool IsWorkplace);
+
+/// <summary>개별 NPC 오버라이드 저장 초안.</summary>
+public sealed record StudioNpcOverrideDraft(
+    int Id,
+    ImmutableArray<string> PatrolRoute,
+    int? AggroRadiusM,
+    string Faction,
+    string DialogueProfile,
+    int? ScheduleOffsetMinutes);
 
 /// <summary>검증 문제.</summary>
 public sealed record StudioIssue(string Code, string Detail, string File, string Path, string FixHint);

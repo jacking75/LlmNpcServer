@@ -495,7 +495,7 @@ dotnet format --verify-no-changes
 ### NPC 정의 GUI — `Npc Studio`
 
 콘텐츠 담당자가 아키타입과 개별 NPC 정의를 브라우저에서 조회·생성·편집하는 독립 도구다.
-NPC 서버 본체와 별도 프로세스로 실행하며, 기본 주소는 **http://127.0.0.1:5090** 이다.
+NPC 서버 본체와 별도 프로세스로 실행하며, 기본 주소는 **http://127.0.0.1:25056** 이다.
 
 ```powershell
 dotnet run -c Release --project tools/Npc.Studio
@@ -503,9 +503,9 @@ dotnet run -c Release --project tools/Npc.Studio
 
 | 화면 | 무엇을 하는가 |
 |---|---|
-| **아키타입** | 직업 목록·인구·일터를 보고, 항목 JSON과 결정론 설명 카드를 함께 본다 |
+| **아키타입** | JSON 초안과 마크다운으로 렌더링된 결정론 설명을 나란히 보며 수정한다. 입력 후 400ms 안에 설명이 갱신된다 |
 | **새 직업 만들기** | 기존 직업을 복제해 아키타입·폴백 플랜·버킷 수를 한 번에 만든다 |
-| **개별 NPC** | 1~5,000번 NPC의 집·일터·순찰·세력·일정 오프셋을 카드로 본다 |
+| **개별 NPC** | 1~5,000번 NPC를 아키타입→지역으로 묶어 탐색하고, 유형·정원·좌표 설명이 있는 POI 선택기로 순찰 경로와 개별 설정을 편집한다 |
 | **JSON 파일** | `npc_overrides.json`을 포함한 사람 편집 원천을 수정한다. 생성물은 목록에서 제외한다 |
 | **검증 결과** | V1~V13 코드·파일·JSON Pointer·수정 힌트를 표시한다 |
 
@@ -513,9 +513,17 @@ dotnet run -c Release --project tools/Npc.Studio
 적용한다. 하나라도 실패하면 원본 파일을 바꾸지 않는다. 조회 전용으로 열 때는
 `--read-only`를 붙인다.
 
+Studio는 기본적으로 저장소 루트의 `masterdata/`를 읽는다. 아키타입 정의는
+`masterdata/archetypes.json`, 생성된 5,000명 명단과 집·일터 배치는
+`masterdata/npc_instances.json`, 개별 NPC의 차이는 `masterdata/npc_overrides.json`에서 읽는다.
+개별 NPC 폼에서 저장하면 새 파일을 만들지 않고 **기존 `masterdata/npc_overrides.json`의 해당 ID
+항목을 추가하거나 교체**한다. 오버라이드 삭제는 해당 ID 항목만 제거하며,
+생성물인 `npc_instances.json`은 변경하지 않는다. `--masterdata`를 지정했다면 위 경로의
+`masterdata/` 대신 지정한 디렉터리 안의 같은 파일을 읽고 갱신한다.
+
 ```powershell
 dotnet run -c Release --project tools/Npc.Studio -- --read-only
-dotnet run -c Release --project tools/Npc.Studio -- --masterdata D:\game\masterdata --port 5091
+dotnet run -c Release --project tools/Npc.Studio -- --masterdata D:\game\masterdata --port 25057
 ```
 
 화면별 절차와 파일 규칙은 [`docs/npc_studio_manual.html`](docs/npc_studio_manual.html)에 있다.

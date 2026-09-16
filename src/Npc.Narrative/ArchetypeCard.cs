@@ -42,7 +42,18 @@ public static class ArchetypeCard
     {
         ArgumentNullException.ThrowIfNull(data);
 
-        ArchetypeDef def = data.Archetypes[archetype];
+        return Render(data, data.Archetypes[archetype], population);
+    }
+
+    /// <summary>
+    /// 아직 저장하지 않은 아키타입 정의로 카드를 만든다. Studio의 실시간 미리보기처럼
+    /// 나머지 마스터데이터는 현재 값을 쓰되 이 정의만 초안으로 바꿔 읽을 때 사용한다.
+    /// </summary>
+    public static string Render(MasterDataSet data, ArchetypeDef def, int population = PopulationBase)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(def);
+
         var sb = new StringBuilder(4 * 1024);
 
         Header(sb, def);

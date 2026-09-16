@@ -35,14 +35,14 @@
 <p>저장소 루트의 PowerShell에서 실행한다.</p>
 <h3>바로 빌드하고 실행한다</h3>
 <pre><code>dotnet run -c Release --project tools/Npc.Studio
-# 브라우저에서 http://127.0.0.1:5090 을 연다</code></pre>
+# 브라우저에서 http://127.0.0.1:25056 을 연다</code></pre>
 <h3>먼저 빌드한 뒤 실행한다</h3>
 <p>반복 실행하거나 빌드와 실행 단계를 분리하려면 Release DLL을 만든 뒤 직접 실행한다.</p>
 <pre><code>dotnet build tools/Npc.Studio/Npc.Studio.csproj -c Release
 dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll
-# 브라우저에서 http://127.0.0.1:5090 을 연다</code></pre>
+# 브라우저에서 http://127.0.0.1:25056 을 연다</code></pre>
 <p>직접 실행할 때도 DLL 뒤에 옵션을 그대로 붙일 수 있다.</p>
-<pre><code>dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 5091</code></pre>
+<pre><code>dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 25057</code></pre>
 <div class="note"><b>기본 경계다.</b> Studio는 NPC 서버 본체와 별도 프로세스다. 게임 실행 중인 <code>Npc.Host</code>에 편집 UI를 끼워 넣지 않는다.</div>
 </section>
 
@@ -62,16 +62,34 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll
 <ol>
   <li>왼쪽에서 <b>아키타입</b>을 선택한다.</li>
   <li>검색창에 <code>blacksmith</code>처럼 ID를 입력한다.</li>
-  <li><b>JSON 편집</b> 탭에서 원본 항목을 확인한다.</li>
-  <li><b>설명 카드</b> 탭에서 인구, 정원, 성향, 허용 액션, 인터럽트와 폴백을 사람 말로 확인한다.</li>
+  <li><b>JSON 편집</b> 탭에서 왼쪽 원본과 오른쪽 실시간 설명을 함께 확인한다.</li>
+  <li>JSON 값을 바꾸면 400ms 뒤 설명도 현재 초안에 맞춰 갱신된다. 설명의 제목·표·목록·강조·코드는 마크다운 문법이 보이지 않도록 화면 요소로 렌더링된다. 문법 오류가 있으면 마지막 정상 설명을 유지하면서 오류를 표시한다.</li>
+  <li><b>설명 카드</b> 탭에서 인구, 정원, 성향, 허용 액션, 인터럽트와 폴백을 넓게 확인한다.</li>
 </ol>
 <h3>개별 NPC를 본다</h3>
 <ol>
   <li><b>개별 NPC</b> 탭을 누른다.</li>
-  <li>1~5,000 사이 ID를 넣고 <b>NPC 카드 열기</b>를 누른다.</li>
-  <li>집, 일터, 거리, 순찰로, 세력, 공격 반경과 일정 오프셋을 확인한다.</li>
+  <li>아키타입 그룹을 펼친 뒤 지역 그룹을 펼친다.</li>
+  <li>NPC 행을 선택해 집, 일터, 거리, 순찰로, 세력, 공격 반경과 일정 오프셋을 확인한다.</li>
+  <li>ID·직업·지역·집·일터로 검색하거나 <b>오버라이드가 있는 NPC만</b> 필터를 사용한다.</li>
+  <li>카드 아래의 <b>개별 설정</b> 폼에서 순찰 경로, 공격 반경, 세력, 대화 프로필, 일정 오프셋을 입력하고 <b>검증하고 저장</b>을 누른다.</li>
+  <li>순찰 경로는 같은 지역의 장소 목록에서 고른다. 각 항목에 장소 유형·세부 종류·정원·좌표가 나오며, 현재 NPC의 집이나 일터에는 별도 표시가 붙는다.</li>
+  <li><b>+ 추가</b>로 최대 4개를 선택하고 ↑·↓로 방문 순서를 바꾸거나 ×로 제거한다. ID를 알고 있을 때만 <b>POI ID를 직접 입력한다</b>를 펼친다.</li>
 </ol>
 <div class="warn"><b>생성물은 읽기 전용이다.</b> <code>npc_instances.json</code>을 직접 편집하지 않는다. 특정 NPC의 차이는 <code>npc_overrides.json</code>에 기록한다.</div>
+
+<h3>어떤 파일을 읽고 어디에 저장하는가</h3>
+<p>기본 데이터 디렉터리는 저장소 루트의 <code>masterdata/</code>다. <code>--masterdata D:\game\masterdata</code>처럼 지정하면 아래 경로의 앞부분만 그 디렉터리로 바뀐다.</p>
+<table>
+<thead><tr><th>파일</th><th>읽는 내용</th><th>Studio 저장 동작</th></tr></thead>
+<tbody>
+<tr><td><code>masterdata/archetypes.json</code></td><td>직업별 기본 행동·성향·허용 액션·인구 가중치</td><td>아키타입 편집 또는 새 직업 생성 시 기존 파일을 갱신한다.</td></tr>
+<tr><td><code>masterdata/npc_instances.json</code></td><td>생성된 NPC 5,000명의 ID·아키타입·지역·집·일터 배치</td><td><b>읽기만 한다.</b> Studio는 이 생성 파일을 수정하지 않는다.</td></tr>
+<tr><td><code>masterdata/npc_overrides.json</code></td><td>특정 NPC에만 적용할 순찰·공격 반경·세력·대화·일정 차이</td><td>개별 NPC 저장 시 기존 파일의 같은 ID 항목을 추가하거나 교체한다. 삭제 시 그 ID 항목만 제거한다.</td></tr>
+<tr><td><code>masterdata/pois.json</code>, <code>zones.json</code>, <code>factions.json</code></td><td>같은 지역에서 선택 가능한 POI와 지역·세력 참조</td><td>개별 NPC 폼에서는 검증과 선택 목록에 사용하며 변경하지 않는다.</td></tr>
+</tbody>
+</table>
+<div class="note"><b>개별 NPC 저장은 새 파일 생성이 아니다.</b> 검증을 통과하면 현재 마스터데이터 디렉터리의 기존 <code>npc_overrides.json</code>을 원자적으로 갱신한다. 검증에 실패하면 기존 파일은 그대로 유지한다.</div>
 </section>
 
 <section id="create">
@@ -90,8 +108,9 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll
 
 <section id="edit">
 <h2>5. JSON을 편집한다</h2>
+<p>아키타입 편집기는 저장된 값이 아니라 <b>현재 입력 중인 JSON 초안</b>으로 설명을 만든다. 설명이 정상이어도 저장 시에는 V1~V13 전체 검증을 다시 수행한다.</p>
 <p><b>JSON 파일</b> 탭에서는 다음 원천 파일을 편집할 수 있다. <code>npc_instances.json</code>, <code>poi_distances.bin</code>, <code>prompt/</code>처럼 다시 생성되는 파일은 목록에 나오지 않는다.</p>
-<p>특정 NPC의 성격을 바꾸려면 <b>개별 NPC → 오버라이드 편집</b>을 누른다. 예시는 다음과 같다.</p>
+<p>특정 NPC의 성격을 바꾸려면 <b>개별 NPC</b>에서 NPC를 선택한 뒤 카드 아래 <b>개별 설정</b> 폼을 사용한다. <b>오버라이드 편집</b>은 같은 파일 전체를 JSON으로 직접 다뤄야 할 때 사용한다. 저장되는 예시는 다음과 같다.</p>
 <pre><code>{
   "$schema": "../docs/schema/npc_overrides.schema.json",
   "version": 1,
@@ -145,13 +164,13 @@ dotnet run --project tools/Npc.Cli -- regen --check</code></pre>
 
 <section id="options">
 <h2>8. 실행 옵션을 사용한다</h2>
-<pre><code>dotnet run -c Release --project tools/Npc.Studio -- --masterdata ./masterdata --bind 127.0.0.1 --port 5090 --read-only</code></pre>
+<pre><code>dotnet run -c Release --project tools/Npc.Studio -- --masterdata ./masterdata --bind 127.0.0.1 --port 25056 --read-only</code></pre>
 <table>
 <thead><tr><th>옵션</th><th>기본값</th><th>의미</th></tr></thead>
 <tbody>
 <tr><td><code>--masterdata</code></td><td><code>./masterdata</code></td><td>열 마스터데이터 폴더다.</td></tr>
 <tr><td><code>--bind</code></td><td><code>127.0.0.1</code></td><td>수신 주소다. 기본값은 로컬에서만 접근된다.</td></tr>
-<tr><td><code>--port</code></td><td><code>5090</code></td><td>웹 포트다.</td></tr>
+<tr><td><code>--port</code></td><td><code>25056</code></td><td>웹 포트다.</td></tr>
 <tr><td><code>--read-only</code></td><td>꺼짐</td><td>저장 기능을 막고 조회·검증만 허용한다.</td></tr>
 </tbody>
 </table>

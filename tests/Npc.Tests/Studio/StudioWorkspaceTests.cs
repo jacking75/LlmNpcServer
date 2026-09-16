@@ -25,6 +25,95 @@ public sealed class StudioWorkspaceTests : IDisposable
     }
 
     [Fact]
+    public void LoadNpcDirectory_ReturnsGeneratedFieldsAndOverrideMarkers()
+    {
+        StudioWorkspace workspace = CreateWorkspace();
+
+        var directory = workspace.LoadNpcDirectory();
+        StudioNpcSummary overridden = Assert.Single(directory, npc => npc.HasOverride);
+
+        Assert.Equal(5_000, directory.Length);
+        Assert.Equal(2326, overridden.Id);
+        Assert.NotEmpty(overridden.Archetype);
+        Assert.NotEmpty(overridden.Zone);
+        Assert.NotEmpty(overridden.Home);
+        Assert.Equal("town_watch", overridden.Faction);
+    }
+
+    [Fact]
+    public void PreviewArchetype_ExplainsUnsavedJsonValues()
+    {
+        StudioWorkspace workspace = CreateWorkspace();
+        StudioArchetypeDocument document = workspace.LoadArchetype("blacksmith");
+        string draft = JsonSurgeon.SetTopLevel(document.Json, "desc", "\"저장하지 않은 실시간 설명이다.\"");
+        draft = JsonSurgeon.SetTopLevel(draft, "combat_capable", "false");
+
+        string preview = workspace.PreviewArchetype("blacksmith", draft);
+
+        Assert.Contains("저장하지 않은 실시간 설명이다.", preview, StringComparison.Ordinal);
+        Assert.Contains("전투 가능 | 아니오", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("저장하지 않은 실시간 설명이다.", workspace.LoadArchetype("blacksmith").Json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StudioMarkdown_RendersTablesAndEscapesHtml()
+    {
+        const string Markdown = "# 제목\n\n| 항목 | 값 |\n|---|---|\n| 코드 | `A\\|B` |\n\n<script>alert('x')</script>";
+
+        string html = StudioMarkdown.ToHtml(Markdown);
+
+        Assert.Contains("<h1>제목</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("<table>", html, StringComparison.Ordinal);
+        Assert.Contains("<code>A|B</code>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script>", html, StringComparison.Ordinal);
+        Assert.Contains("&lt;script&gt;", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SaveNpcOverride_WritesAndDeletesValidatedOverride()
+    {
+        StudioWorkspace workspace = CreateWorkspace();
+        StudioNpcOverrideEditor before = workspace.LoadNpcOverride(1);
+        StudioPoiChoice poiChoice = Assert.Single(before.ZonePois.Take(1));
+        string poi = poiChoice.Id;
+        string faction = Assert.Single(before.Factions.Take(1));
+
+        Assert.NotEmpty(poiChoice.Type);
+        Assert.NotEmpty(poiChoice.Subtype);
+        Assert.True(before.ZonePois.Any(choice => choice.IsHome));
+        Assert.True(before.ZonePois.Any(choice => choice.IsWorkplace));
+
+        StudioSaveResult saved = workspace.SaveNpcOverride(new StudioNpcOverrideDraft(
+            1,
+            [poi],
+            12,
+            faction,
+            "test_profile",
+            10));
+
+        Assert.True(saved.Saved, saved.Message);
+        StudioNpcOverrideEditor after = workspace.LoadNpcOverride(1);
+        Assert.True(after.Exists);
+        Assert.Equal<string>([poi], after.PatrolRoute);
+        Assert.Equal(12, after.AggroRadiusM);
+        Assert.Equal(faction, after.Faction);
+        Assert.Equal("test_profile", after.DialogueProfile);
+        Assert.Equal(10, after.ScheduleOffsetMinutes);
+        Assert.Contains(workspace.LoadNpcDirectory(), npc => npc.Id == 1 && npc.HasOverride);
+
+        StudioSaveResult deleted = workspace.SaveNpcOverride(new StudioNpcOverrideDraft(
+            1,
+            [],
+            null,
+            string.Empty,
+            string.Empty,
+            null));
+
+        Assert.True(deleted.Saved, deleted.Message);
+        Assert.False(workspace.LoadNpcOverride(1).Exists);
+    }
+
+    [Fact]
     public void SaveArchetype_RejectsInvalidCandidateWithoutChangingFile()
     {
         StudioWorkspace workspace = CreateWorkspace();
@@ -73,7 +162,7 @@ public sealed class StudioWorkspaceTests : IDisposable
     [Fact]
     public void ReadOnlyMode_RejectsWrites()
     {
-        var workspace = new StudioWorkspace(new StudioOptions(_directory, "127.0.0.1", 5090, ReadOnly: true));
+        var workspace = new StudioWorkspace(new StudioOptions(_directory, "127.0.0.1", 25_056, ReadOnly: true));
         StudioArchetypeDocument document = workspace.LoadArchetype("blacksmith");
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
@@ -89,7 +178,7 @@ public sealed class StudioWorkspaceTests : IDisposable
     }
 
     private StudioWorkspace CreateWorkspace() =>
-        new(new StudioOptions(_directory, "127.0.0.1", 5090, ReadOnly: false));
+        new(new StudioOptions(_directory, "127.0.0.1", 25_056, ReadOnly: false));
 
     private static void CopyDirectory(string source, string destination)
     {
