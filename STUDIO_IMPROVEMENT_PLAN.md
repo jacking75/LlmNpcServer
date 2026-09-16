@@ -20,7 +20,7 @@
 | # | 완료 | ID | 태스크 | 단계 | 우선 | 크기 | 의존 |
 |---|---|---|---|---|---|---|---|
 | 1 | [x] | **T01** | 화면을 URL 라우팅·컴포넌트로 쪼갠다 (`Home.razor` 508줄 해체) | A 기반 | P0 | M | — |
-| 2 | [ ] | **T02** | 사전 — `FieldGuide`(필드 뜻) · `Lexicon.Actions`(행동 한국어) · `Lexicon.Group`(직군) | A 기반 | P0 | M | — |
+| 2 | [x] | **T02** | 사전 — `FieldGuide`(필드 뜻) · `Lexicon.Actions`(행동 한국어) · `Lexicon.Group`(직군) | A 기반 | P0 | M | — |
 | 3 | [ ] | **T03** | 시작 화면 — 마을 한눈에 · 할 일 카드 · 해야 할 일 배지 | A 안내 | P0 | S | T01 |
 | 4 | [ ] | **T04** | 화면마다 안내문 + 도움말 서랍 + 필드 ⓘ 툴팁 | A 안내 | P0 | S | T01 T02 |
 | 5 | [ ] | **T30** | 연습장(샌드박스) — 원본을 건드리지 않고 실험한다 | A 안내 | P0 | S | T01 |
@@ -234,7 +234,7 @@
 
 ---
 
-### T02 · 사전 — `FieldGuide` · `Lexicon.Actions` · `Lexicon.Group`
+### T02 · 사전 — `FieldGuide` · `Lexicon.Actions` · `Lexicon.Group` ✅
 
 **왜.** "필드가 무슨 뜻인가" 가 코드에 없다. 액션 한국어 표기가 없어 카드가 `Craft · Drink` 를 낸다. 직군(생산·채집·상업·치안·종교·주민·특수) 은 `reference_masterdata.html` §06 표에만 있어 인형 색·마법사 틀·목록 묶음에 쓸 수 없다.
 
@@ -251,7 +251,7 @@
    public static ArchetypeGroup Group(string id) => Groups.GetValueOrDefault(id, ArchetypeGroup.Other);
    public static string Of(ArchetypeGroup g) => g switch { Craft => "생산", Gather => "채집", Trade => "상업", Guard => "치안", Faith => "종교·학문", Folk => "주민", Special => "특수", _ => "기타" };
    ```
-   > 확인: `ArchetypeCard.Actions()` 가 `Lexicon.Action()` 을 쓰게 바꿀지. 바꾸면 골든·블라인드 평가 자료의 전제가 바뀐다. **권장: 카드는 그대로, Studio 만 쓴다.**
+   > **결정(2026-09-16).** 카드는 그대로 둔다 — 골든·블라인드 평가 자료의 전제가 액션 id 그대로이고, 바꾸면 그 회차의 자료가 다른 뜻이 된다. `Lexicon.Actions` 는 Studio 화면 전용이다.
 2. `src/Npc.Narrative/FieldGuide.cs`:
    ```csharp
    public readonly record struct FieldHelp(string File, string Path, string Title, string What, string Why, string Caution, ImmutableArray<string> Related);
@@ -264,7 +264,7 @@
    ```
    **부록 A 가 초안이다.** 대상: `archetypes.json`(15) · `npc_overrides.json`(6) · `pois.json`(11) · `zones.json`(6) · `fallback_plans.json`(6+3) · `interrupts.json`(9) · `factions.json`(4) · `items.json` · `actions.json`(읽기) · 고급 파일은 한 줄.
 3. 지역·직업 이름: `Lexicon.Zone(MasterDataSet, id)`·`Lexicon.ArchetypeName(MasterDataSet, id)` — `data.Locales` 의 `ko-KR` 에서 `zone.<id>`·`npc.<id>`, 없으면 `Lexicon.Archetypes`, 그래도 없으면 id.
-   > 확인: `LocalizationTable` 의 조회 API (`src/Npc.MasterData/LocalizationTable.cs`).
+   > **결정(2026-09-16).** `LocalizationTable` 은 `Contains(key)` 와 인덱서(`this[key]`, 없으면 key 반환)를 준다. `Lexicon.Localized` 가 `Locales` 에서 `ko-KR` 표만 찾아 `Contains` 로 묻고, 없으면 사전 → id 로 떨어진다.
 4. 장소 표시 이름 `Lexicon.PlaceName(PoiDef, zoneName)` → "집 #12 (동쪽 장터)" — `house_012_04` 의 숫자를 뽑는다. 규칙 밖 id 는 `Lexicon.Place(subtype) + " " + id`.
 
 **테스트** (`tests/Npc.Tests/Narrative/`): `Lexicon_CoversEveryAction` · `Lexicon_CoversEveryArchetypeGroup` · `FieldGuide_CoversEverySchemaProperty`(`docs/schema/*.base.schema.json` 재귀, `_comment`·`$schema`·`version` 제외) · `FieldGuide_HasNoEmptyText`.

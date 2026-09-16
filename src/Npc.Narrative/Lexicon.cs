@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using Npc.Contracts;
 using Npc.Core;
 using Npc.Core.Plan;
 using Npc.MasterData;
@@ -60,6 +61,132 @@ public static class Lexicon
         ["quest_giver"] = "의뢰인",
         ["wandering_bard"] = "떠돌이 음유시인",
         ["caravan_leader"] = "대상 우두머리",
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 직군. 아키타입 40개를 사람이 아는 일곱 묶음으로 나눈다
+    /// (<c>docs/reference_masterdata.html</c> §06 의 표 그대로).
+    ///
+    /// <b>인형 색·목록 묶음·마법사 틀이 이것을 쓴다.</b> 표가 문서에만 있으면 화면이
+    /// 그것을 쓸 수 없다 — 모르는 id 는 <see cref="ArchetypeGroup.Other"/> 다.
+    /// </summary>
+    public enum ArchetypeGroup
+    {
+        /// <summary>생산 — 재료를 받아 완성품을 만든다.</summary>
+        Craft,
+
+        /// <summary>채집 — 야외에서 원자재를 모은다.</summary>
+        Gather,
+
+        /// <summary>상업 — 사고팔고 재운다.</summary>
+        Trade,
+
+        /// <summary>치안 — 경계 근무와 순찰.</summary>
+        Guard,
+
+        /// <summary>종교·학문.</summary>
+        Faith,
+
+        /// <summary>주민 — 특정 직업이 없다.</summary>
+        Folk,
+
+        /// <summary>특수 — 의뢰·공연·대상.</summary>
+        Special,
+
+        /// <summary>표에 없는 id.</summary>
+        Other,
+    }
+
+    /// <summary>아키타입 id → 직군. <c>reference_masterdata</c> §06 표 그대로다.</summary>
+    public static readonly FrozenDictionary<string, ArchetypeGroup> Groups = new Dictionary<string, ArchetypeGroup>(StringComparer.Ordinal)
+    {
+        ["blacksmith"] = ArchetypeGroup.Craft,
+        ["carpenter"] = ArchetypeGroup.Craft,
+        ["tailor"] = ArchetypeGroup.Craft,
+        ["alchemist"] = ArchetypeGroup.Craft,
+        ["baker"] = ArchetypeGroup.Craft,
+        ["brewer"] = ArchetypeGroup.Craft,
+        ["jeweler"] = ArchetypeGroup.Craft,
+        ["tanner"] = ArchetypeGroup.Craft,
+        ["mason"] = ArchetypeGroup.Craft,
+        ["scribe"] = ArchetypeGroup.Craft,
+        ["miner"] = ArchetypeGroup.Gather,
+        ["farmer"] = ArchetypeGroup.Gather,
+        ["fisher"] = ArchetypeGroup.Gather,
+        ["hunter"] = ArchetypeGroup.Gather,
+        ["woodcutter"] = ArchetypeGroup.Gather,
+        ["herbalist"] = ArchetypeGroup.Gather,
+        ["shepherd"] = ArchetypeGroup.Gather,
+        ["merchant"] = ArchetypeGroup.Trade,
+        ["innkeeper"] = ArchetypeGroup.Trade,
+        ["stablemaster"] = ArchetypeGroup.Trade,
+        ["banker"] = ArchetypeGroup.Trade,
+        ["peddler"] = ArchetypeGroup.Trade,
+        ["guard_captain"] = ArchetypeGroup.Guard,
+        ["town_guard"] = ArchetypeGroup.Guard,
+        ["gate_guard"] = ArchetypeGroup.Guard,
+        ["patrol_scout"] = ArchetypeGroup.Guard,
+        ["watchman"] = ArchetypeGroup.Guard,
+        ["priest"] = ArchetypeGroup.Faith,
+        ["acolyte"] = ArchetypeGroup.Faith,
+        ["scholar"] = ArchetypeGroup.Faith,
+        ["healer"] = ArchetypeGroup.Faith,
+        ["villager"] = ArchetypeGroup.Folk,
+        ["child"] = ArchetypeGroup.Folk,
+        ["elder"] = ArchetypeGroup.Folk,
+        ["beggar"] = ArchetypeGroup.Folk,
+        ["drunkard"] = ArchetypeGroup.Folk,
+        ["noble"] = ArchetypeGroup.Folk,
+        ["quest_giver"] = ArchetypeGroup.Special,
+        ["wandering_bard"] = ArchetypeGroup.Special,
+        ["caravan_leader"] = ArchetypeGroup.Special,
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 액션 37종의 한국어 표기. <c>actions.json</c> 의 <c>desc</c> 첫 문장을 줄인 것이다.
+    ///
+    /// <b>카드는 이것을 쓰지 않는다.</b> 아키타입 카드·플랜 설명은 검수 자료라 액션 id 를
+    /// 그대로 적는다 — 골든과 블라인드 평가 자료의 전제가 그것이다. 여기는 초보자 화면(Studio)용이다.
+    /// </summary>
+    public static readonly FrozenDictionary<string, string> Actions = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["MoveTo"] = "이동",
+        ["Follow"] = "따라가기",
+        ["Wander"] = "돌아다니기",
+        ["Flee"] = "도망",
+        ["Patrol"] = "순찰",
+        ["Work"] = "일하기",
+        ["Gather"] = "채집",
+        ["Mine"] = "채굴",
+        ["Farm"] = "농사",
+        ["Fish"] = "낚시",
+        ["Craft"] = "제작",
+        ["Cook"] = "요리",
+        ["Repair"] = "수리",
+        ["Talk"] = "대화",
+        ["Trade"] = "거래",
+        ["Greet"] = "인사",
+        ["Gossip"] = "잡담",
+        ["Pray"] = "기도",
+        ["Perform"] = "공연",
+        ["Eat"] = "식사",
+        ["Drink"] = "마시기",
+        ["Sleep"] = "잠",
+        ["Rest"] = "휴식",
+        ["Bathe"] = "씻기",
+        ["Attack"] = "공격",
+        ["Defend"] = "방어",
+        ["Guard"] = "경계 근무",
+        ["CallForHelp"] = "도움 요청",
+        ["Retreat"] = "물러나기",
+        ["PickUp"] = "줍기",
+        ["Drop"] = "버리기",
+        ["Store"] = "보관",
+        ["Withdraw"] = "꺼내기",
+        ["Equip"] = "장비",
+        ["Wait"] = "기다리기",
+        ["Observe"] = "관찰",
+        ["Emote"] = "몸짓",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>POI subtype 27종. 서술에는 개체 id 가 아니라 이 이름이 나간다.</summary>
@@ -305,4 +432,119 @@ public static class Lexicon
 
     /// <summary>아이템 id → 한국어. 모르면 id 그대로.</summary>
     public static string Item(string id) => Items.GetValueOrDefault(id, id);
+
+    /// <summary>액션 id → 한국어. 모르면 id 그대로.</summary>
+    public static string Action(string id) => Actions.GetValueOrDefault(id, id);
+
+    /// <summary>아키타입 id → 직군. 모르는 id 는 <see cref="ArchetypeGroup.Other"/>.</summary>
+    public static ArchetypeGroup Group(string id) => Groups.GetValueOrDefault(id, ArchetypeGroup.Other);
+
+    /// <summary>직군 이름.</summary>
+    public static string Of(ArchetypeGroup group) => group switch
+    {
+        ArchetypeGroup.Craft => "생산",
+        ArchetypeGroup.Gather => "채집",
+        ArchetypeGroup.Trade => "상업",
+        ArchetypeGroup.Guard => "치안",
+        ArchetypeGroup.Faith => "종교·학문",
+        ArchetypeGroup.Folk => "주민",
+        ArchetypeGroup.Special => "특수",
+        _ => "기타",
+    };
+
+    /// <summary>
+    /// 직군 색 (CSS hex). 부록 E 의 인형 색이고 지도 점·인구 막대가 같은 색을 쓴다 —
+    /// 화면마다 다른 색이면 "파란 게 위병이다" 를 배울 수 없다.
+    /// </summary>
+    public static string ColorOf(ArchetypeGroup group) => group switch
+    {
+        ArchetypeGroup.Craft => "#e8873a",
+        ArchetypeGroup.Gather => "#5aa85a",
+        ArchetypeGroup.Trade => "#d9b23c",
+        ArchetypeGroup.Guard => "#4a78c2",
+        ArchetypeGroup.Faith => "#8a6bc9",
+        ArchetypeGroup.Folk => "#8d97a5",
+        ArchetypeGroup.Special => "#d46a9a",
+        _ => "#444444",
+    };
+
+    /// <summary>
+    /// 표시 이름은 로컬라이즈 표가 먼저다. <c>ko-KR</c> 의 <c>npc.&lt;id&gt;</c> → 사전 → id.
+    /// </summary>
+    public static string ArchetypeName(MasterDataSet data, string id)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        return Localized(data, "npc." + id) ?? Archetype(id);
+    }
+
+    /// <summary>지역 표시 이름. <c>zone.&lt;id&gt;</c> → id.</summary>
+    public static string Zone(MasterDataSet data, string id)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        return Localized(data, "zone." + id) ?? id;
+    }
+
+    /// <summary>아이템 표시 이름. <c>item.&lt;id&gt;</c> → 사전 → id.</summary>
+    public static string ItemName(MasterDataSet data, string id)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        return Localized(data, "item." + id) ?? Item(id);
+    }
+
+    /// <summary>
+    /// 장소의 사람 이름. <c>house_012_04</c> → "집 #12". 지역 이름을 주면 "집 #12 (동쪽 장터)".
+    /// 규칙 밖 id 는 <c>세부 유형 + id</c> 다.
+    /// </summary>
+    public static string PlaceName(PoiDef poi, string? zoneName = null)
+    {
+        ArgumentNullException.ThrowIfNull(poi);
+
+        string label = Place(poi.Subtype);
+        string number = Number(poi.Id, poi.Subtype);
+        string head = number.Length == 0 ? label + " " + poi.Id : label + " #" + number;
+
+        return string.IsNullOrEmpty(zoneName) ? head : $"{head} ({zoneName})";
+    }
+
+    /// <summary>같은 규칙을 마스터데이터에서 지역 이름까지 붙여 부른다.</summary>
+    public static string PlaceName(MasterDataSet data, PoiId poi)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        PoiDef def = data.Pois[poi];
+
+        return PlaceName(def, Zone(data, data.Zones[def.Zone].Id));
+    }
+
+    /// <summary><c>house_012_04</c> 의 <c>012</c> → <c>12</c>. 규칙 밖이면 빈 문자열.</summary>
+    private static string Number(string id, string subtype)
+    {
+        if (!id.StartsWith(subtype, StringComparison.Ordinal) || id.Length <= subtype.Length + 1)
+        {
+            return string.Empty;
+        }
+
+        string[] parts = id[(subtype.Length + 1)..].Split('_');
+
+        return parts.Length >= 1 && int.TryParse(parts[0], out int n)
+            ? n.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : string.Empty;
+    }
+
+    private static string? Localized(MasterDataSet data, string key)
+    {
+        foreach (LocalizationTable table in data.Locales)
+        {
+            if (string.Equals(table.Locale, LocalizationTable.DefaultLocale, StringComparison.Ordinal)
+                && table.Contains(key))
+            {
+                return table[key];
+            }
+        }
+
+        return null;
+    }
 }
