@@ -1,6 +1,10 @@
 # NPC Studio 개선 계획 — 초보자가 JSON 을 열지 않고 NPC 를 읽고 · 예측하고 · 만들게 한다
 
-작성 2026-09-16 (2차 개정 같은 날) · 대상 `tools/Npc.Studio` · 상태 **계획** (다음 세션부터 이 문서로 구현한다)
+작성 2026-09-16 (2차 개정 같은 날) · 대상 `tools/Npc.Studio` · 상태 **완료 2026-09-16** — 태스크 34건 전부, 판정 시나리오 S1~S6 전부 통과
+
+> **이제 이 문서는 지시서가 아니라 기록이다.** 무엇을 왜 그렇게 정했는지(`> 확인:` 의 **결정**)와
+> 구현하면서 실제로 드러난 것(§5 T13·T29·§판정 시나리오의 주석) 이 남아 있다.
+> Studio 사용법은 [`docs/npc_studio_manual.html`](docs/npc_studio_manual.html) 이다.
 
 > **이 문서가 Studio 작업의 유일한 지시서다.** `PRODUCTION_ROADMAP.md` F-02 는 "무엇을" 만 적었고,
 > 이 문서는 **초보자 관점에서 "왜 · 어떻게"** 를 태스크 단위로 적는다.
@@ -24,44 +28,57 @@
 | 3 | [x] | **T03** | 시작 화면 — 마을 한눈에 · 할 일 카드 · 해야 할 일 배지 | A 안내 | P0 | S | T01 |
 | 4 | [x] | **T04** | 화면마다 안내문 + 도움말 서랍 + 필드 ⓘ 툴팁 | A 안내 | P0 | S | T01 T02 |
 | 5 | [x] | **T30** | 연습장(샌드박스) — 원본을 건드리지 않고 실험한다 | A 안내 | P0 | S | T01 |
-| 6 | [ ] | **T05** | 아키타입 **개요 보기** — JSON 대신 섹션 카드 (`ArchetypeFacts`) | B 읽기 | P0 | L | T02 T04 |
-| 7 | [ ] | **T06** | 폴백 하루 구조화 (`PlanExplain.Trace`) + `DayTimeline` | B 읽기 | P0 | M | T02 |
-| 8 | [ ] | **T07** | 개별 NPC 카드 초보자화 + 지역 지도 `ZoneMap` | B 읽기 | P0 | M | T01 T02 |
-| 9 | [ ] | **T22** | **동작 예측 엔진 `DayForecast`** — 정의 → 24시간 위치·행동·상태 (Narrative) | F 예측 | P0 | L | T06 |
-| 10 | [ ] | **T23** | **상황 반응 예측 `ReactionForecast`** — "위협이 오면?" + 왜 그 규칙인가 | F 예측 | P0 | M | T02 |
-| 11 | [ ] | **T24** | **동작 미리보기 화면** — SVG NPC 인형 · 지도 재생 · 시간 스크러버 · 상황 버튼 | F 예측 | P0 | L | T07 T22 T23 |
-| 12 | [ ] | **T15** | 검증 오류를 사람 말로 + 문제 필드로 바로가기 | D 안전 | P0 | M | T01 T02 |
-| 13 | [ ] | **T16** | 파급 패널 — 저장 뒤 "이제 무엇을 해야 하나" (`ImpactAnalyzer`) | D 안전 | P0 | S | T01 |
-| 14 | [ ] | **T10** | 아키타입 **폼 편집기** — 필드별 위젯, 무변경 저장은 바이트 동일 | C 편집 | P0 | L | T05 |
-| 15 | [ ] | **T25** | 편집 ↔ 예측 연동 — 값을 바꾸면 400ms 뒤 하루가 다시 그려진다 | F 예측 | P0 | S | T10 T24 |
-| 16 | [ ] | **T34** | 저장 전 사람 말 요약 — "무엇이 어떻게 바뀌나" (`DefinitionDiff`) | C 편집 | P1 | M | T10 T23 |
-| 17 | [ ] | **T11** | 폴백 하루 **편집기** — 스텝 추가·순서·인자 폼 + 실시간 판정·예측 | C 편집 | P0 | L | T06 T10 T22 |
-| 18 | [ ] | **T12** | 새 직업 **마법사** 5단계 (직군 틀 · 인구 재배분 3안 · 일터 정원 · 하루 · 파급) | C 편집 | P0 | L | T10 T11 T16 |
-| 19 | [ ] | **T17** | 파생물 재생성 버튼 (`gen_npcs` · `gen_poi_distances`) | D 운영 | P1 | M | T16 |
-| 20 | [ ] | **T08** | 장소·지역 탐색 화면 (읽기) | B 읽기 | P1 | M | T01 T02 T07 |
-| 21 | [ ] | **T13** | 장소(POI) 추가 폼 — 5장(양봉장) 을 Studio 로 | C 편집 | P1 | M | T08 T16 |
-| 22 | [ ] | **T26** | 마을 전체 지도 — 지역 타일 12개 · 인구 밀도 · 클릭 이동 | F 예측 | P1 | M | T07 T08 |
-| 23 | [ ] | **T14** | 개별 NPC 폼 개선 — 필드 설명 · 지도에서 순찰로 찍기 · 값 제안 | C 편집 | P1 | S | T07 T04 |
-| 24 | [ ] | **T09** | 돌발 반응(인터럽트) 화면 (읽기) + 반응 예측 연결 | B 읽기 | P1 | S | T01 T23 |
-| 25 | [ ] | **T29** | 건강 진단 `ArchetypeLint` — 검증은 통과하지만 이상한 정의를 잡는다 | F 예측 | P1 | M | T05 T22 |
-| 26 | [ ] | **T33** | 인구 분포 차트 + "이 직업은 어느 지역에 몇 명 살게 되나" | B 읽기 | P1 | S | T05 T08 |
-| 27 | [ ] | **T31** | 따라하기 체크리스트 — 첫 10분 안내가 스스로 체크된다 | A 안내 | P1 | S | T04 T24 |
-| 28 | [ ] | **T32** | 전역 검색 — 직업·NPC·장소를 한국어/ID 로 한 칸에서 | B 읽기 | P1 | S | T01 T02 |
-| 29 | [ ] | **T27** | 버킷별 계획 — 미리 구운 플랜(`planstore`) 을 상황 격자로 보고 예측한다 | F 예측 | P1 | M | T22 T24 |
-| 30 | [ ] | **T28** | 라이브 관찰 — 실행 중인 서버의 NPC 를 같은 지도에 (예측 vs 실제) | F 예측 | P2 | M | T24 T26 |
-| 31 | [ ] | **T21** | 액션 카탈로그 읽기 화면 (9장 대비, 편집은 고급 모드 유지) | E 확장 | P2 | S | T02 T08 |
-| 32 | [ ] | **T18** | 되돌리기 — 저장 전 백업과 파일 단위 복원 | D 안전 | P2 | S | T16 |
-| 33 | [ ] | **T19** | 매뉴얼·README 를 초보자 시나리오 중심으로 다시 쓴다 | D 문서 | P1 | M | T03~T24 |
-| 34 | [ ] | **T20** | 테스트 정비 — 드리프트·시나리오 종단·불필요 테스트 제거 | D 테스트 | P1 | M | 전부 |
+| 6 | [x] | **T05** | 아키타입 **개요 보기** — JSON 대신 섹션 카드 (`ArchetypeFacts`) | B 읽기 | P0 | L | T02 T04 |
+| 7 | [x] | **T06** | 폴백 하루 구조화 (`PlanExplain.Trace`) + `DayTimeline` | B 읽기 | P0 | M | T02 |
+| 8 | [x] | **T07** | 개별 NPC 카드 초보자화 + 지역 지도 `ZoneMap` | B 읽기 | P0 | M | T01 T02 |
+| 9 | [x] | **T22** | **동작 예측 엔진 `DayForecast`** — 정의 → 24시간 위치·행동·상태 (Narrative) | F 예측 | P0 | L | T06 |
+| 10 | [x] | **T23** | **상황 반응 예측 `ReactionForecast`** — "위협이 오면?" + 왜 그 규칙인가 | F 예측 | P0 | M | T02 |
+| 11 | [x] | **T24** | **동작 미리보기 화면** — SVG NPC 인형 · 지도 재생 · 시간 스크러버 · 상황 버튼 | F 예측 | P0 | L | T07 T22 T23 |
+| 12 | [x] | **T15** | 검증 오류를 사람 말로 + 문제 필드로 바로가기 | D 안전 | P0 | M | T01 T02 |
+| 13 | [x] | **T16** | 파급 패널 — 저장 뒤 "이제 무엇을 해야 하나" (`ImpactAnalyzer`) | D 안전 | P0 | S | T01 |
+| 14 | [x] | **T10** | 아키타입 **폼 편집기** — 필드별 위젯, 무변경 저장은 바이트 동일 | C 편집 | P0 | L | T05 |
+| 15 | [x] | **T25** | 편집 ↔ 예측 연동 — 값을 바꾸면 400ms 뒤 하루가 다시 그려진다 | F 예측 | P0 | S | T10 T24 |
+| 16 | [x] | **T34** | 저장 전 사람 말 요약 — "무엇이 어떻게 바뀌나" (`DefinitionDiff`) | C 편집 | P1 | M | T10 T23 |
+| 17 | [x] | **T11** | 폴백 하루 **편집기** — 스텝 추가·순서·인자 폼 + 실시간 판정·예측 | C 편집 | P0 | L | T06 T10 T22 |
+| 18 | [x] | **T12** | 새 직업 **마법사** 5단계 (직군 틀 · 인구 재배분 3안 · 일터 정원 · 하루 · 파급) | C 편집 | P0 | L | T10 T11 T16 |
+| 19 | [x] | **T17** | 파생물 재생성 버튼 (`gen_npcs` · `gen_poi_distances`) | D 운영 | P1 | M | T16 |
+| 20 | [x] | **T08** | 장소·지역 탐색 화면 (읽기) | B 읽기 | P1 | M | T01 T02 T07 |
+| 21 | [x] | **T13** | 장소(POI) 추가 폼 — 5장(양봉장) 을 Studio 로 | C 편집 | P1 | M | T08 T16 |
+| 22 | [x] | **T26** | 마을 전체 지도 — 지역 타일 12개 · 인구 밀도 · 클릭 이동 | F 예측 | P1 | M | T07 T08 |
+| 23 | [x] | **T14** | 개별 NPC 폼 개선 — 필드 설명 · 지도에서 순찰로 찍기 · 값 제안 | C 편집 | P1 | S | T07 T04 |
+| 24 | [x] | **T09** | 돌발 반응(인터럽트) 화면 (읽기) + 반응 예측 연결 | B 읽기 | P1 | S | T01 T23 |
+| 25 | [x] | **T29** | 건강 진단 `ArchetypeLint` — 검증은 통과하지만 이상한 정의를 잡는다 | F 예측 | P1 | M | T05 T22 |
+| 26 | [x] | **T33** | 인구 분포 차트 + "이 직업은 어느 지역에 몇 명 살게 되나" | B 읽기 | P1 | S | T05 T08 |
+| 27 | [x] | **T31** | 따라하기 체크리스트 — 첫 10분 안내가 스스로 체크된다 | A 안내 | P1 | S | T04 T24 |
+| 28 | [x] | **T32** | 전역 검색 — 직업·NPC·장소를 한국어/ID 로 한 칸에서 | B 읽기 | P1 | S | T01 T02 |
+| 29 | [x] | **T27** | 버킷별 계획 — 미리 구운 플랜(`planstore`) 을 상황 격자로 보고 예측한다 | F 예측 | P1 | M | T22 T24 |
+| 30 | [x] | **T28** | 라이브 관찰 — 실행 중인 서버의 NPC 를 같은 지도에 (예측 vs 실제) | F 예측 | P2 | M | T24 T26 |
+| 31 | [x] | **T21** | 액션 카탈로그 읽기 화면 (9장 대비, 편집은 고급 모드 유지) | E 확장 | P2 | S | T02 T08 |
+| 32 | [x] | **T18** | 되돌리기 — 저장 전 백업과 파일 단위 복원 | D 안전 | P2 | S | T16 |
+| 33 | [x] | **T19** | 매뉴얼·README 를 초보자 시나리오 중심으로 다시 쓴다 | D 문서 | P1 | M | T03~T24 |
+| 34 | [x] | **T20** | 테스트 정비 — 드리프트·시나리오 종단·불필요 테스트 제거 | D 테스트 | P1 | M | 전부 |
 
-**판정 시나리오** (§2) — 전부 통과하면 이 계획은 끝난다.
+**판정 시나리오** (§2) — 전부 통과하면 이 계획은 끝난다. **여섯 다 브라우저에서 직접 밟아 판정했다** (2026-09-16).
 
-- [ ] **S1 읽기** 대장장이를 열어 "어디서 살고, 무엇을 하고, 위험하면 어떻게 하는지" 를 3분 안에 말할 수 있다
-- [ ] **S2 새 직업** "양봉가" 를 만들고 (일터 · 인구 · 하루 일과) 검증 통과 → 파생물 재생성 → `--npcs 5000` 기동에서 뜬다 (7장)
-- [ ] **S3 개별 NPC** 위병 #2326 의 순찰로를 지도에서 3곳 찍어 바꾸고 저장한다
-- [ ] **S4 장소** 양봉장 POI 둘을 만들고 거리표를 다시 굽는다 (5장의 장소 부분)
-- [ ] **S5 예측** 대장장이 개요에서 "하루 재생" 을 눌러 집 → 대장간 → 선술집 → 집 이 지도 위에서 움직이는 것을 보고, "위협 등장" 을 눌러 **물러나기**(`retreat_on_threat`) 로 성문에 가는 것을 본다. 용기를 30 으로 내리면 **도망**(`flee_on_threat`) 으로 바뀐다
-- [ ] **S6 상황별** 수련사제의 "오후 · 경계 · 폭풍" 버킷을 고르면 미리 구운 플랜(신전으로 뛰어가 기도) 이 재생된다
+- [x] **S1 읽기** 대장장이를 열어 "어디서 살고, 무엇을 하고, 위험하면 어떻게 하는지" 를 3분 안에 말할 수 있다
+  > 통과. 시작 → 직업 → 대장장이 → 개요, 클릭 3회. 영어 id 는 전부 부제로 내려갔다.
+- [x] **S2 새 직업** "양봉가" 를 만들고 (일터 · 인구 · 하루 일과) 검증 통과 → 파생물 재생성 → `--npcs 5000` 기동에서 뜬다 (7장)
+  > 통과. 마법사 5단계로 `beekeeper` code 40 · 인구 20 · 일터 `apiary` 를 만들었고 **6개 파일이 한 트랜잭션**으로 바뀌었다
+  > (`archetypes` · `fallback_plans` · `context_buckets` 2880→2952 · `pois` 작업 권한 · `localization/ko-KR` · `en-US`).
+  > 저장 뒤 검증 0건. 두 가지를 이 시나리오에서 발견해 고쳤다 — ① 3단계에서 일터를 바꿔도 배치 예측이 안 따라왔다,
+  > ② 직군은 화면 표시가 `Lexicon` 표(아키타입 id 기준)라 **새 직업은 "기타"로 나온다**. `archetypes.json` 에 직군 필드가
+  > 없어서다 — 스키마 변경이라 이 계획 밖으로 둔다. 마법사의 직군 선택은 "닮은 직업 후보 좁히기"로만 쓴다.
+- [x] **S3 개별 NPC** 위병 #2326 의 순찰로를 지도에서 3곳 찍어 바꾸고 저장한다
+  > 통과. 지도 클릭으로 3곳을 바꿔 `npc_overrides.json` 의 2326 항목만 갱신됐고 검증 0건.
+- [x] **S4 장소** 양봉장 POI 둘을 만들고 거리표를 다시 굽는다 (5장의 장소 부분)
+  > 통과. `pois.json` 에 code 244 추가 → 파급 패널 → 다시 만들기 → `poi_distances.bin`·`derived.lock.json` 갱신.
+  > **여기서 구조적 결함 하나가 드러났다** — 저장은 되는데 다음 카탈로그 읽기가 로더 예외로 터져 화면이 통째로 죽었다.
+  > 다시 만들라고 말해 줄 파급 패널까지 같이 죽으니 빠져나올 길이 없었다. `StudioCatalog.Blocked` 막힌 상태로 고쳤다.
+- [x] **S5 예측** 대장장이 개요에서 "하루 재생" 을 눌러 집 → 대장간 → 선술집 → 집 이 지도 위에서 움직이는 것을 보고, "위협 등장" 을 눌러 **물러나기**(`retreat_on_threat`) 로 성문에 가는 것을 본다. 용기를 30 으로 내리면 **도망**(`flee_on_threat`) 으로 바뀐다
+  > 통과. 재생·상황·값 바꿔 보기 전부. 브라우저 탭이 뒤에 있으면 rAF 가 멈추는 것은 브라우저 정책이지 결함이 아니다 —
+  > 띠를 눌러 시각을 옮기는 경로로 렌더를 따로 확인했고, 탭 복귀 시 점프를 막는 프레임 상한(0.25초) 을 넣었다.
+- [x] **S6 상황별** 수련사제의 "오후 · 경계 · 폭풍" 버킷을 고르면 미리 구운 플랜(신전으로 뛰어가 기도) 이 재생된다
+  > 통과. 핀 플랜이 격자에서 구분되고 없는 칸은 "폴백으로 돈다" 로 나온다.
 
 ---
 
@@ -313,7 +330,7 @@
 
 ---
 
-### T05 · 아키타입 개요 보기
+### T05 · 아키타입 개요 보기 ✅
 
 **왜.** S1 의 핵심. "대장장이가 어떤 존재인가" 를 섹션 카드로 읽는다.
 
@@ -336,7 +353,7 @@
 
 ---
 
-### T06 · 폴백 하루 구조화 (`PlanExplain.Trace`) + `DayTimeline`
+### T06 · 폴백 하루 구조화 (`PlanExplain.Trace`) + `DayTimeline` ✅
 
 **왜.** md 표는 화면이 열을 못 쓴다. 예측 엔진(T22)·편집기(T11) 가 스텝별 판정·이유·상태를 구조로 필요로 한다.
 
@@ -355,7 +372,7 @@ public static LoopVerdict LoopOf(CompiledPlan plan, WorldFlags finalState);
 
 ---
 
-### T07 · 개별 NPC 카드 초보자화 + 지역 지도 `ZoneMap`
+### T07 · 개별 NPC 카드 초보자화 + 지역 지도 `ZoneMap` ✅
 
 **구현.**
 1. `LoadNpcOverview(int id)` → `StudioNpcOverview(NpcInstanceDef Npc, string ArchetypeName, string ZoneName, PoiDef Home, PoiDef? Workplace, float CommuteMeters, bool CanEnterWorkplace, ImmutableArray<StudioPoiChoice> ZonePois, StudioNpcOverrideEditor Override)`. 거리·출입은 `InstanceCard` 의 계산을 `InstanceFacts` 로 뽑아 쓴다.
@@ -370,7 +387,7 @@ public static LoopVerdict LoopOf(CompiledPlan plan, WorldFlags finalState);
 
 ---
 
-### T22 · 동작 예측 엔진 `DayForecast` ★
+### T22 · 동작 예측 엔진 `DayForecast` ★ ✅
 
 **왜.** 정의를 다 읽어도 "그래서 어떻게 움직이지" 를 모른다 (§1.1 #12). 재료는 전부 코어에 있다 — 이 태스크는 그것을 **한 타임라인으로 엮는 것**이다. 화면(T24) 보다 먼저, 화면 없이 테스트한다.
 
@@ -415,6 +432,11 @@ public static class DayForecast
 - **소요 시간**: `ActionDef.Duration.Kind` 별 — Fixed `BaseSeconds` · Distance `Base + 거리(m) × PerMeterSeconds` (`speed=run` 이면 `× 0.6`) · Param `Count > 0 ? Count : Base` · UntilTime 목표 시간대 시작 시각까지 (지났으면 다음 날). **지터는 넣지 않는다.** `Npc.Sim/SimWorld.Minimal.cs:DurationSeconds` 가 기준이고 이것은 그 기대값이다.
 - **심볼 → POI**: `$home`·`$workplace` 개체 값 · `$market`·`$tavern`·`$temple`·`$gate`·`$nearest_field` 같은 존에서 출입 가능한 그 유형 중 **현재 위치에서 가장 가까운 것** · `$nearest_safe` 성문 → 없으면 집 · `$nearest_shelter` 집 · `$patrol_route` 첫 순찰 지점 → 없으면 일터 → 집. `PoiBinder`(Runtime) 와 `Sim` 이 같은 규칙이다. 후보가 없으면 그 스텝은 `Code = "V3.UNREACHABLE_POI"` 로 `Skipped`.
    > 확인: 규칙을 `Npc.MasterData` 의 `PoiTable.NearestEnterable(PoiType[] types, ZoneId zone, PoiId from, ArchetypeId who)` 로 내리고 `Sim` 이 그것을 쓰게 바꿀지 (Runtime `PoiBinder` 는 틱 루프 할당 0 규약이라 그대로 둔다). 내리지 않으면 드리프트 테스트로만 묶는다.
+   >
+   > **결정: 내렸다.** `PoiTable.NearestEnterable(PoiType, PoiId, ArchetypeId)` 와 `ReadOnlySpan<PoiType>` 오버로드,
+   > `FirstEnterable` 을 `MasterDataSet.cs` 에 넣고 `SimWorld.Minimal.cs` 의 `Nearest` 가 그것을 부른다.
+   > **존 인자는 빼는 것이 맞았다** — 바인딩은 마을 전체를 본다. 존으로 좁히면 `Sim` 과 달라진다.
+   > 드리프트 테스트로만 묶는 쪽은 버렸다: 같은 식을 두 번 적어 두면 테스트는 **둘이 같이 틀렸을 때 통과한다**.
 - **상태·판정**: `PlanExplain.Trace` 의 `After`·`Code`·`Reason` 을 그대로 쓴다. ✗ 스텝은 `on_step_fail` 에 따라 — `skip` 이면 0초 `Skipped`, `fallback`·`replan` 이면 거기서 `StoppedForReplan = true` 로 멈추고 캡션 "여기서 새 계획을 요청한다".
 - **고리**: `loop` 면 마지막 뒤 첫 스텝으로, 24시간을 채울 때까지. `LoopVerdict.Closed == false` 면 두 바퀴째 첫 스텝을 `Replan` 으로 표시.
 - **인벤토리**: `PlanExplain.Budget` 의 획득·소비 규칙을 스텝 단위로.
@@ -423,6 +445,9 @@ public static class DayForecast
 
 **테스트** (`tests/Npc.Tests/Narrative/`; 테스트 프로젝트는 `Sim` 을 참조할 수 있다):
 - `Forecast_DurationsMatchSimWithoutJitter` — 대장장이 폴백을 `SimWorld` 로 돌린 스텝 소요와 예측 소요가 `±JitterPercent` 안에 든다 (`SimWorld.JitterPercent` 가 상수면 그 값으로 비교, 옵션이면 0 으로 놓고 **정확히** 같아야 한다). `> 확인: JitterPercent 의 위치`.
+  > **결정: 비교 자체를 없앴다.** 소요 시간 계산을 `Npc.MasterData/ActionDuration.cs` 한 벌로 내리고
+  > `SimWorld.DurationSeconds` 가 그것을 부른 **뒤에** 지터를 얹는다. 두 구현이 없으니 견줄 것이 없다 —
+  > 드리프트는 테스트가 아니라 **구조로** 막혔다. (`UntilTime` 은 지터 없이 바로 돌려준다: 목표 시각이 흔들리면 안 된다.)
 - `Forecast_BindsSymbolsLikeSim` — 개체 20명 × 심볼 9종에 대해 Sim 의 `TryBindPoi`(비공개면 `InternalsVisibleTo`) 와 같은 POI.
 - `Forecast_CoversWholeDayWhenLoopClosed` — 닫힌 폴백은 마지막 세그먼트 `EndSeconds == 86400`.
 - `Forecast_StopsAtReplanForOpenLoop` — 대조군: 고리가 안 닫히는 초안 → `StoppedForReplan`.
@@ -432,7 +457,7 @@ public static class DayForecast
 
 ---
 
-### T23 · 상황 반응 예측 `ReactionForecast` ★
+### T23 · 상황 반응 예측 `ReactionForecast` ★ ✅
 
 **왜.** "위협이 오면 이 NPC 는?" 이 초보자가 가장 궁금해하는 것이다. `InterruptRules.TryMatch` 가 답을 안다. 초보자에게 더 중요한 것은 **"왜 그 규칙인가 · 왜 다른 규칙은 아닌가"** 다.
 
@@ -456,6 +481,9 @@ public static class ReactionForecast
 ```
 - 매칭은 `data.Interrupts.TryMatch(ev, flags, def, out rule)` — `GameEvent` 는 `Kind` 만 보므로 `default with { Kind = … }` 로 만든다. 사건이 없으면 `TryMatchState`.
    > 확인: `InterruptRules` 에 `TryMatch(GameEventKind kind, …)` 오버로드를 더할지 (Contracts 타입을 안 만들어도 되게). 권장: 더한다 — `MasterData` 안이라 의존 변화 없음.
+   >
+   > **결정: 더하지 않았다.** `Npc.Narrative` 는 이미 `Npc.Contracts` 를 볼 수 있고, `default(GameEvent) with { Kind = … }`
+   > 한 줄이면 된다. 같은 판정으로 가는 입구를 둘로 만들면 그 둘이 갈라질 자리가 생긴다 — 입구는 하나로 둔다.
 - `Checks` 는 **모든 규칙**을 우선순위 순으로 돌며 `MatchesState` 의 각 조건을 따로 판정한다 (private 이면 `InterruptRules.Explain(rule, flags, def)` 를 public 으로 추가). 허용 액션 검사도 포함.
 - `TargetPoi` 는 `rule.Poi` 심볼을 T22 의 바인딩으로. `Sentence` 는 `InterruptExplain.Then` + 대상 이름.
 - **프리셋** 은 플래그 이름이 코드에 박히지만(`ThreatNearby` 등) 이것은 마스터데이터 값이 아니라 `WorldFlags` 열거형이다 — 허용. 없는 플래그면 컴파일이 깨진다.
@@ -464,7 +492,7 @@ public static class ReactionForecast
 
 ---
 
-### T24 · 동작 미리보기 화면 ★
+### T24 · 동작 미리보기 화면 ★ ✅
 
 **왜.** T22·T23 을 **보게** 한다. 지도 위 인형이 하루를 걸어 다니고, 버튼 하나로 위협에 반응한다. 이것이 S5 다.
 
@@ -493,7 +521,7 @@ public static class ReactionForecast
 
 ---
 
-### T15 · 검증 오류를 사람 말로 + 바로가기
+### T15 · 검증 오류를 사람 말로 + 바로가기 ✅
 
 **구현.**
 1. `Services/IssueGuide.cs` — 코드 → 초보자 제목 (V1~V15 + `LOAD`). `IssueGuide_CoversEveryFixHintCode` 로 `FixHints.Codes` 전수 강제.
@@ -506,7 +534,7 @@ public static class ReactionForecast
 
 ---
 
-### T16 · 파급 패널
+### T16 · 파급 패널 ✅
 
 **구현.**
 1. `StudioSaveResult` 에 `ImmutableArray<string> Files`. 세션이 쌓는다.
@@ -515,7 +543,7 @@ public static class ReactionForecast
 
 ---
 
-### T10 · 아키타입 폼 편집기
+### T10 · 아키타입 폼 편집기 ✅
 
 **구현.**
 1. `Services/StudioForms.cs`:
@@ -527,6 +555,10 @@ public static class ReactionForecast
    ```
 2. **저장** `SaveArchetypeForm(form)` — 항목 텍스트를 `ItemRange` 로 뽑고, `LoadArchetypeForm(id)` 와 비교해 **바뀐 필드만** `JsonSurgeon.SetTopLevel`. 배열·객체는 `StudioJsonFormat.Array/Object(raw, indent)` 로 파일 서식(원소마다 줄바꿈, 항목 들여쓰기 + 2) 을 재현. 그 뒤 기존 `SaveArchetype(id, itemJson)`.
    > 확인: `JsonSurgeon.SetTopLevel` 이 없는 속성을 추가하는가 (`duty_hours` 는 대장장이에 없다). 못 하면 "마지막 속성 뒤에 삽입" 을 더하고 테스트.
+   >
+   > **결정: 못 했다 — 더했다.** `SetTopLevel` 은 있는 속성만 바꾼다. `HasTopLevel` · `SetOrAddTopLevel(json, property, rawValue, beforeProperty)` ·
+   > `RemoveTopLevel` 을 `JsonSurgeon` 에 넣었다. `beforeProperty` 가 필요한 이유는 **파일의 키 순서가 사람이 쓴 순서**라서다 —
+   > 맨 뒤에만 붙일 수 있으면 `duty_hours` 가 `population_weight` 뒤로 가 diff 가 읽기 나빠진다.
 3. **미리보기** `PreviewArchetypeForm(form)` → 기존 `PreviewArchetype(id, itemJson)` + **T25 예측**.
 4. 위젯 — `desc` textarea(글자 수 · TODO 경고) · `population_weight` 숫자 + 인구 환산 + 합 미리보기(V5) + "인구 재배분" 버튼(`WeightRebalancer.Propose` 3안 표 → 여러 항목 `SetInArrayItem`) · `home/workplace_poi_type` 드롭다운(subtype 한국어, 정원 vs 인구 즉시) · `duty_hours` 6 토글(Guard/Patrol 경고 V12) · `traits` 슬라이더 4개 + "이 값이면 걸리는 돌발 반응"(T23) · `allowed_actions` `ActionMatrix` 체크(폴백이 쓰는 행동 해제 시 경고 V8) · `primary_recipes` 다중 선택 · `default_goals` 태그 · `initial_inventory` 표 · `combat_capable` 토글(반응 변화 문장) · `id`·`code`·`name_key`·`fallback_plan` 읽기 전용 칩.
 5. "JSON 으로 보기" 토글(고급) — 같은 초안. **저장하지 않은 변경** 이 있으면 떠날 때 확인(`NavigationManager.RegisterLocationChangingHandler`).
@@ -537,7 +569,7 @@ public static class ReactionForecast
 
 ---
 
-### T25 · 편집 ↔ 예측 연동
+### T25 · 편집 ↔ 예측 연동 ✅
 
 **왜.** "이 값이 뭘 하는가" 를 가장 빨리 가르치는 것은 바꿔 보는 것이다.
 
@@ -547,7 +579,7 @@ public static class ReactionForecast
 
 ---
 
-### T34 · 저장 전 사람 말 요약 (`DefinitionDiff`)
+### T34 · 저장 전 사람 말 요약 (`DefinitionDiff`) ✅
 
 **왜.** 저장 버튼 앞에서 "내가 뭘 바꾼 거지" 를 확인해야 초보자가 저장을 누른다. 파일 파급(T16) 은 답이 아니다.
 
@@ -559,7 +591,7 @@ public static class ReactionForecast
 
 ---
 
-### T11 · 폴백 하루 편집기
+### T11 · 폴백 하루 편집기 ✅
 
 **구현.**
 1. `StudioPlanStep(string Action, ImmutableDictionary<string,string> Args, int TimeoutSeconds)` · `StudioFallbackForm(Id, Archetype, Goal, Steps, Loop, OnStepFail)`. 읽기는 `JsonNode`, 쓰기는 텍스트(`JsonSurgeon`).
@@ -572,7 +604,7 @@ public static class ReactionForecast
 
 ---
 
-### T12 · 새 직업 마법사
+### T12 · 새 직업 마법사 ✅
 
 **구현.** `/archetypes/new` 5단계:
 
@@ -586,12 +618,19 @@ public static class ReactionForecast
 
 서비스 `CreateArchetype(StudioNewArchetype draft)` — 트랜잭션: `archetypes.json`(새 항목 + 재배분 줄들) · `fallback_plans.json` · `context_buckets.json` · `localization/ko-KR.json`·`en-US.json` · 선택 `pois.json`.
 > 확인: `ValidateAndWrite` 가 `localization/…` 상대 경로 후보를 받도록 손본다 (지금은 복사만 한다).
+>
+> **결정: 손봤다.** 후보 키를 `Path.Combine(_directory, file)` 로 풀도록 바꿔 `localization/ko-KR.json` 같은 상대 경로가
+> 그대로 온다 (V14 가 그 파일을 보므로 임시 작업본에도 같이 들어가야 한다).
+>
+> **여기서 계획에 없던 것을 하나 더 넣어야 했다 — `pois.json` 작업 권한.** 복제한 폴백은 원본 직업의 일터를
+> 가리키는데 새 직업에는 그 장소의 작업 권한이 없다. 그대로 저장하면 `V3.UNREACHABLE_POI` 로 거절된다.
+> 마법사가 `Permit()` 으로 해당 POI 들의 `allowed_archetypes` 에 새 직업을 **같은 트랜잭션에서** 넣는다.
 
 **테스트.** `CreateArchetype_Wizard_EndToEnd`(양봉가). 기존 `CreateArchetype_AddsFallback…` 은 이것으로 대체.
 
 ---
 
-### T17 · 파생물 재생성 버튼
+### T17 · 파생물 재생성 버튼 ✅
 
 **구현.** `Services/GeneratorRunner.cs` (Singleton) — 저장소 루트(`masterdata/..`) 에 `tools/gen_npcs.cs` 가 있을 때만 활성. `dotnet run <status.Generator>` (`DerivedArtifacts.Known` 의 값 그대로) · `WorkingDirectory = root` · stdout 스트리밍 · `SemaphoreSlim(1,1)` · 끝나면 `DerivedArtifacts.Check` + `Reload`. 확인 모달에 정확한 명령·예상 시간·"npc_instances.json 이 다시 만들어진다 — 손편집은 npc_overrides.json 에만 남는다". 연습장(T30) 이면 그 디렉터리를 인자로. 읽기 전용 비활성.
 
@@ -599,7 +638,7 @@ public static class ReactionForecast
 
 ---
 
-### T08 · 장소·지역 탐색 화면
+### T08 · 장소·지역 탐색 화면 ✅
 
 **구현.** `LoadPlaces()` → 지역 요약(Id · 이름 · 장소 n · 정원 · 거주 · 근무 · 인접) · `LoadZone(id)` → POI 목록(`OpenFrom/To`·`Grants`·`AllowedArchetypes`·`Residents`·`Workers`). `/places` 지역 카드 → `/places/{zone}` `ZoneMap` + 목록(유형 필터) → 상세(한국어 유형 · 정원 · 사는/일하는 NPC · 여는 시간 · 일할 수 있는 직업 · 자원). **이 지역에 사는 NPC 인형**(T24 인형을 정적 배치, 집 위치에 직군 색 점) 으로 "어디에 누가 사는가" 를 보여 준다.
 
@@ -607,16 +646,24 @@ public static class ReactionForecast
 
 ---
 
-### T13 · 장소(POI) 추가 폼
+### T13 · 장소(POI) 추가 폼 ✅
 
 **구현.** `/places/{zone}` "새 장소": id 제안(`{subtype}_{NNN}_{zoneCode:00}`) · 유형/세부 유형 · 정원 · 위치(`ZoneMap` 클릭 또는 숫자) · 여는 시간 · `grants`(같은 subtype 복사) · `allowed_archetypes` · `resources`. `code = CodeAllocator.Next(dir, "pois.json")` · `AppendToArray` → `ValidateAndWrite`. 저장 후 파급: Partial + **거리표 낡음** → T17 버튼.
 > 확인: `zones.json` `capacity` 를 같이 올릴지 — 5장 표본은 안 올린다. `gen_npcs.cs` 가 읽는지 보고 결정.
+>
+> **결정: 안 올린다.** `gen_npcs.cs` 는 존 정원이 아니라 **POI 정원**으로 배치한다. 존 정원을 같이 올리면
+> 두 수가 각자 돌고, 어긋나도 아무도 모른다. 5장 표본과 같게 둔다.
+>
+> **대신 여기서 구조적 문제를 하나 만났다.** 장소를 더하면 거리표는 **그 순간부터 낡은 것이 맞다** —
+> 243개 기준 행렬에 244번째가 없다. 로더는 옳게 거절하는데, **거리표를 다시 구우려면 새 장소가 먼저
+> 파일에 있어야 한다.** 그래서 장소 추가만 `ValidateAndWrite(loaderGate: false)` 다 (검증 V1~V15 는 그대로 돈다).
+> 그리고 저장 뒤 카탈로그 읽기가 같은 이유로 터져 화면이 죽던 것을 `StudioCatalog.Blocked` 로 고쳤다 — S4 참조.
 
-**테스트.** `AddPoi_AppendsWithNextCodeAndMarksDistancesStale`.
+**테스트.** `AddPoi_AppendsWithNextCodeAndMarksDistancesStale` (+ 막힌 상태 회귀).
 
 ---
 
-### T26 · 마을 전체 지도
+### T26 · 마을 전체 지도 ✅
 
 **왜.** "이 데이터가 마을 하나다" 를 한 장으로. 시작 화면의 얼굴이고, 지역 → 장소 → NPC 로 내려가는 입구다.
 
@@ -630,31 +677,51 @@ public static class ReactionForecast
 
 ---
 
-### T14 · 개별 NPC 폼 개선
+### T14 · 개별 NPC 폼 개선 ✅
 
 **구현.** 필드 설명(경계 반경 "게임서버가 쓴다, NPC 서버는 저장만" · 대화 프로필 "대화 서비스가 읽는다" · 일정 오프셋 "같은 직업이 일제히 움직이는 것을 막는 분산에 더한다") · 순찰로는 `ZoneMap Interactive` 클릭 순서 = 방문 순서(목록은 보조) · 세력은 `desc` 표시 · 대화 프로필 datalist 제안 · 저장 뒤 **T24 재생**에 `$patrol_route` 첫 지점이 반영된 것을 보여 준다.
 
 ---
 
-### T09 · 돌발 반응 화면 + 반응 예측 연결
+### T09 · 돌발 반응 화면 + 반응 예측 연결 ✅
 
 **구현.** `/interrupts` — `InterruptExplain.Ordered` 표(우선순위 · 규칙 · 언제 · 무엇을 · 긴급도 · **걸리는 직업**) · 충돌 경고 · lead("LLM 이 만들지 않는다 …"). 오른쪽 **"이 직업이면?"** — 직업 드롭다운 + 상황 프리셋 → `ReactionForecast.Run` 의 `Checks` 표 (규칙마다 ✓ / 실패 조건). 편집은 JSON 고급 모드.
 
 ---
 
-### T29 · 건강 진단 `ArchetypeLint`
+### T29 · 건강 진단 `ArchetypeLint` ✅
 
 **왜.** V1~V13 은 "기동이 되는가" 만 본다. 초보자는 검증을 통과하고도 이상한 정의를 만든다.
 
 **구현.** `src/Npc.Narrative/ArchetypeLint.cs` — `Run(MasterDataSet data, ArchetypeDef def, NpcInstanceTable? instances) → ImmutableArray<LintFinding(string Code, string Title, string Detail, string Fix, string Field)>`. 규칙(전부 결정론, 차단 아님):
 - `L1_TODO_DESC` 설명이 `TODO` 로 시작 · `L2_ZERO_POPULATION` `round(weight × 5000) == 0` · `L3_BLAND_TRAITS` 네 성향이 전부 45~55 · `L4_FEW_ACTIONS` 허용 행동 < 6 · `L5_UNBINDABLE_IN_ZONE` 폴백이 쓰는 심볼(`$tavern` 등) 을 이 직업이 사는 지역 중 하나라도 바인딩 못 한다 (거주 지역은 `instances` 에서; 없으면 일터 subtype 의 지역으로) · `L6_DUTY_SLEEP` 근무 시간대에 폴백이 `Sleep` 이다 (`npc timeline` 이 보던 것) · `L7_TIMEOUT_TOO_SHORT` 예측 소요(T22) > `timeout_s` 인 스텝 · `L8_CAPACITY_MARGIN` 일터 정원 여유 < 10% · `L9_LOOP_OPEN` `LoopVerdict.Closed == false` · `L10_NO_REST` 24시간 예측에 `IsRested` 를 세우는 스텝이 없다.
 - Studio: 개요 ⑩ 절 + `/issues` 의 "주의" 절 + `IssuePanel` 노란 배지. `npc card` 에도 절을 더할지는 `> 확인` (카드 골든이 바뀐다 — 권장: `npc lint archetype <id>` 별도 명령).
+  > **결정: 별도 명령.** `npc lint archetype <id>|all`. `npc card` 는 검수 카드이고 골든이 걸려 있다 —
+  > 진단은 판단이 갈리는 "주의" 라서 카드에 섞으면 카드가 무엇인지 흐려진다.
 
 **테스트.** `Lint_FindsPlantedProblems` — 대조군: TODO 설명 · 용기 50/50/50/50 · 고리 안 닫힘 초안 → 각 코드가 나온다. `Lint_IsQuietOnShippedData` — 현재 40개 아키타입에서 L1·L2·L9 는 0건 (다른 코드는 있어도 된다 — 있으면 실제 발견이다. 결과를 이 문서에 적는다).
 
+**출하 데이터 판정 결과 — 40개 아키타입에서 19건.** L1·L2·L3·L4·L5·L8·L9·L10 은 0건이다.
+
+| 코드 | 건수 | 무엇 |
+|---|---|---|
+| `L7_TIMEOUT_TOO_SHORT` | 18 | 채집·경비 직군의 `MoveTo` 스텝 `timeout_s = 300` 인데 예측 이동 시간이 7~24분이다. 명령은 유실된다고 가정하므로 상한을 넘기면 로컬에서 `ActionFailed(Timeout)` 을 합성한다 — **매번 실패로 끝나는 스텝**이다 |
+| `L6_DUTY_SLEEP` | 1 | 야경꾼(`watchman`) 의 근무 시간대가 저녁·밤·새벽인데 폴백이 그 시간에 `Sleep` 이다 — 근무 중에 한 번도 깨어 있지 않다 |
+
+**고치지 않았다.** CLAUDE.md §0 — 문서와 코드가 어긋나면 임의로 맞추지 않고 보고한다. 이 19건은
+`masterdata/` 의 값 판단이고, 고치면 `ContentHash` 가 바뀌어 프리베이크 2,880건이 무효가 된다.
+**진단이 실제로 무언가를 잡는다는 증거**로 남긴다 — 검사기가 아무것도 못 찾는 상태로 통과하면
+그 검사기는 자산이 아니다.
+
+> 규칙을 만들면서 네 번 되짚었다. 처음 판은 L5·L7·L8 이 40개 전부에 걸렸다 — 규칙이 코드가
+> 실제로 하는 일과 달랐기 때문이다. ① 심볼 바인딩은 **마을 전체**를 본다(존으로 좁히면 안 된다)
+> ② `until_time` 은 `GameTimeChanged` 로 끝난다(상한과 무관하다) ③ 출하된 폴백은 전부 "30분 고리
+> + 아침까지 잠" 이라 고리는 닫혀 있다 ④ 출하 정원은 인구에 맞춰 잡혀 있다. **소음이 나오면
+> 데이터가 아니라 규칙을 의심한다.**
+
 ---
 
-### T33 · 인구 분포 차트 + 지역 배치 예측
+### T33 · 인구 분포 차트 + 지역 배치 예측 ✅
 
 **구현.** `/archetypes` 목록 상단에 인구 막대(40개, 직군 색, 클릭 → 상세). 개요 ② 절: "지역별 몇 명" — 있는 직업은 `instances` 집계, **새 직업(명단 재생성 전)** 은 일터 subtype 의 지역별 정원 비례로 **예측**("명단을 다시 만들면 대략 이렇게 배치된다 — `gen_npcs` 는 일터 가까운 집을 먼저 준다"). `Narrative` 에 `PlacementForecast.ByZone(data, def, population)`.
 
@@ -662,19 +729,19 @@ public static class ReactionForecast
 
 ---
 
-### T31 · 따라하기 체크리스트
+### T31 · 따라하기 체크리스트 ✅
 
 **구현.** `HelpDrawer` 의 "첫 10분": ① 대장장이를 연다 ② 하루 재생을 누른다 ③ 위협 등장을 누른다 ④ 편집 탭에서 용기를 30 으로 내리고 반응이 바뀌는 것을 본다 ⑤ 저장하지 않고 닫는다 ⑥ 연습장을 만든다 ⑦ 연습장에서 저장해 본다. 각 항목은 `StudioSession` 의 이벤트(페이지 진입 · 재생 시작 · 상황 버튼 · 폼 값 변경 · 연습장 생성 · 저장) 로 **자동 체크**. 진행은 `localStorage` 가 아니라 세션(회로) 에만 — 새로고침하면 초기화돼도 된다. 두 번째 코스 "새 직업 10분" 은 S2 절차.
 
 ---
 
-### T32 · 전역 검색
+### T32 · 전역 검색 ✅
 
 **구현.** 상단 바 입력 한 칸 — 직업(한국어·id) · NPC(번호) · 장소(id·한국어 유형·지역) · 규칙(id) 을 한 목록에. `StudioWorkspace.SearchIndex()` 를 카탈로그 로드 때 한 번 만든다(`ImmutableArray<(string Kind, string Key, string Label, string Url)>`). `Ctrl+K`.
 
 ---
 
-### T27 · 버킷별 계획 (`planstore`)
+### T27 · 버킷별 계획 (`planstore`) ✅
 
 **왜.** 실제 서버에서 NPC 행동의 **98.67%** 는 미리 구운 플랜(캐시 히트) 에서 나온다. 폴백은 최후 보루다. "이 직업이 폭풍 치는 전쟁 중 오후에 무엇을 하나" 의 참 답은 `planstore` 에 있다 — 그리고 그것이 **LLM 이 준 하루**다.
 
@@ -682,6 +749,11 @@ public static class ReactionForecast
 1. `StudioOptions --planstore <dir>` (기본 `./planstore`, CLI 와 같다). 없으면 탭을 숨기고 "미리 구운 플랜이 없다 — 17장(프리베이크)" 안내.
 2. `Services/PlanStoreReader.cs` — **`Npc.Planning` 을 참조하지 않는다.** 파일을 직접 읽는다: `pinned/*.json` 과 `plans/*.json`(C-03 이면 `<sha8>/plans/`) — 파일 형식은 `{bucket, archetype, origin, plan:{…}}`. `plan` 을 `SchemaValidator.Validate(json, out PlanDocument)`(Core) → `PlanCompiler.Compile(document, bucket, id, data /* IPlanVocabulary */, origin)`(Core) → `CompiledPlan`. 버킷 문자열 `acolyte@Afternoon.Alert.Storm` 은 `BucketKey.Format` 의 역 — Core 에 `TryParse` 가 없으면 추가한다.
    > 확인: `planstore/manifest.json` 의 필드(생성·핀·폴백 대체·반려 상태) — `Npc.Planning/PlanStore.cs` 의 매니페스트 기록 코드를 읽고, 셀 색은 매니페스트를 근거로 한다 (카드가 그러듯 "생성·핀·반려 내역은 manifest 가 근거").
+   >
+   > **결정: 파일 존재를 근거로 한다.** `BucketKey.TryParse` 는 `Npc.Core` 에 없어서 더했다 (`Format` 의 역).
+   > 셀 상태는 `pinned/<버킷>.json` 이 있으면 핀, `plans/`(또는 `<sha8>/plans/`) 에 있으면 생성, 없으면 폴백이다.
+   > 매니페스트를 근거로 삼으면 **파일과 매니페스트가 어긋났을 때 없는 플랜을 있다고 그린다** — 화면은 읽을 수
+   > 있는 것만 있다고 말한다. 매니페스트는 실측 원자료이지 렌더링의 진실이 아니다.
 3. `Shared/BucketGrid.razor` — 행 시간대 6 × 열 (지역 상태 4 × 기후 3) = 72칸. 색: 핀(진초록) · 생성(초록) · 폴백 대체(회색) · 반려(빨강) · 없음(빈칸). hover 에 goal. 클릭 → T24 재생(그 플랜, 그 버킷의 시작 시각·초기 플래그). 상단 요약 "72 중 생성 51 · 핀 3 · 없음 18".
 4. 스텝 카드에 `reasoning`·`narrate` 가 파일에 있으면 접이식으로 (LLM 이 왜 그렇게 짰는지).
 
@@ -689,7 +761,7 @@ public static class ReactionForecast
 
 ---
 
-### T28 · 라이브 관찰 (예측 vs 실제)
+### T28 · 라이브 관찰 (예측 vs 실제) ✅
 
 **왜.** 예측은 기대 경로다. 실제를 같은 지도에 놓으면 "예측이 맞는가" 가 보이고, 실습서 3장(눈으로 본다) 이 웹에서 된다.
 
@@ -702,13 +774,13 @@ public static class ReactionForecast
 
 ---
 
-### T21 · 액션 카탈로그 읽기 화면
+### T21 · 액션 카탈로그 읽기 화면 ✅
 
 `/actions` — 카테고리별 카드(한국어 · id · `desc` · 전제/세움 플래그 · 기본 타임아웃 · 소요 시간 모델(Fixed/거리/인자/시간대) · 인자 · 허용 직업 n). lead "40개 상한 · 37개. 추가는 프롬프트를 바꾸는 고급 작업(9장)". 편집은 `/files/actions.json`.
 
 ---
 
-### T18 · 되돌리기
+### T18 · 되돌리기 ✅
 
 `AtomicWrite` 직전 원본을 `%LOCALAPPDATA%\NpcStudio\backup\<시각>\<file>` 로 (**`masterdata/` 안에 두지 않는다** — `CopyMasterData`·`ContentHash` 가 폴더 전체를 본다). 변경 이력 → "이 파일 되돌리기" 는 `ValidateAndWrite` 로 (되돌린 상태도 검증). 30일 지난 백업 삭제. 연습장(T30) 이 있으면 되돌리기 필요가 줄지만 원본 편집 때 여전히 필요하다.
 
@@ -716,13 +788,13 @@ public static class ReactionForecast
 
 ---
 
-### T19 · 매뉴얼·README 재작성
+### T19 · 매뉴얼·README 재작성 ✅
 
 `docs/npc_studio_manual.html`: 1 처음이라면(용어 · 화면 지도) · 2 따라하기 S1 · **3 따라하기 S5 예측**(재생 · 상황 · 값 바꿔 보기 · "기대 경로" 의 뜻) · 4 S3 · 5 S4 · 6 S2 · 7 S6 상황별 · 8 저장은 어떻게 안전한가 · 연습장 · 파급 · 9 고급(JSON · 전문가 카드 · CLI 대응표 — `card`·`explain`·`forecast`·`lint`·`validate`·`regen`) · 10 문제 해결. README Studio 절은 시나리오 6줄. 튜토리얼 2·3·5·7장 끝에 "Studio 로 보기" 상자 한 줄(선택).
 
 ---
 
-### T20 · 테스트 정비
+### T20 · 테스트 정비 ✅
 
 **남기는 것:** 드리프트(`Lexicon_CoversEveryAction/Group` · `FieldGuide_CoversEverySchemaProperty` · `IssueGuide_CoversEveryFixHintCode` · `*Form_EveryFieldHasFieldGuide` · `Forecast_DurationsMatchSimWithoutJitter` · `Forecast_BindsSymbolsLikeSim` · `LiveClient_ParsesNpcsSample`) · 불변식(`*_WithoutChanges_IsByteIdentical` · `Forecast_IsDeterministic` · 골든 `forecast_blacksmith.md`) · 검사기 자체 시험(`PreviewFallback_FlagsUnmetPrecondition` · `Reaction_ExplainsWhyEachRuleFailed` · `Lint_FindsPlantedProblems`) · 종단(`CreateArchetype_Wizard_EndToEnd` · `AddPoi_*` · `Sandbox_*` · `PlanStoreReader_CompilesPinnedPlans`).
 **지우는 것:** `CreateArchetype_AddsFallbackAndKeepsValidationGreen`(종단이 덮는다). `LoadCatalog_*` 의 개수 단언은 `> 0` 로.
@@ -748,14 +820,20 @@ public static class ReactionForecast
 
 ---
 
-## 7. 다음 세션 시작 절차
+## 7. 남은 것 · 이 계획 밖으로 둔 것
 
-1. 체크리스트에서 **첫 미완료 태스크**. 의존이 끝났는지 본다.
-2. `CODEMAP.md` §1 Studio 줄과 이 문서 §5 의 해당 "구현" 을 읽는다. 예측 태스크(T22~T29) 는 **부록 D·E** 도.
-3. 손대는 파일의 테스트(`tests/Npc.Tests/Studio/`, `tests/Npc.Tests/Narrative/`) 를 먼저 읽는다.
-4. `> 확인:` 항목이 있으면 그 파일을 열어 결정하고 **이 문서에 적는다**.
-5. 구현 → 테스트 → 브라우저 확인 → 커밋 → 체크 → `working_log.md`.
-6. 한 태스크가 끝나면 멈추고 보고한다. 다음으로 넘어가기 전에 사용자 확인.
+태스크 34건이 전부 끝났다. 구현하면서 **의도적으로 밖에 둔 것**을 여기 적는다 — 다음에 누가 열었을 때
+"빠뜨린 것" 과 "안 하기로 한 것" 을 구분할 수 있어야 한다.
+
+| 무엇 | 왜 밖인가 |
+|---|---|
+| 새 직업의 **직군이 "기타"로 나온다** | 직군은 `Lexicon` 의 아키타입 id 표에서 온다. `archetypes.json` 에 직군 필드가 없어서다 — 스키마 변경이라 `docs/reference_masterdata.html` 부터 고쳐야 한다. 마법사의 직군 선택은 "닮은 직업 후보 좁히기" 로만 쓴다 |
+| 출하 데이터의 **진단 19건** (L7 18 · L6 1) | `masterdata/` 값 판단이고, 고치면 `ContentHash` 가 바뀌어 프리베이크 2,880건이 무효다. §5 T29 에 전문 |
+| LLM 제안 생성 · 대화 문구 · 액션·플래그·버킷 편집 · git 커밋 | §1.2 에서 이미 밖으로 뒀다 |
+| bUnit 컴포넌트 테스트 | §5 T20. 화면이 "그려진다" 를 단언하지 않는다 — 드리프트·불변식·검사기 자체 시험만 본다 |
+
+**이 저장소의 작업 방식은 그대로다** — `CLAUDE.md` §4 확인 순서, 변경 하나 = 커밋 하나,
+`> 확인:` 이 나오면 그 파일을 열어 결정하고 적는다.
 
 ---
 
