@@ -246,6 +246,14 @@ public sealed class StudioFormTests : IDisposable
         Impact impact = ImpactAnalyzer.Of(_directory, ["pois.json"]);
 
         Assert.Contains(impact.Regenerate, r => r.Artifact == "poi_distances.bin");
+
+        // 회귀 — 저장은 됐는데 그 다음 카탈로그 읽기가 터져 화면이 통째로 죽었다.
+        // 다시 만들라고 말해 줄 화면까지 같이 죽으면 빠져나올 길이 없다.
+        StudioCatalog after = workspace.LoadCatalog();
+
+        Assert.True(after.IsBlocked, "거리표가 낡았으면 막힌 상태로 열려야 한다.");
+        Assert.Contains("poi_distances.bin", after.Blocked, StringComparison.Ordinal);
+        Assert.Contains("poi_distances.bin", after.StaleArtifacts);
     }
 
     /// <summary>JSON Pointer 의 배열 첨자를 id 로 바꿔 화면 링크를 만든다 (T15).</summary>

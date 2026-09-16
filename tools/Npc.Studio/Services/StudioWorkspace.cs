@@ -266,7 +266,19 @@ public sealed class StudioWorkspace(StudioOptions options)
     {
         lock (_gate)
         {
-            MasterDataSet data = MasterDataLoader.Load(_directory);
+            MasterDataSet data;
+
+            try
+            {
+                data = MasterDataLoader.Load(_directory);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or JsonException)
+            {
+                // 파생물이 입력과 어긋나면 로더가 옳게 거절한다 (243개 행렬에 244번째 POI 는 없다).
+                // 그때 화면까지 같이 죽으면 다시 만들라고 말해 줄 화면이 없어진다 — 막힌 상태로 연다.
+                return Blocked(ex.Message);
+            }
+
             MasterDataValidationReport report = MasterDataValidator.Validate(_directory);
             string instancesPath = Path.Combine(_directory, "npc_instances.json");
             int instances = File.Exists(instancesPath)
@@ -302,6 +314,18 @@ public sealed class StudioWorkspace(StudioOptions options)
             };
         }
     }
+
+    /// <summary>
+    /// 로더가 이 폴더를 읽지 못할 때의 카탈로그. <b>목록은 비어 있고 <see cref="StudioCatalog.Blocked"/> 만 있다</b> —
+    /// 화면은 이것을 보고 "다시 만들기" 하나만 내놓는다.
+    /// </summary>
+    private StudioCatalog Blocked(string reason) =>
+        new(_directory, options.ReadOnly, [], 0, [])
+        {
+            Blocked = reason,
+            StaleArtifacts = [.. DerivedArtifacts.Stale(_directory).Select(s => s.Artifact)],
+            Sandbox = SandboxName,
+        };
 
     /// <summary>아키타입 한 항목의 원문과 설명 카드를 읽는다.</summary>
     public StudioArchetypeDocument LoadArchetype(string id)
@@ -1833,6 +1857,15 @@ public sealed record StudioCatalog(
 
     /// <summary>지금 보고 있는 것이 연습장인가.</summary>
     public bool IsSandbox => Sandbox.Length > 0;
+
+    /// <summary>
+    /// 로더가 이 폴더를 거절한 이유. 비어 있으면 정상이다.
+    /// <b>차 있으면 목록·개수가 전부 0 이다</b> — 읽을 수 없어서 못 센 것이지 없는 것이 아니다.
+    /// </summary>
+    public string Blocked { get; init; } = string.Empty;
+
+    /// <summary>화면을 열 수 없는 상태인가.</summary>
+    public bool IsBlocked => Blocked.Length > 0;
 }
 
 /// <summary>아키타입 목록 한 줄.</summary>

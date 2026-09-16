@@ -19,6 +19,15 @@ button:disabled { cursor: not-allowed; opacity: .42; filter: saturate(.35); }
 /* 페이지 안내문 */
 .page-lead { color: var(--muted); margin: 6px 0 0; max-width: 70ch; }
 
+/* 로더가 폴더를 거절했을 때 — 화면 대신 이것만 나온다 */
+.blocked-panel { border-color: #6d4827; }
+.blocked-reason {
+  margin: 0 16px 16px; padding: 12px 14px; border-radius: 10px;
+  background: #342419; border: 1px solid #6d4827;
+  font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.6;
+}
+.all-good.bad span { background: #3a1f28; color: var(--red); border-color: #6d2a3c; }
+
 /* 카드 격자 */
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; padding: 16px; }
 .entity-card { display: block; padding: 14px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); text-decoration: none; color: inherit; }
