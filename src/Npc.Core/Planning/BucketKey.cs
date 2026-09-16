@@ -114,6 +114,55 @@ public readonly record struct BucketKey(ArchetypeId A, TimeOfDay T, RegionState 
     /// </summary>
     public string Format(string archetypeId) => $"{archetypeId}@{T}.{R}.{C}";
 
+    /// <summary>
+    /// <see cref="Format"/> 의 역 (T27). <c>blacksmith@Dawn.Peace.Fair</c> 에서
+    /// 아키타입 code 를 뺀 나머지를 읽는다 — <b>문자열 id → code 는 이 타입이 모른다</b>.
+    ///
+    /// <para>
+    /// 파일 이름을 파싱하는 코드가 <c>Npc.Planning</c> 에도 있지만, 그 프로젝트는
+    /// <c>Npc.Studio</c> 가 참조하지 않는다 (CLAUDE.md §3) — 어휘를 모르는 이 조각만 여기 둔다.
+    /// </para>
+    /// </summary>
+    /// <param name="text">버킷 문자열.</param>
+    /// <param name="archetypeId"><c>@</c> 앞의 아키타입 id.</param>
+    /// <param name="time">시간대.</param>
+    /// <param name="region">지역 상태.</param>
+    /// <param name="climate">기후.</param>
+    public static bool TryParse(
+        string? text, out string archetypeId, out TimeOfDay time, out RegionState region, out Climate climate)
+    {
+        archetypeId = string.Empty;
+        time = default;
+        region = default;
+        climate = default;
+
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        int at = text.IndexOf('@', StringComparison.Ordinal);
+
+        if (at <= 0 || at == text.Length - 1)
+        {
+            return false;
+        }
+
+        string[] parts = text[(at + 1)..].Split('.');
+
+        if (parts.Length != 3
+            || !Enum.TryParse(parts[0], out time)
+            || !Enum.TryParse(parts[1], out region)
+            || !Enum.TryParse(parts[2], out climate))
+        {
+            return false;
+        }
+
+        archetypeId = text[..at];
+
+        return true;
+    }
+
     /// <summary>아키타입 문자열 id 를 모를 때의 표기. 로그·디버깅용.</summary>
     public override string ToString() => $"{A.Value}@{T}.{R}.{C}";
 }
