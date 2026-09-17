@@ -26,11 +26,43 @@ public readonly record struct MasterDataViolation(
     string File = "",
     string Path = "")
 {
+    /// <summary>
+    /// 위반이 있는 파일 이름.
+    ///
+    /// <b>인자로 안 주면 <see cref="Detail"/> 앞머리에서 읽는다.</b> 검증 메시지는 전부
+    /// <c>"pois.json: …"</c> 로 시작하는데, 그 사실이 구조화돼 있지 않아 화면이
+    /// <b>"파일 미상"</b> 이라 적고 바로가기가 죽어 있었다 — 규약이 이미 하나이므로
+    /// 41곳에 같은 문자열을 두 번 적게 하지 않고 여기서 한 번 읽는다.
+    /// </summary>
+    public string File { get; init; } = File.Length > 0 ? File : FileOf(Detail);
+
     /// <summary>이 코드의 수정 힌트 (E-04). 없으면 빈 문자열.</summary>
     public string FixHint => FixHints.HintOf(Code);
 
     /// <summary>이 코드의 근거 문서 (E-04).</summary>
     public System.Collections.Immutable.ImmutableArray<string> Related => FixHints.RelatedOf(Code);
+
+    /// <summary>
+    /// 메시지 앞머리의 파일 이름. <c>"pois.json: …"</c> · <c>"localization/ko-KR.json: …"</c>.
+    /// 앞머리가 파일 이름 하나로 보이지 않으면 빈 문자열이다 — 억지로 짚지 않는다.
+    /// </summary>
+    private static string FileOf(string detail)
+    {
+        int colon = detail.IndexOf(": ", StringComparison.Ordinal);
+
+        if (colon <= 0)
+        {
+            return string.Empty;
+        }
+
+        string head = detail[..colon];
+
+        return head.Length <= 64
+            && head.Contains('.', StringComparison.Ordinal)
+            && !head.Contains(' ', StringComparison.Ordinal)
+                ? head
+                : string.Empty;
+    }
 }
 
 /// <summary>검사를 건너뛴 규칙과 이유.</summary>

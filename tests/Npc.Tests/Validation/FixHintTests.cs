@@ -128,6 +128,35 @@ public sealed partial class FixHintTests
         Assert.NotEmpty(violation.Related);
     }
 
+    /// <summary>
+    /// 위반은 <b>어느 파일인지</b> 말한다 — 인자로 안 줘도 메시지 앞머리에서 읽는다.
+    ///
+    /// <b>실제로 난 일이다</b> — 검증기 41곳이 모두 <c>File</c> 을 비워 두어 Studio 가
+    /// "파일 미상" 이라 적고 "원문으로" 바로가기가 죽어 있었다. 메시지 규약은 하나이므로
+    /// 레코드가 그것을 읽는다.
+    /// </summary>
+    [Fact]
+    public void Violation_ReadsTheFileFromTheMessageWhenNotGiven()
+    {
+        Assert.Equal(
+            "archetypes.json",
+            new MasterDataViolation("V5", "archetypes.json: population_weight 합이 1.048 다.").File);
+
+        Assert.Equal(
+            "localization/ko-KR.json",
+            new MasterDataViolation("V14", "localization/ko-KR.json: 키가 없다.").File);
+
+        // 앞머리가 파일 이름으로 보이지 않으면 억지로 짚지 않는다.
+        Assert.Equal(string.Empty, new MasterDataViolation("V9", "존 그래프가 끊겼다: town_north.").File);
+
+        // 대조군 — 실제 검증기 출력에도 파일이 붙는다. 하나도 못 붙으면 이 검사가 거짓이 된다.
+        MasterDataValidationReport report = MasterDataValidator.Validate(TestPaths.MasterData);
+        var broken = new MasterDataViolation("V5", "합이 0.996 이다");
+
+        Assert.Equal(string.Empty, broken.File);
+        Assert.True(report.IsValid, "출하 데이터가 검증을 통과해야 이 시험의 전제가 성립한다.");
+    }
+
     [Fact]
     public void GeneratedDocument_IsUpToDate()
     {
