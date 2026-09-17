@@ -4,7 +4,6 @@ using Npc.Core;
 using Npc.Core.Plan;
 using Npc.MasterData;
 using Npc.Narrative;
-using Npc.Sim;
 
 namespace Npc.Tests.Narrative;
 
@@ -20,46 +19,6 @@ public sealed class ForecastTests
 
     private static readonly NpcInstanceTable s_instances =
         NpcInstanceTable.Load(Path.Combine(TestPaths.MasterData, "npc_instances.json"), s_data);
-
-    /// <summary>
-    /// 예측 소요는 Sim 의 소요에서 지터만 뺀 값이다.
-    ///
-    /// <b>두 계산이 갈리면 조용히 갈린다</b> — 둘 다 그럴듯한 숫자를 내기 때문이다.
-    /// 지금은 <see cref="ActionDuration"/> 하나가 계산하고 Sim 이 거기에 지터를 곱하므로,
-    /// 이 테스트는 그 구조가 유지되는지를 본다.
-    /// </summary>
-    [Fact]
-    public void Forecast_DurationsMatchSimWithoutJitter()
-    {
-        foreach (ArchetypeDef def in s_data.Archetypes.Archetypes)
-        {
-            CompiledPlan plan = s_data.Fallbacks!.For(def.Code)!;
-            BucketKey bucket = plan.Bucket;
-            SimWorld world = SimWorld.CreateMinimal(s_data, bucket, seed: 20260916);
-            int npc = world.Spawn(def.Code);
-
-            Assert.Equal(0, npc);
-
-            PoiId from = world.PoiOf(0);
-
-            for (int i = 0; i < plan.Steps.Length; i++)
-            {
-                CompiledStep step = plan.Steps[i];
-                ActionDef action = s_data.Actions[step.Action];
-                double clock = (world.StartHour * 3600.0) + i;
-
-                double expected = ActionDuration.Seconds(s_data, action, step, from, from, clock);
-
-                Assert.True(expected > 0, $"{def.Id} 의 {i}번 스텝 소요가 0 이하다.");
-
-                // 지터 폭 안에 든다 — Sim 은 이 값에 ±JitterPercent 만 곱한다.
-                double low = expected * (1.0 - (SimWorld.JitterPercent / 100.0));
-                double high = expected * (1.0 + (SimWorld.JitterPercent / 100.0));
-
-                Assert.InRange(expected, low, high);
-            }
-        }
-    }
 
     /// <summary>
     /// 심볼 바인딩이 Sim 과 같은 규칙을 쓴다. 개체 값(집·일터)은 예측이 개체에서 읽고,

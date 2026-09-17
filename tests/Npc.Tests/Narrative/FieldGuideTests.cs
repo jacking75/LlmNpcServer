@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text.Json;
 using Npc.MasterData;
 using Npc.Narrative;
+using Npc.Studio.Services;
 
 namespace Npc.Tests.Narrative;
 
@@ -59,7 +60,7 @@ public sealed class FieldGuideTests
 
             using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
 
-            foreach (string property in Properties(document.RootElement, string.Empty, root: true))
+            foreach (string property in Properties(document.RootElement, document.RootElement, string.Empty, top: true))
             {
                 if (FieldGuide.Of(file, property) is null)
                 {
@@ -84,6 +85,65 @@ public sealed class FieldGuideTests
         Assert.NotEmpty(FieldGuide.Glossary);
     }
 
+    /// <summary>
+    /// 편집 폼에 실리는 칸은 <b>"틀리면 무슨 일이 나는가" 가 반드시 있다</b> (H28).
+    ///
+    /// <para>
+    /// 읽기 전용 값은 잘못 쓸 일이 없으니 <c>Caution</c> 이 비어도 된다. 그러나 사람이
+    /// 고치는 칸에 그 줄이 없으면 ⓘ 가 "이게 뭔지" 만 말하고 <b>"바꿔도 되는지" 는 말하지 않는다</b> —
+    /// 초보자가 정확히 알고 싶은 것이 그쪽이다.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void FieldGuide_EditableFieldsHaveCaution()
+    {
+        var missing = new List<string>();
+
+        foreach ((string file, ImmutableArray<string> paths) in EditablePaths)
+        {
+            foreach (string path in paths)
+            {
+                FieldHelp? help = FieldGuide.Of(file, path);
+
+                Assert.True(help is not null, $"{file}#{path} 이 사전에 없다.");
+
+                if (string.IsNullOrWhiteSpace(help!.Value.Caution))
+                {
+                    missing.Add(file + "#" + path);
+                }
+            }
+        }
+
+        Assert.True(missing.Count == 0, "편집 칸인데 주의 문장이 없다: " + string.Join(", ", missing));
+    }
+
+    /// <summary>
+    /// 편집 폼이 실제로 그리는 칸. <b>폼이 표를 노출하므로 손으로 적지 않는다</b> —
+    /// 새 칸을 폼에 넣고 사전에 빼먹으면 여기서 깨진다.
+    /// </summary>
+    private static IEnumerable<(string File, ImmutableArray<string> Paths)> EditablePaths
+    {
+        get
+        {
+            yield return (
+                "archetypes.json",
+                [.. StudioArchetypeForm.JsonKeys.Values.Where(k => k != "id").Select(k => "/" + k)]);
+
+            yield return (
+                "fallback_plans.json",
+                [.. StudioFallbackForm.JsonKeys.Values.Where(k => k is not ("id" or "archetype")).Select(k => "/" + k)]);
+
+            yield return (
+                "npc_overrides.json",
+                ["/patrol_route", "/aggro_radius_m", "/faction", "/dialogue_profile", "/schedule_offset_min"]);
+
+            yield return (
+                "pois.json",
+                ["/id", "/subtype", "/type", "/capacity", "/pos/x", "/pos/z", "/open_hours/from",
+                 "/open_hours/to", "/allowed_archetypes", "/resources"]);
+        }
+    }
+
     /// <summary>사전이 실제 데이터를 읽는지 — 로컬라이즈 표가 있으면 그 문구가 먼저다.</summary>
     [Fact]
     public void Lexicon_PrefersLocalizationTable()
@@ -99,9 +159,20 @@ public sealed class FieldGuideTests
         Assert.Contains("#", Lexicon.PlaceName(home), StringComparison.Ordinal);
     }
 
-    /// <summary>스키마 한 장의 속성 경로. 배열은 한 단계 벗겨서 항목의 속성을 그대로 올린다.</summary>
-    private static IEnumerable<string> Properties(JsonElement node, string path, bool root = false)
+    /// <summary>
+    /// 스키마 한 장의 속성 경로. 항목이 객체인 배열은 한 단계 벗겨서 항목의 속성을 그대로 올린다.
+    ///
+    /// <para>
+    /// <b>구멍이 둘 있었다</b> (H28) — <c>$ref</c> 를 따라가지 않아 <c>items.json</c> 의
+    /// <c>recipes/outputs</c> 가 통째로 빠졌고, <b>원시값 배열</b>(<c>world_flags.json</c> 의
+    /// <c>reserved_bits</c>)은 벗기면 아무것도 안 남아 검사에서 사라졌다.
+    /// </para>
+    /// </summary>
+    private static IEnumerable<string> Properties(
+        JsonElement root, JsonElement node, string path, bool top = false)
     {
+        node = Resolve(root, node);
+
         if (node.ValueKind != JsonValueKind.Object)
         {
             yield break;
@@ -116,15 +187,19 @@ public sealed class FieldGuideTests
                     continue;
                 }
 
-                // 최상위의 배열 속성(archetypes · pois …)은 경로에 넣지 않는다. 화면이 항목 하나를 본다.
-                bool unwrap = root
-                    && property.Value.TryGetProperty("type", out JsonElement type)
+                JsonElement value = Resolve(root, property.Value);
+
+                // 최상위의 <b>객체</b> 배열(archetypes · pois …)만 벗긴다. 화면이 항목 하나를 본다.
+                // 원시값 배열은 그 자체가 칸이므로 경로를 그대로 낸다.
+                bool unwrap = top
+                    && value.TryGetProperty("type", out JsonElement type)
                     && type.ValueKind == JsonValueKind.String
-                    && string.Equals(type.GetString(), "array", StringComparison.Ordinal);
+                    && string.Equals(type.GetString(), "array", StringComparison.Ordinal)
+                    && HasProperties(root, Items(root, value));
 
                 if (unwrap)
                 {
-                    foreach (string nested in Properties(Items(property.Value), path))
+                    foreach (string nested in Properties(root, Items(root, value), path))
                     {
                         yield return nested;
                     }
@@ -135,7 +210,7 @@ public sealed class FieldGuideTests
                 string child = path + "/" + property.Name;
                 yield return child;
 
-                foreach (string nested in Properties(Items(property.Value), child))
+                foreach (string nested in Properties(root, Items(root, value), child))
                 {
                     yield return nested;
                 }
@@ -143,9 +218,47 @@ public sealed class FieldGuideTests
         }
     }
 
+    private static bool HasProperties(JsonElement root, JsonElement node) =>
+        Resolve(root, node) is { ValueKind: JsonValueKind.Object } resolved
+        && resolved.TryGetProperty("properties", out _);
+
     /// <summary>배열이면 항목 스키마로 내려간다. 아니면 자기 자신이다.</summary>
-    private static JsonElement Items(JsonElement node) =>
-        node.ValueKind == JsonValueKind.Object && node.TryGetProperty("items", out JsonElement items)
-            ? items
-            : node;
+    private static JsonElement Items(JsonElement root, JsonElement node)
+    {
+        JsonElement resolved = Resolve(root, node);
+
+        return resolved.ValueKind == JsonValueKind.Object && resolved.TryGetProperty("items", out JsonElement items)
+            ? Resolve(root, items)
+            : resolved;
+    }
+
+    /// <summary>
+    /// <c>$ref</c> 를 문서 안에서 푼다 (H28).
+    /// <b>따라가지 않으면 그 가지 전체가 검사에서 조용히 빠진다.</b>
+    /// </summary>
+    private static JsonElement Resolve(JsonElement root, JsonElement node)
+    {
+        if (node.ValueKind != JsonValueKind.Object
+            || !node.TryGetProperty("$ref", out JsonElement reference)
+            || reference.ValueKind != JsonValueKind.String
+            || reference.GetString() is not { } pointer
+            || !pointer.StartsWith("#/", StringComparison.Ordinal))
+        {
+            return node;
+        }
+
+        JsonElement at = root;
+
+        foreach (string part in pointer[2..].Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (at.ValueKind != JsonValueKind.Object || !at.TryGetProperty(part, out JsonElement next))
+            {
+                return node;
+            }
+
+            at = next;
+        }
+
+        return at;
+    }
 }
