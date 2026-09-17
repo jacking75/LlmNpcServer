@@ -1,9 +1,14 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject StudioSession Session
+@inject StudioWorkspace Workspace
 @inject NavigationManager Nav
+@inject IJSRuntime Js
 
 <CascadingValue Value="this" IsFixed="true">
+    @* H01 — 내부 이동과 브라우저 이탈(새로고침 · 탭 닫기)을 한 곳에서 막는다. *@
+    <NavigationLock ConfirmExternalNavigation="@Session.AnyDirty" OnBeforeInternalNavigation="Guard" />
+
     <header class="topbar">
         <div class="brand">
             <a class="brand-link" href="/">
@@ -20,7 +25,15 @@
             }
             @if (Session.Catalog.IsSandbox)
             {
-                <a class="badge warn" href="/" title="연습장이다 — 원본은 그대로다">연습장 · @Session.Catalog.Sandbox</a>
+                <a class="badge warn" href="/#sandbox" title="연습장이다 — 원본은 그대로다">연습장 · @Session.Catalog.Sandbox</a>
+            }
+            @if (!Session.Catalog.BackupWritable)
+            {
+                <span class="badge bad" title="백업 폴더에 쓸 수 없다">되돌리기 불가</span>
+            }
+            @if (Session.LastSaved is { } saved && Session.LastSavedCollapsed)
+            {
+                <button class="secondary" @onclick="() => Session.DismissLastSaved()">최근 저장: @(saved.Label.Length > 0 ? saved.Label : "저장함") ×</button>
             }
             <button class="secondary" @onclick="Validate">전체 검증</button>
             <button class="secondary" @onclick="Reload">새로고침</button>
@@ -28,6 +41,28 @@
             <a class="manual" href="/docs/npc_studio_manual.html" target="_blank">매뉴얼</a>
         </div>
     </header>
+
+    @if (Session.DirectoryNotice is { Length: > 0 } notice)
+    {
+        <div class="banner warn"><span>@notice</span><button class="secondary" @onclick="Reload">새로고침</button></div>
+    }
+
+    @if (!Session.ExternallyChanged.IsEmpty)
+    {
+        <div class="banner warn">
+            <span>밖에서 바뀐 파일: @string.Join(" · ", Session.ExternallyChanged.Take(4))@(Session.ExternallyChanged.Length > 4 ? " 외" : "") — 저장 전에 다시 읽는다.</span>
+            <button class="secondary" @onclick="Reload">새로고침</button>
+        </div>
+    }
+
+    @if (!Session.Catalog.IsBlocked && !Session.Catalog.DistancesAvailable)
+    {
+        @* H07 — 거리표가 낡았다고 화면을 통째로 막지 않는다. 읽고 고치는 것은 계속된다. *@
+        <div class="banner warn">
+            <span><strong>거리표(poi_distances.bin)가 낡았다</strong> — 읽고 고칠 수는 있지만 소요 시간 예측은 믿을 수 없다.</span>
+            <a class="manual" href="/#todo">다시 만들기</a>
+        </div>
+    }
 
     <div class="workspace">
         <aside class="sidebar">
@@ -42,33 +77,59 @@
         </aside>
 
         <main class="main">
-            @if (Session.Catalog.IsBlocked)
+            @if (Session.LastSaved is { } result && !Session.LastSavedCollapsed)
             {
-                @* 로더가 폴더를 거절했다. 화면을 그리는 대신 다시 만들 길만 준다. *@
-                <section class="panel blocked-panel">
+                @* H09 — 저장 결과를 그 자리에서. 시작 화면에 가야 보이는 안내는 없는 안내다. *@
+                <section class="panel save-result">
                     <div class="panel-head">
                         <div>
-                            <small>BLOCKED</small>
-                            <h1>이 마스터데이터를 읽을 수 없다</h1>
-                            <p class="page-lead">
-                                파생물이 입력과 어긋난다. <strong>다시 만들면 화면이 열린다</strong> —
-                                정의 파일은 그대로다.
-                            </p>
+                            <small>SAVED</small>
+                            <h2>저장했다@(result.Label.Length > 0 ? " · " + result.Label : string.Empty)</h2>
+                            <p class="page-lead">@string.Join(" · ", result.Files)</p>
+                        </div>
+                        <div class="button-row compact">
+                            <button class="secondary" @onclick="UndoLast" disabled="@Session.Catalog.ReadOnly">방금 저장 되돌리기</button>
+                            <button class="icon-btn" aria-label="결과 접기" @onclick="() => Session.CollapseLastSaved()">×</button>
                         </div>
                     </div>
-                    <p class="blocked-reason">@Session.Catalog.Blocked</p>
-                    <ImpactPanel />
+                    <div style="padding:0 16px 16px"><ImpactPanel Compact="true" /></div>
                 </section>
+            }
+
+            @if (Session.Catalog.IsBlocked)
+            {
+                <BlockedPanel />
             }
             else
             {
-                @Body
+                <ErrorBoundary @ref="_boundary">
+                    <ChildContent>@Body</ChildContent>
+                    <ErrorContent Context="error">
+                        @* H08 — 화면 하나가 그려지지 않아도 나머지는 살아 있다. *@
+                        <section class="panel">
+                            <div class="panel-head"><div><small>ERROR</small><h1>이 화면을 그리지 못했다</h1></div></div>
+                            <p class="blocked-reason">@StudioErrors.Humanize(error)</p>
+                            <div class="button-row">
+                                <button class="primary" @onclick="RecoverBoundary">다시 시도</button>
+                                <a class="manual" href="/">시작 화면으로</a>
+                            </div>
+                        </section>
+                    </ErrorContent>
+                </ErrorBoundary>
             }
         </main>
 
-        <aside class="inspector">
+        <aside class="inspector @(_inspectorOpen ? "open" : "collapsed")">
             <div class="inspector-head">
+                <button class="inspector-toggle" @onclick="() => _inspectorOpen = !_inspectorOpen"
+                        aria-expanded="@_inspectorOpen" aria-label="검증 결과 펼치기/접기">
+                    @(_inspectorOpen ? "▸" : "◂")
+                </button>
                 <span>검증 결과</span>
+                @if (Session.LintCount is { } lint && lint > 0)
+                {
+                    <a class="count warn" href="/issues" title="건강 진단 — 차단이 아니라 주의다">주의 @lint</a>
+                }
                 @if (Session.Catalog.IsBlocked)
                 {
                     <span class="count bad">—</span>
@@ -78,45 +139,47 @@
                     <span class="count @(Session.Issues.IsEmpty ? "ok" : "bad")">@Session.Issues.Length</span>
                 }
             </div>
-            @if (Session.Catalog.IsBlocked)
+
+            @if (_inspectorOpen)
             {
-                @* 0건이 "문제 없음" 으로 읽히면 안 된다 — 못 본 것이다. *@
-                <div class="all-good bad"><span>!</span><strong>검증하지 못했다</strong><p>로더가 이 폴더를 읽지 못해 규칙을 돌리지 못했다.</p></div>
-            }
-            else if (Session.Issues.IsEmpty)
-            {
-                <div class="all-good"><span>✓</span><strong>전체 검증 통과</strong><p>현재 마스터데이터에서 V1~V15 위반이 없다.</p></div>
-            }
-            else
-            {
-                <div class="issue-list">
-                    @foreach (StudioIssue issue in Session.Issues.Take(30))
-                    {
-                        <article class="issue">
-                            <strong>@issue.Code · @issue.File</strong>
-                            <code>@issue.Path</code>
-                            <p>@issue.Detail</p>
-                            @if (!string.IsNullOrEmpty(issue.FixHint)) { <small>@issue.FixHint</small> }
-                        </article>
-                    }
+                @if (Session.Catalog.IsBlocked)
+                {
+                    @* 0건이 "문제 없음" 으로 읽히면 안 된다 — 못 본 것이다. *@
+                    <div class="all-good bad"><span>!</span><strong>검증하지 못했다</strong><p>로더가 이 폴더를 읽지 못해 규칙을 돌리지 못했다.</p></div>
+                }
+                else
+                {
+                    <IssuePanel Issues="Session.Issues" OkLead="현재 마스터데이터에서 검증 위반이 없다." />
+                }
+
+                @if (!Session.LastRejected.IsEmpty)
+                {
+                    <details class="rejected-draft" open>
+                        <summary>방금 거절된 초안의 문제 @(Session.LastRejected.Length)건</summary>
+                        <p class="related">파일은 그대로다 — 이것은 저장되지 않은 초안의 문제다.</p>
+                        <IssuePanel Issues="Session.LastRejected" Limit="10" ShowAllGood="false" />
+                    </details>
+                }
+
+                <div class="guardrails">
+                    <h3>편집 안전장치</h3>
+                    <ul>
+                        <li>생성물은 편집 목록에서 제외한다.</li>
+                        <li>저장 전 전체 검증을 수행한다.</li>
+                        <li>로더가 거절하면 원본을 유지한다.</li>
+                        <li><strong>번호(code·bit) 재배치는 저장이 거절된다.</strong></li>
+                        <li>읽은 뒤 디스크가 바뀌면 저장을 거절한다.</li>
+                        <li>저장 직전 원본을 @StudioWorkspace.BackupDays 일간 남긴다.</li>
+                    </ul>
                 </div>
             }
-            <div class="guardrails">
-                <h3>편집 안전장치</h3>
-                <ul>
-                    <li>생성물은 편집 목록에서 제외한다.</li>
-                    <li>저장 전 전체 검증을 수행한다.</li>
-                    <li>로더가 거절하면 원본을 유지한다.</li>
-                    <li>ID와 code 재배치를 허용하지 않는다.</li>
-                </ul>
-            </div>
         </aside>
     </div>
 
     @if (_helpOpen)
     {
         <div class="help-drawer">
-            <div class="help-head"><strong>이 화면에서 할 수 있는 것</strong><button class="icon-btn" @onclick="ToggleHelp">×</button></div>
+            <div class="help-head"><strong>이 화면에서 할 수 있는 것</strong><button class="icon-btn" aria-label="도움말 닫기" @onclick="ToggleHelp">×</button></div>
             <div class="help-body">
                 @if (_help is not null)
                 {
@@ -132,13 +195,21 @@
 
     @if (!string.IsNullOrEmpty(Session.Toast))
     {
-        <div class="toast @(Session.ToastIsError ? "error" : "success")" @onclick="Session.ClearToast">@Session.Toast</div>
+        <div class="toast @(Session.ToastIsError ? "error" : "success")" role="status" aria-live="polite">
+            <span>@Session.Toast</span>
+            <button class="icon-btn" aria-label="안내 닫기" @onclick="Session.ClearToast">×</button>
+        </div>
     }
+
+    <ConfirmDialog @ref="_confirm" />
 </CascadingValue>
 
 @code {
     private RenderFragment? _help;
+    private ConfirmDialog? _confirm;
+    private ErrorBoundary? _boundary;
     private bool _helpOpen;
+    private bool _inspectorOpen = true;
 
     /// <summary>좌측 내비. 순서가 초보자 여정 순서다 — 알기 → 보기 → 예측 → 만들기.</summary>
     private static readonly (string Url, string Label, string Hint)[] Navigation =
@@ -157,7 +228,20 @@
 
     protected override void OnInitialized() => Session.Changed += OnChanged;
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // H19 — Ctrl/Cmd+K. 문구만 있고 동작이 없던 것을 여기서 잇는다.
+        try { await Js.InvokeVoidAsync("studio.bindSearch"); }
+        catch (Exception) { /* 회로가 아직 준비되지 않았다. */ }
+    }
+
     /// <summary>페이지가 도움말 내용을 건다. 페이지가 바뀌면 다시 건다.</summary>
+    /// <param name="help">도움말 조각.</param>
     public void SetHelp(RenderFragment? help)
     {
         _help = help;
@@ -171,25 +255,113 @@
         StateHasChanged();
     }
 
+    /// <summary>파괴적 행동 확인을 받는다 (H02). 화면들이 이 하나를 공유한다.</summary>
+    /// <param name="title">무엇을 하려는가.</param>
+    /// <param name="lines">① 무엇이 ② 어떻게 되고 ③ 되돌릴 수 있는가.</param>
+    /// <param name="confirmLabel">확인 버튼 문구.</param>
+    /// <param name="danger">되돌릴 수 없는가.</param>
+    /// <param name="cancelLabel">취소 버튼 문구.</param>
+    public Task<bool> ConfirmAsync(
+        string title,
+        IReadOnlyList<string> lines,
+        string confirmLabel,
+        bool danger = false,
+        string cancelLabel = "취소") =>
+        _confirm is null
+            ? Task.FromResult(true)
+            : _confirm.ShowAsync(title, lines, confirmLabel, danger, cancelLabel);
+
+    /// <summary>
+    /// 초안이 있으면 떠나기 전에 묻는다 (H01).
+    /// <b>취소하면 주소가 바뀌지 않는다</b> — 초안이 그대로 남는다.
+    /// </summary>
+    private async Task Guard(LocationChangingContext context)
+    {
+        if (!Session.AnyDirty)
+        {
+            return;
+        }
+
+        bool go = await ConfirmAsync(
+            "저장하지 않은 변경이 있다",
+            [
+                $"{Session.DirtyWhat} 에 저장하지 않은 변경이 있다.",
+                "이동하면 그 초안이 사라진다.",
+                "머무르면 그대로 남는다 — 저장하고 다시 이동할 수 있다.",
+            ],
+            "버리고 이동",
+            danger: true,
+            cancelLabel: "머무르기");
+
+        if (!go)
+        {
+            context.PreventNavigation();
+        }
+    }
+
     private void ToggleHelp() => _helpOpen = !_helpOpen;
 
-    private void Validate() => Session.Validate();
+    private void Validate() => Session.Try(Session.Validate, "검증");
 
-    private void Reload()
+    private async Task Reload()
     {
-        Session.Reload();
-        Session.Notify("마스터데이터를 다시 읽었다.");
+        if (Session.AnyDirty)
+        {
+            bool go = await ConfirmAsync(
+                "다시 읽으면 초안이 사라진다",
+                [
+                    $"{Session.DirtyWhat} 에 저장하지 않은 변경이 있다.",
+                    "디스크를 다시 읽으면 그 초안이 사라진다.",
+                    "머무르면 그대로 남는다.",
+                ],
+                "버리고 다시 읽기",
+                danger: true,
+                cancelLabel: "머무르기");
+
+            if (!go)
+            {
+                return;
+            }
+        }
+
+        if (Session.Try(Session.Reload, "다시 읽기"))
+        {
+            Session.Notify("마스터데이터를 다시 읽었다.");
+        }
+    }
+
+    /// <summary>H09·H14 — 가장 흔한 되돌리기. 방금 만든 백업 묶음 하나를 통째로.</summary>
+    private void UndoLast() =>
+        Session.Try(
+            () =>
+            {
+                if (Workspace.Backups().FirstOrDefault() is { } backup)
+                {
+                    Session.Apply(Workspace.Restore(backup));
+                }
+                else
+                {
+                    Session.Notify("되돌릴 백업이 없다.", true);
+                }
+            },
+            "되돌리기");
+
+    private void RecoverBoundary()
+    {
+        _boundary?.Recover();
+        StateHasChanged();
     }
 
     private string NavClass(string url)
     {
-        string path = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimEnd('/');
+        string path = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Split('#')[0].TrimEnd('/');
 
         return url == "/"
             ? (path == "/" ? "active" : string.Empty)
             : (path.StartsWith(url, StringComparison.Ordinal) ? "active" : string.Empty);
     }
 
+    /// <summary>회로가 끊길 때 이벤트를 놓는다.</summary>
     public void Dispose() => Session.Changed -= OnChanged;
 
     private void OnChanged() => InvokeAsync(StateHasChanged);

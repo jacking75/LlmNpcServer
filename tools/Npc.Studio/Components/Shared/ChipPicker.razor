@@ -1,0 +1,71 @@
+@* H22 — 자유 문자열 대신 선택. 후보가 데이터에 있으면 타이핑을 시키지 않는다. *@
+
+<div class="chip-picker">
+    <span class="chips">
+        @if (Values.IsDefaultOrEmpty)
+        {
+            <span class="related">아직 없다.</span>
+        }
+        else
+        {
+            @foreach (string value in Values)
+            {
+                string pick = value;
+                bool known = Choices.IsDefaultOrEmpty || Choices.Contains(value, StringComparer.Ordinal);
+                <span class="chip @(known ? "on" : "unknown")" title="@(known ? value : value + " — 목록에 없는 값이다")">
+                    @Name(value)
+                    <button type="button" class="chip-x" aria-label="@(Name(value) + " 빼기")" @onclick="() => Remove(pick)">×</button>
+                </span>
+            }
+        }
+    </span>
+
+    <div class="inline-row">
+        <select value="@_pick" @onchange="OnPick" aria-label="@(Label + " 고르기")">
+            <option value="">+ @Label 추가</option>
+            @foreach (string choice in Available)
+            {
+                <option value="@choice">@Name(choice) (@choice)</option>
+            }
+        </select>
+    </div>
+</div>
+
+@code {
+    /// <summary>지금 고른 값.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<string> Values { get; set; }
+
+    /// <summary>고를 수 있는 값. 비면 자유 입력이 아니라 "후보 없음" 이다.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<string> Choices { get; set; }
+
+    /// <summary>드롭다운 문구 ("제작품").</summary>
+    [Parameter] public string Label { get; set; } = "항목";
+
+    /// <summary>값이 바뀌면.</summary>
+    [Parameter] public EventCallback<ImmutableArray<string>> Changed { get; set; }
+
+    private string _pick = string.Empty;
+
+    private IEnumerable<string> Available =>
+        Choices.IsDefaultOrEmpty
+            ? []
+            : Choices.Where(c => Values.IsDefaultOrEmpty || !Values.Contains(c, StringComparer.Ordinal));
+
+    private static string Name(string id) => Lexicon.Item(id);
+
+    private Task OnPick(ChangeEventArgs args)
+    {
+        string value = args.Value?.ToString() ?? string.Empty;
+        _pick = string.Empty;
+
+        if (value.Length == 0 || (!Values.IsDefaultOrEmpty && Values.Contains(value, StringComparer.Ordinal)))
+        {
+            return Task.CompletedTask;
+        }
+
+        return Changed.InvokeAsync(Values.IsDefault ? [value] : Values.Add(value));
+    }
+
+    private Task Remove(string value) =>
+        Changed.InvokeAsync([.. Values.Where(v => !string.Equals(v, value, StringComparison.Ordinal))]);
+}

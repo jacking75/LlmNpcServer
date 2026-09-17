@@ -1,16 +1,20 @@
-@* T16 — 저장 뒤 "이제 무엇을 해야 하나". 화면에 문장을 박지 않고 ImpactAnalyzer 에게 묻는다. *@
+@* T16 · H09·H16 — 저장 뒤 "이제 무엇을 해야 하나". 화면에 문장을 박지 않고 ImpactAnalyzer 에게 묻는다. *@
 @using Npc.MasterData.Authoring
 @implements IDisposable
 @inject StudioSession Session
 @inject StudioWorkspace Workspace
 @inject GeneratorRunner Generator
 
-@if (_impact is { } impact)
+@if (_error is { Length: > 0 })
+{
+    <div class="impact hot"><strong>파급을 계산하지 못했다</strong><span>@_error</span></div>
+}
+else if (_impact is { } impact)
 {
     <div class="impact-cards">
         @if (!impact.Changed.IsEmpty)
         {
-            <div class="impact"><strong>이번 세션에서 바뀐 파일</strong><span>@string.Join(" · ", impact.Changed)</span></div>
+            <div class="impact"><strong>@(PendingFiles.IsDefaultOrEmpty ? "이번 세션에서 바뀐 파일" : "이 저장까지 포함해 바뀌는 파일")</strong><span>@string.Join(" · ", impact.Changed)</span></div>
         }
 
         @if (impact.NeedsGameServerRedeploy)
@@ -24,28 +28,35 @@
         @if (impact.PrefixChanged)
         {
             <div class="impact hot">
-                <strong>미리 구운 플랜이 전량 무효다</strong>
+                <strong>미리 구운 계획이 전량 무효다</strong>
                 <span>프롬프트 프리픽스가 바뀐다. 다시 구우려면 <code>dotnet run --project tools/Npc.Prebake</code> 를 돌린다.</span>
             </div>
         }
         else if (impact.NeedsPrebake)
         {
             <div class="impact">
-                <strong>미리 구운 플랜 일부가 무효다</strong>
+                <strong>미리 구운 계획 일부가 무효다</strong>
                 <span>바뀐 것만 다시 구우면 된다 — 프리베이크에 <code>--resume</code> 을 준다.</span>
             </div>
         }
 
         @foreach (DerivedStatus status in impact.Regenerate)
         {
+            DerivedStatus row = status;
             <div class="impact hot">
                 <strong>@status.Artifact 을(를) 다시 만들어야 한다</strong>
                 <span>@(status.Reason.Length > 0 ? status.Reason : "입력이 바뀐다") · <code>@status.Generator</code></span>
                 <div class="inline-row">
-                    <button class="secondary" @onclick="() => Regenerate(status)" disabled="@(Session.Catalog.ReadOnly || Generator.Busy || !CanRun)">다시 만들기</button>
+                    <button class="secondary" @onclick="() => Regenerate(row)" disabled="@(Session.Catalog.ReadOnly || Generator.Busy || !CanRun)">
+                        @(Generator.Busy ? "만드는 중…" : "다시 만들기")
+                    </button>
+                    @if (Generator.Busy)
+                    {
+                        <button class="secondary danger" @onclick="Generator.Cancel">취소</button>
+                    }
                     @if (!Generator.Available)
                     {
-                        <span>생성기를 찾지 못했다 — 저장소 안에서 실행해야 한다.</span>
+                        <span>생성기를 찾지 못했다 — 저장소 안에서 실행해야 한다. 터미널에서 <code>@Generator.CommandOf(status)</code> 를 돌린다.</span>
                     }
                     else if (!CanRun)
                     {
@@ -53,7 +64,7 @@
                     }
                     else
                     {
-                        <span><code>@Generator.CommandOf(status)</code> · <code>npc_instances.json</code> 이 다시 만들어진다 — 손편집은 <code>npc_overrides.json</code> 에만 남는다.</span>
+                        <span><code>@Generator.CommandOf(status)</code> · 첫 실행은 빌드로 수십 초 걸린다.</span>
                     }
                 </div>
             </div>
@@ -67,6 +78,20 @@
             </div>
         }
 
+        @if (_drift is { Length: > 0 })
+        {
+            <div class="impact hot">
+                <strong>개별 설정이 엉뚱한 NPC 에 붙었다</strong>
+                <span>명단을 다시 만들면서 번호가 가리키는 NPC 가 바뀌었다 — 순찰로가 맞지 않는다.</span>
+                <ul>
+                    @foreach (string line in _drift)
+                    {
+                        <li>@line</li>
+                    }
+                </ul>
+            </div>
+        }
+
         @if (!string.IsNullOrEmpty(Generator.Output))
         {
             <pre class="generator-output">@Generator.Output</pre>
@@ -75,7 +100,19 @@
 }
 
 @code {
+    /// <summary>
+    /// 아직 저장하지 않은 파일 (H09). 저장 모달·마법사 5단계가 <b>미래</b>의 파급을 보여 준다.
+    /// </summary>
+    [Parameter] public ImmutableArray<string> PendingFiles { get; set; }
+
+    /// <summary>좁은 자리에 넣을 것인가. 지금은 여백만 달라진다.</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    [CascadingParameter] public StudioLayout? Layout { get; set; }
+
     private Impact? _impact;
+    private string _error = string.Empty;
+    private ImmutableArray<string> _drift;
 
     private bool CanRun => Generator.Available && Generator.CanRunFor(Workspace.CurrentDirectory);
 
@@ -87,6 +124,7 @@
     protected override void OnInitialized()
     {
         Session.Changed += Refresh;
+        Generator.Changed += Refresh;
         Compute();
     }
 
@@ -94,8 +132,21 @@
 
     private void Compute()
     {
-        try { _impact = ImpactAnalyzer.Of(Workspace.CurrentDirectory, Session.ChangedFiles); }
-        catch (Exception) { _impact = null; }
+        try
+        {
+            IEnumerable<string> changed = PendingFiles.IsDefaultOrEmpty
+                ? Session.ChangedFiles
+                : Session.ChangedFiles.Union(PendingFiles, StringComparer.Ordinal);
+
+            _impact = ImpactAnalyzer.Of(Workspace.CurrentDirectory, changed);
+            _error = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            // 예전에는 여기서 삼켜 패널이 통째로 사라졌다 — "해야 할 일이 없다" 로 읽힌다.
+            _impact = null;
+            _error = StudioErrors.Humanize(ex);
+        }
     }
 
     private void Refresh()
@@ -106,11 +157,63 @@
 
     private async Task Regenerate(DerivedStatus status)
     {
-        await Generator.RunAsync(status, Workspace.CurrentDirectory);
-        Session.Reload();
-        Session.Notify(Generator.LastSucceeded ? $"{status.Artifact} 을(를) 다시 만들었다." : "생성기가 실패했다.", !Generator.LastSucceeded);
+        if (Session.Catalog.IsSandbox || !CanRun)
+        {
+            Session.Notify("이 폴더에서는 다시 만들 수 없다.", true);
+            return;
+        }
+
+        bool go = Layout is null || await Layout.ConfirmAsync(
+            $"{status.Artifact} 을(를) 다시 만든다",
+            [
+                $"`{Generator.CommandOf(status)}` 를 돌린다 — 약 30초, 첫 실행은 빌드로 더 걸린다.",
+                status.Artifact == "npc_instances.json"
+                    ? "5,000명 명단이 다시 만들어진다. 개별 설정은 남지만 번호가 가리키는 NPC 가 바뀔 수 있다."
+                    : "거리표가 다시 만들어진다. 정의 파일은 그대로다.",
+                "이전 파일은 생성기가 덮어쓴다 — 도중에 취소할 수 있다.",
+            ],
+            "다시 만들기");
+
+        if (!go)
+        {
+            return;
+        }
+
+        ImmutableArray<(int Npc, string Archetype, string Zone)> before = [];
+
+        _ = await Session.TryAsync(
+            async () =>
+            {
+                // H16 — 재생성 전후로 개별 설정이 가리키는 NPC 가 그대로인지 본다.
+                before = Workspace.OverrideTargets();
+
+                Workspace.GeneratorBusy = true;
+
+                try
+                {
+                    await Generator.RunAsync(status, Workspace.CurrentDirectory);
+                }
+                finally
+                {
+                    Workspace.GeneratorBusy = false;
+                }
+
+                Session.Reload();
+                _drift = Workspace.OverrideDrift(before);
+
+                Session.Notify(
+                    Generator.LastSucceeded
+                        ? $"{status.Artifact} 을(를) 다시 만들었다."
+                        : "생성기가 실패했다 — 아래 출력을 본다.",
+                    !Generator.LastSucceeded);
+            },
+            "다시 만들기");
     }
 
     /// <summary>회로가 끊길 때 이벤트를 놓는다.</summary>
-    public void Dispose() => Session.Changed -= Refresh;
+    public void Dispose()
+    {
+        Session.Changed -= Refresh;
+        Generator.Changed -= Refresh;
+    }
 }

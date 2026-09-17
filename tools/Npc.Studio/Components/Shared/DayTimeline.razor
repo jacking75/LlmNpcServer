@@ -5,9 +5,10 @@
         @foreach (TimelineCell cell in Cells)
         {
             int index = cell.Index;
-            <span class="timeline-seg @(cell.Bad ? "bad" : "")" data-seg="@index"
-                  style="flex:@cell.Share.ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture);background:@cell.Color"
-                  title="@cell.Title" @onclick="() => Select(index)">@cell.Label</span>
+            @* H24 — 칸 설명이 hover 전용이면 터치·키보드로 읽을 수 없다. 버튼으로 만든다. *@
+            <button type="button" class="timeline-seg @(cell.Bad ? "bad" : "")" data-seg="@index"
+                    style="flex:@cell.Share.ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture);background:@cell.Color"
+                    title="@cell.Title" aria-label="@cell.Title" @onclick="() => Select(index)">@cell.Label</button>
         }
     </div>
     <div class="timeline-scale">
@@ -21,7 +22,8 @@
         <div class="duty-band" title="근무 시간대">
             @foreach (Npc.Core.TimeOfDay time in Enum.GetValues<Npc.Core.TimeOfDay>())
             {
-                <span class="@(Duty.Contains(time) ? "duty-on" : "duty-off")" title="@(Lexicon.Of(time))"></span>
+                <span class="@(Duty.Contains(time) ? "duty-on" : "duty-off")"
+                      title="@(Lexicon.Of(time) + (Duty.Contains(time) ? " — 근무 중" : " — 비번"))"></span>
             }
         </div>
     }

@@ -26,6 +26,31 @@ public readonly record struct TimelineCell(
 /// </summary>
 public static class StudioView
 {
+    /// <summary>
+    /// 주소에 질의 항목 하나를 붙인다 (H10).
+    ///
+    /// <b>회귀 — 이미 <c>?</c> 가 있는 주소에 <c>?</c> 를 또 붙였다.</b> 그러면
+    /// <c>tab</c> 값이 <c>"edit?field=…"</c> 가 되어 탭 <c>switch</c> 의 <c>default</c>
+    /// (고급 JSON)로 떨어졌다 — "고치러 가기" 가 초보자를 원문 편집기에 버렸다.
+    /// </summary>
+    /// <param name="url">기존 주소.</param>
+    /// <param name="key">질의 이름.</param>
+    /// <param name="value">질의 값. 비면 주소를 그대로 돌려준다.</param>
+    public static string WithQuery(string url, string key, string value)
+    {
+        ArgumentNullException.ThrowIfNull(url);
+        ArgumentException.ThrowIfNullOrEmpty(key);
+
+        if (string.IsNullOrEmpty(value))
+        {
+            return url;
+        }
+
+        char separator = url.Contains('?', StringComparison.Ordinal) ? '&' : '?';
+
+        return url + separator + key + "=" + Uri.EscapeDataString(value);
+    }
+
     /// <summary>액션 카테고리별 칩. 허용·미허용을 한 표에 담는다.</summary>
     /// <param name="data">마스터데이터.</param>
     /// <param name="def">아키타입.</param>

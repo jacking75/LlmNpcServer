@@ -1,3 +1,4 @@
+@* H08 — 회로가 죽어도 화면이 말을 한다. 초보자는 새로고침을 모른다. *@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -15,7 +16,25 @@
 </head>
 <body>
     <Routes @rendermode="InteractiveServer" />
+
+    @* 회로가 끊기면 Blazor 가 이 칸을 보여 준다. 기본 문구는 영어라 직접 쓴다. *@
+    <div id="blazor-error-ui">
+        <strong>문제가 생겼다.</strong>
+        <span>저장한 것은 안전하다 — 디스크는 그대로다.</span>
+        <a href="" class="reload">새로고침</a>
+        <span class="dismiss" title="닫기">×</span>
+    </div>
+
+    <div id="components-reconnect-modal">
+        <div class="reconnect-card">
+            <strong>서버와 연결이 끊겼다</strong>
+            <p>다시 붙는 중이다. 오래 걸리면 새로고침한다.</p>
+            <a href="">새로고침</a>
+        </div>
+    </div>
+
     <script src="behavior-preview.js"></script>
+    <script src="studio.js"></script>
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

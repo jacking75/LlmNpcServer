@@ -15,7 +15,7 @@ else
                 <span class="fix">고치려면: @finding.Fix</span>
                 @if (!string.IsNullOrEmpty(Link) && !string.IsNullOrEmpty(finding.Field))
                 {
-                    <a href="@(Link + "?field=" + finding.Field.TrimStart('/'))">고치러 가기</a>
+                    <a href="@StudioView.WithQuery(Link, "field", finding.Field.TrimStart('/'))">고치러 가기</a>
                 }
                 <small class="related">@finding.Code</small>
             </div>

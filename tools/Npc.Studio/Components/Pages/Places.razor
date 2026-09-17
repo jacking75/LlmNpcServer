@@ -3,8 +3,11 @@
 @inject StudioSession Session
 @inject StudioPlaces Lookup
 @inject StudioWorkspace Workspace
+@inject IJSRuntime Js
 
 <PageTitle>지역·장소 · NPC Studio</PageTitle>
+
+<Breadcrumb Trail="Crumbs" />
 
 @if (string.IsNullOrEmpty(Zone))
 {
@@ -37,7 +40,7 @@
 }
 else if (_zone is null)
 {
-    <section class="empty-state"><div class="empty-icon">◇</div><h1>@Zone 을(를) 찾지 못했다</h1></section>
+    <section class="empty-state"><div class="empty-icon">◇</div><h1>@Zone 을(를) 찾지 못했다</h1><p><a href="/places">지역 목록으로</a></p></section>
 }
 else
 {
@@ -57,7 +60,7 @@ else
     <section class="panel">
         <div class="panel-head">
             <div><small>MAP</small><h2>어디에 무엇이 있나</h2></div>
-            <button class="secondary" @onclick="() => _adding = !_adding" disabled="@Session.Catalog.ReadOnly">+ 새 장소</button>
+            <button class="primary" @onclick="() => _adding = !_adding" disabled="@Session.Catalog.ReadOnly">+ 새 장소</button>
         </div>
         <div style="padding:0 16px 16px">
             <ZoneMap Pois="MapPois" ViewBox="@_viewBox" Highlight="@_selected" PoiClicked="Select" Height="380">
@@ -86,7 +89,7 @@ else
         <div class="facts">
             @foreach (StudioPlace place in Filtered)
             {
-                <div class="fact" id="@place.Poi.Id">
+                <div class="fact @(place.Poi.Id == _selected ? "selected" : string.Empty)" id="@("poi-" + place.Poi.Id)" data-field="@("poi-" + place.Poi.Id)">
                     <h3 style="color:@StudioView.PoiColor(place.Poi.Kind)">@place.Poi.Label</h3>
                     <div class="fact-row"><span>ID<FieldInfo File="pois.json" Path="/id" /></span><span><code>@place.Poi.Id</code> · code @place.Code</span></div>
                     <div class="fact-row"><span>유형<FieldInfo File="pois.json" Path="/subtype" /></span><span>@place.Poi.Type / @Lexicon.Place(place.Poi.Subtype)</span></div>
@@ -101,6 +104,10 @@ else
                     {
                         <div class="fact-row"><span>얻을 수 있는 것<FieldInfo File="pois.json" Path="/resources" /></span><span>@string.Join(" · ", place.Resources)</span></div>
                     }
+                    <p class="related">
+                        정원·시간·허가를 고치려면 <a href="/files/pois.json">고급 · JSON</a> 에서 한다 —
+                        폼 편집은 다음 계획이다.
+                    </p>
                 </div>
             }
         </div>
@@ -108,9 +115,21 @@ else
 }
 
 @code {
+    /// <summary>지역 id. 없으면 목록이다.</summary>
     [Parameter] public string? Zone { get; set; }
+
     [CascadingParameter] public StudioLayout? Layout { get; set; }
+
+    /// <summary>열자마자 스크롤할 장소 id (H18).</summary>
     [SupplyParameterFromQuery(Name = "poi")] public string? QueryPoi { get; set; }
+
+    private (string Label, string Url)[] Crumbs =>
+        string.IsNullOrEmpty(Zone)
+            ? [("시작", "/"), ("지역·장소", "")]
+            : [("시작", "/"), ("지역·장소", "/places"), (_zone?.Name ?? Zone, "")];
+
+    private string _focused = string.Empty;
+    private int _generation = -1;
 
     private ImmutableArray<StudioZone> _zones;
     private ImmutableArray<StudioPlace> _places;
@@ -146,7 +165,7 @@ else
     {
         Layout?.SetHelp(Help);
 
-        if (_zones.IsDefaultOrEmpty) _zones = Lookup.Zones();
+        if (_zones.IsDefaultOrEmpty) _ = Session.Try(() => _zones = Lookup.Zones(), "지역 목록 읽기");
 
         if (string.IsNullOrEmpty(Zone))
         {
@@ -154,7 +173,7 @@ else
             return;
         }
 
-        if (_loaded == Zone)
+        if (_loaded == Zone && _generation == Session.Generation)
         {
             if (QueryPoi is { Length: > 0 }) _selected = QueryPoi;
             return;
@@ -171,15 +190,33 @@ else
         _viewBox = StudioForecastService.ViewBoxOf(MapPois);
         _selected = QueryPoi ?? string.Empty;
         _loaded = Zone!;
+        _generation = Session.Generation;
     }
 
-    private void Reload()
+    /// <summary>H18 — <c>?poi=</c> 로 오면 그 카드로 스크롤한다.</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _adding = false;
-        _zones = Lookup.Zones();
-        _loaded = string.Empty;
-        Load();
+        if (QueryPoi is not { Length: > 0 } poi || _focused == poi)
+        {
+            return;
+        }
+
+        _focused = poi;
+
+        try { await Js.InvokeVoidAsync("studio.focusField", "poi-" + poi); }
+        catch (Exception) { /* 회로가 아직 준비되지 않았다. */ }
     }
+
+    private void Reload() =>
+        Session.Try(
+            () =>
+            {
+                _adding = false;
+                _zones = Lookup.Zones();
+                _loaded = string.Empty;
+                Load();
+            },
+            "다시 읽기");
 
     private void Select(string id) => _selected = id;
 

@@ -1,7 +1,6 @@
 @page "/"
 @inject StudioSession Session
 @inject StudioWorkspace Workspace
-@inject NavigationManager Nav
 
 <PageTitle>NPC Studio</PageTitle>
 
@@ -60,7 +59,7 @@
             <h3>검증</h3>
             @if (Session.Issues.IsEmpty)
             {
-                <p><span class="ok-mark">✓</span> V1~V15 위반이 없다. 이 마스터데이터로 서버가 뜬다.</p>
+                <p><span class="ok-mark">✓</span> 검증 위반이 없다. 이 마스터데이터로 서버가 뜬다.</p>
             }
             else
             {
@@ -68,7 +67,7 @@
             }
         </div>
 
-        <div class="fact">
+        <div class="fact" id="todo">
             <h3>해야 할 일</h3>
             @if (Session.Catalog.StaleArtifacts.IsEmpty && Session.ChangedFiles.IsEmpty)
             {
@@ -80,16 +79,22 @@
             }
         </div>
 
-        <div class="fact">
+        <div class="fact" id="sandbox">
             <h3>연습장</h3>
             @if (Session.Catalog.IsSandbox)
             {
                 <p><span class="warn-mark">●</span> 지금은 <strong>연습장 @Session.Catalog.Sandbox</strong> 을 보고 있다. 여기서 무엇을 해도 원본은 그대로다.</p>
+                @if (_originChanged is { Length: > 0 })
+                {
+                    <p class="warn-mark">⚠ 연습장을 만든 뒤 원본이 바뀐 파일: @string.Join(" · ", _originChanged)</p>
+                }
                 <div class="inline-row">
                     <button class="secondary" @onclick="Compare">원본과 비교</button>
                     <button class="primary" @onclick="ApplyToOrigin" disabled="@Session.Catalog.ReadOnly">원본에 적용</button>
+                </div>
+                <div class="inline-row">
                     <button class="secondary" @onclick="CloseSandbox">원본으로 돌아가기</button>
-                    <button class="secondary danger" @onclick="Discard">연습장 버리기</button>
+                    <button class="secondary danger" @onclick="Discard" disabled="@Session.Catalog.ReadOnly">연습장 버리기</button>
                 </div>
                 @if (_changes is { } changes)
                 {
@@ -100,9 +105,22 @@
             {
                 <p><strong>원본입니다.</strong> 실험은 연습장에서 한다 — 원본을 통째로 복사하고, 거기서 저장해도 원본 바이트는 변하지 않는다.</p>
                 <div class="inline-row">
-                    <input placeholder="연습장 이름" @bind="_sandboxName" />
+                    <input placeholder="연습장 이름" @bind="_sandboxName" aria-label="연습장 이름" />
                     <button class="secondary" @onclick="OpenSandbox" disabled="@Session.Catalog.ReadOnly">연습장 만들기</button>
                 </div>
+                @if (!_sandboxes.IsDefaultOrEmpty)
+                {
+                    <h4>이미 있는 연습장</h4>
+                    @foreach (StudioSandbox sandbox in _sandboxes)
+                    {
+                        StudioSandbox row = sandbox;
+                        <div class="fact-row">
+                            <span><strong>@sandbox.Name</strong></span>
+                            <span>@sandbox.CreatedAt.ToString("MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) · 원본과 다른 파일 @sandbox.ChangedFiles 개</span>
+                            <button class="secondary" @onclick="() => Resume(row)">열기</button>
+                        </div>
+                    }
+                }
             }
         </div>
 
@@ -125,15 +143,30 @@
 
     private string _sandboxName = DateTime.Now.ToString("MMdd", System.Globalization.CultureInfo.InvariantCulture);
     private ImmutableArray<string>? _changes;
+    private ImmutableArray<string> _originChanged;
+    private ImmutableArray<StudioSandbox> _sandboxes;
 
     private string FirstArchetypeUrl =>
         Session.Catalog.Archetypes.FirstOrDefault() is { } first ? "/archetypes/" + first.Id : "/archetypes";
 
-    protected override void OnInitialized() => Layout?.SetHelp(Help);
+    protected override void OnInitialized()
+    {
+        Layout?.SetHelp(Help);
+        RefreshSandboxes();
+    }
+
+    private void RefreshSandboxes() =>
+        Session.Try(
+            () =>
+            {
+                _sandboxes = Workspace.Sandboxes();
+                _originChanged = Workspace.OriginChangedSinceOpen();
+            },
+            "연습장 목록 읽기");
 
     private void OpenHelp() => Layout?.OpenHelp();
 
-    private void OpenSandbox()
+    private async Task OpenSandbox()
     {
         try
         {
@@ -141,37 +174,162 @@
             Session.Reload();
             Session.MarkStep("sandbox");
             Session.Notify($"연습장을 만들었다: {path}");
+            RefreshSandboxes();
         }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
-    }
-
-    private void CloseSandbox()
-    {
-        Workspace.CloseSandbox();
-        _changes = null;
-        Session.Reload();
-        Session.Notify("원본으로 돌아왔다.");
-    }
-
-    private void Discard()
-    {
-        Workspace.DiscardSandbox();
-        _changes = null;
-        Session.Reload();
-        Session.Notify("연습장을 버렸다.");
-    }
-
-    private void Compare() => _changes = Workspace.SandboxChanges();
-
-    private void ApplyToOrigin()
-    {
-        try
+        catch (SandboxExistsException exists)
         {
-            StudioSaveResult result = Workspace.ApplyToOrigin();
-            Session.Apply(result);
-            _changes = Workspace.SandboxChanges();
+            // H04 — 덮어쓰지 않고 묻는다. 기본 이름이 `MMdd` 라 같은 날 두 번 누르면
+            // 아침 작업이 확인 없이 사라졌다.
+            bool overwrite = Layout is not null && await Layout.ConfirmAsync(
+                $"연습장 '{exists.Name}' 이 이미 있다",
+                [
+                    exists.ChangedFiles.IsEmpty
+                        ? "그 연습장은 원본과 같다 — 바꾼 것이 없다."
+                        : $"그 연습장에는 원본과 다른 파일 {exists.ChangedFiles.Length}개가 있다: {string.Join(" · ", exists.ChangedFiles)}",
+                    "새로 만들면 그 내용이 사라진다. 이어서 열면 그대로 쓴다.",
+                    $"새로 만들어도 lab/.trash/ 에 {StudioWorkspace.BackupDays}일 남는다.",
+                ],
+                "새로 만들기",
+                danger: true,
+                cancelLabel: "이어서 열기");
+
+            _ = Session.Try(
+                () =>
+                {
+                    string path = overwrite
+                        ? Workspace.RecreateSandbox(exists.Name)
+                        : Workspace.ResumeSandbox(exists.Name);
+
+                    Session.Reload();
+                    Session.MarkStep("sandbox");
+                    Session.Notify(overwrite ? $"연습장을 새로 만들었다: {path}" : $"연습장을 이어서 연다: {path}");
+                    RefreshSandboxes();
+                },
+                "연습장 열기");
         }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
+        catch (Exception ex)
+        {
+            Session.Notify(StudioErrors.Humanize(ex, "연습장 만들기"), true);
+        }
+    }
+
+    private void Resume(StudioSandbox sandbox) =>
+        Session.Try(
+            () =>
+            {
+                _ = Workspace.ResumeSandbox(sandbox.Name);
+                Session.Reload();
+                Session.Notify($"연습장 {sandbox.Name} 을 연다.");
+                RefreshSandboxes();
+            },
+            "연습장 열기");
+
+    private void CloseSandbox() =>
+        Session.Try(
+            () =>
+            {
+                Workspace.CloseSandbox();
+                _changes = null;
+                Session.Reload();
+                Session.Notify("원본으로 돌아왔다.");
+                RefreshSandboxes();
+            },
+            "원본으로 돌아가기");
+
+    private async Task Discard()
+    {
+        ImmutableArray<string> changed = [];
+
+        if (!Session.Try(() => changed = Workspace.SandboxChanges(), "비교"))
+        {
+            return;
+        }
+
+        bool go = Layout is null || await Layout.ConfirmAsync(
+            $"연습장 {Session.Catalog.Sandbox} 을 버린다",
+            [
+                changed.IsEmpty
+                    ? "원본과 다른 파일이 없다."
+                    : $"원본과 다른 파일 {changed.Length}개: {string.Join(" · ", changed)}",
+                "그 변경이 사라진다.",
+                $"lab/.trash/ 에 {StudioWorkspace.BackupDays}일 남는다 — 그 뒤에는 지워진다.",
+            ],
+            "버리기",
+            danger: true);
+
+        if (!go)
+        {
+            return;
+        }
+
+        _ = Session.Try(
+            () =>
+            {
+                Workspace.DiscardSandbox();
+                _changes = null;
+                Session.Reload();
+                Session.Notify("연습장을 버렸다.");
+                RefreshSandboxes();
+            },
+            "연습장 버리기");
+    }
+
+    private void Compare() => Session.Try(() => _changes = Workspace.SandboxChanges(), "비교");
+
+    private async Task ApplyToOrigin()
+    {
+        ImmutableArray<string> changed = [];
+        ImmutableArray<string> originChanged = [];
+
+        if (!Session.Try(
+            () =>
+            {
+                changed = Workspace.SandboxChanges();
+                originChanged = Workspace.OriginChangedSinceOpen();
+            },
+            "비교"))
+        {
+            return;
+        }
+
+        if (changed.IsEmpty)
+        {
+            Session.Notify("연습장에서 바뀐 파일이 없다.", true);
+            return;
+        }
+
+        var lines = new List<string>
+        {
+            $"{changed.Length}개 파일이 원본을 덮어쓴다: {string.Join(" · ", changed)}",
+            "원본에서 다시 검증한다 — 통과해야 쓴다.",
+            "원본은 백업에서 복원할 수 있다.",
+        };
+
+        if (!originChanged.IsEmpty)
+        {
+            lines.Insert(1, $"연습장을 만든 뒤 원본이 바뀐 파일: {string.Join(" · ", originChanged)} — 그 변경이 덮인다.");
+        }
+
+        bool go = Layout is null || await Layout.ConfirmAsync(
+            "연습장을 원본에 적용한다",
+            lines,
+            originChanged.IsEmpty ? "적용" : "그래도 적용",
+            danger: !originChanged.IsEmpty);
+
+        if (!go)
+        {
+            return;
+        }
+
+        _ = Session.Try(
+            () =>
+            {
+                Session.Apply(Workspace.ApplyToOrigin());
+                _changes = null;
+                Session.Reload();
+                RefreshSandboxes();
+            },
+            "원본에 적용");
     }
 
     private RenderFragment Help => @<div>

@@ -7,7 +7,7 @@
 {
     <section class="empty-state">
         <div class="empty-icon">◇</div>
-        <h1>미리 구운 플랜이 없다</h1>
+        <h1>미리 구운 계획이 없다</h1>
         <p>
             <code>@Store.Directory</code> 를 찾지 못했다. 프리베이크를 돌리면 생긴다 —
             <code>dotnet run --project tools/Npc.Prebake</code> (튜토리얼 17장).
@@ -24,7 +24,7 @@ else
                 <h2>상황별 계획</h2>
                 <p class="page-lead">
                     LLM 이 미리 만들어 둔 하루다. 시간대 6 × 지역 상태 4 × 기후 3 = 72칸.
-                    빈 칸은 하루 일과(폴백)로 돈다.
+                    빈 칸은 하루 일과로 돈다.
                 </p>
             </div>
         </div>
@@ -36,13 +36,16 @@ else
                     생성 @Count(BucketState.Generated) ·
                     핀 @Count(BucketState.Pinned) ·
                     반려 @Count(BucketState.Rejected) ·
+                    깨짐 @Count(BucketState.Broken) ·
                     없음 @Count(BucketState.Missing)
                 </p>
+                @* H24 — 색만으로 구분하지 않는다. 핀·생성 초록이 거의 같아 대비로는 못 읽는다. *@
                 <p class="related">
-                    <span class="chip" style="background:#1f7a4d">핀 — 사람이 손봤다</span>
-                    <span class="chip" style="background:#2f9e6a">생성</span>
-                    <span class="chip" style="background:#a03a4c">반려</span>
-                    <span class="chip" style="background:#131c2c">없음 — 폴백으로 돈다</span>
+                    <span class="chip bucket-legend bucket-pinned">P 핀 — 사람이 손봤다</span>
+                    <span class="chip bucket-legend bucket-generated">G 생성</span>
+                    <span class="chip bucket-legend bucket-rejected">R 반려</span>
+                    <span class="chip bucket-legend bucket-broken">! 깨짐 — 읽지 못했다</span>
+                    <span class="chip bucket-legend bucket-missing">· 없음 — 하루 일과로 돈다</span>
                 </p>
 
                 <table class="bucket-grid">
@@ -78,7 +81,8 @@ else
                                         <td>
                                             <button class="bucket-cell @CssOf(cell.State)"
                                                     title="@Lexicon.Of(time) · @Lexicon.Of(region) · @Lexicon.Of(climate) — @Describe(cell)"
-                                                    @onclick="() => Pick(cell)"></button>
+                                                    aria-label="@Lexicon.Of(time) @Lexicon.Of(region) @Lexicon.Of(climate) @Describe(cell)"
+                                                    @onclick="() => Pick(cell)">@MarkOf(cell.State)</button>
                                         </td>
                                     }
                                 }
@@ -95,7 +99,14 @@ else
                     <h3>@Lexicon.Of(picked.Bucket.T) · @Lexicon.Of(picked.Bucket.R) · @Lexicon.Of(picked.Bucket.C)</h3>
                     @if (picked.State == BucketState.Missing)
                     {
-                        <p>이 칸에는 미리 구운 플랜이 없다 — <strong>하루 일과(폴백)로 돈다.</strong></p>
+                        <p>이 칸에는 미리 구운 계획이 없다 — <strong>하루 일과로 돈다.</strong></p>
+                    }
+                    else if (picked.State == BucketState.Broken)
+                    {
+                        <p class="bad-mark">
+                            파일은 있는데 읽지 못했다: <code>@picked.File</code> —
+                            JSON 이 깨졌거나 마스터데이터가 바뀐 뒤의 낡은 파일이다. 다시 굽는다.
+                        </p>
                     }
                     else if (_forecast is { } preview)
                     {
@@ -104,7 +115,10 @@ else
                     }
                     else
                     {
-                        <p class="bad-mark">이 플랜을 컴파일하지 못했다 — 마스터데이터가 바뀐 뒤의 낡은 파일일 수 있다.</p>
+                        <p class="bad-mark">
+                            이 계획을 컴파일하지 못했다 — 마스터데이터가 바뀐 뒤의 낡은 파일일 수 있다.
+                            @if (_error is { Length: > 0 }) { <span>@_error</span> }
+                        </p>
                     }
                 </div>
             }
@@ -119,6 +133,7 @@ else
     private ImmutableArray<BucketCell> _cells;
     private BucketCell? _picked;
     private StudioForecast? _forecast;
+    private string _error = string.Empty;
     private string _loaded = string.Empty;
 
     protected override void OnParametersSet()
@@ -141,8 +156,9 @@ else
     {
         _picked = cell;
         _forecast = null;
+        _error = string.Empty;
 
-        if (cell.State == BucketState.Missing) return;
+        if (cell.State is BucketState.Missing or BucketState.Broken) return;
 
         try
         {
@@ -151,7 +167,12 @@ else
                 _forecast = Forecasts.LoadPlan(ArchetypeId, plan, cell.Bucket);
             }
         }
-        catch (Exception) { _forecast = null; }
+        catch (Exception ex)
+        {
+            // 예전에는 삼켰다 — "컴파일하지 못했다" 한 줄과 진짜 이유는 다르다.
+            _forecast = null;
+            _error = StudioErrors.Humanize(ex);
+        }
     }
 
     private static string CssOf(BucketState state) => state switch
@@ -159,7 +180,18 @@ else
         BucketState.Pinned => "bucket-pinned",
         BucketState.Generated => "bucket-generated",
         BucketState.Rejected => "bucket-rejected",
+        BucketState.Broken => "bucket-broken",
         _ => "bucket-missing",
+    };
+
+    /// <summary>칸에 적는 글자 (H24). 색만으로는 핀과 생성을 가를 수 없다.</summary>
+    private static string MarkOf(BucketState state) => state switch
+    {
+        BucketState.Pinned => "P",
+        BucketState.Generated => "G",
+        BucketState.Rejected => "R",
+        BucketState.Broken => "!",
+        _ => "",
     };
 
     private static string StateName(BucketState state) => state switch
@@ -167,9 +199,15 @@ else
         BucketState.Pinned => "핀 (사람이 손봤다)",
         BucketState.Generated => "생성 (LLM)",
         BucketState.Rejected => "반려",
+        BucketState.Broken => "깨짐 (읽지 못했다)",
         _ => "없음",
     };
 
     private static string Describe(BucketCell cell) =>
-        cell.State == BucketState.Missing ? "없음 — 폴백으로 돈다" : StateName(cell.State) + " · " + cell.Goal;
+        cell.State switch
+        {
+            BucketState.Missing => "없음 — 하루 일과로 돈다",
+            BucketState.Broken => "깨짐 — 파일을 읽지 못했다",
+            _ => StateName(cell.State) + " · " + cell.Goal,
+        };
 }

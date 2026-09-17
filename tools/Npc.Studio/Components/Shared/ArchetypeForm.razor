@@ -1,11 +1,13 @@
-@* T10·T25·T34 — 아키타입 폼. 값을 바꾸면 오른쪽에서 하루가 다시 그려진다. *@
+@* T10·T25·T34 · H01~H10·H22 — 직업 폼. 값을 바꾸면 오른쪽에서 하루가 다시 그려진다. *@
+@implements IDisposable
 @inject StudioSession Session
 @inject StudioWorkspace Workspace
 @inject StudioForecastService Forecasts
+@inject IJSRuntime Js
 
 @if (_form is null)
 {
-    <section class="empty-state"><div class="empty-icon">◇</div><h1>@_error</h1></section>
+    <section class="empty-state"><div class="empty-icon">◇</div><h1>@_error</h1><p><a href="/archetypes">직업 목록으로</a></p></section>
 }
 else
 {
@@ -13,14 +15,31 @@ else
         <div class="panel-head">
             <div><small>archetypes.json</small><h2>@Lexicon.Archetype(Id) 편집</h2><p class="page-lead">칸을 바꾸면 오른쪽 하루가 다시 그려진다. 저장 전에 무엇이 달라지는지 요약을 본다.</p></div>
             <div class="button-row compact">
-                <button class="primary" @onclick="OpenSave" disabled="@(Session.Catalog.ReadOnly || !Dirty)">저장하기</button>
-                <button class="secondary" @onclick="Reset" disabled="@(!Dirty)">되돌리기</button>
+                <button class="primary" @onclick="OpenSave" disabled="@(ReadOnly || !Dirty || _busy || Broken)">검증하고 저장</button>
+                <button class="secondary" @onclick="Reset" disabled="@(!Dirty)">초안 취소</button>
             </div>
         </div>
 
-        <div class="preview-layout">
+        @if (ReadOnly)
+        {
+            <div class="banner warn" style="margin:0 16px"><span>읽기 전용으로 열려 있다 — 고칠 수는 있지만 저장되지 않는다.</span></div>
+        }
+        @if (Broken)
+        {
+            <div class="banner bad" style="margin:0 16px"><span>초안이 컴파일되지 않아 저장할 수 없다: @_previewError</span></div>
+        }
+
+        @* H09·H10 — 저장에 실패하면 그 화면에서 바로 보인다. 오른쪽 패널까지 가지 않아도 된다. *@
+        @if (!Session.LastRejected.IsEmpty && _justRejected)
+        {
+            <div style="padding:0 16px 8px">
+                <IssuePanel Issues="Unmapped" Limit="8" ShowAllGood="false" />
+            </div>
+        }
+
+        <fieldset class="preview-layout" disabled="@ReadOnly">
             <div class="form-rows">
-                <label>
+                <label data-field="desc">
                     <span>설명<FieldInfo File="archetypes.json" Path="/desc" /></span>
                     <textarea rows="3" value="@_form.Desc" @oninput="e => Set(f => f with { Desc = e.Value?.ToString() ?? string.Empty })"></textarea>
                     <small class="field-help">
@@ -30,14 +49,16 @@ else
                             <span class="bad-mark">✗ 아직 TODO 다</span>
                         }
                     </small>
+                    <FieldError Issues="Session.LastRejected" Field="desc" Show="_justRejected" />
                 </label>
 
-                <label>
-                    <span>인구 비율<FieldInfo File="archetypes.json" Path="/population_weight" /></span>
-                    <input type="number" step="0.0001" min="0" max="0.9999" value="@_form.PopulationWeight"
-                           @onchange="e => Set(f => f with { PopulationWeight = Parse(e.Value, f.PopulationWeight) })" />
+                <label data-field="population_weight">
+                    <span>인구<FieldInfo File="archetypes.json" Path="/population_weight" /></span>
+                    @* H22 — 주 입력은 "명" 이다. 마법사는 명, 편집 탭은 0.0123 이라 같은 값을 두 말로 물었다. *@
+                    <input type="number" step="1" min="0" max="@ArchetypeCard.PopulationBase" value="@Population"
+                           @onchange="OnPopulation" />
                     <small class="field-help">
-                        약 @Population 명 · 전체 합 @Sum.ToString("0.####")
+                        비율 @_form.PopulationWeight.ToString("0.####") · 전체 합 @Sum.ToString("0.####")
                         @if (Math.Abs(Sum - 1.0) <= 0.001)
                         {
                             <span class="ok-mark">✓ 1.0</span>
@@ -47,29 +68,42 @@ else
                             <span class="bad-mark">✗ 1.0 이어야 한다 (V5) — 다른 직업에서 떼야 한다</span>
                         }
                     </small>
-                    @if (Math.Abs(Sum - 1.0) > 0.001)
+                    @if (Math.Abs(Sum - 1.0) > 0.001 && _form.Rebalance.IsEmpty)
                     {
-                        <button class="secondary" @onclick="Propose">인구 재배분 방법 보기</button>
+                        <button type="button" class="secondary" @onclick="Propose">인구 재배분 방법 보기</button>
                     }
+                    <FieldError Issues="Session.LastRejected" Field="population_weight" Show="_justRejected" />
                 </label>
 
-                @if (!_proposals.IsDefaultOrEmpty)
+                @if (!_form.Rebalance.IsEmpty)
+                {
+                    <div class="fact">
+                        <h3>이 저장에 같이 들어가는 재배분</h3>
+                        <p>@string.Join(" · ", _form.Rebalance.Where(c => c.Delta != 0).Select(c => $"{Lexicon.Archetype(c.Archetype)} {c.Delta:+#;-#;0}명"))</p>
+                        <p class="related">아직 파일에 쓰지 않았다 — <strong>저장할 때 한 번에</strong> 들어간다.</p>
+                        <button type="button" class="secondary" @onclick="ClearRebalance">재배분 빼기</button>
+                    </div>
+                }
+
+                @if (!_proposals.IsDefaultOrEmpty && _form.Rebalance.IsEmpty)
                 {
                     <div class="fact">
                         <h3>어디서 뗄까</h3>
                         @foreach (RebalanceProposal proposal in _proposals)
                         {
+                            RebalanceProposal pick = proposal;
                             <div class="fact-row">
                                 <span>@StrategyName(proposal.Strategy)</span>
                                 <span>@string.Join(" · ", proposal.Changes.Where(c => c.Delta != 0).Take(4).Select(c => $"{Lexicon.Archetype(c.Archetype)} {c.Delta:+#;-#;0}명"))</span>
-                                <button class="secondary" @onclick="() => Apply(proposal)">이 안으로</button>
+                                <span class="@(proposal.IsValid ? "ok-mark" : "bad-mark")">합 @proposal.Sum.ToString("0.####")</span>
+                                <button type="button" class="secondary" @onclick="() => Take(pick)" disabled="@(!proposal.IsValid)">이 안으로</button>
                             </div>
                         }
                         <p class="related">고르는 것은 사람이다 — 인구 분포는 세계관 결정이지 계산 결과가 아니다.</p>
                     </div>
                 }
 
-                <label>
+                <label data-field="home_poi_type">
                     <span>사는 곳 유형<FieldInfo File="archetypes.json" Path="/home_poi_type" /></span>
                     <select value="@_form.HomePoiType" @onchange="e => Set(f => f with { HomePoiType = e.Value?.ToString() ?? f.HomePoiType })">
                         @foreach (string type in _choices!.HomeTypes)
@@ -79,7 +113,7 @@ else
                     </select>
                 </label>
 
-                <label>
+                <label data-field="workplace_poi_type">
                     <span>일터 유형<FieldInfo File="archetypes.json" Path="/workplace_poi_type" /></span>
                     <select @onchange="OnWorkplace">
                         <option value="">없음 — 일터로 출근하지 않는다</option>
@@ -88,10 +122,11 @@ else
                             <option value="@type" selected="@(type == _form.WorkplacePoiType)">@Lexicon.Place(type) (@type)</option>
                         }
                     </select>
-                    <small class="field-help">@WorkplaceVerdict</small>
+                    <small class="field-help">@_workplaceVerdict</small>
+                    <FieldError Issues="Session.LastRejected" Field="workplace_poi_type" Show="_justRejected" />
                 </label>
 
-                <label>
+                <label data-field="duty_hours">
                     <span>근무 시간대<FieldInfo File="archetypes.json" Path="/duty_hours" /></span>
                     <span class="chips">
                         @foreach (Npc.Core.TimeOfDay time in Enum.GetValues<Npc.Core.TimeOfDay>())
@@ -106,44 +141,54 @@ else
                         }
                     </span>
                     <small class="field-help">@DutyVerdict</small>
+                    <FieldError Issues="Session.LastRejected" Field="duty_hours" Show="_justRejected" />
                 </label>
 
-                <div>
+                <div data-field="traits">
                     <span>성격<FieldInfo File="archetypes.json" Path="/traits" /></span>
-                    <TraitBars Editable="true"
+                    <TraitBars Editable="true" Thresholds="_thresholds"
                                Diligence="_form.Diligence" Sociability="_form.Sociability"
                                Courage="_form.Courage" Greed="_form.Greed" Changed="OnTraits" />
                     <small class="field-help">@ReactionSentence</small>
                 </div>
+                <span data-field="traits/courage" class="anchor-only"></span>
 
-                <div>
+                <div data-field="allowed_actions">
                     <span>할 수 있는 행동<FieldInfo File="archetypes.json" Path="/allowed_actions" /></span>
-                    <ActionMatrix Rows="Chips" Editable="true" Toggled="OnAction" />
+                    <ActionMatrix Rows="_chips" Editable="true" Toggled="OnAction" />
                     <small class="field-help">@ActionVerdict</small>
+                    <FieldError Issues="Session.LastRejected" Field="allowed_actions" Show="_justRejected" />
                 </div>
 
-                <label>
+                <div data-field="primary_recipes">
                     <span>주력 제작품<FieldInfo File="archetypes.json" Path="/primary_recipes" /></span>
-                    <input type="text" value="@string.Join(", ", _form.PrimaryRecipes)"
-                           @onchange="e => Set(f => f with { PrimaryRecipes = Split(e.Value) })" />
-                    <small class="field-help">쉼표로 구분한다. 쓸 수 있는 것: @string.Join(" · ", _choices.Recipes.Take(12))…</small>
-                </label>
+                    <ChipPicker Values="_form.PrimaryRecipes" Choices="_choices.Recipes" Label="제작품"
+                                Changed="v => Set(f => f with { PrimaryRecipes = v })" />
+                    <small class="field-help">목록은 <code>items.json</code> 의 레시피다 — 오타를 칠 자리가 없다.</small>
+                    <FieldError Issues="Session.LastRejected" Field="primary_recipes" Show="_justRejected" />
+                </div>
 
-                <label>
+                <label data-field="default_goals">
                     <span>기본 목표<FieldInfo File="archetypes.json" Path="/default_goals" /></span>
                     <input type="text" value="@string.Join(", ", _form.DefaultGoals)"
                            @onchange="e => Set(f => f with { DefaultGoals = Split(e.Value) })" />
-                    <small class="field-help">프롬프트 서픽스에 실린다 — 많으면 300토큰 예산을 먹는다.</small>
+                    <small class="field-help">
+                        쉼표로 구분한다. 프롬프트 서픽스에 실린다 — 지금 약 @GoalTokens 토큰 (예산 300).
+                        @if (GoalTokens > 120)
+                        {
+                            <span class="warn-mark">⚠ 서픽스 예산을 많이 쓴다</span>
+                        }
+                    </small>
                 </label>
 
-                <label>
+                <div data-field="initial_inventory">
                     <span>시작 소지품<FieldInfo File="archetypes.json" Path="/initial_inventory" /></span>
-                    <input type="text" value="@InventoryText"
-                           @onchange="e => Set(f => f with { InitialInventory = ParseInventory(e.Value, f.InitialInventory) })" />
-                    <small class="field-help">`아이템 개수` 를 쉼표로 (예: <code>smith_hammer 1, bread 2</code>).</small>
-                </label>
+                    <InventoryPicker Lines="_form.InitialInventory" Items="_choices.Items"
+                                     Changed="v => Set(f => f with { InitialInventory = v })" />
+                    <FieldError Issues="Session.LastRejected" Field="initial_inventory" Show="_justRejected" />
+                </div>
 
-                <label class="check-line">
+                <label class="check-line" data-field="combat_capable">
                     <input type="checkbox" checked="@_form.CombatCapable"
                            @onchange="e => Set(f => f with { CombatCapable = e.Value is true })" />
                     싸울 수 있다<FieldInfo File="archetypes.json" Path="/combat_capable" />
@@ -152,7 +197,12 @@ else
 
                 <details>
                     <summary>고급 — 바꿀 수 없는 값</summary>
-                    <p><code>id</code> @_form.Id · <code>code</code> @Code · <code>fallback_plan</code> @FallbackId</p>
+                    <p>
+                        <span data-field="id"><code>id</code> @_form.Id</span> ·
+                        <span data-field="code"><code>code</code> @Code</span> ·
+                        <span data-field="fallback_plan"><code>fallback_plan</code> @FallbackId</span>
+                    </p>
+                    <p class="related">번호를 바꾸면 저장이 거절된다 — 미리 구운 계획 2,880건이 그 번호 위에 있다.</p>
                 </details>
             </div>
 
@@ -166,7 +216,7 @@ else
                     <div class="preview-error"><strong>이 초안으로는 하루를 그릴 수 없다.</strong><span>@_previewError</span></div>
                 }
             </div>
-        </div>
+        </fieldset>
     </section>
 }
 
@@ -175,7 +225,11 @@ else
     <div class="modal-back" @onclick="() => _confirming = false">
         <div class="modal" @onclick:stopPropagation="true">
             <h2>이렇게 바뀐다</h2>
-            @if (_diff.IsDefaultOrEmpty)
+            @if (_diffError is { Length: > 0 })
+            {
+                <p class="warn-mark">요약을 만들지 못했다 — 그래도 저장은 된다. (@_diffError)</p>
+            }
+            else if (_diff.IsDefaultOrEmpty)
             {
                 <p>바뀐 것이 없다.</p>
             }
@@ -188,11 +242,27 @@ else
                     }
                 </ul>
             }
+
+            @if (!_form.Rebalance.IsEmpty)
+            {
+                <h3>같이 바뀌는 다른 직업</h3>
+                <table class="why-panel">
+                    <thead><tr><th>직업</th><th>인구</th></tr></thead>
+                    <tbody>
+                        @foreach (WeightChange change in _form.Rebalance.Where(c => c.Delta != 0 && c.Archetype != Id))
+                        {
+                            <tr><td>@Lexicon.Archetype(change.Archetype)</td><td>@change.Delta.ToString("+#;-#;0") 명</td></tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="related">합 @RebalanceSum.ToString("0.####") @(Math.Abs(RebalanceSum - 1.0) <= 0.001 ? "✓" : "✗")</p>
+            }
+
             <h3>저장 뒤 해야 할 일</h3>
-            <ImpactPanel />
+            <ImpactPanel PendingFiles="@(new[] { "archetypes.json" }.ToImmutableArray())" Compact="true" />
             <div class="button-row">
-                <button class="primary" @onclick="Save" disabled="@Session.Catalog.ReadOnly">저장</button>
                 <button class="secondary" @onclick="() => _confirming = false">취소</button>
+                <button class="primary" @onclick="Save" disabled="@(ReadOnly || _busy)">저장</button>
             </div>
         </div>
     </div>
@@ -205,70 +275,64 @@ else
     /// <summary>저장에 성공하면.</summary>
     [Parameter] public EventCallback OnSaved { get; set; }
 
+    /// <summary>열자마자 스크롤·강조할 칸 (H10). <c>traits/courage</c> 같은 하위 경로도 받는다.</summary>
+    [Parameter] public string? FocusField { get; set; }
+
     private StudioArchetypeForm? _form;
     private StudioArchetypeForm? _original;
     private StudioArchetypeChoices? _choices;
     private StudioForecast? _preview;
     private ImmutableArray<RebalanceProposal> _proposals;
     private ImmutableArray<string> _diff;
+    private ImmutableArray<(string Category, ImmutableArray<StudioActionChip> Chips)> _chips;
+    private ImmutableArray<(string Trait, int Threshold)> _thresholds;
+    private string _workplaceVerdict = string.Empty;
     private string _previewError = string.Empty;
+    private string _diffError = string.Empty;
     private string _error = string.Empty;
     private string _loaded = string.Empty;
+    private string _focused = string.Empty;
+    private int _generation = -1;
     private bool _confirming;
+    private bool _busy;
+    private bool _justRejected;
     private int _version;
 
-    private bool Dirty => _form is not null && _original is not null && _form != _original;
+    private bool ReadOnly => Session.Catalog.ReadOnly;
+
+    private bool Dirty => _form is not null && _original is not null && !Same(_form, _original);
+
+    private bool Broken => _preview is null && _previewError.Length > 0;
 
     private int Population => (int)Math.Round(_form!.PopulationWeight * ArchetypeCard.PopulationBase);
 
     private double Sum =>
         Session.Catalog.Archetypes.Where(a => a.Id != Id).Sum(a => a.Weight) + (_form?.PopulationWeight ?? 0);
 
+    private double RebalanceSum =>
+        _form is null || _form.Rebalance.IsEmpty
+            ? Sum
+            : Session.Catalog.Archetypes
+                .Where(a => a.Id != Id)
+                .Sum(a => _form.Rebalance.FirstOrDefault(c => c.Archetype == a.Id) is { Archetype.Length: > 0 } change
+                    ? change.To
+                    : a.Weight)
+              + _form.PopulationWeight;
+
     private int Code => Session.Catalog.Archetypes.FirstOrDefault(a => a.Id == Id)?.Code ?? 0;
 
     private string FallbackId => "fb_" + Id;
 
-    private string InventoryText =>
-        string.Join(", ", _form!.InitialInventory.Select(i => $"{i.Item} {i.Count}"));
+    /// <summary>서픽스 토큰 어림 — 한글 1자 ≈ 1토큰, 공백 구분자 포함.</summary>
+    private int GoalTokens => _form!.DefaultGoals.Sum(g => g.Length + 2);
 
-    private ImmutableArray<(string Category, ImmutableArray<StudioActionChip> Chips)> Chips =>
-        Workspace.WithData((data, _) =>
-        {
-            var rows = ImmutableArray.CreateBuilder<(string, ImmutableArray<StudioActionChip>)>();
-
-            foreach (Npc.MasterData.ActionCategory category in Enum.GetValues<Npc.MasterData.ActionCategory>())
-            {
-                ImmutableArray<StudioActionChip> chips =
-                [
-                    .. data.Actions.Actions
-                        .Where(a => a.Category == category)
-                        .Select(a => new StudioActionChip(
-                            a.Id, Lexicon.Action(a.Id), _form!.AllowedActions.Contains(a.Id, StringComparer.Ordinal), a.Description)),
-                ];
-
-                if (!chips.IsEmpty) rows.Add((Lexicon.Of(category), chips));
-            }
-
-            return rows.ToImmutable();
-        });
-
-    private string WorkplaceVerdict
-    {
-        get
-        {
-            if (_form!.WorkplacePoiType is not { Length: > 0 } type) return "일터가 없는 직업이다.";
-
-            return Workspace.WithData((data, _) =>
-            {
-                int capacity = data.Pois.OfSubtype(type).Sum(p => data.Pois[p].Capacity);
-                int sites = data.Pois.OfSubtype(type).Length;
-
-                return capacity >= Population
-                    ? $"✓ {sites}곳 · 정원 합 {capacity} ≥ 인구 {Population}"
-                    : $"✗ {sites}곳 · 정원 합 {capacity} < 인구 {Population} — V10 에 걸린다";
-            });
-        }
-    }
+    /// <summary>필드로 매핑되지 않는 오류만 폼 위에 모은다 (H10 6).</summary>
+    private ImmutableArray<StudioIssue> Unmapped =>
+    [
+        .. Session.LastRejected.Where(issue =>
+            IssueLocator.FieldOf(issue.Path, "archetypes") is not { Length: > 0 } mapped
+            || !StudioArchetypeForm.JsonKeys.Values.Any(key => string.Equals(key, mapped, StringComparison.Ordinal))),
+    ];
 
     private string DutyVerdict
     {
@@ -297,36 +361,63 @@ else
             ? $"위협을 만나면 → {threat.Reaction.Sentence} ({threat.Reaction.Matched.Id})"
             : "위협을 만나도 걸리는 규칙이 없다 — 하던 일을 계속한다.";
 
+    protected override void OnInitialized() =>
+        Session.RegisterDirty(this, () => Dirty, $"{Lexicon.Archetype(Id)} 편집");
+
     protected override void OnParametersSet()
     {
-        if (_loaded == Id) return;
+        if (_loaded == Id && _generation == Session.Generation)
+        {
+            return;
+        }
 
         Load();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (FocusField is not { Length: > 0 } field || _focused == field || _form is null)
+        {
+            return;
+        }
+
+        _focused = field;
+
+        try { await Js.InvokeVoidAsync("studio.focusField", field); }
+        catch (Exception) { /* 회로가 아직 준비되지 않았다. */ }
     }
 
     private void Load()
     {
         try
         {
-            _form = Workspace.LoadArchetypeForm(Id);
-            _original = _form;
+            // H01 — 탭을 옮겼다 돌아와도 초안이 살아 있다. 세션이 든다.
+            _form = Session.Drafts.TryGetValue(DraftKey, out object? draft) && draft is StudioArchetypeForm kept
+                ? kept
+                : Workspace.LoadArchetypeForm(Id);
+            _original = Workspace.LoadArchetypeForm(Id);
             _choices = Workspace.LoadArchetypeChoices();
             _proposals = [];
             _loaded = Id;
+            _generation = Session.Generation;
             _error = string.Empty;
+            _justRejected = false;
             Refresh();
         }
         catch (Exception ex)
         {
             _form = null;
-            _error = ex.Message;
+            _error = StudioErrors.Humanize(ex, "직업 읽기");
         }
     }
+
+    private string DraftKey => "archetype:" + Id;
 
     private void Reset()
     {
         _form = _original;
         _proposals = [];
+        _ = Session.Drafts.Remove(DraftKey);
         Refresh();
     }
 
@@ -335,6 +426,7 @@ else
         if (_form is null) return;
 
         _form = change(_form);
+        Session.Drafts[DraftKey] = _form;
         Session.MarkStep("edit");
 
         int version = ++_version;
@@ -343,7 +435,12 @@ else
         if (version == _version) Refresh();
     }
 
-    /// <summary>초안으로 하루를 다시 그린다 (T25). 400ms 디바운스 뒤에만 부른다.</summary>
+    /// <summary>
+    /// 초안으로 하루를 다시 그린다 (T25). 400ms 디바운스 뒤에만 부른다.
+    ///
+    /// <b>렌더마다 도는 getter 를 여기로 모았다</b> (H25) — <c>Chips</c>·<c>WorkplaceVerdict</c> 가
+    /// 프로퍼티였을 때는 슬라이더를 한 번 움직일 때마다 마스터데이터를 여러 번 다시 읽었다.
+    /// </summary>
     private void Refresh()
     {
         try
@@ -355,10 +452,72 @@ else
         catch (Exception ex)
         {
             _preview = null;
-            _previewError = ex.Message;
+            _previewError = StudioErrors.Humanize(ex);
         }
 
+        RefreshDerived();
         StateHasChanged();
+    }
+
+    private void RefreshDerived()
+    {
+        try
+        {
+            (_chips, _workplaceVerdict, _thresholds) = Workspace.WithData((data, _) =>
+            {
+                var rows = ImmutableArray.CreateBuilder<(string, ImmutableArray<StudioActionChip>)>();
+
+                foreach (Npc.MasterData.ActionCategory category in Enum.GetValues<Npc.MasterData.ActionCategory>())
+                {
+                    ImmutableArray<StudioActionChip> chips =
+                    [
+                        .. data.Actions.Actions
+                            .Where(a => a.Category == category)
+                            .Select(a => new StudioActionChip(
+                                a.Id, Lexicon.Action(a.Id), _form!.AllowedActions.Contains(a.Id, StringComparer.Ordinal), a.Description)),
+                    ];
+
+                    if (!chips.IsEmpty) rows.Add((Lexicon.Of(category), chips));
+                }
+
+                string verdict;
+
+                if (_form!.WorkplacePoiType is not { Length: > 0 } type)
+                {
+                    verdict = "일터가 없는 직업이다.";
+                }
+                else
+                {
+                    int capacity = data.Pois.OfSubtype(type).Sum(p => data.Pois[p].Capacity);
+                    int sites = data.Pois.OfSubtype(type).Length;
+
+                    verdict = capacity >= Population
+                        ? $"✓ {sites}곳 · 정원 합 {capacity} ≥ 인구 {Population}"
+                        : $"✗ {sites}곳 · 정원 합 {capacity} < 인구 {Population} — V10 에 걸린다";
+                }
+
+                return (rows.ToImmutable(), verdict, InterruptExplain.TraitThresholds(data));
+            });
+        }
+        catch (Exception ex)
+        {
+            _workplaceVerdict = StudioErrors.Humanize(ex);
+        }
+    }
+
+    private Task OnPopulation(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out int people) || people < 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        double weight = Math.Round(people / (double)ArchetypeCard.PopulationBase, 4);
+
+        // 인구를 다시 바꾸면 낡은 재배분 안은 버린다 — 그대로 두면 합이 1.0 이 아닌 채로 저장된다.
+        _proposals = [];
+
+        return Set(f => f with { PopulationWeight = weight, Rebalance = [] });
     }
 
     private Task OnTraits((int Diligence, int Sociability, int Courage, int Greed) traits) =>
@@ -393,67 +552,86 @@ else
                 : [.. f.DutyHours.Where(t => t != time)],
         });
 
-    private void Propose()
-    {
-        try
-        {
-            _proposals = Workspace.WithData((data, _) =>
+    private void Propose() =>
+        Session.Try(
+            () => _proposals = Workspace.WithData((data, _) =>
                 WeightRebalancer.Propose(
-                    data, Id, _form!.PopulationWeight, ArchetypeCard.PopulationBase, _form.WorkplacePoiType));
-        }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
+                    data, Id, _form!.PopulationWeight, ArchetypeCard.PopulationBase, _form.WorkplacePoiType)),
+            "재배분 계산");
+
+    /// <summary>
+    /// H03 — "이 안으로" 는 <b>초안에 얹을 뿐</b>이다.
+    ///
+    /// 예전에는 이 버튼이 곧바로 <c>archetypes.json</c> 을 쓰고 폼을 다시 읽어,
+    /// 저장하지 않은 다른 편집을 통째로 지웠다. 저장 요약 모달도 건너뛰었다.
+    /// </summary>
+    private Task Take(RebalanceProposal proposal)
+    {
+        _proposals = [];
+
+        return Set(f => f with { Rebalance = proposal.Changes });
     }
 
-    private void Apply(RebalanceProposal proposal)
-    {
-        try
-        {
-            Session.Apply(Workspace.ApplyRebalance(proposal, Id));
-            _proposals = [];
-            Load();
-        }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
-    }
+    private Task ClearRebalance() => Set(f => f with { Rebalance = [] });
 
     private void OpenSave()
     {
-        _diff = Workspace.WithData((data, _) =>
-        {
-            try
+        _diffError = string.Empty;
+        _diff = [];
+
+        _ = Session.Try(
+            () => _diff = Workspace.WithData((data, _) =>
             {
-                return DefinitionDiff.Describe(
-                    data,
-                    Workspace.PreviewArchetypeForm(_original!),
-                    Workspace.PreviewArchetypeForm(_form!));
-            }
-            catch (Exception) { return []; }
-        });
+                try
+                {
+                    return DefinitionDiff.Describe(
+                        data,
+                        Workspace.PreviewArchetypeForm(_original!),
+                        Workspace.PreviewArchetypeForm(_form!));
+                }
+                catch (Exception ex)
+                {
+                    // 요약을 못 만드는 것과 저장할 수 없는 것은 다르다 — 사실대로 적는다.
+                    _diffError = StudioErrors.Humanize(ex);
+                    return [];
+                }
+            }),
+            "요약 만들기");
 
         _confirming = true;
     }
 
     private async Task Save()
     {
+        if (_busy) return;
+
+        _busy = true;
         _confirming = false;
 
         try
         {
             StudioSaveResult result = Workspace.SaveArchetypeForm(_form!);
             Session.Apply(result);
+            _justRejected = !result.Saved;
 
             if (result.Saved)
             {
                 Session.MarkStep("save");
+                _ = Session.Drafts.Remove(DraftKey);
+                _loaded = string.Empty;
                 Load();
                 await OnSaved.InvokeAsync();
             }
         }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
+        catch (Exception ex)
+        {
+            Session.Notify(StudioErrors.Humanize(ex, "저장"), true);
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
-
-    private static double Parse(object? value, double fallback) =>
-        double.TryParse(value?.ToString(), System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture, out double parsed) ? parsed : fallback;
 
     private static ImmutableArray<string> Split(object? value) =>
     [
@@ -462,33 +640,28 @@ else
             .Distinct(StringComparer.Ordinal),
     ];
 
-    private static ImmutableArray<StudioInventoryLine> ParseInventory(
-        object? value, ImmutableArray<StudioInventoryLine> fallback)
-    {
-        var lines = ImmutableArray.CreateBuilder<StudioInventoryLine>();
-
-        foreach (string part in (value?.ToString() ?? string.Empty)
-            .Split([',', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            string[] pieces = part.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-            if (pieces.Length == 0) continue;
-
-            lines.Add(new StudioInventoryLine(
-                pieces[0], pieces.Length > 1 && int.TryParse(pieces[1], out int count) ? count : 1));
-        }
-
-        return lines.Count == 0 && fallback.Length > 0 && (value?.ToString() ?? string.Empty).Trim().Length > 0
-            ? fallback
-            : lines.ToImmutable();
-    }
-
     private static string StrategyName(RebalanceStrategy strategy) => strategy switch
     {
         RebalanceStrategy.Largest => "가장 큰 직업에서",
         RebalanceStrategy.SameTrade => "같은 일터 계열에서",
         _ => "전원에게서 비례로",
     };
+
+    /// <summary>레코드 기본 같음은 <c>ImmutableArray</c> 참조 비교라 쓸 수 없다.</summary>
+    private static bool Same(StudioArchetypeForm a, StudioArchetypeForm b) =>
+        string.Equals(a.Desc, b.Desc, StringComparison.Ordinal)
+        && string.Equals(a.HomePoiType, b.HomePoiType, StringComparison.Ordinal)
+        && string.Equals(a.WorkplacePoiType, b.WorkplacePoiType, StringComparison.Ordinal)
+        && a.Diligence == b.Diligence && a.Sociability == b.Sociability
+        && a.Courage == b.Courage && a.Greed == b.Greed
+        && a.CombatCapable == b.CombatCapable
+        && Math.Abs(a.PopulationWeight - b.PopulationWeight) <= 1e-9
+        && a.Rebalance.IsEmpty == b.Rebalance.IsEmpty
+        && a.AllowedActions.SequenceEqual(b.AllowedActions, StringComparer.Ordinal)
+        && a.PrimaryRecipes.SequenceEqual(b.PrimaryRecipes, StringComparer.Ordinal)
+        && a.DefaultGoals.SequenceEqual(b.DefaultGoals, StringComparer.Ordinal)
+        && a.DutyHours.SequenceEqual(b.DutyHours)
+        && a.InitialInventory.SequenceEqual(b.InitialInventory);
 
     private static string Emphasis(string text)
     {
@@ -504,4 +677,7 @@ else
 
         return sb.ToString();
     }
+
+    /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
+    public void Dispose() => Session.Unregister(this);
 }

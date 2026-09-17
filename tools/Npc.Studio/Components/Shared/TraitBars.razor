@@ -1,25 +1,53 @@
-@* T05·T10 — 성향 4개. 읽기는 막대, 편집은 슬라이더다. *@
+@* T05·T10 · H22·H24 — 성향 4개. 읽기는 막대, 편집은 슬라이더 + 숫자 입력이다. *@
 
 <div class="trait-bars">
     @foreach ((string Label, int Value, Action<int> Set) row in Rows)
     {
         <div class="trait-bar">
-            <span>@row.Label</span>
+            <span id="@(_id + "-" + row.Label)">@row.Label</span>
             @if (Editable)
             {
-                <input type="range" min="0" max="100" step="1" value="@row.Value"
-                       @oninput="e => Change(row.Set, e)" />
+                <span class="trait-slider">
+                    <input type="range" min="0" max="100" step="1" value="@row.Value"
+                           aria-labelledby="@(_id + "-" + row.Label)" @oninput="e => Change(row.Set, e)" />
+                    @if (ThresholdOf(row.Label) is { Count: > 0 } marks)
+                    {
+                        <span class="trait-marks" aria-hidden="true">
+                            @foreach (int mark in marks)
+                            {
+                                <span style="left:@(mark)%" title="@(row.Label + " " + mark + " 에서 돌발 반응이 갈린다")"></span>
+                            }
+                        </span>
+                    }
+                </span>
             }
             else
             {
                 <span class="trait-track"><span class="trait-fill" style="width:@(row.Value)%"></span></span>
             }
-            <span>@row.Value</span>
+            @if (Editable)
+            {
+                <input type="number" min="0" max="100" value="@row.Value" class="trait-number"
+                       aria-label="@(row.Label + " 값")" @onchange="e => Change(row.Set, e)" />
+            }
+            else
+            {
+                <span>@row.Value</span>
+            }
         </div>
+    }
+    @if (Editable && !Thresholds.IsDefaultOrEmpty)
+    {
+        <small class="field-help">
+            눈금은 돌발 반응이 갈리는 값이다 —
+            @string.Join(" · ", Thresholds.Select(t => $"{t.Trait} {t.Threshold}"))
+        </small>
     }
 </div>
 
 @code {
+    private readonly string _id = "trait-" + Guid.NewGuid().ToString("N")[..6];
+
     /// <summary>근면 0~100.</summary>
     [Parameter] public int Diligence { get; set; }
 
@@ -35,6 +63,9 @@
     /// <summary>슬라이더로 만들 것인가.</summary>
     [Parameter] public bool Editable { get; set; }
 
+    /// <summary>돌발 반응이 갈리는 경계값 (H22). <c>interrupts.json</c> 에서 온다.</summary>
+    [Parameter] public ImmutableArray<(string Trait, int Threshold)> Thresholds { get; set; }
+
     /// <summary>값이 바뀌면 (근면, 사교, 용기, 탐욕).</summary>
     [Parameter] public EventCallback<(int Diligence, int Sociability, int Courage, int Greed)> Changed { get; set; }
 
@@ -45,6 +76,11 @@
         ("용기", Courage, v => Courage = v),
         ("탐욕", Greed, v => Greed = v),
     ];
+
+    private List<int> ThresholdOf(string label) =>
+        Thresholds.IsDefaultOrEmpty
+            ? []
+            : [.. Thresholds.Where(t => string.Equals(t.Trait, label, StringComparison.Ordinal)).Select(t => t.Threshold)];
 
     private async Task Change(Action<int> set, ChangeEventArgs args)
     {

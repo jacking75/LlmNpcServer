@@ -4,6 +4,8 @@
 
 <PageTitle>돌발 반응 · NPC Studio</PageTitle>
 
+<Breadcrumb Trail="Crumbs" />
+
 <section class="panel">
     <div class="panel-head">
         <div>
@@ -23,9 +25,9 @@
                 <div class="fact">
                     <h3>@rule.Priority · @rule.Id</h3>
                     <div class="fact-row"><span>언제<FieldInfo File="interrupts.json" Path="/when" /></span><span>@InterruptExplain.When(rule)</span></div>
-                    <div class="fact-row"><span>무엇을<FieldInfo File="interrupts.json" Path="/then" /></span><span>@Then(rule)</span></div>
+                    <div class="fact-row"><span>무엇을<FieldInfo File="interrupts.json" Path="/then" /></span><span>@_then.GetValueOrDefault(rule.Id, string.Empty)</span></div>
                     <div class="fact-row"><span>그 뒤<FieldInfo File="interrupts.json" Path="/replan/urgency" /></span><span>재계획 긴급도 @rule.Urgency</span></div>
-                    <div class="fact-row"><span>걸리는 직업</span><span>@Archetypes(rule)</span></div>
+                    <div class="fact-row"><span>걸리는 직업</span><span>@_matched.GetValueOrDefault(rule.Id, string.Empty)</span></div>
                 </div>
             }
         </div>
@@ -90,15 +92,34 @@
 @code {
     [CascadingParameter] public StudioLayout? Layout { get; set; }
 
+    private static readonly (string Label, string Url)[] Crumbs = [("시작", "/"), ("돌발 반응", "")];
+
     private ImmutableArray<InterruptRule> _rules;
+    private Dictionary<string, string> _then = [];
+    private Dictionary<string, string> _matched = [];
     private string _archetype = string.Empty;
     private string _situation = "threat";
     private Reaction? _reaction;
 
+    /// <summary>
+    /// 규칙 설명은 <b>한 번만</b> 만든다 (H25). 렌더마다 도는 getter 였을 때는
+    /// 상황 버튼 한 번에 마스터데이터를 규칙 수 × 2 번 다시 읽었다.
+    /// </summary>
     protected override void OnInitialized()
     {
         Layout?.SetHelp(Help);
-        _rules = Workspace.WithData((data, _) => InterruptExplain.Ordered(data));
+
+        _ = Session.Try(
+            () => Workspace.WithData<object?>((data, _) =>
+            {
+                _rules = InterruptExplain.Ordered(data);
+                _then = _rules.ToDictionary(r => r.Id, r => InterruptExplain.Then(data, r), StringComparer.Ordinal);
+                _matched = _rules.ToDictionary(r => r.Id, r => MatchedText(data, r), StringComparer.Ordinal);
+
+                return null;
+            }),
+            "돌발 반응 읽기");
+
         _archetype = Session.Catalog.Archetypes.FirstOrDefault()?.Id ?? string.Empty;
         Run();
     }
@@ -122,36 +143,34 @@
         string archetype = _archetype;
         string situationId = _situation;
 
-        _reaction = Workspace.WithData<Reaction?>((data, instances) =>
-        {
-            if (!data.Archetypes.TryGet(archetype, out ArchetypeDef def)) return null;
+        _ = Session.Try(
+            () => _reaction = Workspace.WithData<Reaction?>((data, instances) =>
+            {
+                if (!data.Archetypes.TryGet(archetype, out ArchetypeDef def)) return null;
 
-            ForecastSubject subject = DayForecast.Representative(data, instances, def.Code);
-            Situation situation = ReactionForecast.Presets.First(p => p.Id == situationId);
+                ForecastSubject subject = DayForecast.Representative(data, instances, def.Code);
+                Situation situation = ReactionForecast.Presets.First(p => p.Id == situationId);
 
-            return ReactionForecast.Run(data, def, situation, subject, subject.Home);
-        });
+                return ReactionForecast.Run(data, def, situation, subject, subject.Home);
+            }),
+            "반응 계산");
     }
 
-    private string Then(InterruptRule rule) =>
-        Workspace.WithData((data, _) => InterruptExplain.Then(data, rule));
+    private static string MatchedText(MasterDataSet data, InterruptRule rule)
+    {
+        ImmutableArray<string> matched =
+        [
+            .. data.Archetypes.Archetypes
+                .Where(a => ArchetypeCard.MatchingInterrupts(data, a).Any(r => r.Id == rule.Id))
+                .Select(a => Lexicon.Archetype(a.Id)),
+        ];
 
-    private string Archetypes(InterruptRule rule) =>
-        Workspace.WithData((data, _) =>
-        {
-            ImmutableArray<string> matched =
-            [
-                .. data.Archetypes.Archetypes
-                    .Where(a => ArchetypeCard.MatchingInterrupts(data, a).Any(r => r.Id == rule.Id))
-                    .Select(a => Lexicon.Archetype(a.Id)),
-            ];
-
-            return matched.IsEmpty
-                ? "없다 — 성향·전투 가능 조건에 맞는 직업이 없다"
-                : matched.Length == data.Archetypes.Count
-                    ? "전부"
-                    : $"{matched.Length}개 — {string.Join(" · ", matched.Take(8))}{(matched.Length > 8 ? " …" : string.Empty)}";
-        });
+        return matched.IsEmpty
+            ? "없다 — 성향·전투 가능 조건에 맞는 직업이 없다"
+            : matched.Length == data.Archetypes.Count
+                ? "전부"
+                : $"{matched.Length}개 — {string.Join(" · ", matched.Take(8))}{(matched.Length > 8 ? " …" : string.Empty)}";
+    }
 
     private RenderFragment Help => @<div>
         <p>돌발 반응은 <strong>규칙</strong>이다. LLM 을 기다리지 않는다 — 먼저 도망치고 새 계획은 나중에 받는다.</p>

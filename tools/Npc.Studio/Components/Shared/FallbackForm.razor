@@ -1,7 +1,9 @@
-@* T11 — 하루 일과 편집기. 스텝을 고치면 400ms 뒤 판정과 하루가 다시 그려진다. *@
+@* T11 · H01·H06·H10·H22 — 하루 일과 편집기. 스텝을 고치면 400ms 뒤 판정과 하루가 다시 그려진다. *@
+@implements IDisposable
 @inject StudioSession Session
 @inject StudioWorkspace Workspace
 @inject StudioForecastService Forecasts
+@inject IJSRuntime Js
 
 @if (_form is null)
 {
@@ -12,50 +14,63 @@ else
     <section class="panel">
         <div class="panel-head">
             <div>
-                <small>fallback_plans.json · @_form.Id</small>
+                <small>@(Draft is null ? "fallback_plans.json · " + _form.Id : "새 직업의 하루 일과")</small>
                 <h2>하루 일과</h2>
                 <p class="page-lead">LLM 이 전부 실패해도 도는 기본 하루다. 위에서 아래로 실행하고, 마지막 뒤에 첫 스텝으로 돌아간다.</p>
             </div>
-            <div class="button-row compact">
-                <button class="primary" @onclick="Save" disabled="@(Session.Catalog.ReadOnly || !Dirty)">검증하고 저장</button>
-                <button class="secondary" @onclick="Reset" disabled="@(!Dirty)">되돌리기</button>
-            </div>
+            @if (Draft is null)
+            {
+                <div class="button-row compact">
+                    <button class="primary" @onclick="Save" disabled="@(Session.Catalog.ReadOnly || !Dirty || _busy)">검증하고 저장</button>
+                    <button class="secondary" @onclick="Reset" disabled="@(!Dirty)">초안 취소</button>
+                </div>
+            }
         </div>
 
-        <div class="preview-layout">
+        <fieldset class="preview-layout" disabled="@(Draft is null && Session.Catalog.ReadOnly)">
             <div class="form-rows">
-                <label>
+                <label data-field="goal">
                     <span>하루 목표<FieldInfo File="fallback_plans.json" Path="/goal" /></span>
                     <input type="text" value="@_form.Goal" @onchange="e => Set(f => f with { Goal = e.Value?.ToString() ?? f.Goal })" />
                 </label>
 
-                <div class="step-editor">
+                <div class="step-editor" data-field="steps">
                     <span>스텝<FieldInfo File="fallback_plans.json" Path="/steps" /></span>
                     @for (int i = 0; i < _form.Steps.Length; i++)
                     {
                         int index = i;
                         StudioPlanStep step = _form.Steps[i];
                         StepTrace? verdict = index < _preview.Trace.Length ? _preview.Trace[index] : null;
+                        bool known = _choices!.Actions.Any(a => a.Id == step.Action);
 
                         <div class="step-editor-row">
                             <span>@(index + 1)</span>
-                            <select @onchange="e => ChangeAction(index, e)">
+                            <select aria-label="@("스텝 " + (index + 1) + " 행동")" @onchange="e => ChangeAction(index, e)">
+                                @if (!known)
+                                {
+                                    @* H22 — 이 직업이 못 쓰는 행동이 이미 들어 있으면 브라우저가 첫 항목을
+                                       보여 주고 모델은 옛 값을 든다. 화면과 판정이 어긋나는 것을 막는다. *@
+                                    <option value="@step.Action" selected="true">(허용 안 됨) @Lexicon.Action(step.Action)</option>
+                                }
                                 @foreach (StudioActionInfo action in _choices!.Actions)
                                 {
                                     <option value="@action.Id" selected="@(action.Id == step.Action)">@action.Name (@action.Id)</option>
                                 }
                             </select>
-                            <span>
+                            <span class="step-args">
                                 @foreach (StudioParamInfo param in ParamsOf(step.Action))
                                 {
                                     string name = param.Name;
+                                    bool missing = param.Required && Arg(step, name).Length == 0;
                                     <span class="inline-row">
-                                        <small>@name</small>
+                                        <small class="@(missing ? "bad-mark" : string.Empty)">
+                                            @name@(param.Required ? "*" : string.Empty)<FieldInfo File="fallback_plans.json" Path="@("/steps/args/" + name)" />
+                                        </small>
                                         @switch (param.Type)
                                         {
                                             case "PoiRef":
                                             case "Route":
-                                                <select @onchange="e => ChangeArg(index, name, Quote(e.Value))">
+                                                <select aria-label="@(name + " 장소")" @onchange="e => ChangeArg(index, name, Quote(e.Value))">
                                                     <option value="">—</option>
                                                     @foreach (StudioSymbolInfo symbol in _choices.Symbols)
                                                     {
@@ -68,7 +83,7 @@ else
                                                 break;
 
                                             case "ItemRef":
-                                                <select @onchange="e => ChangeArg(index, name, Quote(e.Value))">
+                                                <select aria-label="@(name + " 대상")" @onchange="e => ChangeArg(index, name, Quote(e.Value))">
                                                     <option value="">—</option>
                                                     @foreach (string item in (name == "recipe" ? _choices.Recipes : _choices.Items))
                                                     {
@@ -78,7 +93,7 @@ else
                                                 break;
 
                                             case "Enum":
-                                                <select @onchange="e => ChangeArg(index, name, Quote(e.Value))">
+                                                <select aria-label="@name" @onchange="e => ChangeArg(index, name, Quote(e.Value))">
                                                     <option value="">—</option>
                                                     @foreach (string value in param.EnumValues)
                                                     {
@@ -89,26 +104,31 @@ else
 
                                             case "Int":
                                                 <input type="number" min="@param.Min" max="@param.Max" value="@Arg(step, name)"
-                                                       @onchange="e => ChangeArg(index, name, Raw(e.Value))" />
+                                                       aria-label="@name" @onchange="e => ChangeInt(index, name, param, e)" />
                                                 break;
 
                                             default:
                                                 <input type="text" value="@Arg(step, name)"
-                                                       @onchange="e => ChangeArg(index, name, Quote(e.Value))" />
+                                                       aria-label="@name" @onchange="e => ChangeArg(index, name, Quote(e.Value))" />
                                                 break;
+                                        }
+                                        @if (missing)
+                                        {
+                                            <small class="bad-mark">필수</small>
                                         }
                                     </span>
                                 }
                             </span>
                             <span>
-                                <input type="number" min="1" step="30" value="@step.TimeoutSeconds"
+                                <input type="number" min="1" max="86400" step="30" value="@step.TimeoutSeconds"
+                                       aria-label="@("스텝 " + (index + 1) + " 최대 시간(초)")"
                                        @onchange="e => ChangeTimeout(index, e)" />
                                 <small>@(step.TimeoutSeconds / 60)분</small>
                             </span>
                             <span class="route-actions">
-                                <button title="위로" @onclick="() => Move(index, -1)" disabled="@(index == 0)">↑</button>
-                                <button title="아래로" @onclick="() => Move(index, 1)" disabled="@(index == _form.Steps.Length - 1)">↓</button>
-                                <button title="지우기" @onclick="() => Remove(index)">×</button>
+                                <button type="button" title="위로" aria-label="위로" @onclick="() => Move(index, -1)" disabled="@(index == 0)">↑</button>
+                                <button type="button" title="아래로" aria-label="아래로" @onclick="() => Move(index, 1)" disabled="@(index == _form.Steps.Length - 1)">↓</button>
+                                <button type="button" title="지우기" aria-label="지우기" @onclick="() => Remove(index)">×</button>
                             </span>
                         </div>
 
@@ -126,6 +146,10 @@ else
                                         <span class="bad-mark">✗ @v.Code — @v.Reason</span>
                                     }
                                 }
+                                @if (!known)
+                                {
+                                    <span class="bad-mark">✗ 이 직업이 할 수 없는 행동이다 (V8) — 행동을 바꾸거나 편집 탭에서 허용한다</span>
+                                }
                                 @if (TooShort(index) is { } warning)
                                 {
                                     <span class="warn-mark">⚠ @warning</span>
@@ -135,9 +159,13 @@ else
                     }
 
                     <div class="inline-row">
-                        <button class="secondary" @onclick="Add">+ 스텝 추가</button>
-                        <span class="chip">반복 @(_form.Loop ? "함" : "안 함")<FieldInfo File="fallback_plans.json" Path="/loop" /></span>
-                        <span class="chip">스텝 실패 시 @_form.OnStepFail<FieldInfo File="fallback_plans.json" Path="/on_step_fail" /></span>
+                        <button type="button" class="secondary" @onclick="Add">+ 스텝 추가</button>
+                        <span class="chip" title="하루 일과는 언제나 반복한다 — 하루가 끝없이 돌아야 한다">
+                            반복 @(_form.Loop ? "함" : "안 함")<FieldInfo File="fallback_plans.json" Path="/loop" />
+                        </span>
+                        <span class="chip" title="하루 일과는 언제나 건너뛰기다 — LLM 이 죽었을 때 재계획은 갈 곳이 없다">
+                            스텝 실패 시 @_form.OnStepFail<FieldInfo File="fallback_plans.json" Path="/on_step_fail" />
+                        </span>
                     </div>
 
                     <p class="@(_preview.Loop.Closed ? "ok-mark" : "bad-mark")">
@@ -160,16 +188,28 @@ else
                     <p class="related">스텝이 컴파일되면 여기서 하루가 재생된다.</p>
                 }
             </div>
-        </div>
+        </fieldset>
     </section>
 }
 
 @code {
-    /// <summary>직업 id.</summary>
+    /// <summary>직업 id. 초안 모드에서는 닮은 직업 id 다.</summary>
     [Parameter, EditorRequired] public string Id { get; set; } = string.Empty;
 
     /// <summary>저장에 성공하면.</summary>
     [Parameter] public EventCallback OnSaved { get; set; }
+
+    /// <summary>열자마자 강조할 칸 (H10).</summary>
+    [Parameter] public string? FocusField { get; set; }
+
+    /// <summary>
+    /// 초안 모드 (H06). 마법사 4단계가 파일 없이 편집한다 —
+    /// 값을 주면 저장 버튼 대신 <see cref="DraftChanged"/> 로만 알린다.
+    /// </summary>
+    [Parameter] public StudioFallbackForm? Draft { get; set; }
+
+    /// <summary>초안이 바뀌면.</summary>
+    [Parameter] public EventCallback<StudioFallbackForm> DraftChanged { get; set; }
 
     private StudioFallbackForm? _form;
     private StudioFallbackForm? _original;
@@ -178,38 +218,86 @@ else
     private StudioForecast? _forecast;
     private string _error = string.Empty;
     private string _loaded = string.Empty;
+    private string _focused = string.Empty;
+    private int _generation = -1;
+    private bool _busy;
     private int _version;
 
-    private bool Dirty => _form is not null && _original is not null && !Same(_form, _original);
+    private bool Dirty => Draft is null && _form is not null && _original is not null && !Same(_form, _original);
+
+    protected override void OnInitialized()
+    {
+        if (Draft is null)
+        {
+            Session.RegisterDirty(this, () => Dirty, $"{Lexicon.Archetype(Id)} 하루 일과");
+        }
+    }
 
     protected override void OnParametersSet()
     {
-        if (_loaded == Id) return;
+        if (Draft is { } draft)
+        {
+            // 초안 모드 — 부모가 상태를 든다.
+            if (_loaded != Id)
+            {
+                _choices = Workspace.LoadStepChoices(Id);
+                _loaded = Id;
+            }
+
+            _form = draft;
+            _original = draft;
+            Refresh();
+            return;
+        }
+
+        if (_loaded == Id && _generation == Session.Generation)
+        {
+            return;
+        }
 
         Load();
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (FocusField is not { Length: > 0 } field || _focused == field || _form is null)
+        {
+            return;
+        }
+
+        _focused = field;
+
+        try { await Js.InvokeVoidAsync("studio.focusField", field); }
+        catch (Exception) { /* 회로가 아직 준비되지 않았다. */ }
+    }
+
+    private string DraftKey => "fallback:" + Id;
 
     private void Load()
     {
         try
         {
-            _form = Workspace.LoadFallbackForm(Id);
-            _original = _form;
+            _form = Session.Drafts.TryGetValue(DraftKey, out object? kept) && kept is StudioFallbackForm saved
+                ? saved
+                : Workspace.LoadFallbackForm(Id);
+            _original = Workspace.LoadFallbackForm(Id);
             _choices = Workspace.LoadStepChoices(Id);
             _loaded = Id;
+            _generation = Session.Generation;
             _error = string.Empty;
             Refresh();
         }
         catch (Exception ex)
         {
             _form = null;
-            _error = ex.Message;
+            _error = StudioErrors.Humanize(ex, "하루 일과 읽기");
         }
     }
 
     private void Reset()
     {
         _form = _original;
+        _ = Session.Drafts.Remove(DraftKey);
         Refresh();
     }
 
@@ -218,6 +306,15 @@ else
         if (_form is null) return;
 
         _form = change(_form);
+
+        if (Draft is not null)
+        {
+            await DraftChanged.InvokeAsync(_form);
+        }
+        else
+        {
+            Session.Drafts[DraftKey] = _form;
+        }
 
         int version = ++_version;
         await Task.Delay(400);
@@ -229,14 +326,18 @@ else
     {
         try
         {
-            _preview = Workspace.PreviewFallbackForm(_form!);
+            _preview = Draft is null
+                ? Workspace.PreviewFallbackForm(_form!)
+                : Workspace.PreviewDraftFallback(_form!, Id);
+
             _forecast = _preview.Plan is { } plan
                 ? Forecasts.LoadPlan(Id, plan, plan.Bucket)
                 : null;
         }
         catch (Exception ex)
         {
-            _preview = new StudioFallbackPreview(null, [], new LoopVerdict(false, ex.Message), ex.Message);
+            string message = StudioErrors.Humanize(ex);
+            _preview = new StudioFallbackPreview(null, [], new LoopVerdict(false, message), message);
             _forecast = null;
         }
 
@@ -253,6 +354,8 @@ else
         string action = args.Value?.ToString() ?? string.Empty;
         int timeout = _choices?.Actions.FirstOrDefault(a => a.Id == action)?.DefaultTimeoutSeconds ?? 300;
 
+        Session.Notify($"행동을 {Lexicon.Action(action)} 로 바꿨다 — 인자를 다시 고른다.");
+
         // 행동이 바뀌면 인자 정의가 통째로 달라진다 — 남겨 두면 V2.UNKNOWN_ARG 다.
         return Set(f => f with
         {
@@ -266,9 +369,22 @@ else
             Steps = f.Steps.SetItem(index, f.Steps[index].WithArg(name, raw)),
         });
 
+    /// <summary>정수 인자는 <b>서버에서도</b> 범위를 지킨다 — 브라우저의 min/max 는 붙여넣기를 막지 않는다.</summary>
+    private Task ChangeInt(int index, string name, StudioParamInfo param, ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out int value))
+        {
+            return Task.CompletedTask;
+        }
+
+        int clamped = param.Max > param.Min ? Math.Clamp(value, param.Min, param.Max) : value;
+
+        return ChangeArg(index, name, clamped.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     private Task ChangeTimeout(int index, ChangeEventArgs args) =>
         int.TryParse(args.Value?.ToString(), out int seconds) && seconds > 0
-            ? Set(f => f with { Steps = f.Steps.SetItem(index, f.Steps[index] with { TimeoutSeconds = seconds }) })
+            ? Set(f => f with { Steps = f.Steps.SetItem(index, f.Steps[index] with { TimeoutSeconds = Math.Clamp(seconds, 1, 86_400) }) })
             : Task.CompletedTask;
 
     private Task Add() =>
@@ -315,6 +431,10 @@ else
 
     private async Task Save()
     {
+        if (_busy) return;
+
+        _busy = true;
+
         try
         {
             StudioSaveResult result = Workspace.SaveFallbackForm(_form!);
@@ -322,12 +442,20 @@ else
 
             if (result.Saved)
             {
+                _ = Session.Drafts.Remove(DraftKey);
                 _loaded = string.Empty;
                 Load();
                 await OnSaved.InvokeAsync();
             }
         }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
+        catch (Exception ex)
+        {
+            Session.Notify(StudioErrors.Humanize(ex, "저장"), true);
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private static string Quote(object? value)
@@ -336,8 +464,6 @@ else
 
         return text.Length == 0 ? string.Empty : "\"" + text + "\"";
     }
-
-    private static string Raw(object? value) => value?.ToString() ?? string.Empty;
 
     /// <summary>레코드 기본 같음은 <c>ImmutableArray</c> 참조 비교라 쓸 수 없다.</summary>
     private static bool Same(StudioFallbackForm a, StudioFallbackForm b) =>
@@ -350,4 +476,7 @@ else
             && pair.First.Args.Zip(pair.Second.Args).All(arg =>
                 string.Equals(arg.First.Name, arg.Second.Name, StringComparison.Ordinal)
                 && string.Equals(arg.First.Raw, arg.Second.Raw, StringComparison.Ordinal)));
+
+    /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
+    public void Dispose() => Session.Unregister(this);
 }

@@ -1,77 +1,107 @@
-@* T13 — 새 장소 폼. code 는 CodeAllocator 가 정한다. *@
+@* T13 · H11·H18·H22 — 새 장소 폼. code 는 CodeAllocator 가 정한다. *@
+@implements IDisposable
 @inject StudioSession Session
 @inject StudioPlaces Places
 @inject StudioWorkspace Workspace
 
 <section class="panel create-panel">
-    <div class="panel-head"><div><small>pois.json</small><h2>새 장소</h2></div><button class="icon-btn" @onclick="Cancel">×</button></div>
+    <div class="panel-head">
+        <div><small>pois.json</small><h2>새 장소</h2></div>
+        <button class="icon-btn" aria-label="새 장소 닫기" @onclick="Cancel">×</button>
+    </div>
     <p class="lead">
         장소를 더하면 <strong>거리표(<code>poi_distances.bin</code>)가 낡는다</strong> —
         저장 뒤 파급 패널이 다시 만들라고 알려 준다. 번호(<code>code</code>)는 도구가 정한다.
     </p>
 
-    <div class="form-rows">
-        <label>
+    <fieldset class="form-rows" disabled="@Session.Catalog.ReadOnly">
+        <label data-field="subtype">
             <span>세부 유형<FieldInfo File="pois.json" Path="/subtype" /></span>
-            <input type="text" value="@_subtype" @onchange="OnSubtype" placeholder="apiary" />
+            <input type="text" list="place-subtypes" value="@_subtype" @onchange="OnSubtype" placeholder="apiary" />
+            <datalist id="place-subtypes">
+                @foreach (string known in _knownSubtypes)
+                {
+                    <option value="@known"></option>
+                }
+            </datalist>
             <small class="field-help">
-                직업의 일터 유형이 가리키는 값이다. 있는 것: @string.Join(" · ", _knownSubtypes.Take(14))…
+                직업의 일터 유형이 가리키는 값이다.
+                @if (_subtype.Length > 0 && !_knownSubtypes.Contains(_subtype, StringComparer.Ordinal))
+                {
+                    <span class="warn-mark">⚠ 새 유형이다 — 이 유형을 일터로 쓰는 직업이 아직 없다. 오타가 아닌지 확인한다.</span>
+                }
             </small>
         </label>
 
-        <label>
+        <label data-field="type">
             <span>유형<FieldInfo File="pois.json" Path="/type" /></span>
             <select @bind="_type">
                 @foreach (PoiType type in Enum.GetValues<PoiType>())
                 {
-                    <option value="@type">@type</option>
+                    <option value="@type">@Lexicon.Of(type) (@type)</option>
                 }
             </select>
         </label>
 
-        <label>
+        <label data-field="id">
             <span>장소 ID<FieldInfo File="pois.json" Path="/id" /></span>
-            <input type="text" @bind="_id" />
+            <input type="text" value="@_id" @oninput="OnId" />
             <small class="field-help">규칙은 <code>유형_번호_지역번호</code> 다. 만든 뒤 바꾸지 않는다.</small>
+            @if (IdProblem is { Length: > 0 } problem)
+            {
+                <div class="field-error"><span>@problem</span></div>
+            }
         </label>
 
-        <label>
+        <label data-field="capacity">
             <span>정원<FieldInfo File="pois.json" Path="/capacity" /></span>
-            <input type="number" min="1" max="500" @bind="_capacity" />
+            <input type="number" min="1" max="500" value="@_capacity" @onchange="OnCapacity" />
+            <small class="field-help">@CapacityVerdict</small>
         </label>
 
         <div class="inline-row">
-            <label><span>위치 X<FieldInfo File="pois.json" Path="/pos" /></span><input type="number" step="1" @bind="_x" /></label>
-            <label><span>위치 Z</span><input type="number" step="1" @bind="_z" /></label>
-            <span class="related">지역 중심 기준이다. 아래 지도를 클릭해도 된다.</span>
+            <label data-field="pos"><span>위치 X<FieldInfo File="pois.json" Path="/pos/x" /></span><input type="number" step="1" value="@_x" @onchange="OnX" /></label>
+            <label data-field="pos/z"><span>위치 Z<FieldInfo File="pois.json" Path="/pos/z" /></span><input type="number" step="1" value="@_z" @onchange="OnZ" /></label>
+            <span class="related">지역 중심 기준이다. 아래 지도를 클릭하면 그 자리가 찍힌다.</span>
         </div>
 
         <div class="inline-row">
-            <label>
-                <span>여는 시간<FieldInfo File="pois.json" Path="/open_hours" /></span>
+            <label data-field="open_hours">
+                <span>여는 시간<FieldInfo File="pois.json" Path="/open_hours/from" /></span>
                 <select @bind="_openFrom">@foreach (Npc.Core.TimeOfDay t in Enum.GetValues<Npc.Core.TimeOfDay>()) { <option value="@t">@Lexicon.Of(t)</option> }</select>
             </label>
-            <label>
-                <span>닫는 시간</span>
+            <label data-field="open_hours/to">
+                <span>닫는 시간<FieldInfo File="pois.json" Path="/open_hours/to" /></span>
                 <select @bind="_openTo">@foreach (Npc.Core.TimeOfDay t in Enum.GetValues<Npc.Core.TimeOfDay>()) { <option value="@t">@Lexicon.Of(t)</option> }</select>
             </label>
+            <span class="related">@HoursVerdict</span>
         </div>
 
-        <label>
+        <div data-field="allowed_archetypes">
             <span>일할 수 있는 직업<FieldInfo File="pois.json" Path="/allowed_archetypes" /></span>
-            <input type="text" @bind="_allowed" placeholder="비우면 제한 없음 (예: beekeeper)" />
-        </label>
+            <div class="chips">
+                @foreach (StudioArchetype archetype in Session.Catalog.Archetypes)
+                {
+                    StudioArchetype pick = archetype;
+                    bool on = _allowed.Contains(archetype.Id, StringComparer.Ordinal);
+                    <span class="chip @(on ? "on" : "off")">
+                        <label><input type="checkbox" checked="@on" @onchange="e => ToggleArchetype(pick.Id, e)" /> @Lexicon.Archetype(archetype.Id)</label>
+                    </span>
+                }
+            </div>
+            <small class="field-help">아무것도 고르지 않으면 제한 없음이다. 근무 허가이지 출입 허가가 아니다.</small>
+        </div>
 
-        <label>
+        <div data-field="resources">
             <span>얻을 수 있는 것<FieldInfo File="pois.json" Path="/resources" /></span>
-            <input type="text" @bind="_resources" placeholder="쉼표로 구분 (예: herb, water)" />
-        </label>
+            <ChipPicker Values="_resources" Choices="_items" Label="아이템" Changed="v => _resources = v" />
+        </div>
 
-        <ZoneMap Pois="_pois" ViewBox="@_viewBox" Height="260" PoiClicked="_ => { }" />
-    </div>
+        <ZoneMap Pois="_pois" ViewBox="@_viewBox" Height="260" Candidate="(_x, _z)" MapClicked="OnMapClicked" />
+    </fieldset>
 
     <div class="button-row">
-        <button class="primary" @onclick="Save" disabled="@Session.Catalog.ReadOnly">검증하고 만들기</button>
+        <button class="primary" @onclick="Save" disabled="@(Session.Catalog.ReadOnly || _busy || IdProblem.Length > 0)">검증하고 만들기</button>
         <button class="secondary" @onclick="Cancel">취소</button>
     </div>
 </section>
@@ -88,70 +118,202 @@
 
     private ImmutableArray<StudioPoiChoice> _pois;
     private ImmutableArray<string> _knownSubtypes;
+    private ImmutableArray<string> _items;
+    private ImmutableArray<string> _allowed = [];
+    private ImmutableArray<string> _resources = [];
     private string _viewBox = "0 0 100 100";
     private string _subtype = string.Empty;
     private string _id = string.Empty;
+    private string _idProblem = string.Empty;
     private PoiType _type = PoiType.Workplace;
     private int _capacity = 20;
     private float _x;
     private float _z;
+    private bool _idTouched;
+    private bool _busy;
     private Npc.Core.TimeOfDay _openFrom = Npc.Core.TimeOfDay.Morning;
     private Npc.Core.TimeOfDay _openTo = Npc.Core.TimeOfDay.Evening;
-    private string _allowed = string.Empty;
-    private string _resources = string.Empty;
+
+    private string IdProblem => _idProblem;
+
+    /// <summary>정원 판정 (H18). 편집 폼과 같은 문장을 쓴다.</summary>
+    private string CapacityVerdict
+    {
+        get
+        {
+            if (_subtype.Length == 0)
+            {
+                return "세부 유형을 먼저 정한다.";
+            }
+
+            return Workspace.WithData((data, _) =>
+            {
+                int existing = data.Pois.OfSubtype(_subtype).Sum(p => data.Pois[p].Capacity);
+                int users = data.Archetypes.Archetypes
+                    .Where(a => string.Equals(a.WorkplacePoiType, _subtype, StringComparison.Ordinal))
+                    .Sum(a => (int)Math.Round(a.PopulationWeight * ArchetypeCard.PopulationBase));
+
+                if (users == 0)
+                {
+                    return $"이 유형을 일터로 쓰는 직업이 아직 없다 (지금 정원 합 {existing}).";
+                }
+
+                int total = existing + _capacity;
+
+                return total >= users
+                    ? $"✓ 정원 합 {existing} + {_capacity} = {total} ≥ 이 유형을 쓰는 직업 인구 {users}"
+                    : $"✗ 정원 합 {existing} + {_capacity} = {total} < 인구 {users} — V10 에 걸린다";
+            });
+        }
+    }
+
+    private string HoursVerdict =>
+        _openFrom == _openTo
+            ? "여는 시간과 닫는 시간이 같다 — 그 시간대만 열린다."
+            : (int)_openFrom <= (int)_openTo
+                ? $"{Lexicon.Of(_openFrom)} 부터 {Lexicon.Of(_openTo)} 까지 열린다."
+                : $"{Lexicon.Of(_openFrom)} 에 열어 자정을 넘겨 {Lexicon.Of(_openTo)} 까지 열린다.";
 
     protected override void OnInitialized()
     {
-        _pois = [.. Places.Places(Zone).Select(p => p.Poi)];
-        _viewBox = StudioForecastService.ViewBoxOf(_pois);
-        _knownSubtypes = [.. _pois.Select(p => p.Subtype).Distinct().Order(StringComparer.Ordinal)];
+        Session.RegisterDirty(this, () => _id.Length > 0 || _subtype.Length > 0, "새 장소");
 
-        if (!_pois.IsEmpty)
-        {
-            _x = (float)Math.Round(_pois.Average(p => p.X));
-            _z = (float)Math.Round(_pois.Average(p => p.Z));
-        }
+        _ = Session.Try(
+            () =>
+            {
+                _pois = [.. Places.Places(Zone).Select(p => p.Poi)];
+                _viewBox = StudioForecastService.ViewBoxOf(_pois);
+                _knownSubtypes = [.. _pois.Select(p => p.Subtype).Distinct().Order(StringComparer.Ordinal)];
+                _items = Workspace.LoadArchetypeChoices().Items;
+
+                if (!_pois.IsEmpty)
+                {
+                    _x = (float)Math.Round(_pois.Average(p => p.X));
+                    _z = (float)Math.Round(_pois.Average(p => p.Z));
+                }
+            },
+            "장소 목록 읽기");
     }
 
     private void OnSubtype(ChangeEventArgs args)
     {
         _subtype = args.Value?.ToString()?.Trim() ?? string.Empty;
 
-        if (_subtype.Length > 0)
+        // id 를 손본 뒤에는 덮어쓰지 않는다 — 사람이 정한 것을 도구가 되돌리면 안 된다.
+        if (_subtype.Length > 0 && !_idTouched)
         {
-            _id = Places.SuggestId(_subtype, Zone);
+            _ = Session.Try(() => _id = Places.SuggestId(_subtype, Zone), "id 제안");
+            Validate();
         }
     }
+
+    private void OnId(ChangeEventArgs args)
+    {
+        _id = args.Value?.ToString()?.Trim() ?? string.Empty;
+        _idTouched = _id.Length > 0;
+        Validate();
+    }
+
+    private void OnCapacity(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out int value))
+        {
+            _capacity = Math.Clamp(value, 1, 500);
+        }
+    }
+
+    private void OnX(ChangeEventArgs args) => _x = Coord(args.Value, _x);
+
+    private void OnZ(ChangeEventArgs args) => _z = Coord(args.Value, _z);
+
+    private static float Coord(object? value, float fallback) =>
+        float.TryParse(value?.ToString(), System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out float parsed) ? parsed : fallback;
+
+    private void OnMapClicked((float X, float Z) at)
+    {
+        _x = (float)Math.Round(at.X);
+        _z = (float)Math.Round(at.Z);
+    }
+
+    private void ToggleArchetype(string id, ChangeEventArgs args) =>
+        _allowed = args.Value is true
+            ? _allowed.Add(id)
+            : [.. _allowed.Where(a => !string.Equals(a, id, StringComparison.Ordinal))];
+
+    /// <summary>
+    /// H11 — id 형식·중복을 <b>입력할 때</b> 본다. 저장 때 알면 이미 늦다.
+    /// 판정은 서비스가 하고 화면은 그것을 보여 주기만 한다 — 두 곳에 규칙을 적지 않는다.
+    /// </summary>
+    private void Validate()
+    {
+        _idProblem = string.Empty;
+
+        if (_id.Length == 0)
+        {
+            return;
+        }
+
+        _ = Session.Try(
+            () =>
+            {
+                ImmutableArray<StudioIssue> issues = Workspace.CheckNewPlace(Draft());
+                ImmutableArray<StudioIssue> idIssues = [.. issues.Where(i => i.Path == "/id")];
+
+                _idProblem = idIssues.IsEmpty ? string.Empty : idIssues[0].Detail;
+            },
+            "id 확인");
+    }
+
+    private StudioNewPlace Draft() =>
+        new(
+            _id.Trim(),
+            Zone,
+            _type.ToString(),
+            _subtype.Trim(),
+            _x,
+            _z,
+            _capacity,
+            _openFrom.ToString(),
+            _openTo.ToString(),
+            _allowed,
+            _resources);
 
     private async Task Save()
     {
+        if (_busy) return;
+
+        _busy = true;
+
         try
         {
-            StudioSaveResult result = Places.AddPlace(new StudioNewPlace(
-                _id.Trim(),
-                Zone,
-                _type.ToString(),
-                _subtype.Trim(),
-                _x,
-                _z,
-                _capacity,
-                _openFrom.ToString(),
-                _openTo.ToString(),
-                Split(_allowed),
-                Split(_resources)));
+            StudioSaveResult result = Places.AddPlace(Draft());
 
             Session.Apply(result);
 
-            if (result.Saved) await OnSaved.InvokeAsync();
+            if (result.Saved)
+            {
+                Session.Unregister(this);
+                await OnSaved.InvokeAsync();
+            }
         }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
+        catch (Exception ex)
+        {
+            Session.Notify(StudioErrors.Humanize(ex, "장소 만들기"), true);
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
-    private Task Cancel() => OnCancel.InvokeAsync();
+    private Task Cancel()
+    {
+        Session.Unregister(this);
 
-    private static ImmutableArray<string> Split(string text) =>
-    [
-        .. text.Split([',', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.Ordinal),
-    ];
+        return OnCancel.InvokeAsync();
+    }
+
+    /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
+    public void Dispose() => Session.Unregister(this);
 }

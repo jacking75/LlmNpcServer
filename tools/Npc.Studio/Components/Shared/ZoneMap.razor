@@ -1,6 +1,15 @@
-@* T07 — 지역 하나의 지도. 좌표는 지역 안에서만 실제다 (지역끼리 합칠 절대 좌표가 없다). *@
+@* T07 · H18·H24 — 지역 하나의 지도. 좌표는 지역 안에서만 실제다. *@
+@inject IJSRuntime Js
 
-<svg class="zone-map" viewBox="@ViewBox" preserveAspectRatio="xMidYMid meet" style="height:@(Height)px">
+<svg id="@_id" class="zone-map" viewBox="@ViewBox" preserveAspectRatio="xMidYMid meet" style="height:@(Height)px"
+     role="img" aria-label="@AriaLabel">
+    @* H18 — 배경을 클릭하면 좌표를 찍는다. 예전에는 "아래 지도를 클릭해도 된다" 가 거짓이었다. *@
+    @if (MapClicked.HasDelegate)
+    {
+        <rect class="map-surface" x="@Box(0)" y="@Box(1)" width="@Box(2)" height="@Box(3)"
+              fill="transparent" @onclick="OnSurface" />
+    }
+
     @if (!Route.IsDefaultOrEmpty)
     {
         <polyline class="route-line" points="@RoutePoints" />
@@ -13,16 +22,30 @@
     @foreach (StudioPoiChoice poi in Pois)
     {
         string id = poi.Id;
-        <circle class="poi-dot @(poi.IsHome ? "home" : poi.IsWorkplace ? "work" : "")"
+        bool dim = !Dim.IsDefaultOrEmpty && Dim.Contains(poi.Id, StringComparer.Ordinal);
+        <circle class="poi-dot @(poi.IsHome ? "home" : poi.IsWorkplace ? "work" : "") @(dim ? "picked" : "")"
                 cx="@Num(poi.X)" cy="@Num(poi.Z)" r="@Num(Radius)"
                 fill="@StudioView.PoiColor(poi.Kind)"
-                @onclick="() => Click(id)">
-            <title>@poi.Label · @poi.Type / @Lexicon.Place(poi.Subtype) · 정원 @poi.Capacity</title>
+                tabindex="0" role="button" aria-label="@Describe(poi)"
+                @onclick="() => Click(id)" @onclick:stopPropagation="true"
+                @onkeydown="e => OnKey(e, id)">
+            <title>@Describe(poi)</title>
         </circle>
         @if (Highlight == poi.Id)
         {
             <circle cx="@Num(poi.X)" cy="@Num(poi.Z)" r="@Num(Radius * 2.2f)" fill="none" stroke="#ffb15c" stroke-width="@Num(Radius * 0.4f)" />
         }
+    }
+
+    @if (Candidate is { } candidate)
+    {
+        @* 저장 전의 새 장소. 점선 원으로 "아직 없다" 를 말한다. *@
+        <g class="poi-candidate">
+            <circle cx="@Num(candidate.X)" cy="@Num(candidate.Z)" r="@Num(Radius * 1.4f)"
+                    fill="none" stroke="#38d9d1" stroke-width="@Num(Radius * 0.35f)"
+                    stroke-dasharray="@Num(Radius * 0.7f) @Num(Radius * 0.5f)" />
+            <text x="@Num(candidate.X)" y="@Num(candidate.Z - (Radius * 2.2f))" text-anchor="middle" font-size="@Num(Radius * 1.6f)">새 장소</text>
+        </g>
     }
 
     @foreach (StudioPoiChoice poi in Pois.Where(p => p.IsHome || p.IsWorkplace || Highlight == p.Id))
@@ -37,6 +60,8 @@
 </svg>
 
 @code {
+    private readonly string _id = "map-" + Guid.NewGuid().ToString("N")[..8];
+
     /// <summary>그릴 장소.</summary>
     [Parameter, EditorRequired] public ImmutableArray<StudioPoiChoice> Pois { get; set; }
 
@@ -49,17 +74,28 @@
     /// <summary>하루 동안 지나는 길 (POI id 순서).</summary>
     [Parameter] public ImmutableArray<string> Path { get; set; }
 
+    /// <summary>이미 고른 POI id. 흐리게 그린다 (H23).</summary>
+    [Parameter] public ImmutableArray<string> Dim { get; set; }
+
     /// <summary>강조할 POI id.</summary>
     [Parameter] public string Highlight { get; set; } = string.Empty;
 
+    /// <summary>아직 저장하지 않은 새 장소 자리 (H18).</summary>
+    [Parameter] public (float X, float Z)? Candidate { get; set; }
+
     /// <summary>점을 누르면 그 POI id.</summary>
     [Parameter] public EventCallback<string> PoiClicked { get; set; }
+
+    /// <summary>빈 곳을 누르면 그 좌표 (H18).</summary>
+    [Parameter] public EventCallback<(float X, float Z)> MapClicked { get; set; }
 
     /// <summary>인형 레이어 등 (T24).</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     /// <summary>화면 높이(px).</summary>
     [Parameter] public int Height { get; set; } = 380;
+
+    private string AriaLabel => $"지역 지도 — 장소 {Pois.Length}곳";
 
     /// <summary>점 반지름. viewBox 크기에서 정한다 — 지역마다 좌표 범위가 다르다.</summary>
     private float Radius => Span / 90f;
@@ -68,14 +104,37 @@
     {
         get
         {
-            string[] parts = ViewBox.Split(' ');
+            float[] box = Parsed;
 
-            return parts.Length == 4
-                && float.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float w)
-                && float.TryParse(parts[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float h)
-                ? Math.Max(w, h)
-                : 100f;
+            return box.Length == 4 ? Math.Max(box[2], box[3]) : 100f;
         }
+    }
+
+    private float[] Parsed
+    {
+        get
+        {
+            string[] parts = ViewBox.Split(' ');
+            var values = new float[parts.Length];
+
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (!float.TryParse(parts[i], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out values[i]))
+                {
+                    return [];
+                }
+            }
+
+            return values;
+        }
+    }
+
+    private string Box(int index)
+    {
+        float[] box = Parsed;
+
+        return Num(box.Length == 4 ? box[index] : index switch { 0 or 1 => 0f, _ => 100f });
     }
 
     private string RoutePoints => Points(Route);
@@ -92,7 +151,47 @@
             .Select(p => $"{Num(p!.X)},{Num(p.Z)}"));
     }
 
+    private static string Describe(StudioPoiChoice poi) =>
+        $"{poi.Label} · {poi.Type} / {Lexicon.Place(poi.Subtype)} · 정원 {poi.Capacity}";
+
     private Task Click(string id) => PoiClicked.InvokeAsync(id);
+
+    /// <summary>키보드로도 점을 고른다 (H24). hover 가 유일한 경로면 터치에서 못 쓴다.</summary>
+    private Task OnKey(KeyboardEventArgs args, string id) =>
+        args.Key is "Enter" or " " ? PoiClicked.InvokeAsync(id) : Task.CompletedTask;
+
+    /// <summary>
+    /// 빈 곳 클릭 → viewBox 좌표 (H18).
+    ///
+    /// <c>OffsetX/Y</c> 로 계산하면 <c>preserveAspectRatio</c> 여백만큼 어긋난다 —
+    /// 브라우저의 <c>getScreenCTM</c> 만이 정확한 역변환을 안다.
+    /// </summary>
+    private async Task OnSurface(MouseEventArgs args)
+    {
+        if (!MapClicked.HasDelegate)
+        {
+            return;
+        }
+
+        try
+        {
+            SvgPoint? point = await Js.InvokeAsync<SvgPoint?>("studio.svgPoint", _id, args.ClientX, args.ClientY);
+
+            if (point is { } at)
+            {
+                await MapClicked.InvokeAsync((at.X, at.Z));
+            }
+        }
+        catch (Exception)
+        {
+            // 좌표를 못 구하면 숫자 칸으로 넣으면 된다 — 화면을 죽이지 않는다.
+        }
+    }
+
+    /// <summary>JS 가 돌려주는 viewBox 좌표.</summary>
+    /// <param name="X">가로.</param>
+    /// <param name="Z">세로.</param>
+    public readonly record struct SvgPoint(float X, float Z);
 
     private static string Num(float value) =>
         value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);

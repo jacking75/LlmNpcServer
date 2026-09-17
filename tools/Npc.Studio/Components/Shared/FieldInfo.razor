@@ -1,8 +1,10 @@
 @* T04 — 필드 옆 ⓘ. JS 없이 CSS 팝오버다 (hover·focus 둘 다 열린다). *@
 @if (_help is { } help)
 {
-    <span class="field-info">
-        <button type="button" aria-label="@(help.Title + " 설명")">ⓘ</button>
+    @* H24 — 터치에서는 hover 가 없다. 탭으로 열고 다시 탭으로 닫는다. *@
+    <span class="field-info @(_open ? "open" : string.Empty)">
+        <button type="button" aria-label="@(help.Title + " 설명")" aria-expanded="@_open"
+                @onclick="Toggle" @onclick:preventDefault="true" @onclick:stopPropagation="true">ⓘ</button>
         <span class="field-pop" role="tooltip">
             <strong>@help.Title</strong>
             <p>@help.What</p>
@@ -27,8 +29,11 @@
     [Parameter, EditorRequired] public string Path { get; set; } = string.Empty;
 
     private FieldHelp? _help;
+    private bool _open;
 
     protected override void OnParametersSet() => _help = FieldGuide.Of(File, Path);
+
+    private void Toggle() => _open = !_open;
 
     /// <summary><c>**굵게**</c> 만 처리한다. 사전 문장은 우리가 쓴 것이라 그 이상은 필요 없다.</summary>
     private static string Emphasis(string text)

@@ -182,3 +182,140 @@ button:disabled { cursor: not-allowed; opacity: .42; filter: saturate(.35); }
 .diff-list li { line-height: 1.55; }
 .modal-back { position: fixed; inset: 0; background: rgba(4,8,15,.72); display: grid; place-items: center; z-index: 60; }
 .modal { width: min(760px, 92vw); max-height: 86vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+
+/* ── H01~H28 ─────────────────────────────────────────────────────────── */
+
+/* 상단 배너 — 다른 탭·외부 편집·거리표 낡음 */
+.banner { display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.banner.warn { background: #2b2113; border-color: #6d4827; color: #ffd9a8; }
+.banner.bad { background: #2b1620; border-color: #6d2a3c; color: #ffc2cf; }
+.banner button, .banner .manual { margin-left: auto; }
+
+/* 브레드크럼 */
+.breadcrumb { display: flex; gap: 6px; align-items: center; padding: 10px 18px 0; font-size: 12.5px; color: var(--muted); }
+.breadcrumb a { color: var(--cyan); text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.crumb-sep { color: #4a566d; }
+
+/* 검증 결과 패널 (H10) */
+.issue-list { display: grid; gap: 8px; padding: 10px 12px; }
+.issue { background: #141d2e; border: 1px solid var(--line); border-left: 3px solid var(--red); border-radius: 0 9px 9px 0; padding: 10px 12px; }
+.issue strong { display: block; font-size: 13px; }
+.issue p { margin: 5px 0; font-size: 12.5px; color: #c7d3e6; line-height: 1.5; }
+.issue-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.issue-go { display: inline-block; background: #1d3a4d; border: 1px solid var(--cyan); color: var(--cyan); border-radius: 7px; padding: 3px 9px; font-size: 12px; text-decoration: none; font-weight: 700; }
+.file-chip { font-family: Consolas, monospace; font-size: 11.5px; color: var(--muted); background: #182339; border-radius: 6px; padding: 2px 7px; }
+.issue details { margin-top: 6px; }
+.issue details summary { font-size: 11.5px; color: var(--muted); cursor: pointer; }
+.issue details code { font-size: 11.5px; color: var(--muted); }
+.issue .fix { display: block; margin-top: 5px; color: var(--cyan); font-size: 12px; line-height: 1.5; }
+.rejected-draft { margin: 8px 12px; border: 1px solid #6d4827; border-radius: 9px; padding: 8px 10px; background: #1e1913; }
+.rejected-draft summary { cursor: pointer; font-weight: 700; color: var(--orange); font-size: 12.5px; }
+.inspector-head .count.warn { background: #3a2a15; color: var(--orange); text-decoration: none; }
+.inspector-toggle { background: transparent; color: var(--muted); padding: 2px 6px; border: 0; }
+
+/* 좁은 창 — 숨기지 않고 접는다 (H09) */
+@media (max-width: 1100px) {
+  .workspace { grid-template-columns: 220px minmax(0, 1fr) 42px; }
+  .inspector.collapsed { padding: 0; }
+  .inspector.collapsed .inspector-head { flex-direction: column; gap: 6px; padding: 10px 4px; writing-mode: vertical-rl; }
+  .inspector.open { position: fixed; right: 0; top: 72px; bottom: 0; width: min(380px, 92vw); z-index: 25; overflow: auto; box-shadow: -18px 0 40px rgba(0,0,0,.45); }
+}
+@media (max-width: 860px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) 42px; }
+  .sidebar { display: none; }
+}
+
+/* 저장 결과 카드 (H09) */
+.save-result { border-color: #2c6f6b; }
+.save-result .panel-head h2 { color: #4fd98b; }
+
+/* 필드 강조·오류 (H10) */
+@keyframes field-flash { 0% { background: rgba(56,217,209,.28); } 100% { background: transparent; } }
+.field-flash { animation: field-flash 2s ease-out; border-radius: 9px; }
+.field-error { margin-top: 5px; display: grid; gap: 3px; }
+.field-error span { color: var(--red); font-size: 12px; line-height: 1.5; }
+.anchor-only { display: block; height: 0; }
+
+/* 확인 모달 (H02) */
+.confirm-modal { width: min(560px, 92vw); }
+.modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.modal-head h2 { margin: 0; }
+.confirm-lines { display: grid; gap: 7px; margin: 0 0 16px; padding-left: 18px; }
+.confirm-lines li { line-height: 1.6; color: #cfdaeb; }
+.confirm-actions { justify-content: flex-end; }
+.danger { background: #a03a4c; color: #fff; border-color: #c2566a; }
+.danger:hover { background: #b8455a; }
+.button-row .spacer { flex: 1; }
+.wizard-actions { align-items: center; }
+.wizard-steps > div, .wizard-steps > button { flex: 1; padding: 8px 10px; border-radius: 9px; background: #141d2e; border: 1px solid var(--line); font-size: 12px; color: var(--muted); text-align: left; }
+.wizard-steps > button.active { border-color: var(--cyan); color: var(--text); }
+.wizard-steps > button.done { color: #4fd98b; }
+
+/* 선택 위젯 (H22) */
+.chip-picker { display: grid; gap: 8px; }
+.chip-picker select, .inventory-picker select { max-width: 320px; }
+.chip.unknown { border-color: var(--red); color: var(--red); }
+.chip-x { background: transparent; border: 0; color: inherit; padding: 0 0 0 5px; font-weight: 900; cursor: pointer; }
+.inventory-picker { display: grid; gap: 6px; }
+.trait-slider { position: relative; display: block; }
+.trait-marks { position: absolute; inset: 0; pointer-events: none; }
+.trait-marks > span { position: absolute; top: 2px; bottom: 2px; width: 2px; background: var(--orange); opacity: .65; }
+.trait-number { width: 62px; }
+.trait-bar { grid-template-columns: 52px 1fr 62px; }
+.step-args { display: flex; flex-wrap: wrap; gap: 6px; }
+.step-editor-row { grid-template-columns: 26px minmax(120px, 1fr) minmax(160px, 1.4fr) 96px 92px; }
+
+/* 지도 (H18·H24) */
+.map-surface { cursor: crosshair; }
+.poi-dot:focus { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.poi-dot.picked { opacity: .45; }
+.poi-candidate text { fill: var(--cyan); }
+
+/* 버킷 격자 (H24) */
+.bucket-cell { color: #06101c; font-size: 10px; font-weight: 900; line-height: 24px; text-align: center; }
+.bucket-cell:focus { outline: 2px solid var(--cyan); outline-offset: -2px; }
+.bucket-broken { background: #6d4827; }
+.bucket-legend { color: #06101c; font-weight: 700; }
+.bucket-legend.bucket-missing { color: #8e9bb0; }
+.bucket-pinned { background: #15603a; }
+.bucket-generated { background: #48c98a; }
+
+/* 대비 (H24) — 칩의 흐림을 점선·취소선으로 바꾼다 */
+.chip.off { opacity: 1; border-style: dashed; color: var(--muted); }
+.action-row .chip.off { text-decoration: line-through; }
+.field-help, .related, .entity-card small, .nav-item small { font-size: 12px; }
+.lint small, .issue details summary { font-size: 12px; }
+
+/* 토스트 (H09) */
+.toast { display: flex; gap: 10px; align-items: center; }
+.toast .icon-btn { background: transparent; border: 0; color: inherit; }
+
+/* 검색 (H19) */
+.search-results a.active { background: #17243a; }
+.search-results .no-hit { display: block; padding: 8px 12px; color: var(--muted); }
+
+/* 장소 카드 선택 강조 */
+.fact.selected { border-color: var(--cyan); }
+
+/* 재연결·오류 (H08) */
+#blazor-error-ui { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000; padding: 12px 20px; background: #2b1620; border-top: 1px solid #6d2a3c; color: #ffc2cf; font-size: 13px; }
+#blazor-error-ui strong { margin-right: 8px; }
+#blazor-error-ui .reload { color: var(--cyan); margin-left: 12px; }
+#blazor-error-ui .dismiss { float: right; cursor: pointer; }
+#components-reconnect-modal { display: none; position: fixed; inset: 0; z-index: 1001; background: rgba(4,8,15,.82); place-items: center; }
+#components-reconnect-modal.components-reconnect-show, #components-reconnect-modal.components-reconnect-failed, #components-reconnect-modal.components-reconnect-rejected { display: grid; }
+.reconnect-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 26px; text-align: center; }
+.reconnect-card a { color: var(--cyan); }
+
+/* 생성기 출력 */
+.generator-output { max-height: 240px; overflow: auto; background: #0a1120; border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; font-size: 12px; white-space: pre-wrap; }
+
+/* 모션 (H24) */
+@media (prefers-reduced-motion: reduce) {
+  .field-flash { animation: none; }
+  * { scroll-behavior: auto !important; }
+}
+.field-info.open > .field-pop { display: block; }
+.timeline-seg { border: 0; border-radius: 0; cursor: pointer; }
+.timeline-seg:focus { outline: 2px solid var(--cyan); outline-offset: -2px; }

@@ -16,21 +16,22 @@
                            Caption="@CurrentCaption" Title="@Title" Scale="@FigureScale" />
             </ZoneMap>
 
-            <div class="preview-controls">
+            <div class="preview-controls" @onkeydown="OnKey" tabindex="0" role="group" aria-label="하루 재생 조작">
                 <button class="primary" @onclick="TogglePlay">@(_playing ? "❚❚ 멈춤" : "▶ 하루 재생")</button>
                 <span class="clock" data-clock="1">@StudioView.Clock(View.Forecast.StartClockSeconds)</span>
                 <label>배속
-                    <select @onchange="OnSpeed">
+                    <select aria-label="재생 배속" @onchange="OnSpeed">
                         <option value="60">×60</option>
                         <option value="600" selected>×600</option>
                         <option value="3600">×3600</option>
                     </select>
                 </label>
                 <span>@View.SubjectLabel</span>
+                <small class="related">Space 재생·멈춤 · ←→ 1시간 · Shift+←→ 스텝</small>
             </div>
 
             <input class="scrubber" type="range" min="0" max="@View.Forecast.CoveredSeconds" step="60"
-                   data-scrubber="1" @onchange="OnScrub" />
+                   aria-label="하루 시각" data-scrubber="1" @onchange="OnScrub" />
 
             <DayTimeline Cells="Cells" Duty="Duty" Selected="OnSegmentPicked" />
         </div>
@@ -107,7 +108,7 @@
                 int index = i;
                 ForecastSegment row = View.Forecast.Segments[i];
                 <button class="@(index == _segment ? "active" : "") @(row.Code.Length > 0 ? "bad" : "")"
-                        data-seg="@index" @onclick="() => OnSegmentPicked(index)">
+                        data-seg="@index" aria-current="@(index == _segment)" @onclick="() => OnSegmentPicked(index)">
                     @StudioView.Clock(View.Forecast.StartClockSeconds + row.StartSeconds)
                     · @row.Caption
                 </button>
@@ -259,12 +260,54 @@
         _playing = false;
         await Js.InvokeVoidAsync("behaviorPreview.pause", _elementId);
 
-        // 인형을 목표 장소로 옮긴다 — 실제 서버라면 뛰어간다.
+        // H20 — 2초 동안 뛰어간다. 순간이동이면 "즉시 반응" 이 무엇인지 안 보인다.
         if (View.ZonePois.FirstOrDefault(p => p.Id == _reactionTarget) is { } target)
         {
             _x = target.X;
             _z = target.Z;
+
+            await Js.InvokeVoidAsync("behaviorPreview.dash", _elementId, target.X, target.Z, DashMilliseconds);
         }
+    }
+
+    /// <summary>돌발 반응 이동 시간(ms). <c>prefers-reduced-motion</c> 이면 JS 가 건너뛴다.</summary>
+    private const int DashMilliseconds = 2_000;
+
+    /// <summary>키보드 조작 (H24). 마우스가 유일한 경로면 재생을 못 보는 사람이 생긴다.</summary>
+    private async Task OnKey(KeyboardEventArgs args)
+    {
+        switch (args.Key)
+        {
+            case " " or "Spacebar":
+                await TogglePlay();
+                break;
+            case "ArrowRight" when args.ShiftKey:
+                await OnSegmentPicked(Math.Min(_segment + 1, View.Forecast.Segments.Length - 1));
+                break;
+            case "ArrowLeft" when args.ShiftKey:
+                await OnSegmentPicked(Math.Max(_segment - 1, 0));
+                break;
+            case "ArrowRight":
+                await Nudge(3600);
+                break;
+            case "ArrowLeft":
+                await Nudge(-3600);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private async Task Nudge(int seconds)
+    {
+        int at = Math.Clamp(
+            (View.Forecast.Segments.Length > _segment && _segment >= 0
+                ? View.Forecast.Segments[_segment].StartSeconds
+                : 0) + seconds,
+            0,
+            Math.Max(0, View.Forecast.CoveredSeconds));
+
+        await Js.InvokeVoidAsync("behaviorPreview.seek", _elementId, at);
     }
 
     private void ClearReaction()

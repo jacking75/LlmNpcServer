@@ -1,0 +1,64 @@
+@* H10 — 검증 결과를 사람 말로. 제목 · 파일 칩 · "고치러 가기" · 접으면 원문. *@
+@inject IssueLocator Locator
+
+@if (Issues.IsDefaultOrEmpty)
+{
+    @if (ShowAllGood)
+    {
+        <div class="all-good"><span>✓</span><strong>@OkTitle</strong><p>@OkLead</p></div>
+    }
+}
+else
+{
+    <div class="issue-list">
+        @foreach (StudioIssueView view in Locator.Views(Issues).Take(Limit))
+        {
+            <article class="issue">
+                <strong>@view.Title</strong>
+                <p>@view.Issue.Detail</p>
+                <div class="issue-actions">
+                    @if (!string.IsNullOrEmpty(view.Link))
+                    {
+                        <a class="issue-go" href="@view.Link">@view.LinkLabel</a>
+                    }
+                    <span class="file-chip">@FileOf(view.Issue)</span>
+                </div>
+                @if (!string.IsNullOrEmpty(view.Issue.FixHint))
+                {
+                    <small class="fix">고치려면: @view.Issue.FixHint</small>
+                }
+                <details>
+                    <summary>원문</summary>
+                    <code>@view.Issue.Code @view.Issue.Path</code>
+                </details>
+            </article>
+        }
+    </div>
+    @if (Issues.Length > Limit)
+    {
+        <p class="related" style="padding:0 12px 10px">
+            외 @(Issues.Length - Limit)건 — <a href="/issues">검증·진단 화면에서 전부 본다</a>
+        </p>
+    }
+}
+
+@code {
+    /// <summary>보여 줄 문제.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<StudioIssue> Issues { get; set; }
+
+    /// <summary>몇 건까지 펼칠 것인가. 나머지는 <c>/issues</c> 로 보낸다.</summary>
+    [Parameter] public int Limit { get; set; } = 30;
+
+    /// <summary>문제가 없을 때 초록 카드를 그릴 것인가.</summary>
+    [Parameter] public bool ShowAllGood { get; set; } = true;
+
+    /// <summary>초록 카드 제목.</summary>
+    [Parameter] public string OkTitle { get; set; } = "전체 검증 통과";
+
+    /// <summary>초록 카드 설명.</summary>
+    [Parameter] public string OkLead { get; set; } = "현재 마스터데이터에서 검증 위반이 없다.";
+
+    /// <summary>파일 칩 문구. 경로가 있으면 폴더까지 적는다.</summary>
+    private static string FileOf(StudioIssue issue) =>
+        issue.File.Length == 0 ? "파일 미상" : issue.File;
+}

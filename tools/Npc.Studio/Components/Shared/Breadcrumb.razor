@@ -1,0 +1,30 @@
+@* H21 — 상세 화면의 "여기가 어디인가". 마지막 칸은 링크가 아니다. *@
+
+@if (Trail is { Length: > 0 })
+{
+    <nav class="breadcrumb" aria-label="현재 위치">
+        @for (int i = 0; i < Trail.Length; i++)
+        {
+            (string Label, string Url) crumb = Trail[i];
+
+            if (i > 0)
+            {
+                <span class="crumb-sep" aria-hidden="true">›</span>
+            }
+
+            if (crumb.Url.Length > 0 && i < Trail.Length - 1)
+            {
+                <a href="@crumb.Url">@crumb.Label</a>
+            }
+            else
+            {
+                <span aria-current="page">@crumb.Label</span>
+            }
+        }
+    </nav>
+}
+
+@code {
+    /// <summary>표시할 경로. 마지막 칸이 지금 화면이다.</summary>
+    [Parameter, EditorRequired] public (string Label, string Url)[] Trail { get; set; } = [];
+}

@@ -1,24 +1,31 @@
-@* T32 — 전역 검색. 직업·NPC·장소·행동·규칙을 한 칸에서 찾는다. *@
+@* T32 · H19 — 전역 검색. 직업·NPC·장소·행동·규칙을 한 칸에서 찾는다. *@
+@implements IDisposable
+@inject StudioSession Session
 @inject StudioWorkspace Workspace
 @inject NavigationManager Nav
 
 <span class="search-box">
-    <input type="search" placeholder="직업 · NPC 번호 · 장소 (Ctrl+K)" value="@_query"
-           @oninput="OnInput" @onfocus="() => _open = true" @onblur="Close" />
+    <input id="global-search" type="search" placeholder="직업 · NPC 번호 · 장소 (Ctrl+K)" value="@_query"
+           aria-label="전역 검색" autocomplete="off"
+           @oninput="OnInput" @onfocus="() => _open = true" @onfocusout="OnFocusOut" @onkeydown="OnKey" />
     @if (_open && _query.Length > 0)
     {
-        <span class="search-results">
-            @if (int.TryParse(_query.Trim(), out int npc) && npc > 0)
-            {
-                <a href="@("/npcs/" + npc)"><strong>NPC #@npc</strong><br /><small>개체로 간다</small></a>
+        @* 마우스를 눌러도 포커스를 놓지 않는다 — blur 가 먼저 오면 목록이 사라져 클릭이 안 먹는다.
+           지연(setTimeout)으로 버티면 느린 기계에서 다시 깨진다. *@
+        <span class="search-results" role="listbox" @onmousedown:preventDefault="true">
+            @{
+                int index = 0;
             }
-            @foreach (StudioSearchEntry entry in Results)
+            @foreach ((string Url, string Title, string Note) row in Rows)
             {
-                <a href="@entry.Url"><strong>@entry.Label</strong> <small>@entry.Kind · @entry.Key</small></a>
+                int at = index++;
+                string url = row.Url;
+                <a href="@row.Url" class="@(at == _cursor ? "active" : string.Empty)" role="option"
+                   aria-selected="@(at == _cursor)" @onclick="() => Go(url)" @onclick:preventDefault="true"><strong>@row.Title</strong> <small>@row.Note</small></a>
             }
-            @if (!Results.Any() && !int.TryParse(_query.Trim(), out _))
+            @if (index == 0)
             {
-                <a href="#"><small>찾은 것이 없다.</small></a>
+                <span class="no-hit"><small>찾은 것이 없다.</small></span>
             }
         </span>
     }
@@ -27,32 +34,115 @@
 @code {
     private ImmutableArray<StudioSearchEntry> _index;
     private string _query = string.Empty;
+    private int _generation = -1;
+    private int _cursor;
     private bool _open;
 
-    private IEnumerable<StudioSearchEntry> Results =>
-        _index.Where(e =>
-                e.Label.Contains(_query, StringComparison.OrdinalIgnoreCase)
-                || e.Key.Contains(_query, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(e => e.Label.StartsWith(_query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-            .ThenBy(e => e.Kind, StringComparer.Ordinal)
-            .Take(20);
+    /// <summary>보여 줄 줄. NPC 번호는 명단 안일 때만 제안한다.</summary>
+    private IEnumerable<(string Url, string Title, string Note)> Rows
+    {
+        get
+        {
+            string query = _query.Trim().TrimStart('#');
+
+            if (int.TryParse(query, out int npc) && npc > 0 && npc <= Session.Catalog.InstanceCount)
+            {
+                yield return ("/npcs/" + npc, "NPC #" + npc, "개체로 간다");
+            }
+
+            foreach (StudioSearchEntry entry in Matches)
+            {
+                yield return (entry.Url, entry.Label, entry.Kind + " · " + entry.Key);
+            }
+        }
+    }
+
+    private IEnumerable<StudioSearchEntry> Matches =>
+        _index.IsDefaultOrEmpty
+            ? []
+            : _index.Where(e =>
+                    e.Label.Contains(_query, StringComparison.OrdinalIgnoreCase)
+                    || e.Key.Contains(_query, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(e => e.Label.StartsWith(_query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(e => e.Kind, StringComparer.Ordinal)
+                .Take(20);
 
     protected override void OnInitialized()
     {
+        Session.Changed += OnChanged;
+        Rebuild();
+    }
+
+    protected override void OnParametersSet() => Rebuild();
+
+    /// <summary>
+    /// 색인은 카탈로그 세대마다 다시 만든다 (H19) — 새 직업을 만들고 나서
+    /// 그것이 검색되지 않으면 "만들어지지 않았나" 로 읽힌다.
+    /// </summary>
+    private void Rebuild()
+    {
+        if (_generation == Session.Generation && !_index.IsDefault)
+        {
+            return;
+        }
+
+        _generation = Session.Generation;
+
         try { _index = Workspace.SearchIndex(); }
         catch (Exception) { _index = []; }
+    }
+
+    private void OnChanged()
+    {
+        Rebuild();
+        InvokeAsync(StateHasChanged);
     }
 
     private void OnInput(ChangeEventArgs args)
     {
         _query = args.Value?.ToString() ?? string.Empty;
+        _cursor = 0;
         _open = true;
     }
 
-    /// <summary>링크를 누를 틈을 준다 — blur 가 먼저 오면 목록이 사라져 클릭이 안 먹는다.</summary>
-    private async Task Close()
+    private void OnKey(KeyboardEventArgs args)
     {
-        await Task.Delay(180);
+        var rows = Rows.ToList();
+
+        switch (args.Key)
+        {
+            case "ArrowDown":
+                _cursor = rows.Count == 0 ? 0 : Math.Min(_cursor + 1, rows.Count - 1);
+                break;
+            case "ArrowUp":
+                _cursor = Math.Max(_cursor - 1, 0);
+                break;
+            case "Enter" when rows.Count > 0:
+                _open = false;
+                Nav.NavigateTo(rows[Math.Clamp(_cursor, 0, rows.Count - 1)].Url);
+                break;
+            case "Escape":
+                _open = false;
+                _query = string.Empty;
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void OnFocusOut(FocusEventArgs args)
+    {
+        _ = args;
         _open = false;
     }
+
+    private void Go(string url)
+    {
+        _open = false;
+        _query = string.Empty;
+        Nav.NavigateTo(url);
+    }
+
+    /// <summary>회로가 끊기면 이벤트를 놓는다.</summary>
+    public void Dispose() => Session.Changed -= OnChanged;
 }

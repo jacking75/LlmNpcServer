@@ -1,11 +1,15 @@
 @page "/archetypes"
 @page "/archetypes/{Id}"
+@implements IDisposable
 @inject StudioSession Session
 @inject StudioWorkspace Workspace
 @inject StudioForecastService Forecasts
+@inject PlanStoreReader Store
 @inject NavigationManager Nav
 
 <PageTitle>직업 · NPC Studio</PageTitle>
+
+<Breadcrumb Trail="Crumbs" />
 
 @if (string.IsNullOrEmpty(Id))
 {
@@ -16,7 +20,7 @@
                 <h1>직업 @(Session.Catalog.Archetypes.Length)개</h1>
                 <p class="page-lead">직업은 NPC 의 종류다. 정의 하나를 수백 명이 함께 쓴다 — 성격·행동·일터·하루 일과가 여기 모여 있다.</p>
             </div>
-            <a class="manual" href="/archetypes/new">+ 새 직업 만들기</a>
+            <a class="primary manual" href="/archetypes/new">+ 새 직업 만들기</a>
         </div>
 
         <div class="side-tools">
@@ -26,6 +30,10 @@
         <div class="facts">
             <div class="fact">
                 <h3>인구 분포</h3>
+                @if (!Store.Available)
+                {
+                    <p class="related">미리 구운 계획(<code>planstore/</code>)이 없어 상황별 탭을 숨겼다 — 튜토리얼 17장.</p>
+                }
                 @foreach (StudioArchetype item in Session.Catalog.Archetypes.OrderByDescending(a => a.Population))
                 {
                     <div class="fact-row">
@@ -58,7 +66,12 @@
 }
 else if (_view is null)
 {
-    <section class="empty-state"><div class="empty-icon">◇</div><h1>@Id 을(를) 찾지 못했다</h1><p>@_error</p></section>
+    <section class="empty-state">
+        <div class="empty-icon">◇</div>
+        <h1>@Id 을(를) 찾지 못했다</h1>
+        <p>@_error</p>
+        <p><a href="/archetypes">직업 목록으로</a></p>
+    </section>
 }
 else
 {
@@ -80,7 +93,11 @@ else
         <button class="@TabClass("forecast")" @onclick='() => SetTab("forecast")'>하루 미리보기</button>
         <button class="@TabClass("edit")" @onclick='() => SetTab("edit")'>편집</button>
         <button class="@TabClass("fallback")" @onclick='() => SetTab("fallback")'>하루 일과</button>
-        <button class="@TabClass("buckets")" @onclick='() => SetTab("buckets")'>상황별</button>
+        @if (Store.Available)
+        {
+            @* H20 — 미리 구운 계획이 없으면 탭 자체를 숨긴다. 열어 봐야 빈 화면이다. *@
+            <button class="@TabClass("buckets")" @onclick='() => SetTab("buckets")'>상황별</button>
+        }
         <button class="@TabClass("card")" @onclick='() => SetTab("card")'>전문가 카드</button>
         <button class="@TabClass("json")" @onclick='() => SetTab("json")'>고급 · JSON</button>
     </nav>
@@ -119,14 +136,14 @@ else
             break;
 
         case "edit":
-            <ArchetypeForm Id="@Id" OnSaved="Reload" />
+            <ArchetypeForm Id="@Id" FocusField="@QueryField" OnSaved="Reload" />
             break;
 
         case "fallback":
-            <FallbackForm Id="@Id" OnSaved="Reload" />
+            <FallbackForm Id="@Id" FocusField="@QueryField" OnSaved="Reload" />
             break;
 
-        case "buckets":
+        case "buckets" when Store.Available:
             <BucketGrid ArchetypeId="@Id" />
             break;
 
@@ -141,7 +158,10 @@ else
             <section class="panel editor-panel">
                 <div class="panel-head">
                     <div><small>archetypes.json</small><h2>@Id 항목</h2><p class="page-lead">고급이다. 폼으로 되는 일은 편집 탭에서 한다.</p></div>
-                    <button class="primary" @onclick="SaveJson" disabled="@Session.Catalog.ReadOnly">검증하고 저장</button>
+                    <div class="button-row compact">
+                        <button class="primary" @onclick="SaveJson" disabled="@(Session.Catalog.ReadOnly || !JsonDirty)">검증하고 저장</button>
+                        <button class="secondary" @onclick="() => _editor = _editorOriginal" disabled="@(!JsonDirty)">초안 취소</button>
+                    </div>
                 </div>
                 <div class="draft-grid">
                     <div><div class="pane-label">JSON 초안</div><textarea class="code-editor" spellcheck="false" value="@_editor" @oninput="OnInput"></textarea></div>
@@ -166,6 +186,7 @@ else
     [Parameter] public string? Id { get; set; }
     [CascadingParameter] public StudioLayout? Layout { get; set; }
     [SupplyParameterFromQuery(Name = "tab")] public string? QueryTab { get; set; }
+    [SupplyParameterFromQuery(Name = "field")] public string? QueryField { get; set; }
 
     private StudioArchetypeView? _view;
     private StudioForecast? _forecast;
@@ -176,11 +197,23 @@ else
     private string _search = string.Empty;
     private string _card = string.Empty;
     private string? _tab;
+    private string _shownTab = string.Empty;
     private int? _npcId;
     private int _previewVersion;
     private string _loaded = string.Empty;
+    private string _editorOriginal = string.Empty;
+    private int _generation = -1;
+    private StudioStamp? _stamp;
+
+    /// <summary>원문 탭에도 초안이 있다 (H01). 예전에는 바뀐 것을 추적조차 안 했다.</summary>
+    private bool JsonDirty => !string.Equals(_editor, _editorOriginal, StringComparison.Ordinal);
 
     private string Tab => _tab ?? QueryTab ?? "overview";
+
+    private (string Label, string Url)[] Crumbs =>
+        string.IsNullOrEmpty(Id)
+            ? [("시작", "/"), ("직업", "")]
+            : [("시작", "/"), ("직업", "/archetypes"), (_view?.Name ?? Id, "")];
     private string Card => _card;
 
     private IEnumerable<StudioArchetype> Filtered =>
@@ -199,6 +232,12 @@ else
         return (int)Math.Round(population * 100.0 / max);
     }
 
+    protected override void OnInitialized() =>
+        Session.RegisterDirty(this, () => JsonDirty, $"{Id} 원문 편집");
+
+    /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
+    public void Dispose() => Session.Unregister(this);
+
     protected override void OnParametersSet()
     {
         Layout?.SetHelp(Help);
@@ -209,7 +248,15 @@ else
             return;
         }
 
-        if (_loaded == Id) return;
+        // 탭은 주소가 정한다 — `/issues` 의 "고치러 가기" 가 같은 직업을 열어도 탭이 따라와야 한다.
+        // 회귀: `_loaded == Id` 로 일찍 빠져나가면 그 링크가 무시됐다.
+        if (QueryTab is { Length: > 0 } requested && !string.Equals(_shownTab, requested, StringComparison.Ordinal))
+        {
+            _tab = null;
+            _shownTab = requested;
+        }
+
+        if (_loaded == Id && _generation == Session.Generation) return;
 
         _tab = null;
         _npcId = null;
@@ -223,18 +270,24 @@ else
         {
             _view = Workspace.LoadArchetypeView(Id!);
             _forecast = Forecasts.Load(Id!, _npcId);
-            _editor = Workspace.LoadArchetype(Id!).Json;
-            _card = Workspace.LoadArchetype(Id!).Card;
+
+            StudioArchetypeDocument document = Workspace.LoadArchetype(Id!);
+
+            _editor = document.Json;
+            _editorOriginal = document.Json;
+            _stamp = document.Stamp;
+            _card = document.Card;
             _previewCard = _card;
             _previewError = string.Empty;
             _error = string.Empty;
             _loaded = Id!;
+            _generation = Session.Generation;
         }
         catch (Exception ex)
         {
             _view = null;
             _forecast = null;
-            _error = ex.Message;
+            _error = StudioErrors.Humanize(ex, "직업 읽기");
         }
     }
 
@@ -244,7 +297,15 @@ else
         Load();
     }
 
-    private void SetTab(string tab) => _tab = tab;
+    /// <summary>
+    /// 탭이 주소를 가진다 (H10). 뒤로가기가 탭을 되돌리고, 링크로 탭을 지정할 수 있다.
+    /// </summary>
+    private void SetTab(string tab)
+    {
+        _tab = tab;
+        _shownTab = tab;
+        Nav.NavigateTo($"/archetypes/{Id}?tab={tab}", replace: true);
+    }
 
     private string TabClass(string tab) => Tab == tab ? "active" : string.Empty;
 
@@ -253,20 +314,38 @@ else
         if (int.TryParse(args.Value?.ToString(), out int id))
         {
             _npcId = id;
-            _forecast = Forecasts.Load(Id!, id);
+            _ = Session.Try(() => _forecast = Forecasts.Load(Id!, id), "예측");
         }
     }
 
-    private void SaveJson()
+    private async Task SaveJson()
     {
-        try
+        if (Layout is { } layout)
         {
-            StudioSaveResult result = Workspace.SaveArchetype(Id!, _editor);
-            Session.Apply(result);
+            bool go = await layout.ConfirmAsync(
+                $"{Id} 항목을 원문으로 저장한다",
+                [
+                    $"archetypes.json 의 {Id} 항목.",
+                    "검증과 로더를 통과해야 쓴다 — 번호를 바꾸면 거절된다.",
+                    $"저장 직전의 원본은 백업에 {StudioWorkspace.BackupDays}일 남는다.",
+                ],
+                "검증하고 저장");
 
-            if (result.Saved) Reload();
+            if (!go)
+            {
+                return;
+            }
         }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
+
+        _ = Session.Try(
+            () =>
+            {
+                StudioSaveResult result = Workspace.SaveArchetype(Id!, _editor, _stamp);
+                Session.Apply(result);
+
+                if (result.Saved) Reload();
+            },
+            "저장");
     }
 
     private async Task OnInput(ChangeEventArgs args)
@@ -281,7 +360,7 @@ else
             _previewCard = Workspace.PreviewArchetype(Id!, _editor);
             _previewError = string.Empty;
         }
-        catch (Exception ex) { _previewError = ex.Message; }
+        catch (Exception ex) { _previewError = StudioErrors.Humanize(ex); }
     }
 
     private RenderFragment Help => @<div>
@@ -290,7 +369,7 @@ else
             <li><strong>개요</strong> — 어디 살고 무엇을 하고 위험하면 어떻게 하는지.</li>
             <li><strong>하루 미리보기</strong> — 정의만으로 계산한 하루를 지도에서 재생한다. 기대 경로이지 약속이 아니다.</li>
             <li><strong>편집</strong> — 값을 바꾸면 오른쪽에서 하루가 다시 그려진다.</li>
-            <li><strong>상황별</strong> — 미리 구운 플랜(LLM 이 만든 하루)을 버킷 격자로 본다.</li>
+            <li><strong>상황별</strong> — 미리 구운 계획(LLM 이 만든 하루)을 버킷 격자로 본다. <code>--planstore</code> 가 없으면 탭이 숨는다.</li>
         </ul>
         <TutorialChecklist />
     </div>;

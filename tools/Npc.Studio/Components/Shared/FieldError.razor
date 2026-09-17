@@ -1,0 +1,31 @@
+@* H09·H10 — 저장에 실패한 초안의 오류를 그 칸 바로 아래에. *@
+
+@if (Show && Matched.Length > 0)
+{
+    <div class="field-error">
+        @foreach (StudioIssue issue in Matched)
+        {
+            <span>@IssueGuide.TitleOf(issue.Code) — @issue.Detail</span>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>방금 거절된 초안의 문제.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<StudioIssue> Issues { get; set; }
+
+    /// <summary>이 칸의 이름 (<c>population_weight</c> · <c>traits/courage</c>).</summary>
+    [Parameter, EditorRequired] public string Field { get; set; } = string.Empty;
+
+    /// <summary>배열 속성 이름. 기본은 아키타입이다.</summary>
+    [Parameter] public string Array { get; set; } = "archetypes";
+
+    /// <summary>보여 줄 것인가. 저장 실패 직후에만 참이다.</summary>
+    [Parameter] public bool Show { get; set; }
+
+    private ImmutableArray<StudioIssue> Matched =>
+        Issues.IsDefaultOrEmpty
+            ? []
+            : [.. Issues.Where(issue => string.Equals(
+                IssueLocator.FieldOf(issue.Path, Array), Field, StringComparison.Ordinal))];
+}

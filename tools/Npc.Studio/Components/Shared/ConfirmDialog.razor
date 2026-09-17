@@ -1,0 +1,117 @@
+@* H02 — 파괴적 행동은 "무엇이 어떻게 되고 되돌릴 수 있는가" 를 문장으로 확인한다. *@
+@inject StudioSession Session
+@inject IJSRuntime Js
+
+@if (_open)
+{
+    <div class="modal-back" @onclick="Cancel" @onkeydown="OnKey" tabindex="-1">
+        <div class="modal confirm-modal" @onclick:stopPropagation="true" role="alertdialog"
+             aria-modal="true" aria-labelledby="@(_id + "-title")">
+            <div class="modal-head">
+                <h2 id="@(_id + "-title")">@_title</h2>
+                @* 모달이 상단 바를 덮으므로 배지를 여기서 한 번 더 보여 준다 — 어느 폴더에 하는 일인지. *@
+                @if (Session.Catalog.IsSandbox)
+                {
+                    <span class="badge warn">연습장 · @Session.Catalog.Sandbox</span>
+                }
+                @if (Session.Catalog.ReadOnly)
+                {
+                    <span class="badge warn">읽기 전용</span>
+                }
+            </div>
+
+            <ul class="confirm-lines">
+                @foreach (string line in _lines)
+                {
+                    <li>@line</li>
+                }
+            </ul>
+
+            <div class="button-row confirm-actions">
+                <button class="secondary" @onclick="Cancel">@_cancelLabel</button>
+                <button id="@(_id + "-ok")" class="@(_danger ? "secondary danger" : "primary")" @onclick="Confirm">@_confirmLabel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly string _id = "confirm-" + Guid.NewGuid().ToString("N")[..8];
+
+    private TaskCompletionSource<bool>? _pending;
+    private string _title = string.Empty;
+    private string _confirmLabel = "확인";
+    private string _cancelLabel = "취소";
+    private bool _danger;
+    private bool _open;
+    private bool _focusWanted;
+    private IReadOnlyList<string> _lines = [];
+
+    /// <summary>
+    /// 확인을 받는다. 취소하면 false 다.
+    ///
+    /// <b>문장은 부르는 쪽이 만든다</b> — 숫자는 코드가 세고, "정말?" 은 쓰지 않는다.
+    /// </summary>
+    /// <param name="title">무엇을 하려는가.</param>
+    /// <param name="lines">① 무엇이 ② 어떻게 되고 ③ 되돌릴 수 있는가.</param>
+    /// <param name="confirmLabel">확인 버튼 문구.</param>
+    /// <param name="danger">되돌릴 수 없는가 (빨간 버튼).</param>
+    /// <param name="cancelLabel">취소 버튼 문구.</param>
+    public Task<bool> ShowAsync(
+        string title,
+        IReadOnlyList<string> lines,
+        string confirmLabel,
+        bool danger = false,
+        string cancelLabel = "취소")
+    {
+        _pending?.TrySetResult(false);
+
+        _title = title;
+        _lines = lines ?? [];
+        _confirmLabel = confirmLabel;
+        _cancelLabel = cancelLabel;
+        _danger = danger;
+        _open = true;
+        _focusWanted = true;
+        _pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        StateHasChanged();
+
+        return _pending.Task;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusWanted)
+        {
+            return;
+        }
+
+        _focusWanted = false;
+
+        // 열릴 때 확인 버튼에 포커스를 준다 — 키보드만으로도 빠져나올 수 있어야 한다 (H24).
+        try { await Js.InvokeVoidAsync("studio.focusElement", _id + "-ok"); }
+        catch (Exception) { /* 회로가 아직 준비되지 않았다. */ }
+    }
+
+    private void Confirm() => Close(true);
+
+    private void Cancel() => Close(false);
+
+    /// <summary>Escape 는 취소다. Enter 로는 확인하지 않는다 — 위험 버튼은 클릭·탭으로만.</summary>
+    private void OnKey(KeyboardEventArgs args)
+    {
+        if (string.Equals(args.Key, "Escape", StringComparison.Ordinal))
+        {
+            Close(false);
+        }
+    }
+
+    private void Close(bool result)
+    {
+        _open = false;
+        _pending?.TrySetResult(result);
+        _pending = null;
+        StateHasChanged();
+    }
+}

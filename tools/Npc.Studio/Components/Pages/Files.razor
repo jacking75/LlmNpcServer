@@ -1,5 +1,6 @@
 @page "/files"
 @page "/files/{Name}"
+@implements IDisposable
 @inject StudioSession Session
 @inject StudioWorkspace Workspace
 
@@ -7,13 +8,19 @@
 
 @if (string.IsNullOrEmpty(Name))
 {
+    <Breadcrumb Trail="ListCrumbs" />
+
     <section class="panel">
         <div class="panel-head"><div><small>ADVANCED</small><h1>JSON 파일 원문 편집</h1><p class="page-lead">고급이다. 폼으로 되는 일은 폼에서 한다 — 원문 편집은 폼이 없는 파일에만 쓴다.</p></div></div>
         <div class="entity-list files">
-            @foreach (string file in EditableFiles)
+            @foreach (string file in StudioWorkspace.EditableFiles)
             {
                 <a class="entity" href="@("/files/" + file)">
-                    <span class="file-dot"></span><span><strong>@file</strong><small>@FileDescription(file)</small></span>
+                    <span class="file-dot"></span>
+                    <span>
+                        <strong>@file</strong>
+                        <small>@FileDescription(file)@(CodePinning.IsNumbered(file) ? " · 번호 체계 파일" : string.Empty)</small>
+                    </span>
                 </a>
             }
         </div>
@@ -22,12 +29,19 @@
     <section class="panel">
         <div class="panel-head">
             <div>
-                <small>UNDO</small>
-                <h2>되돌리기</h2>
-                <p class="page-lead">저장하기 직전의 원본을 @StudioWorkspace.BackupDays 일간 남긴다. 되돌린 상태도 다시 검증한다.</p>
+                <small>BACKUP</small>
+                <h2>백업에서 복원</h2>
+                <p class="page-lead">
+                    저장하기 직전의 원본을 @StudioWorkspace.BackupDays 일간(파일별 최근 @StudioWorkspace.BackupKeepPerFile 개는 계속) 남긴다.
+                    <strong>저장 한 번이 한 항목</strong>이다 — 마법사가 만진 6개 파일을 같이 되돌린다.
+                </p>
             </div>
             <button class="secondary" @onclick="LoadBackups">목록 새로고침</button>
         </div>
+        @if (!Session.Catalog.BackupWritable)
+        {
+            <div class="banner bad" style="margin:0 16px"><span>백업 폴더에 쓸 수 없다 — 지금 저장하면 되돌릴 수 없다.</span></div>
+        }
         @if (_backups.IsDefaultOrEmpty)
         {
             <p style="padding:0 18px 18px" class="related">아직 백업이 없다. 한 번 저장하면 생긴다.</p>
@@ -41,8 +55,11 @@
                         StudioBackup row = backup;
                         <div class="fact-row">
                             <span>@backup.SavedAt.ToString("MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</span>
-                            <span><code>@backup.File</code></span>
-                            <button class="secondary" @onclick="() => Restore(row)" disabled="@Session.Catalog.ReadOnly">이 상태로 되돌리기</button>
+                            <span>
+                                <strong>@(backup.Label.Length > 0 ? backup.Label : "저장")</strong>
+                                <small>@string.Join(" · ", backup.Files)</small>
+                            </span>
+                            <button class="secondary" @onclick="() => AskRestore(row)" disabled="@Session.Catalog.ReadOnly">백업에서 복원</button>
                         </div>
                     }
                 </div>
@@ -52,46 +69,119 @@
 }
 else
 {
+    <Breadcrumb Trail="FileCrumbs" />
+
     <section class="panel editor-panel">
         <div class="panel-head">
             <div><small>MASTERDATA</small><h1>@Name</h1><p>@FileDescription(Name)</p></div>
-            <button class="primary" @onclick="Save" disabled="@Session.Catalog.ReadOnly">검증하고 저장</button>
+            <div class="button-row compact">
+                <button class="primary" @onclick="OpenSave" disabled="@(Session.Catalog.ReadOnly || !Dirty || _busy)">검증하고 저장</button>
+                <button class="secondary" @onclick="Reset" disabled="@(!Dirty)">초안 취소</button>
+            </div>
         </div>
         @if (!string.IsNullOrEmpty(_error))
         {
             <div class="preview-error"><strong>읽지 못했다</strong><span>@_error</span></div>
         }
-        <textarea class="code-editor file-editor" spellcheck="false" @bind="_editor"></textarea>
+        @if (CodePinning.IsNumbered(Name))
+        {
+            <div class="banner warn" style="margin:0 16px">
+                <span><strong>번호 체계 파일이다.</strong> <code>code</code>·<code>bit</code> 를 바꾸면 저장이 거절된다 — 추가는 맨 뒤에만.</span>
+            </div>
+        }
+        @if (!Session.LastRejected.IsEmpty && _justRejected)
+        {
+            <div style="padding:0 16px 8px"><IssuePanel Issues="Session.LastRejected" Limit="10" ShowAllGood="false" /></div>
+        }
+        <textarea class="code-editor file-editor" spellcheck="false" aria-label="@(Name + " 원문")"
+                  value="@_editor" @oninput="OnInput" disabled="@Session.Catalog.ReadOnly"></textarea>
     </section>
 }
 
 @code {
-    /// <summary>Studio 가 원문 편집을 허용하는 파일. 생성물은 여기 없다.</summary>
-    public static readonly string[] EditableFiles =
-    [
-        "npc_overrides.json", "archetypes.json", "fallback_plans.json", "interrupts.json",
-        "pois.json", "zones.json", "items.json", "actions.json", "factions.json",
-        "dialogue_lines.json", "context_buckets.json", "world_flags.json",
-    ];
-
+    /// <summary>파일 이름. 없으면 목록이다.</summary>
     [Parameter] public string? Name { get; set; }
+
     [CascadingParameter] public StudioLayout? Layout { get; set; }
 
+    private static readonly (string Label, string Url)[] ListCrumbs = [("시작", "/"), ("고급 · JSON", "")];
+
     private string _editor = string.Empty;
+    private string _original = string.Empty;
     private string _error = string.Empty;
     private string _loaded = string.Empty;
+    private int _generation = -1;
+    private bool _busy;
+    private bool _justRejected;
+    private StudioStamp? _stamp;
     private ImmutableArray<StudioBackup> _backups;
 
-    private void LoadBackups() => _backups = Workspace.Backups();
+    private (string Label, string Url)[] FileCrumbs =>
+        [("시작", "/"), ("고급 · JSON", "/files"), (Name ?? string.Empty, "")];
 
-    private void Restore(StudioBackup backup)
+    private bool Dirty => !string.Equals(_editor, _original, StringComparison.Ordinal);
+
+    protected override void OnInitialized() =>
+        Session.RegisterDirty(this, () => Dirty, $"{Name} 원문 편집");
+
+    private void LoadBackups() => Session.Try(() => _backups = Workspace.Backups(), "백업 목록 읽기");
+
+    /// <summary>H02 — 무엇이 어떻게 되는지 세어 보여 준 뒤에만 복원한다.</summary>
+    private async Task AskRestore(StudioBackup backup)
+    {
+        int newer = _backups.Count(b => string.Compare(b.Stamp, backup.Stamp, StringComparison.Ordinal) > 0);
+        int lines = ChangedLinesOf(backup);
+
+        bool go = Layout is null || await Layout.ConfirmAsync(
+            "백업에서 복원한다",
+            [
+                $"{string.Join(" · ", backup.Files)} 을(를) "
+                + $"{backup.SavedAt.ToString("MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} 상태로 되돌린다"
+                + (lines >= 0 ? $" · 지금과 다른 줄 {lines}개" : string.Empty),
+                newer > 0 ? $"그 뒤의 저장 {newer}건이 되돌아간다." : "그 뒤의 저장은 없다.",
+                "복원도 백업을 남긴다 — 다시 되돌릴 수 있다.",
+            ],
+            "복원");
+
+        if (go)
+        {
+            Restore(backup);
+        }
+    }
+
+    private void Restore(StudioBackup backup) =>
+        Session.Try(
+            () =>
+            {
+                Session.Apply(Workspace.Restore(backup));
+                LoadBackups();
+            },
+            "복원");
+
+    /// <summary>백업과 지금이 다른 줄 수. 읽지 못하면 -1.</summary>
+    private int ChangedLinesOf(StudioBackup backup)
     {
         try
         {
-            Session.Apply(Workspace.Restore(backup));
-            LoadBackups();
+            int total = 0;
+
+            foreach (string file in backup.Files)
+            {
+                string saved = Path.Combine(backup.Path, file);
+                string live = Path.Combine(Workspace.CurrentDirectory, file);
+
+                if (File.Exists(saved) && File.Exists(live))
+                {
+                    total += CountChangedLines(File.ReadAllText(saved), File.ReadAllText(live));
+                }
+            }
+
+            return total;
         }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return -1;
+        }
     }
 
     protected override void OnParametersSet()
@@ -104,30 +194,103 @@ else
             return;
         }
 
-        if (_loaded == Name) return;
+        if (_loaded == Name && _generation == Session.Generation) return;
 
         try
         {
-            _editor = Workspace.LoadFile(Name);
+            StudioFileDocument document = Workspace.LoadFileDocument(Name);
+
+            _editor = document.Json;
+            _original = document.Json;
+            _stamp = document.Stamp;
             _loaded = Name;
+            _generation = Session.Generation;
             _error = string.Empty;
+            _justRejected = false;
         }
-        catch (Exception ex) { _error = ex.Message; }
+        catch (Exception ex)
+        {
+            _error = StudioErrors.Humanize(ex, "읽기");
+        }
+    }
+
+    private void OnInput(ChangeEventArgs args) => _editor = args.Value?.ToString() ?? string.Empty;
+
+    private void Reset() => _editor = _original;
+
+    private async Task OpenSave()
+    {
+        if (_busy) return;
+
+        int changedLines = CountChangedLines(_original, _editor);
+
+        if (CodePinning.IsNumbered(Name!) && Layout is { } layout)
+        {
+            bool go = await layout.ConfirmAsync(
+                $"{Name} 을 저장한다",
+                [
+                    $"{Name} · 바뀐 줄 {changedLines}개",
+                    "번호 체계 파일이다 — 추가는 맨 뒤에만 한다. 재배치는 저장이 거절된다.",
+                    $"저장 직전의 원본은 백업에 {StudioWorkspace.BackupDays}일 남는다.",
+                ],
+                "검증하고 저장");
+
+            if (!go)
+            {
+                return;
+            }
+        }
+
+        Save();
     }
 
     private void Save()
     {
+        _busy = true;
+
         try
         {
-            StudioSaveResult result = Workspace.SaveFile(Name!, _editor);
+            StudioSaveResult result = Workspace.SaveFile(Name!, _editor, _stamp);
             Session.Apply(result);
+            _justRejected = !result.Saved;
 
-            if (result.Saved) _editor = Workspace.LoadFile(Name!);
+            if (result.Saved)
+            {
+                _loaded = string.Empty;
+                OnParametersSet();
+            }
         }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
+        catch (Exception ex)
+        {
+            Session.Notify(StudioErrors.Humanize(ex, "저장"), true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>바뀐 줄 수. 확인 문장의 숫자는 코드가 센다 (H02).</summary>
+    private static int CountChangedLines(string before, string after)
+    {
+        string[] a = before.ReplaceLineEndings("\n").Split('\n');
+        string[] b = after.ReplaceLineEndings("\n").Split('\n');
+        int common = Math.Min(a.Length, b.Length);
+        int changed = Math.Abs(a.Length - b.Length);
+
+        for (int i = 0; i < common; i++)
+        {
+            if (!string.Equals(a[i], b[i], StringComparison.Ordinal))
+            {
+                changed++;
+            }
+        }
+
+        return changed;
     }
 
     /// <summary>파일 한 줄 설명. 목록과 상세가 같은 문장을 쓴다.</summary>
+    /// <param name="file">파일 이름.</param>
     public static string FileDescription(string file) => file switch
     {
         "npc_overrides.json" => "개별 NPC 순찰·세력·성격",
@@ -145,8 +308,12 @@ else
         _ => string.Empty,
     };
 
+    /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
+    public void Dispose() => Session.Unregister(this);
+
     private RenderFragment Help => @<div>
         <p>여기는 <strong>고급</strong>이다. 원문을 잘못 고치면 저장이 거절된다(원본은 그대로다).</p>
         <p><code>actions.json</code> · <code>world_flags.json</code> · <code>context_buckets.json</code> 은 번호 체계를 흔든다 — 추가는 뒤에만 한다.</p>
+        <p><strong>백업에서 복원</strong>은 저장 한 번을 통째로 되돌린다 — 파일 하나만 되돌리면 검증이 깨지는 경우가 있다.</p>
     </div>;
 }

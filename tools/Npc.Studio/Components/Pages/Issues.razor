@@ -1,9 +1,9 @@
 @page "/issues"
 @inject StudioSession Session
-@inject StudioWorkspace Workspace
-@inject IssueLocator Locator
 
 <PageTitle>검증·진단 · NPC Studio</PageTitle>
+
+<Breadcrumb Trail="Crumbs" />
 
 <section class="panel">
     <div class="panel-head">
@@ -11,39 +11,15 @@
             <small>VALIDATION</small>
             <h1>검증 @(Session.Issues.Length)건</h1>
             <p class="page-lead">
-                V1~V15 는 <strong>"이 마스터데이터로 서버가 뜨는가"</strong> 를 본다. 하나라도 걸리면 기동이 막힌다.
+                검증은 <strong>"이 마스터데이터로 서버가 뜨는가"</strong> 를 본다. 하나라도 걸리면 기동이 막힌다.
             </p>
         </div>
         <button class="secondary" @onclick="() => Session.Validate()">다시 검증</button>
     </div>
 
-    @if (Session.Issues.IsEmpty)
-    {
-        <div class="all-good"><span>✓</span><strong>전체 검증 통과</strong><p>이 마스터데이터로 서버가 뜬다.</p></div>
-    }
-    else
-    {
-        <div class="facts">
-            @foreach (StudioIssueView view in Locator.Views(Session.Issues))
-            {
-                <div class="fact">
-                    <h3 class="bad-mark">@view.Title</h3>
-                    <p>@view.Issue.Detail</p>
-                    @if (!string.IsNullOrEmpty(view.Issue.FixHint))
-                    {
-                        <p class="fix">고치려면: @view.Issue.FixHint</p>
-                    }
-                    <div class="inline-row">
-                        @if (!string.IsNullOrEmpty(view.Link))
-                        {
-                            <a class="manual" href="@view.Link">@view.LinkLabel</a>
-                        }
-                        <span class="related">@view.Issue.Code · @view.Issue.File @view.Issue.Path</span>
-                    </div>
-                </div>
-            }
-        </div>
-    }
+    <div style="padding:0 16px 16px">
+        <IssuePanel Issues="Session.Issues" Limit="200" OkLead="이 마스터데이터로 서버가 뜬다." />
+    </div>
 </section>
 
 <section class="panel">
@@ -70,7 +46,7 @@
     else
     {
         <div class="facts">
-            @foreach ((string Id, string Name, ImmutableArray<LintFinding> Findings) row in _lint.Where(l => !l.Findings.IsEmpty))
+            @foreach (StudioLintRow row in _lint.Where(l => !l.Findings.IsEmpty))
             {
                 <div class="fact">
                     <h3><a href="@($"/archetypes/{row.Id}")">@row.Name</a> @(row.Findings.Length)건</h3>
@@ -84,31 +60,36 @@
 @code {
     [CascadingParameter] public StudioLayout? Layout { get; set; }
 
-    private ImmutableArray<(string Id, string Name, ImmutableArray<LintFinding> Findings)> _lint;
+    private static readonly (string Label, string Url)[] Crumbs = [("시작", "/"), ("검증·진단", "")];
+
+    private ImmutableArray<StudioLintRow> _lint;
     private bool _busy;
 
-    protected override void OnInitialized() => Layout?.SetHelp(Help);
+    protected override void OnInitialized()
+    {
+        Layout?.SetHelp(Help);
+        _lint = Session.LintCount is null ? default : Session.Lint();
+    }
 
-    private void RunLint()
+    /// <summary>
+    /// <b>비동기로 돈다.</b> 동기 계산 안에서 <c>_busy</c> 를 켰다 끄면 그 사이에 렌더가 없어
+    /// "진단 중…" 이 한 번도 보이지 않는다 — 초보자는 버튼이 죽은 줄 안다.
+    /// </summary>
+    private async Task RunLint()
     {
         _busy = true;
+        StateHasChanged();
+        await Task.Yield();
 
-        try
-        {
-            _lint = Workspace.WithData<ImmutableArray<(string, string, ImmutableArray<LintFinding>)>>((data, instances) =>
-            [
-                .. data.Archetypes.Archetypes.Select(def =>
-                    (def.Id, Lexicon.Archetype(def.Id), ArchetypeLint.Run(data, def, instances))),
-            ]);
-        }
-        catch (Exception ex) { Session.Notify(ex.Message, true); }
+        try { _lint = await Task.Run(() => Session.Lint(force: true)); }
+        catch (Exception ex) { Session.Notify(StudioErrors.Humanize(ex, "진단"), true); }
         finally { _busy = false; }
     }
 
     private RenderFragment Help => @<div>
         <p><strong>검증</strong>과 <strong>진단</strong>은 다른 것이다.</p>
         <ul>
-            <li>검증(V1~V15) — 통과하지 못하면 <strong>서버가 뜨지 않는다</strong>.</li>
+            <li>검증 — 통과하지 못하면 <strong>서버가 뜨지 않는다</strong>.</li>
             <li>진단(L1~L10) — 뜨긴 뜨는데 <strong>이상할 수 있다</strong>. 판단은 사람이 한다.</li>
         </ul>
     </div>;

@@ -1,0 +1,83 @@
+@* H22 — 시작 소지품. `아이템 개수` 문자열 구문 대신 표다. *@
+
+<div class="inventory-picker">
+    @if (Lines.IsDefaultOrEmpty)
+    {
+        <p class="related">없다. 첫 스텝이 도구를 요구하면 그 스텝은 막힌다.</p>
+    }
+    else
+    {
+        @for (int i = 0; i < Lines.Length; i++)
+        {
+            int index = i;
+            StudioInventoryLine line = Lines[i];
+            bool known = Items.IsDefaultOrEmpty || Items.Contains(line.Item, StringComparer.Ordinal);
+
+            <div class="fact-row">
+                <span class="@(known ? string.Empty : "bad-mark")">@Lexicon.Item(line.Item) <code>@line.Item</code></span>
+                <input type="number" min="1" max="99" value="@line.Count" style="width:80px"
+                       aria-label="@(Lexicon.Item(line.Item) + " 개수")"
+                       @onchange="e => SetCount(index, e)" />
+                <button type="button" class="secondary" aria-label="@(Lexicon.Item(line.Item) + " 빼기")" @onclick="() => Remove(index)">×</button>
+                @if (!known)
+                {
+                    <span class="bad-mark">items.json 에 없는 아이템이다</span>
+                }
+            </div>
+        }
+    }
+
+    <div class="inline-row">
+        <select value="@_pick" @onchange="OnPick" aria-label="소지품 고르기">
+            <option value="">+ 소지품 추가</option>
+            @foreach (string item in Available)
+            {
+                <option value="@item">@Lexicon.Item(item) (@item)</option>
+            }
+        </select>
+    </div>
+</div>
+
+@code {
+    /// <summary>지금 줄.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<StudioInventoryLine> Lines { get; set; }
+
+    /// <summary>고를 수 있는 아이템 id.</summary>
+    [Parameter, EditorRequired] public ImmutableArray<string> Items { get; set; }
+
+    /// <summary>값이 바뀌면.</summary>
+    [Parameter] public EventCallback<ImmutableArray<StudioInventoryLine>> Changed { get; set; }
+
+    private string _pick = string.Empty;
+
+    private IEnumerable<string> Available =>
+        Items.IsDefaultOrEmpty
+            ? []
+            : Items.Where(item => Lines.IsDefaultOrEmpty || !Lines.Any(l => string.Equals(l.Item, item, StringComparison.Ordinal)));
+
+    private Task OnPick(ChangeEventArgs args)
+    {
+        string value = args.Value?.ToString() ?? string.Empty;
+        _pick = string.Empty;
+
+        return value.Length == 0
+            ? Task.CompletedTask
+            : Changed.InvokeAsync(
+                (Lines.IsDefault ? [] : Lines).Add(new StudioInventoryLine(value, 1)));
+    }
+
+    private Task SetCount(int index, ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out int count))
+        {
+            return Task.CompletedTask;
+        }
+
+        // 서버에서도 클램프한다 — 브라우저의 min/max 는 붙여넣기를 막지 않는다.
+        count = Math.Clamp(count, 1, 99);
+
+        return Changed.InvokeAsync(Lines.SetItem(index, Lines[index] with { Count = count }));
+    }
+
+    private Task Remove(int index) => Changed.InvokeAsync(Lines.RemoveAt(index));
+}
