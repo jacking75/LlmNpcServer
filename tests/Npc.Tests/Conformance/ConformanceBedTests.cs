@@ -31,6 +31,19 @@ public sealed class ConformanceBedTests
     /// <summary>회차 길이. 근접 판정이 5틱마다라 넉넉히 준다.</summary>
     private const int RunTicks = 240;
 
+    /// <summary>
+    /// 접속 뒤 재동기화를 흘려보내는 틱. <b>고정이다.</b>
+    ///
+    /// <para>
+    /// 예전에는 "붙을 때까지" · "재동기화가 올 때까지" 를 <b>틱을 밀면서</b> 기다렸다.
+    /// 그 횟수가 기계 사정이라 회차 길이가 242틱이었다 243틱이었다 했고, 보고서의
+    /// 이벤트 건수·시퀀스 범위가 따라 달라져 <b>테스트를 돌릴 때마다 커밋된 파일이 바뀌었다</b>.
+    /// 접속은 <c>AcceptAsync</c> 가 제 태스크에서 끝내므로 기다리는 데 틱이 필요 없다 —
+    /// 틱은 재동기화(<c>FlushLinkAsync</c>)에만 필요하고, 그 몫을 여기서 고정한다.
+    /// </para>
+    /// </summary>
+    private const int SetupTicks = 8;
+
     /// <summary>로스터 크기. 작을수록 빠르고, 규약 검사에는 충분하다.</summary>
     private const int Npcs = 16;
 
@@ -88,19 +101,21 @@ public sealed class ConformanceBedTests
 
         long tick = 0;
 
-        // 붙을 때까지 민다. accept 도 접속도 다른 태스크라 몇 틱 걸린다.
-        for (int i = 0; i < 600 && server.Link.Session is not { IsAccepted: true }; i++)
+        // 붙을 때까지 기다린다. <b>여기서는 틱을 밀지 않는다</b> — 접속과 핸드셰이크는
+        // `AcceptAsync` 가 제 태스크에서 끝낸다. 기다리는 동안 민 틱이 회차에 섞이면
+        // 그 횟수(=기계 속도)가 보고서의 숫자를 바꾼다.
+        for (int chance = 0; chance < 2_000 && server.Link.Session is not { IsAccepted: true }; chance++)
         {
-            await server.TickAsync(new Tick(++tick), cts.Token);
-            await Task.Delay(5, cts.Token);
+            await Task.Delay(1, cts.Token);
         }
 
         Assert.True(
             server.Link.Session is { IsAccepted: true },
             $"적합성 키트가 대역에 붙지 못했다: {link.NegotiationDetail}");
 
-        // 재동기화가 도착할 때까지 민다.
-        for (int i = 0; i < 200 && observer.EventCount < Npcs; i++)
+        // 재동기화를 흘려보낸다 — `FlushLinkAsync` 가 보내므로 틱이 필요하다.
+        // <b>정해진 만큼만</b> 민다. 도착이 늦어도 뒤의 240틱 회차에서 마저 읽힌다.
+        for (int i = 0; i < SetupTicks; i++)
         {
             await server.TickAsync(new Tick(++tick), cts.Token);
             await Task.Delay(2, cts.Token);
@@ -117,7 +132,19 @@ public sealed class ConformanceBedTests
             // 응답 규약(C6)은 명령을 내야만 볼 수 있다.
             if (i == 20)
             {
+                long before = server.Link.Session?.CommandsReceived ?? 0;
+
                 correlation = Probe(link, observer, roster, tick);
+
+                // <b>다 도착할 때까지 다음 틱으로 넘어가지 않는다.</b> 16건이 두 틱에
+                // 나뉘어 들리면 프레임당 최댓값이 회차마다 달라지고(17건이었다 18건이었다),
+                // 그 숫자가 보고서에 실려 커밋된 파일이 매번 바뀐다. 소켓 읽기는
+                // 수신 태스크가 하므로 여기서 틱을 밀 필요는 없다.
+                for (int chance = 0; chance < 2_000
+                    && (server.Link.Session?.CommandsReceived ?? 0) - before < roster.Count; chance++)
+                {
+                    await Task.Delay(1, cts.Token);
+                }
             }
 
             // 근접 규약(C4)은 플레이어가 움직여야 볼 수 있다.

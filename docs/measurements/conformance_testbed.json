@@ -14,14 +14,14 @@
       "id": "C2.ticksync",
       "title": "TickSync — 단조 · 갭 0 · 10Hz",
       "verdict": "pass",
-      "detail": "TickSync 240건 · 틱 3~242 · 갭 0 · 속도 미판정 (구동 회차 — 벽시계가 없다)",
+      "detail": "TickSync 247건 · 틱 2~248 · 갭 0 · 속도 미판정 (구동 회차 — 벽시계가 없다)",
       "violations": []
     },
     {
       "id": "C3.sequence",
       "title": "시퀀스 — 단조 · 갭 0 · 리셋 없음",
       "verdict": "pass",
-      "detail": "이벤트 311건 · 시퀀스 19~329 · 갭 0 · 되감김 0",
+      "detail": "이벤트 320건 · 시퀀스 18~337 · 갭 0 · 되감김 0",
       "violations": []
     },
     {
@@ -49,7 +49,7 @@
       "id": "C7.throughput",
       "title": "처리량 — 드롭 0 · 이벤트 백로그 없음",
       "verdict": "pass",
-      "detail": "명령 16건 · 드롭 0 · 프레임 241개 · 프레임당 평균 1.1건 · 최대 17건",
+      "detail": "명령 16건 · 드롭 0 · 프레임 248개 · 프레임당 평균 1.1건 · 최대 17건",
       "violations": []
     }
   ]
