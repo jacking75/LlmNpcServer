@@ -304,6 +304,9 @@ else
     protected override void OnInitialized() =>
         Session.RegisterDirty(this, () => Dirty, $"NPC #{Id} 개별 설정");
 
+    /// <summary>초안 상태가 바뀌면 레이아웃의 이탈 가드도 같이 바뀌어야 한다 (H01).</summary>
+    protected override void OnAfterRender(bool firstRender) => Session.SyncDirty();
+
     protected override void OnParametersSet()
     {
         Layout?.SetHelp(Help);

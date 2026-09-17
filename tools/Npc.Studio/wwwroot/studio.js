@@ -14,7 +14,8 @@ window.studio = (function () {
     void el.offsetWidth;
     el.classList.add('field-flash');
 
-    const focusable = el.querySelector('input,select,textarea,button');
+    // ⓘ 버튼보다 <b>입력 칸</b>이 먼저다 — 버튼을 잡으면 :focus-within 이 설명을 펼쳐 칸을 덮는다.
+    const focusable = el.querySelector('input,select,textarea') || el.querySelector('button');
     if (focusable) { try { focusable.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }
 
     window.setTimeout(function () { el.classList.remove('field-flash'); }, 2200);

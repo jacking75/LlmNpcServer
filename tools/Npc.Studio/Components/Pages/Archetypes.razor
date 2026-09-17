@@ -235,6 +235,9 @@ else
     protected override void OnInitialized() =>
         Session.RegisterDirty(this, () => JsonDirty, $"{Id} 원문 편집");
 
+    /// <summary>초안 상태가 바뀌면 레이아웃의 이탈 가드도 같이 바뀌어야 한다 (H01).</summary>
+    protected override void OnAfterRender(bool firstRender) => Session.SyncDirty();
+
     /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
     public void Dispose() => Session.Unregister(this);
 
@@ -299,13 +302,12 @@ else
 
     /// <summary>
     /// 탭이 주소를 가진다 (H10). 뒤로가기가 탭을 되돌리고, 링크로 탭을 지정할 수 있다.
+    ///
+    /// <b>여기서 <c>_tab</c> 을 세우지 않는다.</b> 세우면 이탈 가드가 이동을 막아도 화면은
+    /// 이미 바뀌어 있다 — "머무르기" 를 눌렀는데 다른 탭이 떠 있으면 무엇이 일어난 것인지 알 수 없다.
+    /// 주소만 바꾸고, 실제 전환은 <c>OnParametersSet</c> 이 <c>QueryTab</c> 을 보고 한다.
     /// </summary>
-    private void SetTab(string tab)
-    {
-        _tab = tab;
-        _shownTab = tab;
-        Nav.NavigateTo($"/archetypes/{Id}?tab={tab}", replace: true);
-    }
+    private void SetTab(string tab) => Nav.NavigateTo($"/archetypes/{Id}?tab={tab}", replace: true);
 
     private string TabClass(string tab) => Tab == tab ? "active" : string.Empty;
 

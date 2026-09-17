@@ -27,7 +27,8 @@ else
             }
         </div>
 
-        <fieldset class="preview-layout" disabled="@(Draft is null && Session.Catalog.ReadOnly)">
+        <fieldset class="form-fieldset" disabled="@(Draft is null && Session.Catalog.ReadOnly)">
+        <div class="preview-layout">
             <div class="form-rows">
                 <label data-field="goal">
                     <span>하루 목표<FieldInfo File="fallback_plans.json" Path="/goal" /></span>
@@ -188,6 +189,7 @@ else
                     <p class="related">스텝이 컴파일되면 여기서 하루가 재생된다.</p>
                 }
             </div>
+        </div>
         </fieldset>
     </section>
 }
@@ -260,6 +262,8 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        Session.SyncDirty();
+
         if (FocusField is not { Length: > 0 } field || _focused == field || _form is null)
         {
             return;

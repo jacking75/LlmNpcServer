@@ -20,6 +20,7 @@ public sealed class StudioSession : IDisposable
 {
     private readonly StudioWorkspace _workspace;
     private readonly Dictionary<object, (Func<bool> IsDirty, string What)> _dirty = [];
+    private bool _anyDirty;
     private ImmutableArray<StudioNpcSummary> _npcs;
     private ImmutableArray<StudioLintRow> _lint;
     private bool _npcsLoaded;
@@ -119,7 +120,34 @@ public sealed class StudioSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(owner);
 
-        _ = _dirty.Remove(owner);
+        if (_dirty.Remove(owner))
+        {
+            SyncDirty();
+        }
+    }
+
+    /// <summary>
+    /// 초안 상태가 바뀌었으면 레이아웃에 알린다 (H01).
+    ///
+    /// <para>
+    /// <b>이것이 없으면 "초안 취소" 를 눌러도 브라우저 이탈 경고가 남는다.</b>
+    /// <c>NavigationLock.ConfirmExternalNavigation</c> 은 레이아웃에 있고, 레이아웃은
+    /// 폼이 다시 그려지는 것을 모른다 — 폼이 알려야 한다.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>값이 달라졌을 때만 이벤트를 낸다.</b> 매 입력마다 알리면 레이아웃이 같이 다시 그려진다.
+    /// </para>
+    /// </summary>
+    public void SyncDirty()
+    {
+        bool now = AnyDirty;
+
+        if (now != _anyDirty)
+        {
+            _anyDirty = now;
+            Changed?.Invoke();
+        }
     }
 
     /// <summary>저장하지 않은 초안이 하나라도 있는가.</summary>

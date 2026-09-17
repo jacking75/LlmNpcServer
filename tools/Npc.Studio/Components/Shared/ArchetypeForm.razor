@@ -37,7 +37,8 @@ else
             </div>
         }
 
-        <fieldset class="preview-layout" disabled="@ReadOnly">
+        <fieldset class="form-fieldset" disabled="@ReadOnly">
+        <div class="preview-layout">
             <div class="form-rows">
                 <label data-field="desc">
                     <span>설명<FieldInfo File="archetypes.json" Path="/desc" /></span>
@@ -111,6 +112,7 @@ else
                             <option value="@type" selected="@(type == _form.HomePoiType)">@Lexicon.Place(type) (@type)</option>
                         }
                     </select>
+                    <small class="field-help">@HomeVerdict</small>
                 </label>
 
                 <label data-field="workplace_poi_type">
@@ -216,6 +218,7 @@ else
                     <div class="preview-error"><strong>이 초안으로는 하루를 그릴 수 없다.</strong><span>@_previewError</span></div>
                 }
             </div>
+        </div>
         </fieldset>
     </section>
 }
@@ -348,6 +351,16 @@ else
         }
     }
 
+    /// <summary>
+    /// 사는 곳 유형의 판정 (H22). <b>이 값은 지금 배정을 정하지 않는다</b> —
+    /// 명단 생성기는 장소의 <c>type</c> 이 <c>home</c> 인 곳에서 빈 자리를 찾는다.
+    /// 그 사실을 적어 두지 않으면 "바꿨는데 왜 그대로인가" 가 된다.
+    /// </summary>
+    private string HomeVerdict =>
+        _choices!.HomeTypes.Contains(_form!.HomePoiType, StringComparer.Ordinal)
+            ? "표시용이다 — 집 배정은 장소의 유형(home)이 정한다."
+            : $"'{_form.HomePoiType}' 은 이 마을에 없는 값이다 — 목록에서 고른다.";
+
     private string ActionVerdict =>
         $"{_form!.AllowedActions.Length}개 허용. 하루 일과가 쓰는 행동을 빼면 저장이 거절된다 (V8).";
 
@@ -376,6 +389,9 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // 초안 상태가 바뀌면 레이아웃의 이탈 가드도 같이 바뀌어야 한다 (H01).
+        Session.SyncDirty();
+
         if (FocusField is not { Length: > 0 } field || _focused == field || _form is null)
         {
             return;

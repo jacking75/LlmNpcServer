@@ -1,6 +1,6 @@
 @* H21 — 상세 화면의 "여기가 어디인가". 마지막 칸은 링크가 아니다. *@
 
-@if (Trail is { Length: > 0 })
+@if (Trail is not null && Trail.Length > 0)
 {
     <nav class="breadcrumb" aria-label="현재 위치">
         @for (int i = 0; i < Trail.Length; i++)

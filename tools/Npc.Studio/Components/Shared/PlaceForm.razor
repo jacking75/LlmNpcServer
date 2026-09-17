@@ -26,12 +26,31 @@
             </datalist>
             <small class="field-help">
                 직업의 일터 유형이 가리키는 값이다.
-                @if (_subtype.Length > 0 && !_knownSubtypes.Contains(_subtype, StringComparer.Ordinal))
+                @if (IsNewSubtype)
                 {
                     <span class="warn-mark">⚠ 새 유형이다 — 이 유형을 일터로 쓰는 직업이 아직 없다. 오타가 아닌지 확인한다.</span>
                 }
             </small>
         </label>
+
+        @* H18 — 처음 보는 유형이면 표시 이름이 없다. 여기서 받지 않으면 화면이 id 를 그대로 보여 준다. *@
+        @if (IsNewSubtype)
+        {
+            <div class="inline-row">
+                <label data-field="name-ko">
+                    <span>한국어 이름 (ko-KR)</span>
+                    <input type="text" @bind="_nameKo" placeholder="양봉장" />
+                </label>
+                <label data-field="name-en">
+                    <span>영어 이름 (en-US)</span>
+                    <input type="text" @bind="_nameEn" placeholder="Apiary" />
+                </label>
+                <span class="related">
+                    비우면 <code>@_subtype</code> 를 그대로 쓴다. 저장할 때
+                    <code>poi.@_subtype</code> 키로 @_localeFiles 에 같이 들어간다.
+                </span>
+            </div>
+        }
 
         <label data-field="type">
             <span>유형<FieldInfo File="pois.json" Path="/type" /></span>
@@ -123,6 +142,8 @@
     private ImmutableArray<string> _resources = [];
     private string _viewBox = "0 0 100 100";
     private string _subtype = string.Empty;
+    private string _nameKo = string.Empty;
+    private string _nameEn = string.Empty;
     private string _id = string.Empty;
     private string _idProblem = string.Empty;
     private PoiType _type = PoiType.Workplace;
@@ -135,6 +156,18 @@
     private Npc.Core.TimeOfDay _openTo = Npc.Core.TimeOfDay.Evening;
 
     private string IdProblem => _idProblem;
+
+    /// <summary>이 마스터데이터에 없던 세부 유형인가 (H18).</summary>
+    private bool IsNewSubtype =>
+        _subtype.Length > 0 && !_knownSubtypes.Contains(_subtype, StringComparer.Ordinal);
+
+    /// <summary>
+    /// 표시 이름이 들어갈 파일. 손으로 적지 않는다 — 워크스페이스가 정한다.
+    ///
+    /// <b>렌더에서 계산하지 않는다</b> — 디스크를 읽는 일이라 그리기마다 돌면 안 되고,
+    /// 던지면 회로가 죽는다. 세부 유형이 바뀔 때 한 번 구한다.
+    /// </summary>
+    private string _localeFiles = string.Empty;
 
     /// <summary>정원 판정 (H18). 편집 폼과 같은 문장을 쓴다.</summary>
     private string CapacityVerdict
@@ -195,6 +228,9 @@
             "장소 목록 읽기");
     }
 
+    /// <summary>초안 상태가 바뀌면 레이아웃의 이탈 가드도 같이 바뀌어야 한다 (H01).</summary>
+    protected override void OnAfterRender(bool firstRender) => Session.SyncDirty();
+
     private void OnSubtype(ChangeEventArgs args)
     {
         _subtype = args.Value?.ToString()?.Trim() ?? string.Empty;
@@ -205,6 +241,14 @@
             _ = Session.Try(() => _id = Places.SuggestId(_subtype, Zone), "id 제안");
             Validate();
         }
+
+        _localeFiles = "로케일 파일";
+
+        _ = Session.Try(
+            () => _localeFiles = Workspace.PreviewAddPlace(Draft()) is { Length: > 1 } files
+                ? string.Join(" · ", files.Skip(1))
+                : "로케일 파일",
+            "표시 이름 파일 확인");
     }
 
     private void OnId(ChangeEventArgs args)
@@ -277,7 +321,10 @@
             _openFrom.ToString(),
             _openTo.ToString(),
             _allowed,
-            _resources);
+            _resources)
+        {
+            Names = [("ko-KR", _nameKo.Trim()), ("en-US", _nameEn.Trim())],
+        };
 
     private async Task Save()
     {

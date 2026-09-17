@@ -67,6 +67,15 @@ public sealed class StudioWorkspace(StudioOptions options)
     private FileSystemWatcher? _watcher;
 
     /// <summary>
+    /// 우리가 마지막으로 쓴 내용의 지문 (H13). 전체 경로로 건다.
+    ///
+    /// <b>감시자는 우리 저장도 잡는다</b> — 그것까지 "밖에서 바뀌었다" 로 알리면
+    /// 저장할 때마다 거짓 경보가 뜨고, 그러면 진짜 경보도 안 읽게 된다.
+    /// 디스크가 이 지문 그대로면 밖의 편집이 아니다.
+    /// </summary>
+    private readonly Dictionary<string, string> _written = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// 밖의 편집(VS Code · 다른 탭 · 생성기)을 지켜본다 (H13).
     ///
     /// <b>이것이 없어도 저장은 안전하다</b> — 지문 검사가 마지막 방어선이다.
@@ -112,14 +121,35 @@ public sealed class StudioWorkspace(StudioOptions options)
             return;
         }
 
-        // 우리가 방금 쓴 것도 여기로 들어온다. 캐시만 비우고 알린다 —
-        // 화면은 배너를 띄울 뿐이고, 진짜 판정은 저장할 때의 지문이 한다.
+        // 우리가 방금 쓴 것도 여기로 들어온다. 캐시는 어느 쪽이든 비운다 —
+        // 진짜 판정은 저장할 때의 지문이 하고, 여기서는 알릴지만 정한다.
+        string file = name.Replace('\\', '/');
+        string path;
+        string mine = string.Empty;
+
         lock (_gate)
         {
             InvalidateCache();
+            path = Path.GetFullPath(Path.Combine(_directory, file));
+
+            if (_written.TryGetValue(path, out string? written))
+            {
+                mine = written;
+            }
         }
 
-        ExternalChange?.Invoke(name.Replace('\\', '/'));
+        if (mine.Length > 0 && string.Equals(mine, Sha(path), StringComparison.Ordinal))
+        {
+            // 우리가 쓴 그대로다. 밖의 편집이 아니다.
+            return;
+        }
+
+        lock (_gate)
+        {
+            _written.Remove(path);
+        }
+
+        ExternalChange?.Invoke(file);
     }
 
     /// <summary>
@@ -1650,8 +1680,17 @@ public sealed class StudioWorkspace(StudioOptions options)
         {
             MasterDataSet data = Data();
 
+            // 사는 곳 유형은 <b>지금 쓰이는 값</b>도 후보에 넣는다 (H22).
+            // 출하 데이터의 `home_poi_type` 은 POI 의 <b>유형</b>("home")이고 후보는 <b>세부 유형</b>("house")
+            // 이라, 세부 유형만 내면 select 가 빈 칸으로 뜬다 — 빈 필수 칸은 "뭘 골라야 하나" 를 만든다.
             return new StudioArchetypeChoices(
-                [.. data.Pois.Pois.Where(p => p.Type == PoiType.Home).Select(p => p.Subtype).Distinct().Order(StringComparer.Ordinal)],
+                [
+                    .. data.Archetypes.Archetypes.Select(a => a.HomePoiType)
+                        .Concat(data.Pois.Pois.Where(p => p.Type == PoiType.Home).Select(p => p.Subtype))
+                        .Where(value => value.Length > 0)
+                        .Distinct(StringComparer.Ordinal)
+                        .Order(StringComparer.Ordinal),
+                ],
                 [.. data.Pois.Pois.Where(p => p.Type != PoiType.Home).Select(p => p.Subtype).Distinct().Order(StringComparer.Ordinal)],
                 [.. data.Items.Recipes.Select(r => r.Id).Order(StringComparer.Ordinal)],
                 [.. data.Items.Items.Select(i => i.Id).Order(StringComparer.Ordinal)],
@@ -1715,12 +1754,21 @@ public sealed class StudioWorkspace(StudioOptions options)
                 fields.Add(("resources", StudioJsonFormat.Strings(draft.Resources, Nested)));
             }
 
+            var candidates = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["pois.json"] = JsonSurgeon.AppendToArray(
+                    source, "pois", StudioJsonFormat.Object(fields, string.Empty)),
+            };
+
+            // H18 — 처음 보는 세부 유형이면 `poi.<subtype>` 표시 이름을 같은 트랜잭션에 넣는다.
+            // 따로 두면 장소는 생겼는데 이름만 빠진 상태가 남고, 그것은 V14 경고로만 보인다.
+            foreach ((string file, string content) in SubtypeNames(draft))
+            {
+                candidates[file] = content;
+            }
+
             StudioSaveResult result = ValidateAndWrite(
-                new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["pois.json"] = JsonSurgeon.AppendToArray(
-                        source, "pois", StudioJsonFormat.Object(fields, string.Empty)),
-                },
+                candidates,
                 loaderGate: false,
                 label: $"장소 {draft.Id} 추가");
 
@@ -1731,6 +1779,68 @@ public sealed class StudioWorkspace(StudioOptions options)
                         + "거리표(poi_distances.bin)가 낡았다 — 다시 만들어야 서버가 뜬다.",
                 }
                 : result;
+        }
+    }
+
+    /// <summary>
+    /// 새 세부 유형의 표시 이름 후보 (H18 · V14). 이미 있는 유형이면 빈 목록이다.
+    ///
+    /// <b>이름을 안 받았으면 세부 유형 그대로 넣는다.</b> 마법사의 영어 이름과 같은 규칙이다 —
+    /// 키가 비어 있는 것보다 id 가 보이는 편이 낫고, 무엇보다 나중에 고칠 자리가 남는다.
+    /// </summary>
+    private ImmutableArray<(string File, string Content)> SubtypeNames(StudioNewPlace draft)
+    {
+        string subtype = draft.Subtype.Trim();
+
+        if (subtype.Length == 0)
+        {
+            return [];
+        }
+
+        string key = "poi." + subtype;
+        var written = ImmutableArray.CreateBuilder<(string, string)>();
+
+        foreach (LocalizationTable locale in Data().Locales)
+        {
+            if (locale.Contains(key))
+            {
+                continue;
+            }
+
+            string path = Path.Combine(_directory, LocalizationTable.FolderName, locale.Locale + ".json");
+
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            string name = draft.Names.IsDefaultOrEmpty
+                ? subtype
+                : draft.Names
+                    .Where(n => string.Equals(n.Locale, locale.Locale, StringComparison.Ordinal))
+                    .Select(n => n.Name.Trim())
+                    .FirstOrDefault(n => n.Length > 0) ?? subtype;
+
+            // 키는 언제나 슬래시다 (`Path.Combine` 은 Windows 에서 역슬래시를 준다).
+            written.Add((
+                LocalizationTable.FolderName + "/" + locale.Locale + ".json",
+                JsonSurgeon.SetOrAddTopLevel(File.ReadAllText(path), key, StudioJsonFormat.Text(name))));
+        }
+
+        return written.ToImmutable();
+    }
+
+    /// <summary>
+    /// 이 초안이 만질 파일 목록 (H05 · H18). 새 세부 유형이면 로케일 파일도 든다.
+    /// </summary>
+    /// <param name="draft">새 장소 초안.</param>
+    public ImmutableArray<string> PreviewAddPlace(StudioNewPlace draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+
+        lock (_gate)
+        {
+            return ["pois.json", .. SubtypeNames(draft).Select(n => n.File)];
         }
     }
 
@@ -2538,14 +2648,23 @@ public sealed class StudioWorkspace(StudioOptions options)
 
         foreach (LocalizationTable locale in data.Locales)
         {
+            string file = LocalizationTable.FolderName + "/" + locale.Locale + ".json";
+
             foreach (string key in locale.Missing(data))
             {
+                // 힌트를 `FixHints.HintOf("V14")` 에서 가져오지 않는다 — 그쪽 V14 는
+                // <b>대사 심볼</b> 검사(D-02)이고, 그 문장을 여기 붙이면 화면이
+                // "dialogue_lines.json 을 고쳐라" 라고 말한다. 고칠 파일은 이 로케일 파일이다.
+                string hint =
+                    $"{file} 에 \"{key}\": \"화면에 보여 줄 이름\" 을 한 줄 추가한다 — "
+                    + "빠지면 화면도 프롬프트도 키를 그대로 보여 준다.";
+
                 issues.Add(new StudioIssue(
                     "V14",
                     $"{locale.Locale}: 표시 이름 '{key}' 가 없다.",
-                    LocalizationTable.FolderName + "/" + locale.Locale + ".json",
+                    file,
                     key,
-                    FixHints.HintOf("V14")));
+                    hint));
             }
         }
 
@@ -2780,6 +2899,9 @@ public sealed class StudioWorkspace(StudioOptions options)
                 string path = Path.Combine(_directory, file);
                 File.Move(path + ".studio.tmp", path, overwrite: true);
                 moved.Add(file);
+
+                // 감시자가 이 쓰기를 "밖에서 바뀌었다" 로 읽지 않게 지문을 남긴다 (H13).
+                _written[Path.GetFullPath(path)] = Sha(path);
             }
 
             return files;

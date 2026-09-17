@@ -78,7 +78,8 @@ else if (_impact is { } impact)
             </div>
         }
 
-        @if (_drift is { Length: > 0 })
+        @* ImmutableArray 는 default 일 때 Length 가 NullReference 다 — 패턴 매칭을 쓰지 않는다. *@
+        @if (!_drift.IsDefaultOrEmpty)
         {
             <div class="impact hot">
                 <strong>개별 설정이 엉뚱한 NPC 에 붙었다</strong>

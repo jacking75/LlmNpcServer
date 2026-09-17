@@ -84,7 +84,7 @@
             @if (Session.Catalog.IsSandbox)
             {
                 <p><span class="warn-mark">●</span> 지금은 <strong>연습장 @Session.Catalog.Sandbox</strong> 을 보고 있다. 여기서 무엇을 해도 원본은 그대로다.</p>
-                @if (_originChanged is { Length: > 0 })
+                @if (!_originChanged.IsDefaultOrEmpty)
                 {
                     <p class="warn-mark">⚠ 연습장을 만든 뒤 원본이 바뀐 파일: @string.Join(" · ", _originChanged)</p>
                 }

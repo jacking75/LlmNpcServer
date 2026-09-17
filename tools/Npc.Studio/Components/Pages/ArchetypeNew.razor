@@ -451,6 +451,9 @@
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // 초안 상태가 바뀌면 레이아웃의 이탈 가드도 같이 바뀌어야 한다 (H01).
+        Session.SyncDirty();
+
         if (!firstRender || _restored)
         {
             return;

@@ -79,7 +79,17 @@ public sealed record StudioNewPlace(
     string OpenFrom,
     string OpenTo,
     ImmutableArray<string> AllowedArchetypes,
-    ImmutableArray<string> Resources);
+    ImmutableArray<string> Resources)
+{
+    /// <summary>
+    /// 로케일 → 세부 유형의 표시 이름 (V14 · H18).
+    ///
+    /// <b>처음 보는 세부 유형일 때만 쓴다.</b> <c>poi.&lt;subtype&gt;</c> 키는 로케일마다 있어야 하고,
+    /// 없으면 화면이 키를 그대로 보여 준다 — 장소를 만든 자리에서 같이 넣지 않으면
+    /// 나중에 "표시 이름이 빠졌다" 만 남는다.
+    /// </summary>
+    public ImmutableArray<(string Locale, string Name)> Names { get; init; } = [];
+}
 
 /// <summary>
 /// 지역·장소 읽기와 새 장소 추가 (T08·T13·T26).

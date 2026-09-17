@@ -124,6 +124,9 @@ else
     protected override void OnInitialized() =>
         Session.RegisterDirty(this, () => Dirty, $"{Name} 원문 편집");
 
+    /// <summary>초안 상태가 바뀌면 레이아웃의 이탈 가드도 같이 바뀌어야 한다 (H01).</summary>
+    protected override void OnAfterRender(bool firstRender) => Session.SyncDirty();
+
     private void LoadBackups() => Session.Try(() => _backups = Workspace.Backups(), "백업 목록 읽기");
 
     /// <summary>H02 — 무엇이 어떻게 되는지 세어 보여 준 뒤에만 복원한다.</summary>

@@ -260,6 +260,53 @@ public sealed class StudioFormTests : IDisposable
     }
 
     /// <summary>
+    /// 처음 보는 세부 유형이면 <c>poi.&lt;subtype&gt;</c> 표시 이름이 <b>같은 저장에</b> 들어간다
+    /// (H18 · V14).
+    ///
+    /// <b>실제로 난 일이다</b> — 장소만 생기고 이름은 안 들어가, 저장 직후 화면에
+    /// "표시 이름이 빠졌다" 두 건이 떴다. 그 상태는 아무도 안 고치고 남는다.
+    /// </summary>
+    [Fact]
+    public void AddPoi_WritesDisplayNameForANewSubtype()
+    {
+        StudioWorkspace workspace = CreateWorkspace();
+        var places = new StudioPlaces(workspace);
+        StudioZone zone = places.Zones()[0];
+
+        var draft = new StudioNewPlace(
+            places.SuggestId("apiary", zone.Id), zone.Id, "Workplace", "apiary",
+            10, 20, 12, "Morning", "Evening", [], [])
+        {
+            Names = [("ko-KR", "양봉장"), ("en-US", "Apiary")],
+        };
+
+        // 미리보기가 실제로 쓸 파일을 그대로 말해야 한다 — 두 곳에 적으면 어긋난다 (H05).
+        ImmutableArray<string> preview = workspace.PreviewAddPlace(draft);
+        StudioSaveResult result = places.AddPlace(draft);
+
+        Assert.True(result.Saved, result.Message);
+
+        // ImmutableArray 끼리의 Assert.Equal 은 참조 비교다 — 내용으로 견준다.
+        Assert.Equal(
+            string.Join(" ", preview.Order(StringComparer.Ordinal)),
+            string.Join(" ", result.Files.Order(StringComparer.Ordinal)));
+
+        Assert.Contains(
+            "\"poi.apiary\": \"양봉장\"",
+            File.ReadAllText(Path.Combine(_directory, "localization", "ko-KR.json")),
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "\"poi.apiary\": \"Apiary\"",
+            File.ReadAllText(Path.Combine(_directory, "localization", "en-US.json")),
+            StringComparison.Ordinal);
+
+        // 이름이 들어갔으니 V14 는 조용해야 한다 — 이것이 이 저장의 약속이다.
+        Assert.DoesNotContain(
+            workspace.Validate(), i => i.Code == "V14" && i.Path == "poi.apiary");
+    }
+
+    /// <summary>
     /// 거리표가 <b>아예 없어도</b> 화면이 뜬다 (H07).
     /// 갓 클론한 저장소가 이 경우다 — 예전에는 DI 가 실패해 빈 화면이 떴다.
     /// </summary>
