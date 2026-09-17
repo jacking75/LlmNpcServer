@@ -29,12 +29,16 @@
 | **새 아이템·레시피** | `masterdata/items.json` → `src/Npc.MasterData/ItemTable.cs` → `src/Npc.Runtime/EventApplier.cs`(`RecomputeItemFlags`) | `grants` 가 플래그를 만든다. 코드에 하드코딩 금지 |
 | **새 아키타입·POI·존** | `masterdata/*.json` → `tools/gen_npcs.cs` 재실행 → 프리베이크 | **코드 수정 없음**(F-05) · `population_weight` 합 1.0(V5) · POI 정원(V10) · 프리픽스 해시 변경 → 플랜 전량 무효 |
 | **인터럽트 규칙 추가·수정** | `masterdata/interrupts.json` → `src/Npc.MasterData/InterruptRules.cs`(파싱) → `src/Npc.Runtime/InterruptMatcher.cs`(판정·엣지 트리거) | **LLM 이 만들지 않는다.** `cooldown_s` 를 두지 않는다 — 결정론이 깨진다 |
-| **검증 규칙(V1~V15) 추가** | `src/Npc.MasterData/Validation/MasterDataValidator.cs` → **`Validation/FixHints.cs` 에 힌트도 같이** | 실패는 **기동 실패**다. 힌트를 빼먹으면 `FixHintTests` 가 깨진다 |
+| **검증 규칙 추가** | `src/Npc.MasterData/Validation/MasterDataValidator.cs` → **`Validation/FixHints.cs` 에 힌트도 같이** | 검증기가 도는 것은 **V0~V13** 이다. V14(표시 이름)는 `LocalizationTable.Missing`, V15(샤드)는 `ShardTable` 이 기동 경로에서 본다 — Studio 는 V14 를 합쳐서 보여 준다. 실패는 **기동 실패**다. 힌트를 빼먹으면 `FixHintTests` 가 깨진다 |
 | **검증 결과를 기계가 읽어야 한다** | `validate --format json` — `src/Npc.Host/Commands/ValidationJson.cs` · 사전 문서는 `hints --out` 이 생성한다 |
 | **마스터데이터가 안 읽힌다** | `src/Npc.MasterData/MasterDataLoader.cs` → `MasterDataSet.cs` | `dotnet run --project src/Npc.Host -- validate --masterdata ./masterdata` 로 먼저 재현 |
 | **정의가 무엇을 뜻하는지 알고 싶다** | `src/Npc.Narrative/{ArchetypeCard,PlanExplain,InterruptExplain,InstanceCard}.cs` · 껍질은 `npc card`·`npc explain` | 카드의 ✗ 는 3단 검증기와 **같은 판정**이다(`NarrativeTests`). 갈리면 둘 중 하나가 버그다 |
-| **터미널에서 뭐든 한다** | `tools/Npc.Cli/` — `validate`·`explain`·`card`·`timeline`·`next-code`·`scaffold`·`diff`·`regen`·`plan`·`buckets`·`pin`·`hints` | **CLI 에 로직을 두지 않는다.** 인자를 읽고 코어를 부른다 — MCP(E-03)·Studio(F-02)가 같은 함수를 부른다 |
-| **브라우저에서 NPC 정의를 보고·만든다** | `tools/Npc.Studio/` → `Services/StudioWorkspace.cs` · 화면은 `Components/Home.razor` · 매뉴얼은 `docs/npc_studio_manual.html` | 생성물은 읽기 전용이다. 저장은 임시 복사본의 V1~V13 + 로더 통과 뒤에만 원본에 반영한다 |
+| **터미널에서 뭐든 한다** | `tools/Npc.Cli/` — `validate`·`explain`·`card`·`forecast`·`timeline`·`lint`·`next-code`·`scaffold`·`diff`·`regen`·`plan`·`buckets`·`pin`·`hints` | **CLI 에 로직을 두지 않는다.** 인자를 읽고 코어를 부른다 — MCP(E-03)·Studio(F-02)가 같은 함수를 부른다 |
+| **브라우저에서 NPC 정의를 보고·만든다** | `tools/Npc.Studio/` — 파일 경계는 `Services/StudioWorkspace.cs`, 회로 상태는 `Services/StudioSession.cs`, 화면은 `Components/Pages/*.razor`(시작·직업·NPC·지역·검증·고급) + `Components/Shared/*.razor`(폼·지도·미리보기·확인 모달) + `Components/Layout/StudioLayout.razor`. 매뉴얼은 `docs/npc_studio_manual.html` | 생성물은 읽기 전용이다. 저장은 임시 복사본의 검증 + 로더 통과 뒤에만 원본에 반영하고, **읽은 뒤 디스크가 바뀌었거나 `code`·`bit` 가 재배치됐으면 거절한다** |
+| **NPC 가 어떻게 움직일지 예측한다** | `src/Npc.Narrative/{DayForecast,PlacementForecast,ReactionForecast}.cs` · 껍질은 `npc forecast`·`npc timeline` · 화면은 `Components/Shared/BehaviorPreview.razor` | LLM·난수 없이 정의만으로 계산한다. **기대 경로이지 약속이 아니다** — 실제 서버는 스텝마다 흔들린다 |
+| **정의가 이상한지 본다 (차단 아님)** | `src/Npc.Narrative/ArchetypeLint.cs` · 껍질은 `npc lint` · 화면은 `/issues` | 검증(기동 실패)과 다르다. 진단은 **주의**이고 판단은 사람이 한다 |
+| **필드가 무슨 뜻인지 적는다** | `src/Npc.Narrative/FieldGuide.cs` · 화면의 ⓘ 가 이것을 읽는다 | 스키마를 훑는 드리프트 테스트가 빠진 필드를 알려 준다. **편집 폼에 실리는 칸은 "틀리면 무슨 일이 나는가" 가 필수다** |
+| **화면 낱말을 정한다** | `src/Npc.Narrative/LexiconUi.cs` (부록 B 용어표) | 화면은 "직업", 코드는 `archetype` 이다. 토스트에 개발자 낱말이 새면 `StudioTextTests` 가 잡는다 |
 | **표기(한국어 이름)를 고친다** | `src/Npc.Narrative/Lexicon.cs` | 표시 계층이다. 행동을 정하는 값은 여전히 `masterdata/` 가 원천 |
 | **다음 `code`·`bit` 를 알아야 한다** | `src/Npc.MasterData/Authoring/CodeAllocator.cs` | 비트는 **예약 구간을 먼저 채운다**. 재배치 API 는 없다 |
 | **가중치를 재배분한다** | `src/Npc.MasterData/Authoring/WeightRebalancer.cs` | 3안을 내고 **고르는 것은 사람**이다. 반올림 잔차까지 맞춰 V5 를 지킨다 |
@@ -208,10 +212,10 @@ CognitionScheduler.Scan        이탈 판정 → ReplanQueue (ReplanScorer 점�
 |---|---|---|
 | `Npc.Contracts` | 게임서버 경계. 472줄뿐이니 통째로 읽어도 된다 | `IGameServerLink.cs` |
 | `Npc.Core` | 순수 로직 — 플랜 표현·검증기 1~3단·버킷 키(크기는 `BucketSpace` 가 안다) | `Plan/CompiledPlan.cs` |
-| `Npc.MasterData` | JSON 로딩·인덱싱·검증 V1~V13 · `Authoring/`(편집 안전장치) | `MasterDataSet.cs` |
+| `Npc.MasterData` | JSON 로딩·인덱싱·검증 V0~V13 · `Authoring/`(편집 안전장치 — code/bit 할당·재배치 거절·가중치 재배분·서식 보존 편집·파생물 잠금) | `MasterDataSet.cs` |
 | `Npc.Runtime` | **틱 루프.** 여기의 규칙이 제일 엄하다 | `NpcServerLoop.cs` |
 | `Npc.Planning` | 플랜 캐시·재계획 큐·예산 | `PlanStore.cs` |
-| `Npc.Narrative` | **정의 설명 카드** — 아키타입·플랜·인터럽트·인스턴스 → 한국어 markdown. LLM·시각·난수 없음 | `ArchetypeCard.cs` |
+| `Npc.Narrative` | **정의 설명 카드**(아키타입·플랜·인터럽트·인스턴스 → 한국어 markdown) + **하루 예측**(`DayForecast`·`PlacementForecast`·`ReactionForecast`) + **진단**(`ArchetypeLint`) + **필드 사전**(`FieldGuide`) + **표기·용어**(`Lexicon`·`LexiconUi`). LLM·시각·난수 없음 | `ArchetypeCard.cs` |
 | `Npc.Llm` | 프롬프트 조립·컴파일·티어링 | `TieredPlanCompiler.cs` |
 | `Npc.Wire` | 소켓 위의 표현 (MemoryPack) | `V1/WireCommand.cs`(동결) · `V2/WireCommandV2.cs` |
 | `Npc.Gateway` | 링크 구현 5종 (Loopback·Null·Recording·Replay·Tcp) | `TcpGameServerLink.cs` |
@@ -224,7 +228,7 @@ CognitionScheduler.Scan        이탈 판정 → ReplanQueue (ReplanScorer 점�
 | 도구 | 무엇 | 진입 파일 |
 |---|---|---|
 | `tools/Npc.Cli` | **`npc` 명령.** 검증·설명·편집·플랜. 로직은 코어에 있고 여기는 껍질이다 | `Program.cs` |
-| `tools/Npc.Studio` | NPC 정의 웹 GUI. 아키타입·인스턴스 조회, 안전한 JSON 편집, 새 직업 생성 | `Program.cs` · `Services/StudioWorkspace.cs` |
+| `tools/Npc.Studio` | NPC 정의 웹 GUI. 직업·NPC 조회, 하루 예측, 폼 편집, 새 직업 마법사, 연습장·되돌리기 | `Program.cs` · `Services/StudioWorkspace.cs` · `Services/StudioSession.cs` |
 | `tools/Npc.Prebake` | 플랜 대량 생성 · 매니페스트 | `Program.cs` |
 | `tools/Npc.Narrate` | 명령 기록 → 하루 일지 | `Program.cs` |
 | `tools/gen_*.cs` | 파생물 생성기. `#:project` 로 `Npc.MasterData` 를 참조해 잠금을 갱신한다 | — |

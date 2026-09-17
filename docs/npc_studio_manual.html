@@ -28,7 +28,7 @@
   <div class="eyebrow">LLMNPCSERVER AUTHORING GUI</div>
   <h1>NPC Studio 사용 설명서</h1>
   <p class="lead">이 마을의 NPC 를 <b>읽고 · 예측하고 · 만드는</b> 도구다. 1장부터 7장까지는 <b>JSON 을 한 번도 보지 않고</b> 따라갈 수 있다. 각 장은 화면 하나와 목표 하나를 다룬다.</p>
-  <div class="chips"><span class="chip">읽기 3분</span><span class="chip">하루 예측 재생</span><span class="chip">연습장 · 되돌리기</span><span class="chip">저장 전 V1~V15 검증</span></div>
+  <div class="chips"><span class="chip">읽기 3분</span><span class="chip">하루 예측 재생</span><span class="chip">연습장 · 되돌리기</span><span class="chip">저장 전 전체 검증</span></div>
 </section>
 
 <section id="first">
@@ -129,7 +129,7 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 
   <li>"왜" 패널에 <code>flee_on_threat: 용기 30 &lt; 40 ✓</code> 가 뜬다. 규칙의 문턱값이 40 이었고, 30 이 그 아래로 내려간 것이다.</li>
   <li>아래 <b>변경 요약</b>이 같은 말을 문장으로 적는다 — "용기 55 → 30. 위협 시 물러나기 대신 도망친다."</li>
 </ol>
-<div class="warn"><b>여기까지는 아무것도 저장되지 않았다.</b> 예측은 <b>화면의 초안</b>으로 계산한다. 저장은 <span class="ui">검증하고 저장</span> 을 눌러야 일어나고, 그때 V1~V15 전체 검증을 다시 돈다.</div>
+<div class="warn"><b>여기까지는 아무것도 저장되지 않았다.</b> 예측은 <b>화면의 초안</b>으로 계산한다. 저장은 <span class="ui">검증하고 저장</span> 을 눌러야 일어나고, 그때 전체 검증을 다시 돈다.</div>
 <p><b>기대 경로</b>란 "이 정의면 NPC 가 이렇게 움직일 것이다" 라는 <b>예측</b>이지 실행 기록이 아니다. 실제 서버에서 명령이 유실되거나 장소가 만원이면 달라진다 — 실제를 보려면 <a href="#advanced">라이브 관찰</a>을 쓴다.</p>
 </section>
 
@@ -138,12 +138,13 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 
 <div class="goal"><b>목표.</b> 위병 #2326 의 순찰로를 <b>지도에서 3곳 찍어</b> 바꾸고 저장한다. 좌표를 손으로 적지 않는다.</div>
 
 <ol class="walk">
-  <li>왼쪽 <span class="ui">NPC</span> → 위쪽 검색에 <code>2326</code>. 직업·지역으로 좁히거나 <b>개별 설정이 있는 NPC만</b> 필터를 쓸 수도 있다.</li>
+  <li>왼쪽 <span class="ui">NPC</span> → 위쪽 검색에 <code>#2326</code>. <code>#</code> 을 붙이면 <b>그 번호만</b> 나온다 — 붙이지 않으면 2326 을 품은 모든 값이 걸린다. 직업·지역으로 좁히거나 <b>개별 설정이 있는 NPC만</b> 필터를 쓸 수도 있다.</li>
   <li>행을 누르면 <b>누구인가 · 어디 사는가 · 무엇을 하는가</b> 가 한 화면에 나온다. 통근 거리와 하루 예측도 이 NPC 기준으로 다시 계산된 값이다.</li>
-  <li><b>어디에 사는가</b> 지도에서 장소를 누르면 순찰 지점으로 들어간다. 집과 일터에는 별도 표시가 붙는다.</li>
+  <li><b>어디에 사는가</b> 지도에서 장소를 누르면 순찰 지점으로 들어가고 <b>선이 바로 바뀐다</b>. 집과 일터에는 별도 표시가 붙고, 이미 고른 곳은 흐려진다. 4곳을 넘기거나 같은 곳을 또 누르면 그 이유를 말해 준다.</li>
   <li>순서를 ↑ ↓ 로 바꾸고 × 로 뺀다. <b>최대 4곳</b>이고 <b>같은 지역</b>이어야 한다.</li>
-  <li>아래 <b>개별 설정</b> 에서 공격 반경(0~200m) · 세력 · 대화 프로필 · 일정 오프셋(-120~120분)을 채운다. 각 칸의 <b>ⓘ</b> 가 뜻을 말한다.</li>
-  <li><span class="ui">검증하고 저장</span>. 전부 비우고 저장하면 <span class="ui">개별 설정 삭제</span> 와 같다 — 그 NPC 는 직업의 기본값으로 돌아간다.</li>
+  <li>아래 <b>개별 설정</b> 에서 공격 반경(0~200m) · 세력 · 대화 프로필 · 일정 오프셋(-120~120분)을 채운다. 각 칸의 <b>ⓘ</b> 가 뜻을 말한다. 세력은 설명으로 고르고, 대화 프로필은 <b>이미 쓰인 값</b>이 후보로 나온다.</li>
+  <li><span class="ui">검증하고 저장</span>. <span class="ui">개별 설정 삭제</span> 는 <b>무엇이 지워지는지</b> 세어 확인을 받은 뒤 지운다 — 그 NPC 는 직업의 기본값으로 돌아간다.</li>
+  <li>순찰로에 <b>POI ID 를 직접 입력</b>할 수도 있다. 순찰 경로 칸 아래의 접이식 <span class="ui">POI ID를 직접 입력한다</span> 를 편다 — 쉼표나 줄바꿈으로 구분하고, 목록에 없는 ID 는 저장 검증에서 거절된다.</li>
 </ol>
 
 <div class="warn"><b>생성물은 고치지 않는다.</b> NPC 5,000명 명단(<code>npc_instances.json</code>)은 생성기가 만든다. 한 명만 다르게 하는 값은 <code>npc_overrides.json</code> 에 들어가고, Studio 가 그 파일의 해당 ID 항목만 추가·교체·삭제한다.</div>
@@ -157,12 +158,18 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 
 <ol class="walk">
   <li>왼쪽 <span class="ui">지역·장소</span> → 지역을 하나 고른다. 그 지역의 장소가 지도와 목록으로 나온다.</li>
   <li><span class="ui">+ 새 장소</span> 를 누른다.</li>
-  <li>이름 · 유형 · 세부 종류 · <b>정원</b> · 좌표 · 여는 시간을 채운다. <code>code</code> 는 <b>자동으로 다음 번호</b>가 잡힌다 — 번호를 손으로 적거나 재배치하지 않는다.</li>
+  <li>세부 종류를 정하면 <b>장소 ID 가 제안</b>된다(쓰이지 않은 최소 번호). 이미 있는 ID 나 형식이 틀린 ID 는 <b>입력하는 순간</b> 막힌다.</li>
+  <li><b>처음 보는 세부 종류</b>면 그 자리에서 <b>한국어 · 영어 이름</b>을 묻는다. 그 이름은 <code>poi.&lt;세부 종류&gt;</code> 키로 <b>같은 저장에</b> 로케일 파일까지 들어간다 — 따로 넣으면 장소만 생기고 이름이 빠진 채 남는다. 비우면 세부 종류를 그대로 쓴다.</li>
+  <li>유형 · <b>정원</b> · 여는 시간을 채운다. 정원 칸 아래가 "이 유형을 쓰는 직업 인구를 감당하는가" 를 그 자리에서 말한다(V10).</li>
+  <li>좌표는 <b>아래 지도를 클릭</b>하면 찍힌다 — 점선 원이 새 장소 자리를 미리 보여 준다. 숫자로 직접 넣어도 된다.</li>
+  <li>일할 수 있는 직업은 <b>체크 목록</b>, 얻을 수 있는 것은 <b>아이템 선택</b>이다. <code>code</code> 는 <b>자동으로 다음 번호</b>가 잡힌다 — 번호를 손으로 적거나 재배치하지 않는다.</li>
   <li><span class="ui">검증하고 만들기</span>. 하나 더 만들어 둘로 채운다.</li>
   <li>저장 직후 <b>파급 패널</b>이 뜬다: <b>거리표(<code>poi_distances.bin</code>)가 낡았다.</b> <span class="ui">다시 만들기</span> 를 누른다.</li>
 </ol>
 
-<div class="note"><b>왜 저장이 먼저이고 재생성이 나중인가.</b> 장소를 더하면 거리표는 <b>그 순간부터 낡은 것이 맞다</b> — 243개 기준으로 구운 표에 244번째가 없다. 로더는 이것을 옳게 거절하지만, <b>거리표를 다시 구우려면 새 장소가 먼저 파일에 있어야 한다.</b> 그래서 장소 추가만은 "거리표가 낡았다" 를 이유로 저장을 막지 않고, 대신 파급 패널이 바로 다음 할 일을 시킨다. 다른 모든 저장은 이 예외가 없다.</div>
+<div class="note"><b>기존 장소의 편집·삭제는 아직 없다.</b> 정원·시간·허가를 고치려면 <span class="ui">고급 · JSON</span> 의 <code>pois.json</code> 에서 한다. 삭제는 번호 체계를 흔들어 미리 구운 계획과 명단이 가리키는 자리를 비우므로 <code>npc</code> CLI 로 파급을 보고 한다 — Studio 는 번호 삭제를 저장 단계에서 거절한다.</div>
+<div class="note"><b>왜 저장이 먼저이고 재생성이 나중인가.</b> 장소를 더하면 거리표는 <b>그 순간부터 낡은 것이 맞다</b> — 243개 기준으로 구운 표에 244번째가 없다. 로더는 이것을 옳게 거절하지만, <b>거리표를 다시 구우려면 새 장소가 먼저 파일에 있어야 한다.</b> 그래서 장소 추가만은 "거리표가 낡았다" 를 이유로 저장을 막지 않고, 대신 파급 패널이 바로 다음 할 일을 시킨다. 다른 모든 저장은 이 예외가 없다.
+<br><br>같은 이유로 <b>화면도 막히지 않는다</b> — 거리표가 낡으면 Studio 는 거리 없이 읽고 위쪽에 배너를 띄운다. 그 상태에서는 <b>소요 시간 예측을 믿을 수 없다</b>(거리가 전부 0 이다). 다시 만들면 원래대로 돌아온다.</div>
 <p>재생성이 끝나면 <code>derived.lock.json</code> 의 신선도 잠금도 같이 갱신된다. 터미널에서 확인하려면 <code>npc regen --check</code> 다 — 낡은 것이 없으면 0 을 낸다.</p>
 </section>
 
@@ -176,16 +183,17 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 
 <table>
 <thead><tr><th>단계</th><th>고르는 것</th><th>화면이 답해 주는 것</th></tr></thead>
 <tbody>
-<tr><td><b>1. 이름·직군</b></td><td>ID(영문 소문자·밑줄) · 한국어 이름 · 직군</td><td>이미 있는 ID 면 바로 막는다. 직군은 색과 분류에 쓴다.</td></tr>
-<tr><td><b>2. 닮은 직업·인구</b></td><td>어디서 뗄까 · 몇 명</td><td><b>인구 가중치의 합은 1 이다.</b> 새 직업의 몫은 어디선가 와야 한다 — <span class="ui">재배분 방법 보기</span> 가 세 가지 방법을 제안하고, 각각 어느 직업이 몇 명 줄어드는지 보여 준다.</td></tr>
-<tr><td><b>3. 일터</b></td><td>일터 유형</td><td><b>정원이 인구를 수용하는가.</b> 모자라면 그 자리에서 말한다 — 장소를 먼저 만들어야 한다(<a href="#place">5장</a>).</td></tr>
-<tr><td><b>4. 하루 일과</b></td><td>스텝 목록</td><td>닮은 직업의 일과를 복제해 고친다. 스텝마다 ✓ / ✗ 판정과 <b>예상 소요 시간</b>이 붙는다.</td></tr>
-<tr><td><b>5. 확인</b></td><td>—</td><td><b>이렇게 만든다</b>(무슨 파일이 어떻게 바뀌는지)와 <b>만든 뒤 해야 할 일</b>을 미리 보여 준다.</td></tr>
+<tr><td><b>1. 이름·직군</b></td><td>ID(<b>영문자로 시작</b>하는 소문자·숫자·밑줄) · 한국어/영어 이름 · 직군</td><td>이미 있는 ID 나 형식이 틀린 ID 는 입력하는 순간 막고 <span class="ui">다음</span> 을 잠근다. <b>직군은 저장되지 않는다</b> — ② 의 후보를 좁히는 데만 쓰고, 만든 직업은 목록에서 '기타' 로 묶인다(<code>archetypes.json</code> 에 직군 필드가 없다).</td></tr>
+<tr><td><b>2. 닮은 직업·인구</b></td><td>어디서 뗄까 · 몇 명</td><td><b>인구 가중치의 합은 1 이다.</b> 새 직업의 몫은 어디선가 와야 한다 — <span class="ui">재배분 방법 보기</span> 가 세 가지 방법을 제안하고, 각각 어느 직업이 몇 명 줄어드는지 보여 준다. 인구를 바꾸면 안도 <b>다시 계산된다</b>. 쓸 수 있는 안이 하나도 없으면 <span class="ui">다음</span> 이 막히고 그 이유가 나온다.</td></tr>
+<tr><td><b>3. 일터</b></td><td>일터 유형</td><td><b>정원이 인구를 수용하는가.</b> 모자라면 <span class="ui">다음</span> 을 막는다 — 장소를 먼저 만들어야 한다(<a href="#place">5장</a>). 5단계 끝에서 V10 으로 거절당하지 않게 여기서 잡는다. 장소를 만들러 나갔다 돌아와도 입력은 남아 있다.</td></tr>
+<tr><td><b>4. 하루 일과</b></td><td>스텝 목록</td><td>닮은 직업의 일과가 <b>편집기에 들어온다</b>. 여기서 바로 고치고 오른쪽에서 하루를 재생한다 — 스텝마다 ✓ / ✗ 판정이 붙고, 상한이 예상 소요보다 짧으면 경고한다. 원본의 레시피·아이템을 쓰는 스텝은 노란 표시가 붙는다.</td></tr>
+<tr><td><b>5. 확인</b></td><td>—</td><td><b>바뀌는 파일 목록</b>(코드가 만든다 — 실제로 쓰는 파일과 같다) · 근무 허가가 붙는 장소 · 인구 재배분 표 · <b>만든 뒤 해야 할 일</b>. 만들기가 거절되면 <b>어느 단계로 돌아가야 하는지</b> 링크가 나온다.</td></tr>
 </tbody>
 </table>
 
-<p><span class="ui">검증하고 만들기</span> 를 누르면 네 파일이 <b>한 트랜잭션</b>으로 바뀐다.</p>
-<div class="flow"><span><b>archetypes.json</b><br>새 직업 + 인구 재배분</span><b>→</b><span><b>fallback_plans.json</b><br>하루 일과</span><b>→</b><span><b>context_buckets.json</b><br>버킷 수</span><b>→</b><span><b>pois.json</b><br>일터 작업 권한</span></div>
+<p><span class="ui">검증하고 만들기</span> 를 누르면 <b>여섯 파일</b>이 한 트랜잭션으로 바뀐다. 5단계가 그 목록을 그대로 보여 준다.</p>
+<div class="flow"><span><b>archetypes.json</b><br>새 직업 + 인구 재배분</span><b>→</b><span><b>fallback_plans.json</b><br>하루 일과</span><b>→</b><span><b>context_buckets.json</b><br>버킷 수</span><b>→</b><span><b>pois.json</b><br>일터 작업 권한</span><b>→</b><span><b>localization/ko-KR.json</b><br>한국어 이름</span><b>→</b><span><b>localization/en-US.json</b><br>영어 이름</span></div>
+<div class="note"><b>표시 이름을 같이 넣는다.</b> 없으면 화면이 <code>npc.beekeeper</code> 를 그대로 내고 검증이 V14 로 잡는다. 영어 이름을 비우면 ID 를 그대로 쓴다.</div>
 <div class="note"><b>일터 작업 권한을 같이 준다.</b> 복제한 일과는 원본 직업의 일터를 가리키는데, 새 직업은 그 장소에서 일할 권한이 없다 — 그대로 저장하면 <code>V3.UNREACHABLE_POI</code> 로 거절된다. 마법사는 같은 트랜잭션에서 해당 장소들에 새 직업의 작업 권한을 넣는다.</div>
 
 <h3>6.1 만든 뒤에 해야 할 일</h3>
@@ -218,32 +226,39 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 
 
 <h3>8.1 저장 경로</h3>
 <p>저장 버튼은 원본을 바로 덮어쓰지 않는다.</p>
-<div class="flow"><span>임시 작업본</span><b>→</b><span>V1~V15 전체 검증</span><b>→</b><span>MasterDataLoader 로드</span><b>→</b><span>NpcInstanceTable 로드</span><b>→</b><span>백업</span><b>→</b><span>원자적 저장</span></div>
+<div class="flow"><span>임시 작업본</span><b>→</b><span>전체 검증 (V0~V14)</span><b>→</b><span>MasterDataLoader 로드</span><b>→</b><span>NpcInstanceTable 로드</span><b>→</b><span>백업</span><b>→</b><span>원자적 저장</span></div>
 <table>
 <thead><tr><th>결과</th><th>동작</th></tr></thead>
 <tbody>
 <tr><td class="ok">검증 통과</td><td>바뀐 파일만 저장하고 화면을 다시 읽는다. 파급 패널이 다음 할 일을 말한다.</td></tr>
-<tr><td class="bad">검증 실패</td><td><b>원본을 유지한다.</b> 오른쪽에 코드·사람 말 제목·위치가 나오고, 대부분은 <b>그 자리로 가는 링크</b>가 붙는다.</td></tr>
+<tr><td class="bad">검증 실패</td><td><b>원본을 유지한다.</b> 문제는 <b>고치던 화면 안에서</b> 그 칸 아래에 나오고, 오른쪽 패널에도 제목·파일·<b>그 자리로 가는 링크</b>가 붙는다. 이 오류는 전역 검증 수에 섞이지 않는다 — 파일은 그대로이기 때문이다.</td></tr>
+<tr><td class="bad">디스크가 바뀜</td><td>읽은 뒤 밖에서(다른 탭 · VS Code · 생성기) 그 파일이 바뀌었으면 <b>거절한다</b>. 마지막 저장이 조용히 이기지 않는다 — 위쪽 <span class="ui">새로고침</span> 으로 다시 읽고 고친다.</td></tr>
+<tr><td class="bad">번호 재배치</td><td><code>code</code>·<code>bit</code> 가 바뀌었거나 사라졌으면 거절한다. 미리 구운 계획 2,880건과 명단이 그 번호 위에 있다.</td></tr>
 <tr><td class="bad">로더 실패</td><td>형식은 맞지만 참조를 컴파일할 수 없다. 역시 저장하지 않는다.</td></tr>
 </tbody>
 </table>
+<div class="note"><b>저장은 한 묶음이다.</b> 여러 파일을 쓰는 저장(마법사가 그렇다)은 <b>전부 백업 → 전부 임시 파일 → 전부 교체</b> 순서로 간다. 교체 도중 실패하면 이미 옮긴 것을 백업으로 되감는다 — 절반만 써진 상태는 사람이 손으로 풀 수 없다.</div>
 <div class="note"><b>무변경 저장은 바이트 동일이다.</b> 폼으로 열어 아무것도 바꾸지 않고 저장하면 파일이 한 바이트도 변하지 않는다. 바꾼 필드만 제자리에서 고치고 들여쓰기·키 순서를 원문에서 읽기 때문이다 — 한 줄을 고쳤는데 3,000줄이 바뀐 diff 는 아무도 리뷰할 수 없다.</div>
 
 <h3>8.2 연습장</h3>
 <ol class="walk">
-  <li>시작 화면 → <span class="ui">연습장 만들기</span>. 이름을 준다.</li>
+  <li>시작 화면 → <span class="ui">연습장 만들기</span>. 이름을 준다. 같은 이름이 이미 있으면 <b>덮어쓰지 않고 묻는다</b> — <span class="ui">이어서 열기</span> 와 <span class="ui">새로 만들기</span> 중 고른다.</li>
   <li>위쪽 막대에 <b>연습장 · 이름</b> 배지가 뜬다. 이제 모든 편집은 사본에서 일어난다.</li>
-  <li><span class="ui">원본과 비교</span> 로 무엇이 달라졌는지 본다.</li>
-  <li>마음에 들면 <span class="ui">원본에 적용</span> — 이때도 검증을 다시 돈다. 아니면 <span class="ui">연습장 버리기</span>.</li>
+  <li><span class="ui">원본과 비교</span> 로 무엇이 달라졌는지 본다. 표시 이름(<code>localization/</code>)도 비교에 든다.</li>
+  <li>마음에 들면 <span class="ui">원본에 적용</span> — 이때도 검증을 다시 돈다. 연습장을 만든 뒤 <b>원본이 바뀐 파일이 있으면</b> 확인 모달이 그것을 먼저 말한다. 적용에 성공하면 <b>원본으로 돌아간다</b>.</li>
+  <li>버릴 때는 <span class="ui">연습장 버리기</span>. 무엇이 사라지는지 세어 확인을 받고, 지우는 대신 <code>lab/.trash/</code> 로 30일 옮겨 둔다.</li>
 </ol>
+<div class="warn"><b>연습장은 탭이 아니라 도구 단위다.</b> 한 탭에서 연습장을 열면 다른 탭도 그 폴더를 본다 — 다른 탭에는 배너로 알린다. 탭마다 다른 폴더를 보는 쪽이 오히려 위험하다: 원본인 줄 알고 연습장에 쓰게 된다.</div>
 
-<h3>8.3 되돌리기</h3>
-<p><span class="ui">고급 · JSON</span> 화면의 <b>되돌리기</b> 절에 저장 직전 상태가 시각순으로 쌓인다. <span class="ui">이 상태로 되돌리기</span> 를 누르면 그 내용으로 <b>다시 검증해서</b> 저장한다 — 그 사이에 다른 파일이 바뀌었을 수 있으므로 무조건 덮어쓰지 않는다.</p>
+<h3>8.3 백업에서 복원</h3>
+<p>낱말이 둘이다. 폼의 <span class="ui">초안 취소</span> 는 <b>저장하지 않은 편집</b>을 버리는 것이고, <span class="ui">백업에서 복원</span> 은 <b>이미 저장한 것</b>을 되돌리는 것이다.</p>
+<p><span class="ui">고급 · JSON</span> 화면의 <b>백업에서 복원</b> 절에 저장 직전 상태가 시각순으로 쌓인다. <b>저장 한 번이 한 항목</b>이다 — 마법사가 만진 여섯 파일을 같이 되돌린다. 하나만 되돌리면 어느 순서로도 V7 을 통과하지 못하기 때문이다. 복원도 <b>다시 검증해서</b> 저장한다.</p>
+<p>가장 흔한 되돌리기는 <b>방금 저장</b>이다 — 저장 결과 카드의 <span class="ui">방금 저장 되돌리기</span> 가 그 묶음 하나를 되돌린다.</p>
 <table>
 <thead><tr><th>항목</th><th>값</th></tr></thead>
 <tbody>
 <tr><td>두는 곳</td><td><code>%LOCALAPPDATA%\NpcStudio\backup\</code> 아래, <b>편집 대상 폴더마다 따로</b>. <code>--backup-root</code> 로 바꿀 수 있다.</td></tr>
-<tr><td>보존</td><td>30일. 지난 것은 저장할 때 지운다.</td></tr>
+<tr><td>보존</td><td>30일. 다만 <b>파일별 최근 5개는 날짜와 무관하게</b> 남는다 — 한 달 쉬었다 돌아온 사람에게 되돌릴 것이 하나도 없으면 안 된다.</td></tr>
 <tr><td>범위</td><td>Studio 가 쓰기 직전의 원본. 외부 편집기의 변경은 여기 없다.</td></tr>
 </tbody>
 </table>
@@ -260,6 +275,7 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 
 </tbody>
 </table>
 <div class="warn"><b>재생성 버튼은 저장소 안에서, 원본 디렉터리에서만 돈다.</b> 생성기는 <code>tools/gen_*.cs</code> 스크립트라 저장소 밖 폴더나 연습장에서는 실행하지 않는다 — 그때는 버튼이 비활성이고 터미널 명령을 알려 준다.</div>
+<div class="warn"><b>명단을 다시 만들면 번호가 가리키는 NPC 가 바뀔 수 있다.</b> 인구를 옮긴 직업 뒤의 번호가 밀리기 때문이다. 개별 설정은 번호로 묶여 있으므로, Studio 는 재생성 전후를 견주어 <b>엉뚱해진 개별 설정</b>을 결과 카드에 적는다. 같은 지역 다른 직업은 V13 도 잡지 못한다.</div>
 </section>
 
 <section id="advanced">
@@ -267,7 +283,11 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 
 
 <h3>9.1 JSON 원문 편집</h3>
 <p><span class="ui">고급 · JSON</span> 화면에서 원천 파일을 직접 편집한다. <b>폼으로 되는 일은 폼에서 한다</b> — 원문 편집은 폼이 없는 파일에만 쓴다. 생성물(<code>npc_instances.json</code> · <code>poi_distances.bin</code> · <code>prompt/</code>)은 목록에 나오지 않는다.</p>
-<p>직업 화면의 <span class="ui">고급 · JSON</span> 탭도 같은 성격이다. 폼과 같은 초안을 보며, 저장하지 않은 변경이 있으면 화면을 떠날 때 확인한다.</p>
+<p>직업 화면의 <span class="ui">고급 · JSON</span> 탭도 같은 성격이다. 폼과 같은 초안을 보며, 저장하지 않은 변경이 있으면 <b>화면을 떠날 때 확인한다</b> — 탭 전환 · 왼쪽 메뉴 · 새로고침 · 탭 닫기 넷 다 그렇다.</p>
+<p><code>world_flags.json</code>·<code>actions.json</code> 처럼 번호 체계를 가진 파일은 목록에서 그렇게 표시되고, 저장할 때 <b>바뀐 줄 수</b>를 보여 주는 확인이 한 번 더 붙는다.</p>
+
+<h3 id="shortcut">9.1.1 어디서든 찾기</h3>
+<p><kbd>Ctrl</kbd>+<kbd>K</kbd>(macOS 는 <kbd>⌘</kbd>+<kbd>K</kbd>)가 위쪽 검색 칸으로 간다. <kbd>↑</kbd><kbd>↓</kbd> 로 고르고 <kbd>Enter</kbd> 로 이동, <kbd>Esc</kbd> 로 닫는다. 직업·지역·장소·행동·돌발 반응을 찾고, 숫자는 NPC 번호로 본다.</p>
 
 <h3>9.2 라이브 관찰</h3>
 <p><span class="ui">라이브 관찰</span> 은 <b>실행 중인 NPC 서버</b>를 같은 지도 위에 얹는다. 예측과 실제를 나란히 본다.</p>
@@ -285,10 +305,12 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 
 <tr><td><code>--backup-root</code></td><td><code>%LOCALAPPDATA%\NpcStudio\backup</code></td><td>되돌리기 백업 위치.</td></tr>
 <tr><td><code>--bind</code></td><td><code>127.0.0.1</code></td><td>수신 주소. 기본값은 로컬에서만 접근된다.</td></tr>
 <tr><td><code>--port</code></td><td><code>25056</code></td><td>웹 포트.</td></tr>
-<tr><td><code>--read-only</code></td><td>꺼짐</td><td>저장을 막고 조회·검증만 허용한다.</td></tr>
+<tr><td><code>--read-only</code></td><td>꺼짐</td><td>저장을 막고 조회·검증만 허용한다. 폼도 <b>비활성</b>이고 편집 화면 위에 배너가 뜬다.</td></tr>
+<tr><td><code>--help</code></td><td>—</td><td>이 표를 찍고 끝낸다.</td></tr>
 </tbody>
 </table>
-<div class="warn"><b>외부 공개용 서비스가 아니다.</b> 인증이 없으므로 <code>--bind 0.0.0.0</code> 으로 사내 공용망이나 인터넷에 노출하지 않는다.</div>
+<div class="warn"><b>외부 공개용 서비스가 아니다.</b> 인증이 없으므로 <code>--bind 0.0.0.0</code> 으로 사내 공용망이나 인터넷에 노출하지 않는다. 루프백이 아닌 주소에 편집 모드로 띄우면 콘솔과 위쪽 막대가 경고한다.</div>
+<div class="note"><b>모르는 인자는 거절한다.</b> <code>--readonly</code>(오타)로 띄우면 뜨지 않고 도움말이 나온다 — 예전에는 그것을 무시하고 <b>편집 모드로</b> 떴다. 요청한 <code>--masterdata</code> 경로가 없어 저장소의 <code>masterdata/</code> 로 떨어진 경우도 콘솔과 배지가 알린다.</div>
 
 <h3>9.4 CLI 대응표</h3>
 <p>화면에서 하는 일은 대부분 터미널에서도 된다. 같은 코어를 부르므로 <b>답이 갈리지 않는다.</b></p>
@@ -327,6 +349,17 @@ dotnet .\tools\Npc.Studio\bin\Release\net10.0\Npc.Studio.dll --read-only --port 
 <tr><td>라이브 관찰이 비어 있다.</td><td><code>--server</code> 를 줬는가. 서버가 대시보드 토큰을 요구하면 <code>--token</code> 도 필요하다.</td></tr>
 <tr><td>수정한 파일 전체가 diff 로 보인다.</td><td>Studio 는 원문 서식을 보존한다. 외부 편집기의 줄 끝 설정이 파일과 같은지 확인한다.</td></tr>
 <tr><td>매뉴얼 링크가 404 다.</td><td>저장소의 기본 <code>masterdata/</code> 를 열었는지 확인한다. 외부 폴더에서는 <code>docs/</code> 를 자동으로 찾지 못한다.</td></tr>
+<tr><td><b>화면이 통째로 "읽을 수 없다" 로 바뀐다.</b></td><td>사유가 넷 중 하나다. 화면이 어느 것인지 말하고 그에 맞는 탈출구를 준다 — <b>파생물 없음/낡음</b>이면 다시 만들기(또는 터미널 명령), <b>JSON 문법 오류</b>·<b>로더 거절</b>이면 원문 편집이나 백업 복원이다. 어느 경우든 <span class="ui">방금 저장 되돌리기</span> 와 연습장 조작(적용·돌아가기·버리기)이 같은 화면에 있다.</td></tr>
+<tr><td>위쪽에 <b>거리표가 낡았다</b> 배너가 떠 있다.</td><td>읽고 고치는 것은 그대로 된다. 다만 <b>소요 시간 예측을 믿을 수 없다</b> — 거리가 전부 0 이다. 파급 패널의 <span class="ui">다시 만들기</span> 를 누르면 사라진다.</td></tr>
+<tr><td>재생성이 끝나지 않는다 / 출력이 없다.</td><td>첫 실행은 빌드 때문에 수십 초 걸린다. 출력은 패널 아래에 흐르고 <span class="ui">취소</span> 로 멈출 수 있다(상한 10분). <code>dotnet 을 찾지 못했다</code> 면 PATH 문제다 — 알려 주는 명령을 터미널에서 직접 돌린다.</td></tr>
+<tr><td><b>이 계획을 컴파일하지 못했다</b> (상황별 격자).</td><td>마스터데이터가 바뀐 뒤의 낡은 플랜 파일이다. 격자에서 <code>!</code> 로 표시된 칸은 <b>파일은 있는데 읽지 못한</b> 것이고, 빈 칸(없음)과 다르다. 프리베이크를 다시 돌린다.</td></tr>
+<tr><td>라이브 관찰에서 <b>서버가 거절했다(401)</b>.</td><td><code>--token</code> 값이 서버의 대시보드 토큰과 같은지 본다. <code>--server</code> 에 <code>http://</code> 가 빠지면 아예 "주소가 잘못됐다" 로 나온다.</td></tr>
+<tr><td>연습장 <b>원본에 적용</b>이 실패한다.</td><td>둘 중 하나다 — (1) 연습장을 만든 뒤 <b>원본이 바뀌었다</b>(확인 모달이 그 파일을 적는다), (2) 원본 기준으로 검증이 떨어진다. 장소를 더한 경우는 거리표를 이유로 막지 않는다 — 적용한 뒤 다시 만든다.</td></tr>
+<tr><td><b>백업에서 복원</b>이 거절된다.</td><td>복원한 상태도 검증을 돈다 — 그 사이에 다른 파일이 바뀌어 짝이 맞지 않는 것이다. 더 최근 백업부터 차례로 시도하거나, 짝이 되는 파일을 같이 되돌린다(항목 하나가 이미 묶음이다).</td></tr>
+<tr><td><b>하루를 그릴 수 없다</b> 가 나온다.</td><td>그 직업의 하루 일과를 찾지 못했다(V7). 검증·진단 화면의 링크를 따라가면 그 직업의 하루 일과 탭으로 간다.</td></tr>
+<tr><td>재배분 안이 <b>전부 ✗</b> 다.</td><td>그만큼 뗄 재원이 없다. 인구를 줄이거나 닮은 직업을 바꾼다 — 같은 계열 안은 그 계열의 총량이 모자라면 만들어지지 않는다.</td></tr>
+<tr><td>저장 버튼이 눌리지 않는다.</td><td>셋 중 하나다 — (1) <b>읽기 전용</b>으로 떴다(위쪽 배지), (2) 바꾼 것이 없다, (3) 초안이 컴파일되지 않는다(그 이유가 폼 위에 나온다).</td></tr>
+<tr><td><b>밖에서 파일이 바뀌었다</b> 배너 / 저장이 거절된다.</td><td>다른 탭 · VS Code · 생성기가 같은 파일을 고쳤다. 위쪽 <span class="ui">새로고침</span> 으로 다시 읽으면 편집 화면이 새 값을 보여 준다.</td></tr>
 </tbody>
 </table>
 </section>

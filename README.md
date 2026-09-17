@@ -507,18 +507,37 @@ dotnet run -c Release --project tools/Npc.Studio
 3. **바꿔 본다** — 편집 탭에서 용기를 내리면 저장하기 전에 반응이 물러나기 → 도망으로 바뀌는 것을 본다.
 4. **한 명만 고친다** — NPC #2326 의 순찰로를 지도에서 찍어 `npc_overrides.json` 에 넣는다.
 5. **만든다** — 5단계 마법사로 새 직업을 만든다. 인구 재배분·일터 정원·하루 일과·작업 권한을 한 트랜잭션으로.
-6. **안전하게 저장한다** — 연습장에서 실험하고, 저장 전 V1~V15 전체 검증을 돌고, 파급 패널이 다음 할 일을 시키고, 되돌릴 수 있다.
+6. **안전하게 저장한다** — 연습장에서 실험하고, 저장 전 전체 검증을 돌고, 파급 패널이 다음 할 일을 시키고, 되돌릴 수 있다.
 
-저장은 임시 작업본에 **V1~V15 전체 검증 → 실제 로더 → NPC 인스턴스 로더**를 먼저 적용한다.
+저장은 임시 작업본에 **전체 검증(V0~V14) → 실제 로더 → NPC 인스턴스 로더**를 먼저 적용한다.
 하나라도 실패하면 원본 파일을 바꾸지 않는다. **무변경 저장은 바이트 동일**이다 — 바꾼
 필드만 제자리에서 고치므로 diff 에 서식 변경이 섞이지 않는다. 생성물
 (`npc_instances.json` · `poi_distances.bin` · `prompt/`)은 편집 목록에서 제외한다.
 
+그 위에 안전장치가 넷 더 있다. **읽은 뒤 디스크가 바뀌면 거절한다**(다른 탭 · VS Code ·
+생성기), **`code`·`bit` 재배치를 거절한다**(프리베이크 2,880건이 그 번호 위에 있다),
+**여러 파일 쓰기는 한 묶음**이라 도중에 실패하면 되감고, **저장 직전 원본을 백업**해
+저장 한 번을 통째로 되돌릴 수 있다.
+
 ```powershell
 dotnet run -c Release --project tools/Npc.Studio -- --read-only
 dotnet run -c Release --project tools/Npc.Studio -- --masterdata D:\game\masterdata --port 25057
-dotnet run -c Release --project tools/Npc.Studio -- --server http://127.0.0.1:25055   # 라이브 관찰
+dotnet run -c Release --project tools/Npc.Studio -- --server http://127.0.0.1:25055 --token <토큰>
+dotnet run -c Release --project tools/Npc.Studio -- --planstore ./planstore --backup-root D:\bak
+dotnet run -c Release --project tools/Npc.Studio -- --help
 ```
+
+| 인자 | 기본값 | 의미 |
+|---|---|---|
+| `--masterdata` | `./masterdata` | 열 마스터데이터 폴더 |
+| `--planstore` | `./planstore` | 미리 구운 계획. 없으면 **상황별** 탭을 숨긴다 |
+| `--server` | 없음 | 실행 중인 NPC 서버. 없으면 라이브 관찰을 쓰지 않는다 |
+| `--token` | 없음 | 대시보드 토큰 (A-06) |
+| `--backup-root` | `%LOCALAPPDATA%\NpcStudio\backup` | 되돌리기 백업 위치 |
+| `--bind` · `--port` | `127.0.0.1` · `25056` | 수신 주소·포트 |
+| `--read-only` | 꺼짐 | 저장을 막고 조회·검증만 |
+
+**모르는 인자는 거절한다** — `--readonly`(오타)로 띄우면 도움말을 찍고 종료 코드 2 다.
 
 전체 사용법은 [`docs/npc_studio_manual.html`](docs/npc_studio_manual.html) 에 있다 —
 초보자 시나리오 7장 + 저장 안전성 · 고급 · 문제 해결.
