@@ -232,14 +232,27 @@ else
         return (int)Math.Round(population * 100.0 / max);
     }
 
-    protected override void OnInitialized() =>
+    protected override void OnInitialized()
+    {
         Session.RegisterDirty(this, () => JsonDirty, $"{Id} 원문 편집");
+
+        // H13 3 — 상단 "새로고침" 은 세대 번호만 올린다. 페이지가 그것을 안 들으면
+        // <b>다시 그려지지 않아</b> `OnParametersSet` 이 돌지 않고, 가드가 옳아도
+        // 화면은 옛 값 그대로다 — 자식 폼(ArchetypeForm)까지 같이 멈춘다.
+        Session.Changed += OnSessionChanged;
+    }
+
+    private void OnSessionChanged() => _ = InvokeAsync(StateHasChanged);
 
     /// <summary>초안 상태가 바뀌면 레이아웃의 이탈 가드도 같이 바뀌어야 한다 (H01).</summary>
     protected override void OnAfterRender(bool firstRender) => Session.SyncDirty();
 
     /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
-    public void Dispose() => Session.Unregister(this);
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+        Session.Unregister(this);
+    }
 
     protected override void OnParametersSet()
     {

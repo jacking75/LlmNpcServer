@@ -374,8 +374,30 @@ else
             ? $"위협을 만나면 → {threat.Reaction.Sentence} ({threat.Reaction.Matched.Id})"
             : "위협을 만나도 걸리는 규칙이 없다 — 하던 일을 계속한다.";
 
-    protected override void OnInitialized() =>
+    protected override void OnInitialized()
+    {
         Session.RegisterDirty(this, () => Dirty, $"{Lexicon.Archetype(Id)} 편집");
+
+        // H13 3 — 세대가 오르면 <b>스스로</b> 다시 읽는다. 부모가 다시 그려 주기를
+        // 기다리면 안 된다 — 라우팅된 페이지는 매개변수가 그대로면 다시 그리지 않아
+        // `OnParametersSet` 이 돌지 않고, 그러면 새로고침을 눌러도 옛 값이 남는다.
+        Session.Changed += OnSessionChanged;
+    }
+
+    private void OnSessionChanged()
+    {
+        // 세대가 그대로면 초안을 건드리지 않는다 — 더티 알림에도 이 이벤트가 온다.
+        if (_generation == Session.Generation)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(() =>
+        {
+            Load();
+            StateHasChanged();
+        });
+    }
 
     protected override void OnParametersSet()
     {
@@ -695,5 +717,9 @@ else
     }
 
     /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
-    public void Dispose() => Session.Unregister(this);
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+        Session.Unregister(this);
+    }
 }

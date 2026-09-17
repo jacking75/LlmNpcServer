@@ -301,8 +301,15 @@ else
 
     private IEnumerable<StudioPoiChoice> PoiChoices => _editor?.ZonePois.Where(MatchesPoi) ?? [];
 
-    protected override void OnInitialized() =>
+    protected override void OnInitialized()
+    {
         Session.RegisterDirty(this, () => Dirty, $"NPC #{Id} 개별 설정");
+
+        // H13 3 — 세대 번호가 올라도 페이지가 다시 그려지지 않으면 가드가 돌지 않는다.
+        Session.Changed += OnSessionChanged;
+    }
+
+    private void OnSessionChanged() => _ = InvokeAsync(StateHasChanged);
 
     /// <summary>초안 상태가 바뀌면 레이아웃의 이탈 가드도 같이 바뀌어야 한다 (H01).</summary>
     protected override void OnAfterRender(bool firstRender) => Session.SyncDirty();
@@ -592,7 +599,11 @@ else
     }
 
     /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
-    public void Dispose() => Session.Unregister(this);
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+        Session.Unregister(this);
+    }
 
     private RenderFragment Help => @<div>
         <p>NPC 는 직업으로 <strong>생성된 개체</strong>다. 명단(<code>npc_instances.json</code>)은 생성물이라 손대지 않는다.</p>

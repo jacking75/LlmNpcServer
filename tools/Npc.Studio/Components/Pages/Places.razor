@@ -1,5 +1,6 @@
 @page "/places"
 @page "/places/{Zone}"
+@implements IDisposable
 @inject StudioSession Session
 @inject StudioPlaces Lookup
 @inject StudioWorkspace Workspace
@@ -130,6 +131,7 @@ else
 
     private string _focused = string.Empty;
     private int _generation = -1;
+    private int _zonesGeneration = -1;
 
     private ImmutableArray<StudioZone> _zones;
     private ImmutableArray<StudioPlace> _places;
@@ -161,11 +163,27 @@ else
         }
     }
 
+    // H13 3 — 상단 "새로고침" 은 세대 번호만 올린다. 페이지가 그것을 안 들으면
+    // 다시 그려지지 않아 `OnParametersSet` 이 돌지 않고, 가드가 옳아도 옛 값이 남는다.
+    protected override void OnInitialized() => Session.Changed += OnSessionChanged;
+
+    private void OnSessionChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>회로가 끊기면 구독을 놓는다.</summary>
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
     protected override void OnParametersSet()
     {
         Layout?.SetHelp(Help);
 
-        if (_zones.IsDefaultOrEmpty) _ = Session.Try(() => _zones = Lookup.Zones(), "지역 목록 읽기");
+        // 지역 목록도 세대가 바뀌면 다시 읽는다 — zones.json 이 밖에서 바뀔 수 있다.
+        // <b>자기 세대를 따로 든다</b> — 지역 하나를 안 열었을 때도 이 가드가 성립해야
+        // 그리기마다 디스크를 읽지 않는다.
+        if (_zones.IsDefaultOrEmpty || _zonesGeneration != Session.Generation)
+        {
+            _zonesGeneration = Session.Generation;
+            _ = Session.Try(() => _zones = Lookup.Zones(), "지역 목록 읽기");
+        }
 
         if (string.IsNullOrEmpty(Zone))
         {

@@ -232,7 +232,25 @@ else
         if (Draft is null)
         {
             Session.RegisterDirty(this, () => Dirty, $"{Lexicon.Archetype(Id)} 하루 일과");
+
+            // H13 3 — 세대가 오르면 스스로 다시 읽는다 (ArchetypeForm 과 같은 이유).
+            // 마법사가 넘겨 준 초안(Draft)일 때는 디스크가 원천이 아니므로 듣지 않는다.
+            Session.Changed += OnSessionChanged;
         }
+    }
+
+    private void OnSessionChanged()
+    {
+        if (_generation == Session.Generation)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(() =>
+        {
+            Load();
+            StateHasChanged();
+        });
     }
 
     protected override void OnParametersSet()
@@ -482,5 +500,9 @@ else
                 && string.Equals(arg.First.Raw, arg.Second.Raw, StringComparison.Ordinal)));
 
     /// <summary>회로가 끊기면 초안 등록을 놓는다.</summary>
-    public void Dispose() => Session.Unregister(this);
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+        Session.Unregister(this);
+    }
 }

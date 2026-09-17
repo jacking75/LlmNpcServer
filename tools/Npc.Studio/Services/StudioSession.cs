@@ -174,6 +174,11 @@ public sealed class StudioSession : IDisposable
         DirectoryNotice = string.Empty;
         ExternallyChanged = [];
         LastRejected = [];
+
+        // H01 · H13 — 확인 모달이 "다시 읽으면 그 초안이 사라진다" 라고 말한다.
+        // <b>보관한 초안을 안 비우면 그 말이 거짓이 된다</b> — 폼이 디스크 대신
+        // 보관본을 되살려, 새로고침을 눌러도 밖에서 바뀐 값이 화면에 오지 않는다.
+        Drafts.Clear();
         Generation++;
         _npcsLoaded = false;
         _npcs = [];
@@ -359,11 +364,16 @@ public sealed class StudioSession : IDisposable
 
         // 워크스페이스는 싱글턴이라 폴더가 전역이다 — 다른 탭이 연습장을 열면 이 탭도 따라간다.
         // 모르는 채로 저장하면 "원본인 줄 알고 연습장에 썼다" 가 된다.
-        DirectoryNotice = _workspace.SandboxName.Length > 0
+        string notice = _workspace.SandboxName.Length > 0
             ? $"다른 탭이 연습장 '{_workspace.SandboxName}' 을 열었다 — 이 탭도 그 폴더를 본다."
             : "다른 탭이 원본으로 돌아갔다 — 이 탭도 원본을 본다.";
 
         Reload();
+
+        // <b>순서를 바꾸지 않는다.</b> `Reload` 가 `DirectoryNotice` 를 비운다 —
+        // 먼저 세우면 그리기도 전에 지워져 배너가 한 번도 뜨지 않는다 (실제로 그랬다).
+        DirectoryNotice = notice;
+        Changed?.Invoke();
     }
 
     private void OnExternalChange(string file)
