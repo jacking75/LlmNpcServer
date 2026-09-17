@@ -31,24 +31,25 @@ public sealed class PlanStoreWiringTests : IDisposable
     }
 
     /// <summary>
-    /// T3-20 완료 조건 — 기동 시 2,880건을 로드하고 로드 시간이 3초 이내다.
+    /// T3-20 완료 조건 — 기동 시 2,880건을 전부 로드한다.
+    ///
+    /// <para>
+    /// <b>여기서 시간을 재지 않는다.</b> 예전에는 같은 테스트가 <c>Assert.True(elapsed &lt;= 3.0)</c>
+    /// 로 기동 시간까지 판정했는데, 저장소 전체에서 벽시계를 단언하는 유일한 자리였고
+    /// 기계가 붐비면 그 숫자만으로 빨간불이 났다 — 코드가 아니라 그날의 CPU 사정이
+    /// 판정한 것이다. 시간은 <see cref="Host_BootsWithinBudget"/>(<c>Category=Load</c>)가 본다.
+    /// </para>
     /// </summary>
     [Fact]
-    public async Task Host_LoadsEveryBucketWithinThreeSeconds()
+    public async Task Host_LoadsEveryBucket()
     {
         Phase3Fixture.WriteFullStore(_store, s_data);
 
         var log = new StringWriter();
-        long started = System.Diagnostics.Stopwatch.GetTimestamp();
 
         await using (NpcHost host = NpcHost.Create(
             Options("--loopback", "--npcs", "50", "--days", "1", "--no-llm", "--no-dashboard"), log))
         {
-            double elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds;
-
-            // 조립 전체가 3초 안에 끝난다 — 로드만이 아니라 마스터데이터·인구 배치까지 포함한 값이다.
-            Assert.True(elapsed <= 3.0, $"기동이 {elapsed:F2}초 걸렸다.");
-
             MetricsSnapshot metrics = host.Metrics.Snapshot();
 
             Assert.Equal(TestPaths.TotalKeys, metrics.Cache.FilledBuckets);
@@ -62,6 +63,33 @@ public sealed class PlanStoreWiringTests : IDisposable
         // 스토어가 지금 마스터데이터로 만들어진 것이면 경고가 없다.
         Assert.DoesNotContain("낡았다", output, StringComparison.Ordinal);
         Assert.DoesNotContain("미생성 버킷", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// T3-20 완료 조건의 시간 쪽 — 조립 전체(마스터데이터 · 인구 배치 · 버킷 2,880)가
+    /// 3초 안에 끝난다.
+    ///
+    /// <para>
+    /// <b><c>Category=Load</c> 다.</b> 벽시계 판정은 기계 사정을 타므로 기본 CI 에 두지 않는다 —
+    /// 이 저장소의 성능 판정은 야간 부하와 <c>npc perf --check</c>(G-03)의 몫이다.
+    /// 여기서 지키는 것은 "선형이고 느리지 않다" 이지 "정확히 3초" 가 아니다.
+    /// </para>
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Load")]
+    public async Task Host_BootsWithinBudget()
+    {
+        Phase3Fixture.WriteFullStore(_store, s_data);
+
+        var log = new StringWriter();
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        await using NpcHost host = NpcHost.Create(
+            Options("--loopback", "--npcs", "50", "--days", "1", "--no-llm", "--no-dashboard"), log);
+
+        double elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds;
+
+        Assert.True(elapsed <= 3.0, $"기동이 {elapsed:F2}초 걸렸다 (예산 3초).");
     }
 
     /// <summary>

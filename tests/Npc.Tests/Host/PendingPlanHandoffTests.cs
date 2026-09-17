@@ -209,12 +209,16 @@ public sealed class PendingPlanHandoffTests
         long tick = 0;
         var worker = new ReplanWorker(rig.Source, compiler, () => new Tick(Volatile.Read(ref tick)), workers: 8);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // <b>마감 시계로 판정하지 않는다.</b> 예전에는 30초 토큰을 걸고 라운드마다
+        // `Task.Delay(1, token)` 으로 쉬었는데, 기계가 붐비면 그 합이 30초를 넘어
+        // <b>루프 한가운데서 OperationCanceledException 이 났다</b> — 코드가 아니라
+        // 그날의 CPU 사정이 판정한 것이다. 여기서는 <b>진행</b>으로 기다린다.
+        using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
 
         var link = new Fakes.NullSinkLink();
 
-        for (int round = 0; round < 200 && !cts.IsCancellationRequested; round++)
+        for (int round = 0; round < 200; round++)
         {
             // 틱 루프 쪽: 전원을 훑고 스왑을 적용한다.
             Volatile.Write(ref tick, round + 1);
@@ -237,18 +241,33 @@ public sealed class PendingPlanHandoffTests
             // 힙을 직접 만지게 두면 _heap[_count] 가 범위를 벗어난다 (ReplanHandoff 주석).
             rig.Handoff.Pump(rig.Queue);
 
-            // 워커가 실제로 끼어들 틈을 준다. 이 루프는 순수 CPU 라 양보하지 않으면
-            // 200라운드가 몇 ms 에 끝나 워커가 스케줄되기도 전에 테스트가 끝난다.
-            await Task.Delay(1, cts.Token);
+            // 워커가 끼어들 틈을 준다. <b>재우지 않는다</b> — 200번 자면 그 합이
+            // 기계 사정에 따라 수십 초가 된다. 양보만 하면 워커 스레드는 병렬로 돈다.
+            await Task.Yield();
         }
 
-        // 워커가 한 바퀴 돌 때까지 기다린다.
-        while (worker.Applied == 0 && !cts.IsCancellationRequested)
+        // 경로가 <b>끝까지</b> 이어질 때까지 틱을 계속 돌린다 —
+        // 워커 반영 → 스왑 적용 → 실행기가 개별 플랜을 실제로 씀.
+        //
+        // <b>시계가 아니라 횟수로 끊는다.</b> 세 신호가 다 서면 즉시 빠져나가고, 정말로
+        // 끊겨 있을 때만 끝까지 돈다 — 느린 기계에서 "아직 안 했다" 와 "영영 안 한다" 를
+        // 가르는 것은 시간이 아니라 기회의 수다.
+        //
+        // <b>워커만 기다리면 안 된다</b> — 그랬더니 반영 256건에 스왑 0건으로 끝났다.
+        // 스왑은 스텝 경계에서만 일어나므로 틱을 더 돌려야 관측된다.
+        const int Chances = 2_000;
+        int waited = 0;
+
+        for (; waited < Chances && (worker.Applied == 0
+                   || rig.Swapper.Applied == 0
+                   || rig.Plans.IndividualHits == 0); waited++)
         {
             Volatile.Write(ref tick, Volatile.Read(ref tick) + 1);
             rig.Executor.Step(new Tick(Volatile.Read(ref tick)), link);
             rig.Swapper.ApplyPendingSwaps(rig.Executor);
-            await Task.Delay(10, cts.Token);
+            rig.Handoff.DrainReturns(rig.Queue);
+            rig.Handoff.Pump(rig.Queue);
+            await Task.Delay(1);
         }
 
         await worker.StopAsync(CancellationToken.None);
@@ -257,7 +276,11 @@ public sealed class PendingPlanHandoffTests
         rig.Swapper.ApplyPendingSwaps(rig.Executor);
         rig.Executor.Step(new Tick(Volatile.Read(ref tick) + 1), link);
 
-        // 불변식: 모든 NPC 의 PlanId 는 레지스트리 id 이거나 자기가 주인인 개별 슬롯이다.
+        // 불변식: <b>남의 슬롯에서 플랜이 나오지 않는다.</b>
+        //
+        // 슬롯이 LRU 로 회수돼 예전 주인이 낡은 음수 id 를 들고 있는 것은 <b>정상이다</b>
+        // (IndividualPlanPool 주석). 지켜야 할 것은 그 다음이다 — 그 id 로 읽었을 때
+        // 지금 주인의 플랜을 물려받으면 안 된다. 물려받으면 대장장이가 남의 하루를 산다.
         for (int npc = 0; npc < Npcs; npc++)
         {
             int planId = rig.Store.PlanId[npc];
@@ -267,19 +290,38 @@ public sealed class PendingPlanHandoffTests
                 continue;
             }
 
-            int owner = rig.Pool.OwnerOf(planId);
-            Assert.True(
-                owner == npc || owner == -1 || owner != npc,
-                $"npc {npc} 의 슬롯 주인이 {owner} 다.");
+            if (rig.Pool.OwnerOf(planId) == npc)
+            {
+                Assert.True(
+                    rig.Pool.TryGet(planId, npc, Volatile.Read(ref tick), out _),
+                    $"npc {npc} 가 주인인 슬롯인데 플랜을 못 꺼냈다.");
+
+                continue;
+            }
+
+            Assert.False(
+                rig.Pool.TryGet(planId, npc, Volatile.Read(ref tick), out _),
+                $"npc {npc} 가 남의 슬롯({planId})에서 플랜을 받았다 — 주인은 {rig.Pool.OwnerOf(planId)} 다.");
         }
 
         // 개별 풀의 살아 있는 수가 용량을 넘지 않는다.
         Assert.True(rig.Pool.Live <= IndividualPlanPool.Capacity);
 
         // 워커가 실제로 일했고, 반영된 플랜이 실행기까지 갔다.
-        Assert.True(worker.Applied > 0, "워커가 아무 플랜도 반영하지 않았다.");
-        Assert.True(rig.Swapper.Applied > 0, "스왑이 한 번도 적용되지 않았다.");
-        Assert.True(rig.Plans.IndividualHits > 0, "개별 플랜을 한 번도 쓰지 않았다.");
+        //
+        // 실패하면 <b>무엇이 안 됐는지</b>를 적는다 — "Values differ" 만 남으면
+        // 다음 사람이 기계가 느린 것인지 경로가 끊긴 것인지 구별할 수 없다.
+        Assert.True(
+            worker.Applied > 0,
+            $"워커가 아무 플랜도 반영하지 않았다 (기회 {waited}/{Chances} · 실패 {worker.Failed}건 · "
+            + $"통로 깊이 {rig.Queue.Count}).");
+
+        Assert.True(rig.Swapper.Applied > 0, $"스왑이 한 번도 적용되지 않았다 (워커 반영 {worker.Applied}건).");
+
+        Assert.True(
+            rig.Plans.IndividualHits > 0,
+            $"개별 플랜을 한 번도 쓰지 않았다 (풀 배정 {rig.Pool.Assigned}건 · 회수 {rig.Pool.Evicted}건).");
+
         Assert.Equal(0, worker.Failed);
     }
 }

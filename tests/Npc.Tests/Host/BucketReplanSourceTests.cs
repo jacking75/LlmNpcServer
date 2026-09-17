@@ -14,15 +14,37 @@ public sealed class BucketReplanSourceTests
 {
     private static readonly MasterDataSet s_data = MasterDataLoader.Load(TestPaths.MasterData);
 
-    /// <summary>동시에 몇 건이 안에 들어와 있는지 세는 컴파일러.</summary>
-    private sealed class ConcurrencyProbe(CompiledPlan plan, ManualResetEventSlim hold) : IPlanCompiler
+    /// <summary>
+    /// 동시에 몇 건이 안에 들어와 있는지 세는 컴파일러.
+    ///
+    /// <para>
+    /// <b>스레드를 붙잡지 않는다.</b> 예전에는 <c>Task.Run(() =&gt; hold.Wait())</c> 로
+    /// 막았는데, 그러면 동시 8건을 보려고 <b>스레드풀 스레드 8개를 재워 둬야</b> 했다 —
+    /// 풀은 스레드를 초당 한둘씩만 늘리므로 기계가 붐비면 8에 닿기 전에 시간이 갔다.
+    /// 지금은 완료되지 않은 <see cref="Task"/> 를 기다린다: 스레드를 하나도 쓰지 않으므로
+    /// 8건이 겹치는 데 스케줄러의 협조가 필요 없다.
+    /// </para>
+    /// </summary>
+    private sealed class ConcurrencyProbe(CompiledPlan plan, int target) : IPlanCompiler
     {
+        private readonly TaskCompletionSource _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private readonly TaskCompletionSource _reached =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         private int _inside;
         private int _peak;
 
         public int Peak => Volatile.Read(ref _peak);
 
         public int Calls { get; private set; }
+
+        /// <summary><paramref name="target"/> 건이 동시에 들어오면 완료된다.</summary>
+        public Task Reached => _reached.Task;
+
+        /// <summary>안에 있는 것들을 전부 내보낸다.</summary>
+        public void Release() => _release.TrySetResult();
 
         public async ValueTask<PlanCompileResult> CompileAsync(
             PlanRequest request, CancellationToken cancellationToken)
@@ -39,9 +61,14 @@ public sealed class BucketReplanSourceTests
                 }
             }
 
+            if (inside >= target)
+            {
+                _reached.TrySetResult();
+            }
+
             try
             {
-                await Task.Run(() => hold.Wait(cancellationToken), cancellationToken).ConfigureAwait(false);
+                await _release.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -106,9 +133,7 @@ public sealed class BucketReplanSourceTests
 
         PlanStore plans = NewStoreWithMisses(wanted);
         var source = new BucketReplanSource(plans, s_data);
-
-        using var hold = new ManualResetEventSlim(false);
-        var compiler = new ConcurrencyProbe(plans[PlanStore.IdlePlanId], hold);
+        var compiler = new ConcurrencyProbe(plans[PlanStore.IdlePlanId], target: 8);
 
         var worker = new ReplanWorker(
             source, compiler, () => new Tick(0), workers: ReplanWorker.DefaultT2Workers);
@@ -116,25 +141,29 @@ public sealed class BucketReplanSourceTests
         Assert.Equal(8, worker.Workers);
         Assert.Equal(16, source.Depth);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
 
         // 8건이 동시에 안에 들어올 때까지 기다린다.
-        var spin = new SpinWait();
+        //
+        // <b>돌지 않고 기다린다.</b> 예전에는 `SpinWait` 로 Peak 를 들여다봤는데, 그
+        // 바쁜 대기가 코어 하나를 물고 있어 <b>정작 워커가 못 올라오는</b> 일이 있었다.
+        // 마감은 "멈췄다" 를 구별하기 위한 것이지 판정 기준이 아니다 — 넉넉히 준다.
+        Task reached = await Task.WhenAny(compiler.Reached, Task.Delay(TimeSpan.FromMinutes(2)));
 
-        while (compiler.Peak < 8 && !cts.IsCancellationRequested)
-        {
-            spin.SpinOnce();
-        }
+        Assert.True(
+            ReferenceEquals(reached, compiler.Reached),
+            $"워커 8개가 동시에 들어오지 않았다 — 최대 동시 {compiler.Peak}건 · 호출 {compiler.Calls}건. "
+            + "워커 루프가 직렬화됐는지 본다.");
 
         Assert.Equal(8, compiler.Peak);
         Assert.Equal(8, source.InFlightCount);
 
-        hold.Set();
+        compiler.Release();
 
-        while (source.Filled < 16 && !cts.IsCancellationRequested)
+        for (int chance = 0; chance < 2_000 && source.Filled < 16; chance++)
         {
-            await Task.Delay(10, cts.Token);
+            await Task.Delay(1);
         }
 
         await worker.StopAsync(CancellationToken.None);
