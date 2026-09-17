@@ -22,6 +22,12 @@ public enum BucketState
 
     /// <summary>검증에 떨어져 반려됐다.</summary>
     Rejected,
+
+    /// <summary>
+    /// 파일은 있는데 읽거나 컴파일하지 못했다 (H20).
+    /// <b>"없음" 과 다르다</b> — 없음은 폴백으로 돌지만 이것은 낡은 파일이라는 뜻이다.
+    /// </summary>
+    Broken,
 }
 
 /// <summary>버킷 격자의 한 칸 (T27).</summary>
@@ -90,7 +96,7 @@ public sealed class PlanStoreReader(StudioOptions options, StudioWorkspace works
 
         BucketCell cell = Find(archetypeId, bucket);
 
-        if (cell.State is BucketState.Missing || cell.File.Length == 0)
+        if (cell.State is BucketState.Missing or BucketState.Broken || cell.File.Length == 0)
         {
             return null;
         }
@@ -141,7 +147,9 @@ public sealed class PlanStoreReader(StudioOptions options, StudioWorkspace works
 
             if (File.Exists(path))
             {
-                return new BucketCell(bucket, state, Goal(path), path);
+                return Readable(path)
+                    ? new BucketCell(bucket, state, Goal(path), path)
+                    : new BucketCell(bucket, BucketState.Broken, string.Empty, path);
             }
         }
 
@@ -186,6 +194,21 @@ public sealed class PlanStoreReader(StudioOptions options, StudioWorkspace works
 
     private static PlanOrigin Origin(BucketState state) =>
         state == BucketState.Pinned ? PlanOrigin.Pinned : PlanOrigin.Prebaked;
+
+    /// <summary>이 파일이 JSON 으로 읽히는가. 아니면 격자에 "깨짐" 으로 그린다 (H20).</summary>
+    private static bool Readable(string path)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+
+            return true;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>봉투를 벗긴다. 파일은 <c>{bucket, archetype, origin, plan:{…}}</c> 형식이다.</summary>
     private static string? Unwrap(string raw)

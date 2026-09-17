@@ -51,8 +51,21 @@ public sealed class LiveClient(StudioOptions options) : IDisposable
     /// <summary>서버 주소. 비면 이 화면을 쓰지 않는다.</summary>
     public string Server => options.Server;
 
-    /// <summary>서버가 설정돼 있는가.</summary>
-    public bool Configured => options.Server.Length > 0;
+    /// <summary>
+    /// 서버가 쓸 수 있게 설정돼 있는가 (H08).
+    ///
+    /// <b>주소를 여기서 검사한다</b> — <c>--server localhost:1</c> 처럼 스킴이 없으면
+    /// <c>HttpClient</c> 생성자가 던지고, 그 예외가 관찰 루프 안에서 나면 회로가 죽는다.
+    /// </summary>
+    public bool Configured => _http.BaseAddress is not null;
+
+    /// <summary>주소가 왜 쓸 수 없는가. 쓸 수 있으면 빈 문자열.</summary>
+    public string ConfigProblem =>
+        options.Server.Length == 0
+            ? "서버 주소가 없다 — `--server http://127.0.0.1:<port>` 로 준다."
+            : _http.BaseAddress is null
+                ? $"서버 주소가 잘못됐다: `{options.Server}` — `http://` 나 `https://` 로 시작해야 한다."
+                : string.Empty;
 
     /// <summary>지금 NPC 목록을 받아 온다.</summary>
     /// <param name="token">취소 토큰.</param>
@@ -60,7 +73,7 @@ public sealed class LiveClient(StudioOptions options) : IDisposable
     {
         if (!Configured)
         {
-            return new LiveSnapshot(false, "서버 주소가 없다 — --server http://127.0.0.1:<port> 로 준다.", []);
+            return new LiveSnapshot(false, ConfigProblem, []);
         }
 
         try
@@ -70,16 +83,25 @@ public sealed class LiveClient(StudioOptions options) : IDisposable
 
             if (!response.IsSuccessStatusCode)
             {
-                return new LiveSnapshot(false, $"서버가 {(int)response.StatusCode} 로 답했다.", []);
+                string reason = (int)response.StatusCode switch
+                {
+                    401 or 403 => $"서버가 거절했다({(int)response.StatusCode}) — `--token` 을 확인한다.",
+                    404 => "서버에 `/npcs` 가 없다 — 대시보드가 켜져 있는지 본다.",
+                    _ => $"서버가 {(int)response.StatusCode} 로 답했다.",
+                };
+
+                return new LiveSnapshot(false, reason, []);
             }
 
             string body = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
 
             return new LiveSnapshot(true, $"{options.Server} 에 붙어 있다.", Parse(body));
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
+            or JsonException or InvalidOperationException or OperationCanceledException)
         {
-            return new LiveSnapshot(false, "서버에 붙지 못했다 — " + ex.Message, []);
+            return new LiveSnapshot(
+                false, $"서버 {options.Server} 에 연결할 수 없다 — 떠 있는지 · 포트가 맞는지 본다.", []);
         }
     }
 
@@ -127,9 +149,12 @@ public sealed class LiveClient(StudioOptions options) : IDisposable
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
 
-        if (options.Server.Length > 0)
+        // 스킴 없는 주소(`localhost:1`)는 절대 URI 가 아니다 — 던지지 않고 "설정 안 됨" 으로 둔다.
+        if (options.Server.Length > 0
+            && Uri.TryCreate(options.Server.TrimEnd('/') + "/", UriKind.Absolute, out Uri? baseAddress)
+            && (baseAddress.Scheme == Uri.UriSchemeHttp || baseAddress.Scheme == Uri.UriSchemeHttps))
         {
-            http.BaseAddress = new Uri(options.Server.TrimEnd('/') + "/");
+            http.BaseAddress = baseAddress;
         }
 
         if (options.Token.Length > 0)

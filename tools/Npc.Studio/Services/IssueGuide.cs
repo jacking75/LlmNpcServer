@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Npc.MasterData.Validation;
+using Npc.Studio.Components.Shared;
 
 namespace Npc.Studio.Services;
 
@@ -67,6 +68,8 @@ public static class IssueGuide
             ["V13"] = "개별 NPC 설정이 규칙을 벗어난다",
             ["V14"] = "표시 이름이 빠졌다",
             ["V15"] = "대사 주제가 맞지 않는다",
+            ["PIN"] = "번호(code·bit)를 재배치했다",
+            ["STALE"] = "저장하는 사이에 디스크가 바뀌었다",
             ["V1.PARSE"] = "JSON 을 읽을 수 없다",
             ["V1.SCHEMA"] = "필드 이름이나 타입이 스키마와 다르다",
             ["V1.EXTRA_FIELD"] = "스키마에 없는 필드가 있다",
@@ -134,19 +137,102 @@ public sealed class IssueLocator(StudioWorkspace workspace)
         return file switch
         {
             "archetypes.json" when ItemId(issue, "archetypes") is { Length: > 0 } id =>
-                ($"/archetypes/{id}?tab=edit", $"{id} 고치러 가기"),
+                (Field($"/archetypes/{id}?tab=edit", issue, "archetypes"), $"{id} 고치러 가기"),
             "fallback_plans.json" when Archetype(issue) is { Length: > 0 } id =>
-                ($"/archetypes/{id}?tab=fallback", $"{id} 의 하루 일과로"),
+                (Field($"/archetypes/{id}?tab=fallback", issue, "plans"), $"{id} 의 하루 일과로"),
+            "localization/ko-KR.json" or "ko-KR.json" when LocaleArchetype(issue) is { Length: > 0 } id =>
+                ($"/archetypes/{id}?tab=edit&field=name", $"{id} 의 표시 이름으로"),
             "pois.json" when Zone(issue) is { Length: > 0 } zone =>
-                ($"/places/{zone}", "그 지역으로"),
+                (StudioView.WithQuery($"/places/{zone}", "poi", PoiId(issue)), "그 지역으로"),
             "npc_overrides.json" when Npc(issue) is { } npc =>
-                ($"/npcs/{npc}", $"NPC {npc} 로"),
+                (Field($"/npcs/{npc}", issue, "overrides"), $"NPC {npc} 로"),
             "interrupts.json" => ("/interrupts", "돌발 반응 화면으로"),
             "actions.json" => ("/actions", "행동 카탈로그로"),
             "zones.json" => ("/places", "지역 목록으로"),
             { Length: > 0 } => ($"/files/{file}", $"{file} 원문으로"),
             _ => (string.Empty, string.Empty),
         };
+    }
+
+    /// <summary>
+    /// JSON Pointer 의 꼬리를 폼 필드 이름으로 바꿔 붙인다 (H10).
+    ///
+    /// <c>/archetypes/3/traits/courage</c> → <c>field=traits/courage</c> 다 —
+    /// <see cref="StudioArchetypeForm.JsonKeys"/> 의 값과 같은 표기라 폼이 그대로 찾는다.
+    /// 스텝 안쪽(<c>/plans/3/steps/2/action</c>)은 스텝 편집기 통째(<c>steps</c>)로 보낸다.
+    /// </summary>
+    private static string Field(string url, StudioIssue issue, string array)
+    {
+        string field = FieldOf(issue.Path, array);
+
+        return field.Length == 0 ? url : StudioView.WithQuery(url, "field", field);
+    }
+
+    /// <summary>배열 첨자 뒤의 경로. 없으면 빈 문자열.</summary>
+    /// <param name="pointer">JSON Pointer.</param>
+    /// <param name="array">배열 속성 이름.</param>
+    public static string FieldOf(string? pointer, string array)
+    {
+        if (string.IsNullOrEmpty(pointer))
+        {
+            return string.Empty;
+        }
+
+        string[] parts = pointer.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        for (int i = 0; i < parts.Length - 2; i++)
+        {
+            if (!string.Equals(parts[i], array, StringComparison.Ordinal)
+                || !int.TryParse(parts[i + 1], out _))
+            {
+                continue;
+            }
+
+            string[] tail = parts[(i + 2)..];
+
+            // 스텝 안쪽은 스텝 편집기 하나로 묶는다 — 칸이 스텝마다 다시 생긴다.
+            if (tail.Length > 1 && string.Equals(tail[0], "steps", StringComparison.Ordinal))
+            {
+                return "steps";
+            }
+
+            // 숫자로 끝나면(배열 원소) 그 배열 자체가 칸이다.
+            return string.Join('/', tail.Where(p => !int.TryParse(p, out _)));
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>표시 이름 누락(V14)의 키 <c>npc.blacksmith</c> → 직업 id.</summary>
+    private static string LocaleArchetype(StudioIssue issue) =>
+        (issue.Path ?? string.Empty).StartsWith("npc.", StringComparison.Ordinal)
+            ? issue.Path![4..]
+            : string.Empty;
+
+    private string PoiId(StudioIssue issue)
+    {
+        if (IssueLocator.Index(issue.Path, "pois") is not { } index)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(
+                File.ReadAllText(Path.Combine(workspace.CurrentDirectory, "pois.json")));
+
+            if (!document.RootElement.TryGetProperty("pois", out JsonElement pois)
+                || index >= pois.GetArrayLength())
+            {
+                return string.Empty;
+            }
+
+            return pois[index].TryGetProperty("id", out JsonElement id) ? id.GetString() ?? string.Empty : string.Empty;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException)
+        {
+            return string.Empty;
+        }
     }
 
     /// <summary>

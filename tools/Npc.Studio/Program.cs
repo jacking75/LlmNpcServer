@@ -8,9 +8,35 @@ namespace Npc.Studio;
 public static class Program
 {
     /// <summary>진입점.</summary>
-    public static void Main(string[] args)
+    /// <param name="args">명령행 인자.</param>
+    public static int Main(string[] args)
     {
-        StudioOptions options = StudioOptions.Parse(args);
+        StudioOptions options;
+
+        try
+        {
+            options = StudioOptions.Parse(args);
+        }
+        catch (StudioArgumentException ex)
+        {
+            // H26 — 모르는 인자로 뜨지 않는다. `--readonly`(오타)로 편집 모드로 뜨던 자리다.
+            if (ex.Message.Length > 0)
+            {
+                Console.Error.WriteLine(ex.Message);
+                Console.Error.WriteLine();
+            }
+
+            Console.Error.WriteLine(StudioOptions.Usage);
+
+            return 2;
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+
+            return 2;
+        }
+
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
         // Windows Event Log는 제한된 개발 계정에서 쓰기 권한이 없을 수 있다.
@@ -53,10 +79,30 @@ public static class Program
         app.UseAntiforgery();
         app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
+        // H13 — 밖의 편집(VS Code · 생성기)을 지켜본다. 폴더가 바뀌면 다시 건다.
+        StudioWorkspace workspace = app.Services.GetRequiredService<StudioWorkspace>();
+
+        workspace.Watch();
+        workspace.DirectoryChanged += workspace.Watch;
+
         Console.WriteLine($"NPC Studio: http://{options.Bind}:{options.Port}");
         Console.WriteLine($"마스터데이터: {options.MasterData}");
+
+        if (options.FellBackFrom is { Length: > 0 } requested)
+        {
+            Console.WriteLine($"경고: 요청한 경로({requested})가 없어 저장소의 masterdata/ 를 열었다.");
+        }
+
         Console.WriteLine(options.ReadOnly ? "읽기 전용 모드다." : "편집 모드다. 저장 전 전체 검증을 수행한다.");
 
+        if (options.IsPublic && !options.ReadOnly)
+        {
+            Console.WriteLine(
+                $"경고: --bind {options.Bind} 은 루프백이 아니다 — 같은 망의 누구나 이 마스터데이터를 고칠 수 있다.");
+        }
+
         app.Run();
+
+        return 0;
     }
 }

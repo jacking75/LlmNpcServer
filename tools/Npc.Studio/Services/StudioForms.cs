@@ -52,6 +52,15 @@ public sealed record StudioArchetypeForm(
     /// 폼 속성 → JSON 키. <b>드리프트 테스트(T20)가 이 표를 본다</b> —
     /// 새 필드를 폼에 넣고 사전(FieldGuide)에 빼먹으면 그 칸은 뜻을 모르는 입력란이 된다.
     /// </summary>
+    /// <summary>읽은 시점의 지문 (H13). 저장이 이것으로 외부 편집을 거절한다.</summary>
+    public StudioStamp? Stamp { get; init; }
+
+    /// <summary>
+    /// 같이 저장할 인구 재배분 (H03). <b>"이 안으로" 는 파일을 쓰지 않는다</b> —
+    /// 초안에 얹고 저장 한 번에 같이 간다.
+    /// </summary>
+    public ImmutableArray<WeightChange> Rebalance { get; init; } = [];
+
     public static ImmutableDictionary<string, string> JsonKeys { get; } =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -139,7 +148,25 @@ public sealed record StudioFallbackForm(
     string Goal,
     ImmutableArray<StudioPlanStep> Steps,
     bool Loop,
-    string OnStepFail);
+    string OnStepFail)
+{
+    /// <summary>읽은 시점의 지문 (H13).</summary>
+    public StudioStamp? Stamp { get; init; }
+
+    /// <summary>
+    /// 스텝 편집기가 ⓘ 를 강제할 필드 (H28). 값은 <c>fallback_plans.json</c> 의 경로다.
+    /// </summary>
+    public static ImmutableDictionary<string, string> JsonKeys { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [nameof(Id)] = "id",
+            [nameof(Archetype)] = "archetype",
+            [nameof(Goal)] = "goal",
+            [nameof(Steps)] = "steps",
+            [nameof(Loop)] = "loop",
+            [nameof(OnStepFail)] = "on_step_fail",
+        }.ToImmutableDictionary(StringComparer.Ordinal);
+}
 
 /// <summary>
 /// 파일 서식을 흉내 내는 JSON 조각 만들기 (T10).
