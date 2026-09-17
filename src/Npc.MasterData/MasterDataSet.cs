@@ -553,6 +553,13 @@ public sealed class MasterDataSet : IPlanValidationVocabulary
     public ImmutableArray<Authoring.DerivedStatus> StaleArtifacts { get; init; } = [];
 
     /// <summary>
+    /// 거리표를 읽었는가 (H07). 거짓이면 <see cref="PoiTable.Distance"/> 가 전부 0 이다 —
+    /// <b>편집 도구가 "거리표가 낡아 시간을 못 센다" 를 화면에 적어야 한다.</b>
+    /// 기동 경로에서는 언제나 참이다 (거리표가 낡으면 로더가 던진다).
+    /// </summary>
+    public bool DistancesAvailable { get; init; } = true;
+
+    /// <summary>
     /// 전체 콘텐츠 해시. 이 값이 바뀌면 프리베이크된 플랜 스토어가 전량 무효다 (docs/01 §11).
     /// 같은 입력이면 언제 계산해도 같은 값이 나온다 — 시각도 난수도 섞지 않는다.
     /// </summary>

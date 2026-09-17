@@ -220,6 +220,33 @@ public static class MasterDataValidator
             }
         }
 
+        // H11 — POI 의 <b>id</b> 중복. code 만 보던 시절에는 같은 id 의 장소가 둘 생겨도
+        // 아무도 잡지 못했다: 로더의 `byId[dto.Id] = def` 는 마지막 것이 이기고,
+        // 이후 편집이 첫 것과 마지막 것을 엇갈려 가리킨다.
+        // (zones·archetypes 의 id 중복은 로더가 던지지만 pois 는 그것도 없었다.)
+        var poiIds = new Dictionary<string, int>(StringComparer.Ordinal);
+        int poiIndex = 0;
+
+        foreach (JsonElement poi in ctx.Array("pois.json", "pois"))
+        {
+            string id = poi.GetProperty("id").GetString()!;
+
+            if (poiIds.TryGetValue(id, out int first))
+            {
+                violations.Add(new MasterDataViolation(
+                    "V1",
+                    $"pois.json: 장소 id '{id}' 가 중복이다 (첨자 {first} 와 {poiIndex}).",
+                    "pois.json",
+                    $"/pois/{poiIndex}/id"));
+            }
+            else
+            {
+                poiIds[id] = poiIndex;
+            }
+
+            poiIndex++;
+        }
+
         // 규칙 id 는 code 가 없으므로 id 중복을 본다.
         var ruleIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (JsonElement rule in ctx.Array("interrupts.json", "rules"))

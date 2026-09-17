@@ -63,6 +63,65 @@ public static class JsonSurgeon
     }
 
     /// <summary>
+    /// 최상위 배열에서 항목 하나를 지운다 (H17).
+    ///
+    /// <b>앞뒤 쉼표까지 같이 본다</b> — 항목만 도려내면 <c>[ , ]</c> 같은 조각이 남아
+    /// 다음 파서가 거절한다. 없는 항목이면 원문을 그대로 돌려준다.
+    /// </summary>
+    /// <param name="json">원문.</param>
+    /// <param name="arrayProperty">최상위 배열 속성 이름.</param>
+    /// <param name="keyProperty">항목을 고르는 필드 (<c>id</c>).</param>
+    /// <param name="keyValue">그 필드의 값.</param>
+    public static string RemoveFromArray(
+        string json, string arrayProperty, string keyProperty, string keyValue)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(json);
+        ArgumentException.ThrowIfNullOrEmpty(arrayProperty);
+
+        (int start, int end) = ItemRange(json, arrayProperty, keyProperty, keyValue);
+
+        int head = start;
+        int tail = end;
+
+        // 뒤에 쉼표가 있으면 그것과 뒤따르는 공백까지 — 없으면 앞 쉼표와 그 앞 공백까지.
+        int after = tail;
+
+        while (after < json.Length && char.IsWhiteSpace(json[after]))
+        {
+            after++;
+        }
+
+        if (after < json.Length && json[after] == ',')
+        {
+            tail = after + 1;
+        }
+        else
+        {
+            int before = head - 1;
+
+            while (before >= 0 && char.IsWhiteSpace(json[before]))
+            {
+                before--;
+            }
+
+            if (before >= 0 && json[before] == ',')
+            {
+                head = before;
+            }
+        }
+
+        // 항목이 있던 줄의 들여쓰기도 같이 걷어낸다.
+        int lineStart = LineStart(json, head);
+
+        if (json[lineStart..head].All(char.IsWhiteSpace))
+        {
+            head = lineStart == 0 ? head : lineStart - 1;
+        }
+
+        return Verified(json[..head] + json[tail..]);
+    }
+
+    /// <summary>
     /// 최상위 스칼라 필드의 값을 바꾼다. <c>total_keys</c> 처럼 계산으로 정해지는 값에 쓴다.
     /// </summary>
     /// <param name="json">원문.</param>
@@ -374,9 +433,12 @@ public static class JsonSurgeon
 
             using JsonDocument item = JsonDocument.Parse(utf8.AsMemory(start, end - start));
 
+            // 키가 숫자인 배열도 있다 (`npc_overrides.json` 의 `id`) — 원문 그대로 견준다.
             if (item.RootElement.TryGetProperty(keyProperty, out JsonElement key)
-                && key.ValueKind == JsonValueKind.String
-                && string.Equals(key.GetString(), keyValue, StringComparison.Ordinal))
+                && (key.ValueKind == JsonValueKind.String
+                    ? string.Equals(key.GetString(), keyValue, StringComparison.Ordinal)
+                    : key.ValueKind == JsonValueKind.Number
+                        && string.Equals(key.GetRawText(), keyValue, StringComparison.Ordinal)))
             {
                 return (arrayStart + ByteToChar(slice, utf8, start), arrayStart + ByteToChar(slice, utf8, end));
             }

@@ -8,6 +8,24 @@ using Npc.Core;
 namespace Npc.MasterData;
 
 /// <summary>
+/// 로드 옵션 (H07). <b>기본값이 예전 동작이다</b> — 기동 경로는 이것을 주지 않는다.
+/// </summary>
+public sealed record MasterDataLoadOptions
+{
+    /// <summary>
+    /// 거리표(<c>poi_distances.bin</c>)를 읽지 않는다.
+    ///
+    /// <para>
+    /// <b>편집 도구 전용이다.</b> 장소를 하나 더하면 거리표는 정의상 낡고, 그때 로더가
+    /// 정확히 거절한다 — 그런데 그 낡음을 없애려면 먼저 장소를 저장해야 하므로 Studio 는
+    /// "다시 만들라" 고 말해 줄 화면을 띄워야 한다. 이 옵션이 그 화면을 그릴 만큼만 읽게 한다.
+    /// 거리는 전부 0 이 되므로 <b>소요 예측을 신뢰할 수 없다</b>.
+    /// </para>
+    /// </summary>
+    public bool SkipDistances { get; init; }
+}
+
+/// <summary>
 /// masterdata/ 를 통째로 읽어 읽기 전용 인덱스로 만든다. docs/01 §11.
 ///
 /// 로딩 규약: 전량 로드 → 스키마 검증 → 참조 무결성 검증 → 인덱스 컴파일 → 이후 불변.
@@ -34,12 +52,29 @@ public static class MasterDataLoader
     ];
 
     /// <summary>masterdata 폴더 전체 로드.</summary>
-    public static MasterDataSet Load(string masterDataDirectory)
+    /// <param name="masterDataDirectory">masterdata 경로.</param>
+    public static MasterDataSet Load(string masterDataDirectory) => Load(masterDataDirectory, null);
+
+    /// <summary>
+    /// masterdata 폴더 전체 로드. 옵션을 준다 (H07).
+    ///
+    /// <para>
+    /// <b>기본값은 예전 그대로다</b> — 기동 경로(<c>Npc.Host</c>)는 이 인자를 주지 않으므로
+    /// 거리표가 낡으면 예전처럼 던진다. 옵션을 켜는 것은 <b>편집 도구뿐</b>이다: Studio 는
+    /// "거리표를 다시 만들라" 고 말해 줄 화면을 띄워야 하는데, 그 화면을 그리려면 먼저
+    /// 마스터데이터를 읽을 수 있어야 한다.
+    /// </para>
+    /// </summary>
+    /// <param name="masterDataDirectory">masterdata 경로.</param>
+    /// <param name="options">로드 옵션. null 이면 엄격 모드다.</param>
+    public static MasterDataSet Load(string masterDataDirectory, MasterDataLoadOptions? options)
     {
         if (!Directory.Exists(masterDataDirectory))
         {
             throw new DirectoryNotFoundException($"masterdata 폴더를 찾지 못했다: {masterDataDirectory}");
         }
+
+        bool skipDistances = options?.SkipDistances == true;
 
         string Path_(string name) => Path.Combine(masterDataDirectory, name);
 
@@ -57,11 +92,12 @@ public static class MasterDataLoader
         ActionCatalog actions = ActionCatalog.Load(Path_("actions.json"), items, dialogues);
         ArchetypeTable archetypes = ArchetypeTable.Load(Path_("archetypes.json"), actions, items);
         ZoneTable zones = LoadZones(Path_("zones.json"));
-        PoiTable pois = LoadPois(Path_("pois.json"), Path_("poi_distances.bin"), zones, archetypes, items);
+        PoiTable pois = LoadPois(
+            Path_("pois.json"), Path_("poi_distances.bin"), zones, archetypes, items, skipDistances);
         BucketSpace buckets = LoadBuckets(Path_("context_buckets.json"), archetypes.Count);
         InterruptRules interrupts = InterruptRules.Load(Path_("interrupts.json"), actions);
 
-        ImmutableArray<FileHash> hashes = HashFiles(masterDataDirectory);
+        ImmutableArray<FileHash> hashes = HashFiles(masterDataDirectory, includeDistances: !skipDistances);
 
         var set = new MasterDataSet
         {
@@ -86,6 +122,9 @@ public static class MasterDataLoader
 
             // 파생물 신선도 (F-04). 여기서 던지지 않는다 — 호출부가 경고로 낸다.
             StaleArtifacts = Authoring.DerivedArtifacts.Stale(masterDataDirectory),
+
+            // H07 — 거리표를 건너뛰고 읽었는가. 참이면 거리가 전부 0 이라 소요 예측이 거짓이다.
+            DistancesAvailable = !skipDistances,
         };
 
         // 폴백 플랜은 MasterDataSet 자신을 어휘로 써서 검증·컴파일하므로 나중에 붙인다.
@@ -106,12 +145,23 @@ public static class MasterDataLoader
     /// CRLF 로 체크아웃된 기계에서 해시가 달라지면 프리베이크가 통째로 무효가 된다.
     /// 바이너리(.bin)는 바이트 그대로 잰다.
     /// </summary>
-    public static ImmutableArray<FileHash> HashFiles(string masterDataDirectory)
+    public static ImmutableArray<FileHash> HashFiles(string masterDataDirectory) =>
+        HashFiles(masterDataDirectory, includeDistances: true);
+
+    /// <summary>파일별 SHA-256. 거리표를 건너뛰고 읽었으면 그 해시도 뺀다 (H07).</summary>
+    /// <param name="masterDataDirectory">masterdata 경로.</param>
+    /// <param name="includeDistances">거리표를 해시에 넣을 것인가.</param>
+    public static ImmutableArray<FileHash> HashFiles(string masterDataDirectory, bool includeDistances)
     {
         var builder = ImmutableArray.CreateBuilder<FileHash>(s_hashedFiles.Length);
 
         foreach (string name in s_hashedFiles)
         {
+            if (!includeDistances && name == "poi_distances.bin")
+            {
+                continue;
+            }
+
             string path = Path.Combine(masterDataDirectory, name);
             if (!File.Exists(path))
             {
@@ -227,7 +277,12 @@ public static class MasterDataLoader
     // ---------------------------------------------------------------- pois.json + poi_distances.bin
 
     private static PoiTable LoadPois(
-        string poisPath, string distancesPath, ZoneTable zones, ArchetypeTable archetypes, ItemTable items)
+        string poisPath,
+        string distancesPath,
+        ZoneTable zones,
+        ArchetypeTable archetypes,
+        ItemTable items,
+        bool skipDistances)
     {
         using FileStream stream = File.OpenRead(poisPath);
         PoisFile? file = JsonSerializer.Deserialize(stream, WorldJsonContext.Default.PoisFile);
@@ -325,7 +380,11 @@ public static class MasterDataLoader
         builder.Sort((a, b) => a.Code.Value.CompareTo(b.Code.Value));
         ImmutableArray<PoiDef> pois = builder.ToImmutable();
 
-        (Half[] distances, int size) = LoadDistances(distancesPath, pois.Length);
+        // H07 — 건너뛰면 0 행렬이다. 거리를 쓰는 예측·정렬은 전부 0 을 받으므로
+        // <b>부르는 쪽이 "거리표가 없다" 를 화면에 적어야 한다</b> (MasterDataSet.DistancesAvailable).
+        (Half[] distances, int size) = skipDistances
+            ? (new Half[pois.Length * pois.Length], pois.Length)
+            : LoadDistances(distancesPath, pois.Length);
 
         return new PoiTable(
             byCode, byId, pois, distances, size,
