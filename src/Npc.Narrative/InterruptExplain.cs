@@ -15,6 +15,30 @@ namespace Npc.Narrative;
 /// </summary>
 public static class InterruptExplain
 {
+    /// <summary>
+    /// 돌발 반응이 성향을 가르는 경계값 (H22). <c>(근면·사교·용기·탐욕, 임계)</c> 쌍이다.
+    ///
+    /// <b>화면에 40 을 적어 두지 않는다</b> — 그 값은 <c>interrupts.json</c> 이 정하고,
+    /// 규칙을 고치면 눈금도 같이 움직여야 한다.
+    /// </summary>
+    /// <param name="data">마스터데이터.</param>
+    public static ImmutableArray<(string Trait, int Threshold)> TraitThresholds(MasterDataSet data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        var seen = new SortedSet<(string, int)>();
+
+        foreach (InterruptRule rule in data.Interrupts.Rules)
+        {
+            foreach (TraitCondition trait in rule.Traits)
+            {
+                _ = seen.Add((Lexicon.Trait(trait.Kind), trait.Value));
+            }
+        }
+
+        return [.. seen];
+    }
+
     /// <summary>규칙 전체를 한 장으로.</summary>
     public static string Render(MasterDataSet data)
     {

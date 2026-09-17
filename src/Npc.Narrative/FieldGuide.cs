@@ -104,6 +104,12 @@ public static class FieldGuide
         return b.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
+    /// <summary>하루 일과 스텝 인자 하나. 편집기의 작은 칸마다 ⓘ 가 붙는다 (H22·H28).</summary>
+    private static void Arg(
+        Dictionary<string, FieldHelp> map, string name, string title, string what, string why) =>
+        Add(map, "fallback_plans.json", "/steps/args/" + name, title, what, why,
+            "행동을 바꾸면 인자 정의가 통째로 달라진다 — 남은 값은 V2 로 거절된다.", "V2");
+
     private static void Add(
         Dictionary<string, FieldHelp> map,
         string file,
@@ -160,17 +166,20 @@ public static class FieldGuide
             "바꾸면 걸리는 돌발 반응이 바뀐다 — 화면이 미리 보여 준다.");
         Add(b, F, "/traits/diligence", "근면",
             "얼마나 부지런한가. 0~100.",
-            "일과의 밀도와 LLM 의 문장에 반영된다.");
+            "일과의 밀도와 LLM 의 문장에 반영된다.",
+            "돌발 반응 규칙이 이 값을 볼 수 있다 — 슬라이더의 눈금이 그 경계다.");
         Add(b, F, "/traits/sociability", "사교",
             "얼마나 사람을 찾는가. 0~100.",
-            "대화·잡담·공연이 계획에 들어갈 확률에 반영된다.");
+            "대화·잡담·공연이 계획에 들어갈 확률에 반영된다.",
+            "돌발 반응 규칙이 이 값을 볼 수 있다 — 슬라이더의 눈금이 그 경계다.");
         Add(b, F, "/traits/courage", "용기",
             "얼마나 위험을 견디는가. 0~100.",
             "**돌발 반응이 여기서 갈린다** — 40 미만이면 도망, 이상이면 맞서거나 물러난다.",
             "40 경계를 넘으면 위협에 대한 반응이 통째로 바뀐다.");
         Add(b, F, "/traits/greed", "탐욕",
             "얼마나 이득을 좇는가. 0~100.",
-            "거래·수집 성향에 반영된다.");
+            "거래·수집 성향에 반영된다.",
+            "돌발 반응 규칙이 이 값을 볼 수 있다 — 슬라이더의 눈금이 그 경계다.");
         Add(b, F, "/default_goals", "기본 목표",
             "늘 신경 쓰는 것 두세 개다.",
             "LLM 프롬프트의 가변 부분(서픽스)에 실린다.",
@@ -196,7 +205,8 @@ public static class FieldGuide
             "직업마다 하나씩 있어야 한다.", "V7");
         Add(b, F, "/combat_capable", "싸울 수 있나",
             "무기를 들고 맞설 수 있는 직업인가.",
-            "위협을 만났을 때 맞설지·물러날지·도움을 부를지가 갈린다.");
+            "위협을 만났을 때 맞설지·물러날지·도움을 부를지가 갈린다.",
+            "끄면 맞서는 돌발 반응이 후보에서 통째로 빠진다 — 경비가 도망치게 된다.");
         Add(b, F, "/population_weight", "인구 비율",
             "전체 NPC 중 이 직업의 비율이다 (0.012 ≈ 5,000명 중 60명).",
             "명단을 만들 때 이 비율로 나눈다.",
@@ -255,7 +265,8 @@ public static class FieldGuide
             "", "V3");
         Add(b, F, "/type", "유형",
             "집·일터·시장·선술집·신전·성문·농경지·야외 8종 중 하나다.",
-            "`$market`·`$tavern` 같은 심볼이 이 유형으로 장소를 찾는다.");
+            "`$market`·`$tavern` 같은 심볼이 이 유형으로 장소를 찾는다.",
+            "바꾸면 그 심볼이 가리키던 곳이 달라진다 — 하루 일과가 엉뚱한 데로 간다.");
         Add(b, F, "/subtype", "세부 유형",
             "대장간·빵집·광산처럼 더 좁은 종류다.",
             "직업의 일터 유형이 가리키는 것이 이 값이다.",
@@ -264,9 +275,11 @@ public static class FieldGuide
             "**지역 중심 기준** 좌표다.",
             "거리표가 이 좌표로 만들어진다.",
             "바꾸면 거리표를 다시 만들어야 한다.");
-        Add(b, F, "/pos/x", "위치 X", "가로 좌표다.", "거리 계산과 지도 그림이 쓴다.");
+        Add(b, F, "/pos/x", "위치 X", "가로 좌표다.", "거리 계산과 지도 그림이 쓴다.",
+            "바꾸면 거리표(poi_distances.bin)를 다시 만들어야 한다.");
         Add(b, F, "/pos/y", "위치 Y", "높이 좌표다.", "거리 계산에는 쓰지 않는다 — 게임서버가 쓴다.");
-        Add(b, F, "/pos/z", "위치 Z", "세로 좌표다.", "거리 계산과 지도 그림이 쓴다.");
+        Add(b, F, "/pos/z", "위치 Z", "세로 좌표다.", "거리 계산과 지도 그림이 쓴다.",
+            "바꾸면 거리표(poi_distances.bin)를 다시 만들어야 한다.");
         Add(b, F, "/capacity", "정원",
             "동시에 배정될 수 있는 인원이다.",
             "명단 생성이 이 수만큼만 배정한다.",
@@ -274,8 +287,10 @@ public static class FieldGuide
         Add(b, F, "/open_hours", "여는 시간",
             "시간대 from~to 로 여닫는다.",
             "닫힌 시간에 오면 그 스텝이 실패한다.");
-        Add(b, F, "/open_hours/from", "여는 시간대", "언제부터 여는가.", "이 시간대부터 들어갈 수 있다.");
-        Add(b, F, "/open_hours/to", "닫는 시간대", "언제까지 여는가.", "이 시간대 전까지 들어갈 수 있다.");
+        Add(b, F, "/open_hours/from", "여는 시간대", "언제부터 여는가.", "이 시간대부터 들어갈 수 있다.",
+            "하루 일과가 닫힌 시간에 오면 그 스텝이 매번 실패한다.");
+        Add(b, F, "/open_hours/to", "닫는 시간대", "언제까지 여는가.", "이 시간대 전까지 들어갈 수 있다.",
+            "여는 시간보다 앞이면 자정을 넘겨 연다는 뜻이다.");
         Add(b, F, "/grants", "도착하면 서는 상태",
             "이 장소에 있는 동안 서는 상태 플래그다 (집 → `AtHome`).",
             "다음 스텝의 전제가 이것으로 충족된다.",
@@ -322,7 +337,8 @@ public static class FieldGuide
 
         Add(b, F, "/id", "일과 ID", "`fb_<직업>` 형식이다.", "직업의 하루 일과 ID 와 같아야 한다.", "", "V7");
         Add(b, F, "/archetype", "직업", "누구의 하루인가.", "이 직업의 허용 행동만 쓸 수 있다.", "", "V8");
-        Add(b, F, "/goal", "하루 목표", "한 단어로 적는 하루의 목적이다.", "설명과 화면 표시에 쓴다.");
+        Add(b, F, "/goal", "하루 목표", "한 단어로 적는 하루의 목적이다.", "설명과 화면 표시에 쓴다.",
+            "행동을 정하지는 않는다 — 스텝이 정한다. 여기만 고치면 하루는 그대로다.");
         Add(b, F, "/loop", "반복",
             "마지막 스텝 뒤에 첫 스텝으로 돌아가는가.",
             "폴백은 언제나 `true` 다 — 하루가 끝없이 돌아야 한다.",
@@ -337,6 +353,20 @@ public static class FieldGuide
             "어디로·무엇을·몇 개인가.",
             "장소는 `$home`·`$workplace` 같은 심볼로 쓴다 — 개체마다 다른 실제 장소로 바인딩된다.",
             "장소를 직접 id 로 쓰면 수천 NPC 가 한 곳으로 몰린다.", "V2");
+        Arg(b, "target", "대상", "무엇에·누구에게 하는가.", "공격·대화·거래의 상대다.");
+        Arg(b, "poi", "장소", "어디에서·어디로 하는가.", "`$home`·`$workplace` 같은 심볼로 쓴다.");
+        Arg(b, "to", "가는 곳", "이동의 목적지다.", "심볼로 쓰면 개체마다 다른 실제 장소로 바인딩된다.");
+        Arg(b, "route", "순찰로", "차례로 도는 지점이다.", "개별 설정의 `patrol_route` 가 여기 붙는다.");
+        Arg(b, "item", "아이템", "어떤 아이템인가.", "`items.json` 의 id 다.");
+        Arg(b, "recipe", "제작법", "무엇을 만드는가.", "`items.json` 의 레시피 id 다.");
+        Arg(b, "count", "개수", "몇 개인가.", "줍기·버리기·보관이 이 수만큼 움직인다.");
+        Arg(b, "duration_s", "시간(초)", "얼마나 하는가.", "고정 소요 행동의 길이다.");
+        Arg(b, "until_time", "언제까지", "어느 시간대까지 하는가.", "잠·휴식이 이것으로 끝난다.");
+        Arg(b, "topic", "대사 주제", "무엇을 말하는가.", "`dialogue_lines.json` 의 주제 id 다.");
+        Arg(b, "radius_m", "반경(m)", "얼마나 넓게 도는가.", "돌아다니기·관찰의 범위다.");
+        Arg(b, "emote", "몸짓", "어떤 몸짓인가.", "게임서버가 애니메이션으로 옮긴다.");
+        Arg(b, "slot", "장비 칸", "어디에 장비하는가.", "게임서버가 쓴다.");
+
         Add(b, F, "/steps/timeout_s", "최대 시간(초)",
             "이 안에 못 끝내면 실패로 보고 다음으로 간다.",
             "명령이 유실돼도 NPC 가 굳지 않는 이유다.",
@@ -398,6 +428,10 @@ public static class FieldGuide
         Add(b, F, "/recipes/inputs/item", "재료 아이템", "쓸 아이템 id 다.", "채집·꺼내기로 미리 확보해야 한다.", "", "V3");
         Add(b, F, "/recipes/inputs/count", "재료 개수", "몇 개 쓰는가.", "하루 일과의 수지 계산이 이것을 센다.", "", "V3");
         Add(b, F, "/recipes/outputs", "산출물", "무엇이 몇 개 나오는가.", "완성품이 인벤토리에 들어간다.");
+        Add(b, F, "/recipes/outputs/item", "산출 아이템", "만들어지는 아이템 id 다.", "제작이 끝나면 이것이 들어온다.",
+            "`items.json` 에 있어야 한다.", "V3");
+        Add(b, F, "/recipes/outputs/count", "산출 개수", "한 번에 몇 개 나오는가.", "하루 일과의 수지 계산이 이것을 센다.",
+            "", "V3");
         Add(b, F, "/recipes/duration_s", "제작 시간(초)", "한 번 만드는 데 걸리는 시간이다.", "하루 예측의 제작 스텝 길이가 이것이다.");
     }
 
@@ -445,6 +479,14 @@ public static class FieldGuide
         Add(b, Wf, "/group", "묶음", "같이 다루는 상태들의 이름이다.", "배타 묶음 검사가 이것을 본다.", Advanced);
         Add(b, Wf, "/desc", "설명", "이 상태가 무엇인지 한 줄이다.", "**프롬프트 카탈로그에 실린다.**", Advanced);
         Add(b, Wf, "/exclusive_groups", "배타 묶음", "동시에 설 수 없는 상태 묶음이다.", "\"집에 있으면서 일터에 있다\" 를 막는다.", Advanced);
+        Add(b, Wf, "/reserved_bits", "예약 비트",
+            "아직 쓰지 않고 남겨 둔 자리다.",
+            "새 상태는 <b>이 안에서만</b> 번호를 받는다 — `npc next-code world_flags.json` 이 답한다.",
+            Advanced, "V1");
+        Add(b, Wf, "/flags", "상태 목록",
+            "64칸 중 쓰고 있는 상태들이다.",
+            "런타임의 `WorldFlags` 비트셋이 이 순서가 아니라 `bit` 값으로 선다.",
+            Advanced, "V1");
 
         const string Cb = "context_buckets.json";
         const string CbNote = "**고급이다.** 버킷 차원을 바꾸면 미리 구운 플랜의 좌표계가 바뀐다.";

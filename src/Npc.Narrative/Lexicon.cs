@@ -16,7 +16,7 @@ namespace Npc.Narrative;
 /// 빠진 id 가 생기면 <c>Lexicon_CoversEveryId</c> 가 깨진다 — 조용히 영어 id 가 새어 나가면
 /// 블라인드 평가 자료의 두 군이 다르게 읽힐 수 있다.
 /// </summary>
-public static class Lexicon
+public static partial class Lexicon
 {
     /// <summary>아키타입 표기. 추가하면 <c>Lexicon_CoversEveryId</c> 가 빠진 것을 알려 준다.</summary>
     public static readonly FrozenDictionary<string, string> Archetypes = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -361,6 +361,24 @@ public static class Lexicon
         TraitKind.Courage => "용기",
         TraitKind.Greed => "탐욕",
         _ => kind.ToString(),
+    };
+
+    /// <summary>
+    /// 장소 유형 (H18). <b>화면에 <c>Workplace</c> 를 그대로 내지 않는다</b> —
+    /// 그 낱말을 이미 아는 사람만 쓸 수 있는 도구가 된다.
+    /// </summary>
+    /// <param name="type">장소 유형.</param>
+    public static string Of(PoiType type) => type switch
+    {
+        PoiType.Home => "집",
+        PoiType.Workplace => "일터",
+        PoiType.Market => "시장",
+        PoiType.Tavern => "선술집",
+        PoiType.Temple => "신전",
+        PoiType.Gate => "성문",
+        PoiType.Field => "농경지",
+        PoiType.Wilderness => "야외",
+        _ => type.ToString(),
     };
 
     /// <summary>액션 카테고리. 카드의 액션 묶음 제목이다.</summary>
