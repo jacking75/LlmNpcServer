@@ -89,7 +89,7 @@ public sealed partial class DocsTools
     /// <summary>검색 대상 파일. 생성물(스키마·와이어 표)은 뺀다 — 읽을 산문이 아니다.</summary>
     private IEnumerable<string> Sources()
     {
-        foreach (string name in new[] { "CLAUDE.md", "CODEMAP.md", "README.md", "PRODUCTION_ROADMAP.md" })
+        foreach (string name in new[] { "CLAUDE.md", "CODEMAP.md", "README.md" })
         {
             string path = Path.Combine(_options.Root, name);
 

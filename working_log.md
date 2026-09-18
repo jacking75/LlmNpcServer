@@ -1,5 +1,18 @@
 # 작업 로그
 
+## 2026-09-18 03:10 KST · 완료된 작업 지시서 3건을 삭제했다
+
+- `PRODUCTION_ROADMAP.md`(50건 중 45건 완료) · `STUDIO_IMPROVEMENT_PLAN.md`(34건 완료) ·
+  `STUDIO_IMPROVEMENT_PLAN_2.md`(28건 완료) 를 지웠다. 남아 있던 미완료 5건(D-01 대화 서비스 ·
+  F-07 LLM 보조 오써링 · G-01 미측정 실행 · G-02 소크·카오스 · G-05 수용 기준 v2)은 전부 P2 이거나
+  "상용 투입" 전제인 P0 라, 상용 서비스 투입 계획이 없는 이 저장소에는 더 이상 유효한 작업 지시가
+  아니다 — 착수하지 않기로 했다.
+- Studio 계획 두 건은 이미 "지시서가 아니라 기록" 이라 문서 자체에 적혀 있었고, 핵심 사용법은
+  `docs/npc_studio_manual.html` 로 이미 옮겨져 있었다. 세 문서 다 필요하면 `git log -p` 로 복원한다.
+- 세 파일을 가리키던 참조를 정리했다 — `CLAUDE.md`·`README.md`·`AGENTS.md` 문서 지도 ·
+  `docs/index.html` 표 · `tools/Npc.Mcp/Tools/DocsTools.cs` 의 검색 대상 목록.
+  테스트 주석의 과거 참조는 CLAUDE.md §0 선례대로 그대로 두었다(이력 표시이지 지시가 아니다).
+
 ## 2026-09-17 15:58 KST · 적합성 회차를 결정론으로 만들어 보고서 잡음을 없앴다
 
 - `docs/measurements/conformance_testbed.{md,json}` 이 기본 CI 테스트마다 덮어써져
