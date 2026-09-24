@@ -15,7 +15,14 @@
    npc buckets                       # 지금 무엇이 채워져 있나
    npc diff                          # 무엇이 무효인가
    ```
-   실제 조회된 버킷만 선택하려면 호스트의 `/heatmap.csv`를 저장하고 이름 목록을 만든다.
+   예제 세계의 평시 도달 집합은 NPC 배치와 존 기본 상태에서 산출한다. 이 명령은 현재
+   마스터데이터에서 264개를 출력한다. 현재 고정 플랜 19개 중 5개가 이 집합에 있어
+   프리베이크 대상은 259개다.
+   ```powershell
+   python tools/reachable_buckets.py --masterdata masterdata --out reachable-buckets.txt
+   dotnet run -c Release --project tools/Npc.Prebake -- --buckets-file reachable-buckets.txt --plan
+   ```
+   실제 조회된 버킷을 별도로 관측하려면 호스트의 `/heatmap.csv`를 저장하고 이름 목록을 만든다.
    관측 시간과 시나리오가 짧으면 필요한 버킷이 빠질 수 있으므로 여러 상황을 관측한다.
    ```powershell
    Invoke-WebRequest http://localhost:5080/heatmap.csv -OutFile heatmap.csv
