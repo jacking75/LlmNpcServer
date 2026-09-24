@@ -67,6 +67,8 @@ LLM 엔진은 [연결 안내](llm/README.md)에 따라 설정한다. `Npc.Prebak
 
 Docker/Kubernetes 예제는 `deploy/`에 있다. `--profile service`, 스냅샷, 관리 API, `/status`·`/metrics`, 알림 웹훅, 킬스위치를 운영 환경에서 점검한다. API 키는 환경변수나 시크릿 저장소에 둔다. [시크릿 운영 안내](security/secrets.md)에 키 이름과 노출 방지 방법이 있다. 서버 옵션 전체는 [생성된 옵션 표](host_options.md)에 있다.
 
+자체 포함 배포 zip은 .NET 10 SDK와 Python 3.9+가 있는 빌드 머신에서 `tools/publish.ps1 -Rid win-x64` 또는 `-Rid linux-x64`로 만든다. 라이선스를 확정해 `LICENSE`를 둔 뒤 실행해야 한다. 압축을 푼 사용자는 SDK 없이 [빠른 시작](../QUICKSTART.md)을 따른다.
+
 ## 상용 투입 전 남은 판단
 
 [성능·한계 레퍼런스 §14](reference_metrics.html)에 미측정 항목이 있다. 법무 검토, 샤딩 2단계, 블라인드 품질 평가도 끝나지 않았다. 팀이 자신의 콘텐츠·게임 서버로 같은 측정을 재현한 후에 채택 여부를 결정한다.

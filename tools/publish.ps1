@@ -1,3 +1,4 @@
+# .NET 10 SDK와 Python 3.9+가 필요하다. Python은 zip의 Unix 경로와 실행 권한을 기록한다.
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('win-x64', 'linux-x64', 'osx-arm64')]
@@ -69,8 +70,11 @@ try {
 
     $zip = Join-Path $distRoot "npc-server-$version-$Rid.zip"
     if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip }
-    Compress-Archive -LiteralPath $package -DestinationPath $zip -CompressionLevel Optimal
-    Write-Output "배포 zip 생성: $zip"
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+        throw '휴대 가능한 zip 생성에 Python 3가 필요하다.'
+    }
+    python (Join-Path $repoRoot 'tools/package_zip.py') $package $zip
+    if ($LASTEXITCODE -ne 0) { throw 'zip 생성에 실패했다.' }
 }
 finally {
     if (Test-Path -LiteralPath $stageFull) {
