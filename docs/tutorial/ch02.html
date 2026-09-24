@@ -73,9 +73,9 @@
 <div class="warn">
   <span class="tag">1장과 다른 점 하나 — 배속</span>
   1장은 <code>--time-scale 600</code> 이었다. 이번엔 <b>60</b> 이다.
-  배속 600에서는 1틱이 게임 60초라 <code>timeout_s: 300</code> 인 스텝이 <b>5틱이면 만료된다</b> —
-  스텝이 자연스럽게 끝나는 게 아니라 계속 타임아웃으로 넘어가서, 관찰하면 NPC 가
-  안절부절 못하는 것처럼 보인다. 배속 60이면 1틱이 게임 6초라 <b>이동이 실제로 완료된다.</b>
+  배속 600에서는 1틱이 게임 60초라 상태 변화가 빠르게 지나간다. 이동 마감은
+  거리·속도에서 계산하고 수면은 NPC 서버가 시간을 세므로, 배속만으로 스텝이 반복 만료되지는 않는다.
+  배속 60이면 1틱이 게임 6초라 <b>행동 전환을 눈으로 따라가기 쉽다.</b>
   <br><br>
   대신 게임 하루가 실시간 24분이다. 끝까지 볼 필요는 없다 — 몇 분만 보고 <code>Ctrl-C</code> 한다.
 </div>
@@ -398,29 +398,29 @@ while ($true) {
 </div>
 
 <div class="why">
-  <span class="tag">왜 스텝을 건너뛰나</span>
-  배속 600에서 1틱 = 게임 60초다. <code>timeout_s: 300</code> 인 <code>MoveTo</code> 는
-  <b>5틱이면 만료</b>된다. 게임서버 대역이 목적지에 도착시키기 전에 시간이 먼저 지나가고,
-  NPC 서버는 <code>ActionFailed(Timeout)</code> 을 합성한다. 폴백 플랜의
-  <code>on_step_fail</code> 이 <code>skip</code> 이므로 <b>그 스텝을 건너뛰고 다음으로 간다.</b>
+  <span class="tag">실패가 나면 왜 스텝을 건너뛰나</span>
+  게임서버가 실패를 회신하거나 명령이 유실돼 마감이 지나면 NPC 서버는
+  <code>ActionFailed(Timeout)</code> 을 합성한다. 폴백 플랜의
+  <code>on_step_fail</code> 이 <code>skip</code> 이면 다음 스텝으로 간다.
   <br><br>
-  <b>버그가 아니라 설계다.</b> 명령은 유실된다고 가정하고 만들었고, 배속을 올리는 것은
-  그 가정을 인위적으로 자주 성립시키는 일이다. 다만 <b>관찰용으로는 못 쓴다</b> —
-  NPC 의 하루를 보려면 배속 60쯤이 맞다.
+  이동 마감은 <code>timeout_s</code>와 <code>ceil(예상 소요 시간 × 1.5) + 30초</code> 중 큰 값이다.
+  NPC 의 하루를 천천히 보려면 배속 60쯤이 맞다.
 </div>
 
 <div class="tablewrap">
 <table>
-<thead><tr><th>배속</th><th>1틱 = 게임</th><th><code>timeout_s: 300</code> 은</th><th>타임아웃 비율</th><th>쓰임</th></tr></thead>
+<thead><tr><th>배속</th><th>1틱 = 게임</th><th>이동 마감</th><th>쓰임</th></tr></thead>
 <tbody>
-<tr><td><code>60</code></td><td>6초</td><td>50틱</td><td class="num">6 %</td><td><b>관찰</b> · 데모 · 뷰어</td></tr>
-<tr><td><code>600</code></td><td>60초</td><td>5틱</td><td class="num">16 %</td><td>빠른 스모크</td></tr>
-<tr><td><code>3600</code></td><td>360초</td><td>&lt; 1틱</td><td class="num">46 %</td><td>쓰지 않는다</td></tr>
+<tr><td><code>60</code></td><td>6초</td><td>거리·속도에서 계산</td><td><b>관찰</b> · 데모 · 뷰어</td></tr>
+<tr><td><code>600</code></td><td>60초</td><td>같은 게임 시간 기준</td><td>빠른 스모크</td></tr>
+<tr><td><code>3600</code></td><td>360초</td><td>같은 게임 시간 기준</td><td>화면 관찰에는 너무 빠르다</td></tr>
 </tbody>
 </table>
 </div>
 
 <h2 id="metrics"><code>/metrics</code> — 전체를 한 장으로</h2>
+
+<p class="small">아래 숫자는 2026-09-24에 로컬 생성 플랜 737개가 있던 회차의 순간값이다. 깨끗한 클론에서는 생성 플랜이 없으므로 캐시 수치가 달라진다.</p>
 
 <p>
   <code>/npc/{id}</code> 가 한 마리라면 <code>/metrics</code> 는 전부다. 패널 7종이 들어 있다.
@@ -430,9 +430,9 @@ while ($true) {
 
 <div class="term">
   <span class="cap">/metrics — 발췌 (NPC 20 · 배속 600)</span>
-<pre><code>"tick":  { "p99Ms":0.568, "overruns":0, "gen0Collections":0, <span class="hl">"bytesPerTick":0</span>, "managedHeapMb":70.2 },
-"npc":   { "total":20, <span class="hl2">"byLod":[0,11,0,9]</span>, "byStepStatus":[0,20,0,0,0,0,0,0] },
-"cache": { "hitRate":0.9714, "filledBuckets":718, "coldBuckets":2162 },
+<pre><code>"tick":  { "p99Ms":0.975, "overruns":0, "gen0Collections":0, <span class="hl">"bytesPerTick":0</span>, "managedHeapMb":73.7 },
+"npc":   { "total":20, <span class="hl2">"byLod":[4,5,0,11]</span>, "byStepStatus":[0,2,0,0,0,0,18,0] },
+"cache": { "hitRate":0.9091, "filledBuckets":737, "coldBuckets":2143 },
 "llmCalls": <span class="hl">0</span></code></pre>
 </div>
 

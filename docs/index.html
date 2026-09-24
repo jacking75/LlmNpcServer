@@ -387,7 +387,7 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
     <button id="themeBtn" type="button">테마 전환</button>
     <button id="motionBtn" type="button">애니메이션</button>
     <a href="book/index.html">코드 안내서 (책)</a>
-    <a href="../README.md">README</a>
+    <a href="https://github.com/jacking75/LlmNpcServer/blob/main/README.md">README</a>
     <a href="reference_metrics.html">실측 데이터</a>
   </div>
 </nav>
@@ -403,10 +403,8 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
   <div class="chips">
     <span class="chip a">사내 R&amp;D · 기술 검증</span>
     <span class="chip">.NET 10 · C#</span>
-    <span class="chip">Windows 10/11 x64</span>
-    <span class="chip">프로젝트 9 + 도구 2</span>
-    <span class="chip">태스크 132 / 164 완료</span>
-    <span class="chip">문서 기준일 2026-07-27</span>
+    <span class="chip">서버·CLI: Windows · Linux · macOS</span>
+    <span class="chip"><a href="ADOPTION.md">도입 가이드</a></span>
   </div>
   <p class="oneline">
     <b>한 문장 요약 —</b> LLM은 <i>느리게 플랜을 만들고</i>, 런타임은 <i>빠르고 재현 가능하게 실행한다</i>.
@@ -443,7 +441,7 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
     <h4>❌ 안 만드는 것</h4>
     <ul>
       <li>실제 MMORPG 게임서버 — 이미 있거나 남이 만든다</li>
-      <li>실제 네트워크 전송(소켓·직렬화) — 인터페이스·패킷 정의까지만</li>
+      <li>게임 서버 자체의 경로 탐색·충돌·전투 판정</li>
       <li>게임 클라이언트 · 렌더링</li>
       <li>NPC 자연어 대사 — <code>Speak(DialogueId)</code>로 ID만 송출</li>
       <li>전투 AI · 패스파인딩 — 게임서버 소관</li>
@@ -451,12 +449,7 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
   </div>
   <div class="card">
     <h4>📍 지금 상태</h4>
-    <ul>
-      <li>P1(코어·런타임)·P5(검증) <b>태스크 완료</b></li>
-      <li>P4(스케줄러·티어링) <b>미착수</b> → 런타임 LLM 경로는 아직 실측이 없다</li>
-      <li>빌드 경고 0 · 오류 0, 테스트 795건 통과</li>
-      <li>최종 수용 기준 16개 중 <b>9 통과 · 7 미달</b></li>
-    </ul>
+    <p>기술 검증 구현체다. 최신 실측과 미측정 항목은 <a href="reference_metrics.html">성능·한계 레퍼런스</a>에서 확인한다.</p>
   </div>
 </div>
 
@@ -507,9 +500,8 @@ ol.trace>li:first-child::before{content:"▶";color:var(--accent)}
 </div>
 
 <div class="okbox">
-  <p><b>이 판단의 결과가 실측으로 나왔다.</b> NPC 5,000마리에서 틱 p99가
-  <b>0.37ms</b>(예산 20ms의 1.9%)이고, 틱 루프의 힙 할당은 <b>0 바이트</b>다.
-  그리고 LLM을 3단계로 전부 차단해도 5,000마리가 게임 13일을 완주한다.</p>
+  <p><b>이 판단의 결과는 실측으로 검증한다.</b> NPC 5,000마리의 틱 시간·할당과 LLM 차단 회차의 근거는
+  <a href="reference_metrics.html">성능·한계 레퍼런스</a>에서 확인한다.</p>
 </div>
 
 <!-- ============================================================ 3 -->
@@ -815,7 +807,7 @@ Npc.MasterData  로더 · V1~V13 검증 · 읽기전용 인덱스  ← Core
 Npc.Planning    플랜 스토어 · 재계획 큐 · 개별 풀      ← Core, MasterData
 Npc.Runtime     틱 루프 · SoA 저장소 · 인지 LOD       ← Core, MasterData, Contracts, Planning
 Npc.Llm         프롬프트 · 4단 검증 · 티어 라우터      ← Core, MasterData (+ Microsoft.Extensions.AI)
-Npc.Gateway     링크 구현 4종 (+ TCP 골격)           ← Contracts
+Npc.Gateway     루프백·기록·재생·TCP 링크           ← Contracts
 Npc.Sim         게임서버 대역 (헤드리스 월드)         ← Contracts, MasterData
 Npc.Host        조립 · 대시보드 · 메트릭             ← 전부</code></pre></div>
 
@@ -1143,7 +1135,7 @@ Npc.Host        조립 · 대시보드 · 메트릭             ← 전부</code
     <text class="fb2" x="536" y="94" font-size="20" font-weight="700">✕</text>
     <text class="fb2" x="556" y="92" font-size="11.5" font-weight="700">패킷 유실 — 게임서버는 이걸 받은 적이 없다</text>
   </g>
-  <text class="mono" x="176" y="110">StepStatus = Waiting · StepIssuedTick = tick</text>
+  <text class="mono" x="176" y="110">StepStatus = Waiting · StepDeadlineTick = 마감 틱</text>
 
   <!-- ② 타임아웃 게이지 -->
   <text class="t3" x="176" y="140">② timeout_s 를 틱으로 환산해 센다 — <tspan class="mono">TimeoutTicks(300)</tspan></text>
@@ -1383,7 +1375,7 @@ Npc.Host        조립 · 대시보드 · 메트릭             ← 전부</code
         <td>프롬프트 조립 · 4단 검증 파이프라인 · 3티어 라우팅</td>
         <td class="nowrap"><code>LlmPlanCompiler.cs</code></td></tr>
     <tr><td><code>Npc.Gateway</code></td><td class="nowrap">5 · 570</td>
-        <td><code>IGameServerLink</code> 구현 4종 + TCP 골격</td>
+        <td><code>IGameServerLink</code> 구현과 TCP 게임서버 연결</td>
         <td class="nowrap"><code>LoopbackGameServerLink.cs</code></td></tr>
     <tr><td><code>Npc.Sim</code></td><td class="nowrap">10 · 2,096</td>
         <td>게임서버 대역. 가짜 월드 + 장애 주입 + 검증기 4단(드라이런)</td>
@@ -1551,7 +1543,7 @@ src/Npc.Core/obj/generated/WorldFlags.g.cs      ← 커밋하지 않는다. 재�
 <span class="kw">public int</span>[]        PlanId = [];           <span class="cmt">// 4B × N</span>
 <span class="kw">public byte</span>[]       StepIndex = [];        <span class="cmt">// 스텝 상한 10 이라 byte 로 충분</span>
 <span class="kw">public byte</span>[]       StepStatus = [];
-<span class="kw">public long</span>[]       StepIssuedTick = [];   <span class="cmt">// 타임아웃 합성의 기준</span>
+<span class="kw">public long</span>[]       StepDeadlineTick = [];   <span class="cmt">// 응답 마감 또는 지속 종료 틱</span>
 <span class="kw">public byte</span>[]       Lod = [];
 
 <span class="kw">public const int</span> HotBytesPerNpc =
@@ -1682,7 +1674,7 @@ src/Npc.Core/obj/generated/WorldFlags.g.cs      ← 커밋하지 않는다. 재�
       <li><code>RecordingGameServerLink</code> (144) — 다른 링크를 감싸 jsonl로 기록하는 <b>데코레이터</b></li>
       <li><code>ReplayGameServerLink</code> (120) — 기록을 재생. 게임서버도 Sim도 없이 돈다</li>
       <li><code>NullGameServerLink</code> (75) — 아무데도 안 보낸다. 순수 런타임 부하 측정용</li>
-      <li><code>TcpGameServerLink</code> (57) — <b>골격만.</b> 실제 게임서버를 붙일 자리</li>
+      <li><code>TcpGameServerLink</code> — 게임서버와 소켓으로 연결하고 핸드셰이크·재동기화를 처리한다</li>
     </ul>
   </div>
   <div class="card">
@@ -1950,12 +1942,9 @@ dotnet run -c Release --project tools/Npc.Narrate -- <span class="flag">--trace<
     </ul>
   </div>
   <div class="card">
-    <h4>"아직 없는 것"이 주석에 적혀 있다</h4>
-    <p>P4(스케줄러·티어링)가 미착수라
-      <code>ReplanQueue</code>·<code>TieredPlanCompiler</code> 등에는
-      <i>"정식은 T4-01이 넣는다"</i> 같은 주석이 붙어 있다.</p>
-    <p><b>이 주석들을 신뢰해도 된다.</b> 없는 기능을 있는 척하지 않는 것이 이 저장소의 방침이고,
-      <code>Gate</code> 카테고리 테스트가 산출물이 없으면 <b>실패하도록</b> 되어 있는 것도 같은 이유다.</p>
+    <h4>현재 판정은 측정 문서에서 확인한다</h4>
+    <p>구현 이력은 코드 주석에 남아 있다. 현재 성능과 남은 항목은
+      <a href="reference_metrics.html">성능·한계 레퍼런스</a>를 기준으로 읽는다.</p>
   </div>
 </div>
 
@@ -2041,7 +2030,7 @@ dotnet run -c Release --project tools/Npc.Narrate -- <span class="flag">--trace<
   <div class="card">
     <h4>① 결정론적 NPC 행동 런타임 — 지금 바로 쓸 수 있는 부분</h4>
     <p>LLM 판정과 무관하게 이미 완성돼 있다. 마스터데이터와 폴백 플랜만으로
-      5,000마리를 틱 p99 0.37ms에 돌리고, 같은 입력이면 명령 시퀀스가 바이트 단위로 같다.</p>
+      5,000마리를 결정론적으로 실행한다. 최신 틱 측정치는 <a href="reference_metrics.html">성능·한계 레퍼런스</a>에 있다.</p>
     <p><b>쓰는 법:</b> <code>--no-llm</code>으로 기동하면 LLM이 개입할 여지가 아예 없다.</p>
   </div>
   <div class="card">
@@ -2091,7 +2080,7 @@ dotnet run -c Release --project tools/Npc.Narrate -- <span class="flag">--trace<
   <tbody>
     <tr><td>OS</td><td>Windows 10/11 x64</td><td><span class="b ok">필수</span></td></tr>
     <tr><td>SDK</td><td><b>.NET 10 SDK</b> (<code>dotnet --version</code> → 10.x)</td><td><span class="b ok">필수</span></td></tr>
-    <tr><td>GPU</td><td>NVIDIA VRAM 12GB↑ — 로컬 추론(T1)용</td><td><span class="b n">선택</span></td></tr>
+    <tr><td>GPU</td><td>로컬 추론은 VRAM 8GB에서 실측했다. 8B 모델의 KV 캐시 여유를 위해 12GB 이상을 권장한다.</td><td><span class="b n">선택</span></td></tr>
     <tr><td>로컬 추론 엔진</td><td>dotLLM 또는 llama.cpp 서버. <b>반드시 별도 프로세스 + HTTP</b></td><td><span class="b n">선택</span></td></tr>
     <tr><td>외부 API</td><td>OpenAI 호환 엔드포인트 (OpenRouter · Poe · Gemini)</td><td><span class="b n">선택</span></td></tr>
   </tbody>
@@ -2136,19 +2125,14 @@ dotnet format --verify-no-changes        <span class="cmt"># 스타일 검사</s
 
 <h4>② LLM 없이 스모크 — NPC 500마리, 게임 1일</h4>
 <div class="codewrap"><button class="copy" type="button">복사</button><pre><code>dotnet run -c Release --project src/Npc.Host -- <span class="flag">--loopback --npcs</span> 500 <span class="flag">--time-scale</span> 600 <span class="flag">--days</span> 1 <span class="flag">--no-llm --max-speed --no-dashboard</span></code></pre></div>
-<div class="codewrap"><pre><code>planstore ...\planstore · 버킷 0/2880 (pinned 0) · 폴백 40 · 0.001s
-warn: 미생성 버킷 2880건. 아키타입 폴백으로 해소된다.
-npcs 500 · link Loopback · time-scale 600 · days 1 (1440 ticks) · 버킷 0/2880 · llm off (런타임 호출 없음)
-tick p50 0.094ms · p99 0.234ms · max 5.452ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 66.4MB
-ticks 1440 · game day 1 · events 344928 · commands 298487 · steps 297487 · timeouts 39340 ·
-  scan/tick 58 · interrupts 500 · replan-q 500 · drops link 0 sim 0 · backlogs 0 · llm 0</code></pre></div>
+<p>종료 요약에는 틱 p99·할당·명령·스텝·타임아웃과 <code>판정: 정상</code>이 나온다. 측정값은 실행 조건에 따라 달라지므로 <a href="reference_metrics.html">성능·한계 레퍼런스</a>에서 조건과 함께 읽는다.</p>
 <div class="note">
   <p><b>이 줄들을 읽는 법.</b><br>
   <code>p99</code> — 틱 실행 시간 99분위. 예산은 20ms다.<br>
   <code>overruns</code> — 100ms 틱 예산을 넘긴 횟수. <b>0이어야 한다.</b><br>
   <code>gen0 / bytes-per-tick</code> — 틱 루프의 GC와 할당. <b>둘 다 0이 목표다.</b><br>
-  <code>버킷 0/2880</code> — 프리베이크를 안 돌린 상태. 폴백 40개로 도는 중이라는 뜻이고, 정상이다.<br>
-  <code>timeouts</code> — 응답이 안 와서 로컬에서 합성한 실패 수. Sim의 지연 모델 때문에 항상 일정량 나온다.<br>
+  <code>버킷</code> — 현재 플랜 스토어에 있는 플랜 수. 없는 버킷은 폴백으로 돈다.<br>
+  <code>timeouts</code> — 응답이 안 와서 로컬에서 합성한 실패 수. 오류 주입이 없는 회차에서는 0을 목표로 한다.<br>
   <code>drops link / sim</code> — 명령 발행 큐와 게임서버 대역 수신 링이 넘쳐 버린 수. <b>둘 다 0이어야 한다.</b>
   0이 아니면 큐 용량이 한 틱치 명령보다 작다는 뜻이고, 그 NPC들은 <code>timeout_s</code>가 만료될 때까지 멈춘다.</p>
 </div>
@@ -2353,119 +2337,7 @@ dotnet test <span class="flag">--filter</span> Category=Golden                  
 
 <!-- ============================================================ 14 -->
 <h2 id="results"><span class="n">14</span>실측 결과</h2>
-<p class="sub">2026-07-27 기준. 원자료는 전부 <code>docs/measurements/</code>에 있다.</p>
-
-<div class="grid g4">
-  <div class="card metric"><div class="v ok">0.37<span style="font-size:15px">ms</span></div><div class="k">틱 p99 · NPC 5,000</div><div class="t">예산 20ms의 1.9%</div></div>
-  <div class="card metric"><div class="v ok">0 B</div><div class="k">틱당 힙 할당</div><div class="t">Gen0 GC도 0</div></div>
-  <div class="card metric"><div class="v ok">13일</div><div class="k">LLM 전면 차단 완주</div><div class="t">5,000마리 · 크래시 0</div></div>
-  <div class="card metric"><div class="v ok">72×</div><div class="k">오써링 커버리지</div><div class="t">40 → 2,880</div></div>
-  <div class="card metric"><div class="v ok">93.6%</div><div class="k">골든 단언 합격률</div><div class="t">목표 90%</div></div>
-  <div class="card metric"><div class="v bad">78.3%</div><div class="k">4단 검증 통과율</div><div class="t">목표 90% · 미달</div></div>
-  <div class="card metric"><div class="v warn">30~43%</div><div class="k">프롬프트 캐시 적중률</div><div class="t">목표 95% · 엔진 특성상 도달 불가</div></div>
-  <div class="card metric"><div class="v ok">$5.12</div><div class="k">플랜 2,880개 생성 비용</div><div class="t">기계 시간 0.32h</div></div>
-</div>
-
-<h3>14.1 성능</h3>
-<div class="tw"><table>
-  <thead><tr><th style="width:38%">항목</th><th class="nowrap">목표</th><th class="nowrap">실측</th><th class="nowrap">판정</th></tr></thead>
-  <tbody>
-    <tr><td>틱 p99 (NPC 5,000)</td><td>≤ 20ms</td><td><b>0.37ms</b></td><td><span class="b ok">통과</span></td></tr>
-    <tr><td>인지 스캔 대상</td><td>≤ 150/틱</td><td>150</td><td><span class="b ok">통과</span></td></tr>
-    <tr><td>틱 루프 할당</td><td>Gen0 = 0</td><td><b>0 B/틱</b></td><td><span class="b ok">통과</span></td></tr>
-    <tr><td>명령 송출</td><td>≥ 2,000 cmd/s</td><td><b>20,860 cmd/s</b></td><td><span class="b ok">통과</span></td></tr>
-    <tr><td>로컬 LLM 지연 (8B)</td><td>1.75s 가정</td><td>5.1s</td><td><span class="b bad">2.9배 미달</span></td></tr>
-    <tr><td>로컬 LLM 지연 (4B)</td><td>1.75s 가정</td><td>3.7s</td><td><span class="b bad">2.1배 미달</span></td></tr>
-  </tbody>
-</table></div>
-<p><b>병목은 전부 LLM 쪽이고 틱 루프는 예산을 크게 남긴다.</b> 로컬 지연이 빗나간 큰 원인은
-   모델이 아니라 <b>VRAM 8GB 제약</b>이다 — 8B Q4_K_M 가중치만 4,789MiB라 KV 캐시가 넘쳐 PCIe 페이징이 걸린다.
-   24GB급에서는 다른 곡선이 나온다.</p>
-
-<h3>14.2 캐시</h3>
-<div class="tw"><table>
-  <thead><tr><th style="width:44%">항목</th><th>값</th></tr></thead>
-  <tbody>
-    <tr><td>프리픽스 캐시의 prefill 절감</td><td><b>85~88%</b> (4B 1,531→237ms · 8B 2,608→316ms)</td></tr>
-    <tr><td>프롬프트 캐시 적중률</td><td>30.7 ~ 42.6% <span class="b warn">목표 95% 미달</span></td></tr>
-    <tr><td>캐시로 줄인 비용</td><td>33.4% ($0.3294 → $0.2193)</td></tr>
-    <tr><td>플랜 캐시(버킷) 히트율</td><td><span class="b n">미측정</span> — 전량 프리베이크 회차가 없다</td></tr>
-  </tbody>
-</table></div>
-<p><b>설계 판단은 옳았고 목표치가 틀렸다.</b> 프리픽스 고정은 prefill을 실제로 85~88% 줄였다.
-   다만 적중률 95%는 <b>명시적 캐싱</b>을 전제한 숫자인데, 실제로 쓴 Gemini 계열은 암시적 캐싱이라
-   요청 단위로 전부 적중하거나 전부 미적중한다. 이 엔진 계열에서 95%는 도달 불가다.</p>
-
-<h3>14.3 비용 — 추정이 얼마나 빗나갔나</h3>
-<div class="tw"><table>
-  <thead><tr><th style="width:36%">시나리오</th><th class="nowrap">계획 추정</th><th class="nowrap">실측(환산)</th><th class="nowrap">오차</th></tr></thead>
-  <tbody>
-    <tr><td>프리베이크 2,880건</td><td>$0.94</td><td><b>$5.12</b></td><td><span class="b bad">+445%</span></td></tr>
-    <tr><td>월 운영 (재계획 20,000/일)</td><td>$195</td><td><b>$609</b></td><td><span class="b bad">+212%</span></td></tr>
-    <tr><td>요청당 입력 토큰</td><td>1,750</td><td><b>13,948</b></td><td><span class="b bad">8.0배</span></td></tr>
-  </tbody>
-</table></div>
-<p><b>오차의 대부분이 한 원인이다 — 프리픽스 크기를 축소판으로 추정했다.</b>
-   계획의 1,500 토큰은 액션 12개·플래그 16개짜리 축소 카탈로그 값이었고, 정식 카탈로그는 11,967 토큰이다.
-   <b>비용 모델 자체(토큰 × 단가, 캐시 1/10 할인)는 실측과 일치한다.</b>
-   절대 금액은 여전히 작다 — 5배 틀려도 월 $609는 단일 월드 운영비로 큰 값이 아니다.</p>
-
-<h3>14.4 예상 밖의 발견</h3>
-<div class="grid g2">
-  <div class="card">
-    <h4>버킷의 91%는 애초에 쓰이지 않는다</h4>
-    <p>평시 하루에 실제로 도달하는 버킷은 <b>264개(9.2%)</b>뿐이다. 공성에도 978개(34%)다.
-      지역상태 4종 중 War·Disaster와 기후 3종 중 Storm이 어느 존의 기본값도 아니고,
-      아키타입과 존이 묶여 있어(광부는 광산 언덕에만 산다) 한 아키타입이 겪는 조합은 보통 하나다.</p>
-    <p><b>→ 다음 버전은 도달 집합만 만들어 비용을 1/11로 줄일 수 있다.</b></p>
-  </div>
-  <div class="card">
-    <h4>강제 디코딩이 프롬프트 지시보다 나빴다</h4>
-    <p><code>forced</code>: 유효 JSON 99/100, 어휘 검증 <b>0/100</b>.<br>
-       <code>prompt</code>(지시만): 유효 JSON 93/100, 어휘 검증 <b>93/100</b>.</p>
-    <p>스키마를 만족시키면서 존재하지 않는 아이템·POI를 지어낸다.
-      <b>측정 지표를 잘못 고르면 100% 실패를 통과로 읽는다</b> — "유효율 90% 이상"이라는 위험 신호로는 이 실패가 안 잡혔다.</p>
-  </div>
-</div>
-
-<h3>14.5 최종 수용 기준 — 16개 중 9 통과 · 7 미달</h3>
-<div class="tw"><table>
-  <thead><tr><th class="nowrap">구분</th><th>기준</th><th class="nowrap">판정</th></tr></thead>
-  <tbody>
-    <tr><td rowspan="5" class="nowrap">기능</td><td>마스터데이터만 바꿔 아키타입·POI·액션 추가 (코드 수정 없이)</td><td><span class="b ok">통과</span></td></tr>
-    <tr><td>시나리오 A/B/C 전부 통과</td><td><span class="b ok">통과</span></td></tr>
-    <tr><td>링크 구현체를 갈아 끼워도 NPC 서버 코드가 안 바뀐다</td><td><span class="b ok">통과</span></td></tr>
-    <tr><td>프리베이크가 2,880개를 5분 이내에 생성</td><td><span class="b bad">미달</span> — 288버킷 파일럿 115초 → 전량 외삽 19분</td></tr>
-    <tr><td>생성 플랜을 사람이 고쳐 pin하면 유지된다</td><td><span class="b ok">통과</span></td></tr>
-    <tr><td rowspan="4" class="nowrap">성능</td><td>틱 p99 ≤ 20ms</td><td><span class="b ok">통과</span> 0.37ms</td></tr>
-    <tr><td>인지 스캔 ≤ 150마리/틱</td><td><span class="b ok">통과</span></td></tr>
-    <tr><td>플랜 캐시 히트율 ≥ 98%</td><td><span class="b bad">미측정</span> — 전량 프리베이크 미실행</td></tr>
-    <tr><td>명령 송출 ≥ 2,000 cmd/s 를 할당 없이</td><td><span class="b ok">통과</span> 20,860 cmd/s · 0 B</td></tr>
-    <tr><td rowspan="3" class="nowrap">품질</td><td>플랜 검증 실패율 ≤ 3%</td><td><span class="b bad">미달</span> 22~32%</td></tr>
-    <tr><td>골든 시나리오 50건 통과</td><td><span class="b ok">통과</span> 93.6%</td></tr>
-    <tr><td>리플레이 결정론 100% 일치</td><td><span class="b ok">통과</span></td></tr>
-    <tr><td rowspan="3" class="nowrap">비용·운영</td><td>프롬프트 캐시 적중률 ≥ 95%</td><td><span class="b bad">미달</span> 30~43%</td></tr>
-    <tr><td>토큰 하드 캡 초과 시 자동 강등</td><td><span class="b warn">부분</span> — 프리베이크 예산 캡은 동작. 런타임 강등은 기제만 확인(P4 <code>ReplanBudget</code>), 실측 회차 없음</td></tr>
-    <tr><td>T1/T2 전면 차단에서 시나리오 A 통과</td><td><span class="b ok">통과</span></td></tr>
-    <tr><td rowspan="2" class="nowrap">보고</td><td>블라인드 A/B 평가 정량 결과</td><td><span class="b warn">보류</span> — 자료·통계 처리기 준비 완료, 참가자 0명</td></tr>
-    <tr><td>오써링 공수 절감률 측정</td><td><span class="b warn">부분</span> — 커버리지 72배는 확정, 절감률은 민감도 표(81~95%)</td></tr>
-  </tbody>
-</table></div>
-<div class="note">
-  <p><b>미달 7개 중 4개가 같은 뿌리다.</b> P4(스케줄러·티어링)와 전량 프리베이크가 미착수라
-  런타임 LLM 경로의 실측이 하나도 없다. <b>코드 결함으로 인한 미달은 없다.</b></p>
-</div>
-
-<h3>14.6 결론 한 문장</h3>
-<div class="oneline" style="border-left-color:var(--ok);background:var(--ok-soft)">
-  런타임 LLM은 아직 근거가 없고, 오써링 자동화는 근거가 생겼다.
-  그리고 이 프로젝트가 실제로 만들어 낸 것은 <b>LLM 없이도 도는 결정론적 NPC 서버</b>다.
-</div>
-<p>블라인드 A/B의 <b>예비</b> 실시(LLM 심사원 6명 × 40건 = 240 판정)에서
-   Q1 정답률이 <b>50.8%</b>[44.5, 57.1] · p=0.85로 나왔다 — <b>사람이 만든 것과 구분하지 못한다</b>는 뜻이다.
-   다만 심사원이 LLM이므로 정식 측정이 아니고, 이 값의 값어치는 "정식 평가를 돌릴 만하다"는 판단 하나다.
-   정식 평가에는 사람 12명 × 40~60분이 필요하다.</p>
-<p class="sub">자세한 내용 → <a href="reference_metrics.html">docs/reference_metrics.html</a></p>
+<p>성능·비용·품질의 실측 수치, 조건, 미달·미측정 판정은 <a href="reference_metrics.html">성능·한계 레퍼런스</a> 한 곳에서 관리한다.</p>
 
 <!-- ============================================================ 15 -->
 <h2 id="tree"><span class="n">15</span>저장소 구조 · 문서 지도</h2>
@@ -2477,7 +2349,7 @@ dotnet test <span class="flag">--filter</span> Category=Golden                  
   Npc.Runtime/      틱 스케줄러 · 플랜 실행기 · 인지 LOD
   Npc.Planning/     플랜 캐시 · 버킷터 · 우선순위 재계획 큐
   Npc.Llm/          IChatClient 어댑터 · 프롬프트 · 3티어 라우터
-  Npc.Gateway/      IGameServerLink 구현 4종 + TCP 골격
+  Npc.Gateway/      IGameServerLink 구현과 TCP 연결
   Npc.Sim/          헤드리스 월드 = 게임서버 대역
   Npc.Host/         ASP.NET 호스트 · 메트릭 · 대시보드
 tools/
@@ -2497,7 +2369,7 @@ spike/              W1 스파이크 (지연·캐시·스키마 측정 코드)</c
 <div class="tw"><table>
   <thead><tr><th class="nowrap" style="width:30%">문서</th><th>무엇이 있나</th><th class="nowrap">언제 읽나</th></tr></thead>
   <tbody>
-    <tr><td><a href="../README.md"><code>README.md</code></a></td><td>한눈에 보는 요약 · 빠른 시작</td><td class="nowrap">제일 먼저</td></tr>
+    <tr><td><a href="https://github.com/jacking75/LlmNpcServer/blob/main/README.md"><code>README.md</code></a></td><td>한눈에 보는 요약 · 빠른 시작</td><td class="nowrap">제일 먼저</td></tr>
     <tr><td><b>이 문서</b> <code>docs/index.html</code></td><td>전체 안내 — 아키텍처 그림 · 동작 애니메이션 · <b>구현 코드 안내</b> · <b>코드 분석 가이드</b> · 빌드 · 실행</td><td class="nowrap">전체를 훑을 때 · 코드를 처음 열 때</td></tr>
     <tr><td><a href="book/ch01.html"><code>book/ch01.html</code></a></td><td><b>왜 이 구조인가</b> — 원안의 문제 · 발상 전환 · 세 겹의 방어선 · 무엇을 포기했나</td><td class="nowrap">판단 근거가 궁금할 때</td></tr>
     <tr><td><a href="reference_link.html"><code>reference_link.html</code></a></td><td><b>공통 계약 ★</b> 게임서버 연동 — N1~N8 · 패킷 · 와이어 · 발행 규약</td><td class="nowrap" rowspan="2">코드 쓰기 전 필수</td></tr>
@@ -2508,7 +2380,7 @@ spike/              W1 스파이크 (지연·캐시·스키마 측정 코드)</c
     <tr><td><code>docs/llm/VALIDATION.md</code></td><td><b>검증 오류 사전</b> — 코드 → 무엇을 하면 되는가. <b>생성물이다</b> (<code>npc hints --out</code>)</td><td class="nowrap">검증이 떨어졌을 때</td></tr>
     <tr><td><a href="npc_studio_manual.html"><code>npc_studio_manual.html</code></a></td><td><b>NPC Studio 사용 설명서</b> — 읽기 · 하루 예측 · 편집 · 새 직업 · 연습장 · 문제 해결</td><td class="nowrap">JSON 을 열지 않고 콘텐츠를 만들 때</td></tr>
     <tr><td><code>docs/measurements/</code></td><td>실측 <b>원자료</b>(jsonl · csv). 보고서는 <code>reference_metrics.html</code> 로 옮겼다</td><td class="nowrap">원본을 직접 볼 때</td></tr>
-    <tr><td><a href="../CLAUDE.md"><code>CLAUDE.md</code></a></td><td>AI 코딩 에이전트용 작업 규칙</td><td class="nowrap">에이전트로 작업할 때</td></tr>
+    <tr><td><a href="https://github.com/jacking75/LlmNpcServer/blob/main/CLAUDE.md"><code>CLAUDE.md</code></a></td><td>AI 코딩 에이전트용 작업 규칙</td><td class="nowrap">에이전트로 작업할 때</td></tr>
   </tbody>
 </table></div>
 
@@ -2837,9 +2709,9 @@ spike/              W1 스파이크 (지연·캐시·스키마 측정 코드)</c
     unspawned: ['Unspawned (= 3)',
       '스폰 확인 전. <b>명령을 발행하지 않는다.</b> <code>NpcStore.Allocate</code>의 초기값이 이것이다 — 0(<code>Ready</code>)으로 두면 게임서버에 존재하지도 않는 NPC에게 명령이 나가고 전부 거절된다. 게임서버가 <code>NpcSpawned</code>를 보내야 <code>Ready</code>가 된다.'],
     ready: ['Ready (= 0)',
-      '발행 대기. 다음 <code>PlanExecutor.Step</code>에서 현재 스텝이 명령으로 바뀌어 나간다. 이때 <code>CorrelationId</code>가 새로 발급되고 <code>StepIssuedTick</code>에 지금 틱이 기록된다.'],
+      '발행 대기. 다음 <code>PlanExecutor.Step</code>에서 현재 스텝이 명령으로 바뀌어 나간다. 이때 <code>CorrelationId</code>가 새로 발급되고 <code>StepDeadlineTick</code>에 마감 틱이 기록된다.'],
     waiting: ['Waiting (= 1)',
-      '명령을 보내고 응답을 기다린다. <b>매 틱</b> <code>SynthesizeTimeout</code>이 <code>tick − StepIssuedTick ≥ TimeoutTicks(timeout_s)</code>인지 확인한다. 넘으면 게임서버가 답을 안 줘도 <code>Failed</code>로 넘어간다.'],
+      '명령을 보내고 응답을 기다린다. <b>매 틱</b> <code>SynthesizeTimeout</code>이 <code>tick ≥ StepDeadlineTick</code>인지 확인한다. 넘으면 게임서버가 답을 안 줘도 <code>Failed</code>로 넘어간다.'],
     completed: ['Completed (= 4)',
       '완료 이벤트를 받았다. 다음 틱의 <code>AdvanceStep</code>에서 전진한다. <b>여기가 스텝 경계이고, 플랜 스왑이 일어나는 유일한 지점</b>이다. 마지막 스텝이면 <code>loop</code>에 따라 0번으로 돌아가거나 <code>Done</code>이 된다.'],
     failed: ['Failed (= 5)',

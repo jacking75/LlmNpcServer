@@ -100,6 +100,8 @@ public sealed class AdminAuthTests
     [InlineData("/dashboard", false)]
     [InlineData("/", false)]
     [InlineData("/status", true)]
+    [InlineData("/world", true)]
+    [InlineData("/world/npcs", true)]
     [InlineData("/metrics", true)]
     [InlineData("/npc/7", true)]
     [InlineData("/npcs", true)]

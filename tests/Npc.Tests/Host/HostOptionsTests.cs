@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Npc.Host;
 
 namespace Npc.Tests.Host;
@@ -5,6 +6,38 @@ namespace Npc.Tests.Host;
 /// <summary>README §주요 실행 옵션 · docs/11 §11. 호스트 인자 파싱.</summary>
 public sealed class HostOptionsTests
 {
+    private static readonly Regex InternalId = new(@"\b(?:[A-G]-\d{2}|T\d{2}|T\d-\d+|P\d|docs/\d{2})\b",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    [Fact]
+    public void HelpCatalog_IsCompleteAndReadable()
+    {
+        string shortHelp = HostOptionCatalog.Render(all: false);
+        string fullHelp = HostOptionCatalog.Render(all: true);
+        Assert.True(shortHelp.Split('\n').Length <= 40);
+        Assert.Equal(64, HostOptionCatalog.Options.Length);
+        Assert.Equal(64, HostOptionCatalog.Options.Select(x => x.Option).Distinct().Count());
+        foreach (HostOptionCatalog.Entry entry in HostOptionCatalog.Options)
+            Assert.Contains(entry.Option, fullHelp, StringComparison.Ordinal);
+        Assert.DoesNotMatch(InternalId, shortHelp);
+        Assert.DoesNotMatch(InternalId, fullHelp);
+        Assert.DoesNotMatch(InternalId, Npc.Cli.Program.Usage);
+        Assert.DoesNotMatch(InternalId, File.ReadAllText(TestPaths.At("appsettings.Llm.json")));
+        Assert.Matches(InternalId, "옛 설명 A-07 과 P6");
+        Assert.DoesNotMatch(InternalId, "T1 과 T2 계층");
+    }
+
+    [Fact]
+    public void HostOptionsDocument_MatchesCatalog()
+    {
+        string path = TestPaths.At("docs", "host_options.md");
+        string expected = HostOptionCatalog.Render(all: true, markdown: true).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string actual = File.ReadAllText(path).TrimStart('\uFEFF').Replace("\r\n", "\n", StringComparison.Ordinal);
+        if (actual != expected) File.WriteAllText(path, expected);
+        Assert.Equal(expected, actual);
+        Assert.DoesNotMatch(InternalId, actual);
+    }
+
     private static HostOptions Parse(params string[] args)
     {
         Assert.True(HostOptions.TryParse(args, out HostOptions options, out string? error), error);
@@ -43,6 +76,13 @@ public sealed class HostOptionsTests
         Assert.Equal(30, options.LiveStallSeconds);
         Assert.Equal(10, options.ReadyTickStallSeconds);
         Assert.Null(options.HealthPort);
+    }
+
+    [Fact]
+    public void SnapshotDirectoryIsStableAcrossProjectRun()
+    {
+        HostOptions options = Parse();
+        Assert.Equal(TestPaths.At("state"), options.ResolveSnapshotDir());
     }
 
     [Fact]

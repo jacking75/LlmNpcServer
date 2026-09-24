@@ -67,6 +67,12 @@ public sealed record PrebakeOptions
     /// <summary>부분 재생성 glob. 비어 있으면 전 대상.</summary>
     public ImmutableArray<string> Only { get; init; } = [];
 
+    /// <summary>정확한 버킷 이름 목록. <c>--only</c> glob 과 함께 주면 교집합이다.</summary>
+    public ImmutableHashSet<string> BucketNames { get; init; } = ImmutableHashSet<string>.Empty.WithComparer(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>버킷 이름 파일 경로. 없으면 <see cref="BucketNames"/> 필터를 적용하지 않는다.</summary>
+    public string? BucketsFile { get; init; }
+
     /// <summary>예산 하드 캡(USD). 초과 시 중단하고 manifest 를 부분 상태로 기록한다.</summary>
     public double BudgetUsd { get; init; } = DefaultBudgetUsd;
 
@@ -115,6 +121,7 @@ public sealed record PrebakeOptions
           --dryrun-sample <0~1>  4단 드라이런 비율 (기본 1.0 = 전수)
           --resume               기존 planstore 에서 이어서. 미생성 버킷만
           --only <glob>          부분 재생성. 예: "blacksmith@*" · "*@Dawn.*.*". 여러 번 줄 수 있다
+          --buckets-file <file>  정확한 버킷 이름 목록(한 줄에 하나). --only 와 함께 쓰면 교집합
           --budget-usd <n>       예산 하드 캡 (기본 5.00). 초과 시 중단 + --resume 으로 재개
           --generated-at <text>  manifest 의 생성 시각. 비우면 결정론적 산출물이 된다
           --limit N              앞에서 N 개만 (측정 회차용)
@@ -177,6 +184,11 @@ public sealed record PrebakeOptions
     /// <summary>이 버킷 이름이 <see cref="Only"/> 중 하나에 맞는가. 목록이 비어 있으면 항상 참이다.</summary>
     public bool IncludesBucket(string bucketName)
     {
+        if (BucketsFile is not null && !BucketNames.Contains(bucketName))
+        {
+            return false;
+        }
+
         if (Only.IsEmpty)
         {
             return true;
@@ -297,6 +309,16 @@ public sealed record PrebakeOptions
                     only.Add(pattern!);
                     break;
 
+                case "--buckets-file":
+                    if (!TryValue(args, ref i, arg, out string? bucketsFile, out error))
+                    {
+                        options = result;
+                        return false;
+                    }
+
+                    result = result with { BucketsFile = bucketsFile };
+                    break;
+
                 case "--concurrency":
                     if (!TryInt(args, ref i, arg, 1, 512, out int concurrency, out error))
                     {
@@ -385,6 +407,52 @@ public sealed record PrebakeOptions
         }
 
         result = result with { Only = only.ToImmutable() };
+
+        if (result.BucketsFile is not null)
+        {
+            try
+            {
+                var names = ImmutableHashSet.CreateBuilder<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (string line in File.ReadLines(result.BucketsFile))
+                {
+                    string name = line.Trim();
+                    if (name.Length == 0 || name.StartsWith('#'))
+                    {
+                        continue;
+                    }
+
+                    if (name.Split('@').Length != 2 || name.Split('.').Length != 3)
+                    {
+                        error = $"--buckets-file 에 잘못된 버킷 이름이 있다: '{name}'";
+                        options = result;
+                        return false;
+                    }
+
+                    names.Add(name);
+                }
+
+                if (names.Count == 0)
+                {
+                    error = "--buckets-file 이 비어 있다.";
+                    options = result;
+                    return false;
+                }
+
+                result = result with { BucketNames = names.ToImmutable() };
+            }
+            catch (IOException ex)
+            {
+                error = $"--buckets-file 을 읽지 못했다: {ex.Message}";
+                options = result;
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                error = $"--buckets-file 을 읽지 못했다: {ex.Message}";
+                options = result;
+                return false;
+            }
+        }
 
         if (result.MaxConcurrency < result.Concurrency)
         {

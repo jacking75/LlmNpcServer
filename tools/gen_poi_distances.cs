@@ -23,7 +23,13 @@ using System.Text.Json;
 using Npc.MasterData.Authoring;
 
 string root = FindRepoRoot();
-string masterData = Path.Combine(root, "masterdata");
+string? masterDataArg = null;
+for (int i = 0; i < args.Length; i++)
+{
+    if (args[i] == "--masterdata" && i + 1 < args.Length) masterDataArg = args[++i];
+    else throw new ArgumentException($"모르는 인자다: {args[i]}");
+}
+string masterData = masterDataArg is null ? Path.Combine(root, "masterdata") : Path.GetFullPath(masterDataArg);
 string outPath = Path.Combine(masterData, "poi_distances.bin");
 
 using JsonDocument zonesDoc = JsonDocument.Parse(File.ReadAllText(Path.Combine(masterData, "zones.json")));

@@ -37,15 +37,16 @@
 
 <div class="term">
   <span class="cap">이 장이 끝나면 이 두 줄을 읽을 수 있다</span>
-<pre><code>tick p50 0.013ms · p99 0.108ms · max 6.566ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 70.6MB
-ticks 1440 · game day 1 · events 15175 · commands <span class="hl">11825</span> · steps 11118 · timeouts 1381 ·
+<pre><code>tick p50 0.004ms · p99 0.124ms · max 7.113ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 70.3MB
+ticks 1440 · game day 1 · events 4138 · commands <span class="hl">1155</span> · steps 948 · timeouts 0 ·
 scan/tick 3 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 · llm <span class="hl">0</span></code></pre>
 </div>
+<p class="small">아래 수치는 2026-09-24에 같은 게임 조건으로 <code>--max-speed --no-dashboard</code>를 더해 재측정했다. 틱 시간은 실행 기계와 웹 화면 유무에 따라 달라진다.</p>
 
 <div class="ok">
   <span class="tag">이 장의 한 문장</span>
-  <b><code>llm 0</code> 인데 <code>commands 11825</code> 다.</b>
-  LLM을 한 번도 안 불렀는데 게임서버로 명령이 1만 건 넘게 나갔다.
+  <b><code>llm 0</code> 인데 <code>commands 1155</code> 다.</b>
+  LLM을 한 번도 안 불렀는데 게임서버로 명령이 천 건 넘게 나갔다.
   플랜은 <i>이미</i> 만들어져 있었고, 런타임은 그것을 <i>실행만</i> 했다.
   "LLM은 게임 크리티컬 패스에 없다"는 주장의 실물이 이 두 숫자다.
 </div>
@@ -109,9 +110,9 @@ scan/tick 3 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 
 
 <div class="term">
   <span class="cap">터미널 — 기동 직후</span>
-<pre><code>planstore C:\github_edu\LlmNpcServer\planstore · 버킷 718/2880 (pinned 0) · 폴백 40 · 0.215s
-warn: 미생성 버킷 2162건. 아키타입 폴백으로 해소된다.
-npcs 20 · link Loopback · time-scale 600 · days 1 (1440 ticks) · 버킷 718/2880 · llm off (런타임 호출 없음)
+<pre><code>planstore C:\github_edu\LlmNpcServer\planstore · 버킷 737/2880 (pinned 19) · 폴백 40 · 프롬프트 2026.09-r1
+warn: 미생성 버킷 2143건. 아키타입 폴백으로 해소된다.
+npcs 20 · link Loopback · time-scale 600 · days 1 (1440 ticks) · 버킷 737/2880 · llm off (런타임 호출 없음)
 info: Microsoft.Hosting.Lifetime[14]
       Now listening on: http://localhost:5080
 dashboard: http://localhost:5080/dashboard</code></pre>
@@ -122,11 +123,11 @@ dashboard: http://localhost:5080/dashboard</code></pre>
 <thead><tr><th>줄</th><th>읽는 법</th></tr></thead>
 <tbody>
 <tr>
-  <td><code>버킷 718/2880</code></td>
-  <td>미리 구워 둔 플랜이 <b>718개</b> 있다는 뜻. 전체 버킷은 2,880개다</td>
+  <td><code>버킷 737/2880</code></td>
+  <td>이 로컬 폴더에 생성 플랜 718개와 사람 고정 플랜 19개가 있다는 뜻이다. 전체 버킷은 2,880개다</td>
 </tr>
 <tr>
-  <td><code>warn: 미생성 버킷 2162건</code></td>
+  <td><code>warn: 미생성 버킷 2143건</code></td>
   <td><b>경고지만 정상이다.</b> 없는 버킷은 아키타입 폴백 40개로 메운다 — 플랜 조회는 절대 실패하지 않는다</td>
 </tr>
 <tr>
@@ -142,9 +143,9 @@ dashboard: http://localhost:5080/dashboard</code></pre>
 </div>
 
 <div class="warn">
-  <span class="tag">버킷이 0/2880 이라고 나와도 정상이다</span>
+  <span class="tag">깨끗한 클론은 생성 플랜 0개여도 정상이다</span>
   <code>planstore/plans/</code> 는 <b>생성물</b>이라 <code>.gitignore</code> 대상이다.
-  저장소를 새로 받았으면 비어 있고, 그러면 모든 NPC 가 <b>폴백 40개</b>로만 돈다.
+  저장소를 새로 받았으면 생성 플랜 폴더가 비어 있고, 사람 고정 플랜과 <b>폴백 40개</b>로 돈다.
   <b>NPC 는 똑같이 하루를 산다.</b> 다만 행동이 덜 다양할 뿐이고,
   2장에서 볼 <code>planKind</code> 가 전부 <code>fallback</code> 으로 나온다.
   플랜을 직접 굽는 것은 17장이다.
@@ -156,8 +157,8 @@ dashboard: http://localhost:5080/dashboard</code></pre>
 
 <div class="term">
   <span class="cap">터미널 — 종료 요약 (NPC 20 · 배속 600 · 게임 1일)</span>
-<pre><code>tick p50 0.013ms · p99 0.108ms · max 6.566ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 70.6MB
-ticks 1440 · game day 1 · events 15175 · commands 11825 · steps 11118 · timeouts 1381 ·
+<pre><code>tick p50 0.004ms · p99 0.124ms · max 7.113ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 70.3MB
+ticks 1440 · game day 1 · events 4138 · commands 1155 · steps 948 · timeouts 0 ·
 scan/tick 3 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 · llm 0</code></pre>
 </div>
 
@@ -191,10 +192,10 @@ scan/tick 3 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 
 <thead><tr><th style="width:130px">값</th><th>실측</th><th>뜻</th></tr></thead>
 <tbody>
 <tr><td><code>ticks</code></td><td class="num">1,440</td><td>돈 틱. 배속 600에서 게임 1일 = 1,440틱이다</td></tr>
-<tr><td><code>events</code></td><td class="num">15,175</td><td>게임서버가 보내온 통보 (도착·완료·실패·근접·시간 변경…)</td></tr>
-<tr><td><code>commands</code></td><td class="num">11,825</td><td><b>NPC 서버가 발행한 명령.</b> 이게 이 서버의 산출물이다</td></tr>
-<tr><td><code>steps</code></td><td class="num">11,118</td><td>플랜 스텝이 전진한 횟수</td></tr>
-<tr><td><code>timeouts</code></td><td class="num">1,381</td><td><b>응답이 안 와서 로컬에서 합성한 실패.</b> 아래에서 따로 본다</td></tr>
+<tr><td><code>events</code></td><td class="num">4,138</td><td>게임서버가 보내온 통보 (도착·완료·실패·근접·시간 변경…)</td></tr>
+<tr><td><code>commands</code></td><td class="num">1,155</td><td><b>NPC 서버가 발행한 명령.</b> 이게 이 서버의 산출물이다</td></tr>
+<tr><td><code>steps</code></td><td class="num">948</td><td>플랜 스텝이 전진한 횟수</td></tr>
+<tr><td><code>timeouts</code></td><td class="num">0</td><td>응답이 오지 않으면 합성하는 실패. 이 회차에는 없었다</td></tr>
 <tr><td><code>scan/tick</code></td><td class="num">3</td><td>마지막 틱에 인지 스캔한 NPC 수. <b>상한 150</b></td></tr>
 <tr><td><code>interrupts</code></td><td class="num">20</td><td>인터럽트 규칙이 즉시 발행한 액션 → 8장</td></tr>
 <tr><td><code>replan-q</code></td><td class="num">20</td><td>재계획 대기열 깊이. <b><code>--tier none</code> 이면 아무도 안 꺼내 간다</b></td></tr>
@@ -206,15 +207,13 @@ scan/tick 3 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 
 </div>
 
 <div class="why">
-  <span class="tag">왜 타임아웃이 1,381건이나 되나</span>
-  스텝 11,118건 중 12%가 타임아웃으로 끝났다. 고장이 아니다 —
-  <b>배속을 600으로 준 결과</b>다. 1틱이 게임 60초이므로 <code>timeout_s: 300</code> 인 스텝은
-  <b>5틱이면 만료된다.</b> 게임서버 대역이 이동을 마치기 전에 시간이 먼저 지나간다.
+  <span class="tag">왜 타임아웃이 0건인가</span>
+  이동 스텝의 마감은 거리와 속도로 구한 예상 소요 시간에서 도출한다. 수면 같은 지속형 액션은
+  NPC 서버가 시간을 세므로 배속 600에서도 이 회차의 스텝 948건에 타임아웃이 없었다.
   <br><br>
   중요한 것은 <b>그래도 NPC 가 멈추지 않는다</b>는 점이다. 응답이 안 오면 NPC 서버가
   <code>ActionFailed(Timeout)</code> 을 스스로 만들어 다음 스텝으로 넘어간다.
-  <b>"명령은 유실된다고 가정한다"</b>가 설계이고, 이 숫자가 그 설계가 도는 증거다.
-  배속을 60으로 낮추면 이 비율이 6%로 떨어진다.
+  <b>"명령은 유실될 수 있다"</b>는 가정은 그대로다. 아래에서 명령 유실을 주입해 확인한다.
 </div>
 
 <h2 id="watch">도는 동안 볼 것</h2>
@@ -228,25 +227,25 @@ scan/tick 3 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 
 PS&gt; Invoke-RestMethod http://localhost:5080/status | ConvertTo-Json
 
 {
-    "tick":  86,
+    "tick":  292,
     "gameDay":  0,
-    "gameHour":  7,
+    "gameHour":  10,
     "timeOfDay":  "<span class="hl2">Morning</span>",
     "npcs":  20,
-    "ticksProcessed":  86,
-    "eventsDrained":  942,
-    "commandsEmitted":  719,
-    "stepsAdvanced":  699,
-    "timeoutsSynthesized":  78,
-    "scanPerTick":  5,
-    "deviations":  117,
+    "ticksProcessed":  292,
+    "eventsDrained":  912,
+    "commandsEmitted":  264,
+    "stepsAdvanced":  234,
+    "timeoutsSynthesized":  0,
+    "scanPerTick":  4,
+    "deviations":  567,
     "interruptsForced":  0,
-    "replanQueued":  0,
+    "replanQueued":  12,
     "eventBacklogs":  0,
     "llmCalls":  <span class="hl">0</span>,
     "link":  {
-        "commandsEnqueued":  719,
-        "commandsFlushed":  719,
+        "commandsEnqueued":  264,
+        "commandsFlushed":  264,
         "commandsDropped":  0,
         "eventsReceived":  0,
         "eventGapsDetected":  0,
@@ -270,7 +269,7 @@ PS&gt; Invoke-RestMethod http://localhost:5080/status | ConvertTo-Json
 
 <div class="note">
   <span class="tag">게임 시각은 06:00 에서 시작한다</span>
-  <code>gameHour: 7</code> · <code>timeOfDay: "Morning"</code> 이 보인다.
+  위 관측 예에서는 <code>gameHour: 10</code> · <code>timeOfDay: "Morning"</code> 이 보인다.
   시간대는 <b>Dawn · Morning · Noon · Afternoon · Evening · Night</b> 여섯 가지이고,
   이것이 플랜 캐시 키의 한 축이다 — 같은 대장장이라도 아침 플랜과 밤 플랜이 다르다.
   시간대가 넘어가는 순간 플랜이 갈리는 것을 2장에서 직접 본다.
@@ -296,19 +295,19 @@ PS&gt; Invoke-RestMethod http://localhost:5080/status | ConvertTo-Json
   <th class="num">명령</th><th class="num">스텝</th><th class="num">타임아웃</th><th class="num">스캔/틱</th><th class="num">LLM</th>
 </tr></thead>
 <tbody>
-<tr><td>기준선 <span class="small">(NPC 50 · 배속 600 · 1일)</span></td><td class="num">1,440</td><td class="num">0.105</td><td class="num">0</td><td class="num">26,746</td><td class="num">25,236</td><td class="num">3,980</td><td class="num">7</td><td class="num">0</td></tr>
-<tr><td><code>--npcs 500</code></td><td class="num">1,440</td><td class="num">0.278</td><td class="num">0</td><td class="num">276,718</td><td class="num">263,787</td><td class="num">34,208</td><td class="num">53</td><td class="num">0</td></tr>
-<tr><td><code>--npcs 5000</code></td><td class="num">1,440</td><td class="num">2.368</td><td class="num">0</td><td class="num">2,789,957</td><td class="num">2,658,422</td><td class="num">356,288</td><td class="num"><b>150</b></td><td class="num">0</td></tr>
-<tr><td><code>--time-scale 60</code></td><td class="num">14,400</td><td class="num">0.011</td><td class="num">0</td><td class="num">68,687</td><td class="num">61,603</td><td class="num">4,002</td><td class="num">7</td><td class="num">0</td></tr>
-<tr><td><code>--days 7</code></td><td class="num">10,080</td><td class="num">0.025</td><td class="num">0</td><td class="num">175,686</td><td class="num">160,629</td><td class="num">29,485</td><td class="num">6</td><td class="num">0</td></tr>
-<tr><td><code>--player-bots 0</code></td><td class="num">1,440</td><td class="num">0.054</td><td class="num">0</td><td class="num">26,746</td><td class="num">25,236</td><td class="num">3,980</td><td class="num"><b>0</b></td><td class="num">0</td></tr>
-<tr><td><code>--drop-rate 0.2</code></td><td class="num">1,440</td><td class="num">0.069</td><td class="num">0</td><td class="num">20,509</td><td class="num">18,756</td><td class="num"><b>5,802</b></td><td class="num">4</td><td class="num">0</td></tr>
-<tr><td><code>--fail-rate 0.2</code></td><td class="num">1,440</td><td class="num">0.081</td><td class="num">0</td><td class="num">29,915</td><td class="num">27,092</td><td class="num">3,647</td><td class="num">6</td><td class="num">0</td></tr>
+<tr><td>기준선 <span class="small">(NPC 50 · 배속 600 · 1일)</span></td><td class="num">1,440</td><td class="num">0.061</td><td class="num">0</td><td class="num">2,913</td><td class="num">2,400</td><td class="num">0</td><td class="num">6</td><td class="num">0</td></tr>
+<tr><td><code>--npcs 500</code></td><td class="num">1,440</td><td class="num">0.112</td><td class="num">0</td><td class="num">27,393</td><td class="num">22,362</td><td class="num">0</td><td class="num">55</td><td class="num">0</td></tr>
+<tr><td><code>--npcs 5000</code></td><td class="num">1,440</td><td class="num">0.649</td><td class="num">0</td><td class="num">286,349</td><td class="num">232,847</td><td class="num">0</td><td class="num"><b>150</b></td><td class="num">0</td></tr>
+<tr><td><code>--time-scale 60</code></td><td class="num">14,400</td><td class="num">0.012</td><td class="num">0</td><td class="num">7,471</td><td class="num">6,028</td><td class="num">0</td><td class="num">5</td><td class="num">0</td></tr>
+<tr><td><code>--days 7</code></td><td class="num">10,080</td><td class="num">0.021</td><td class="num">0</td><td class="num">22,786</td><td class="num">18,993</td><td class="num">0</td><td class="num">11</td><td class="num">0</td></tr>
+<tr><td><code>--player-bots 0</code></td><td class="num">1,440</td><td class="num">0.054</td><td class="num">0</td><td class="num">2,913</td><td class="num">2,400</td><td class="num">0</td><td class="num"><b>0</b></td><td class="num">0</td></tr>
+<tr><td><code>--drop-rate 0.2</code></td><td class="num">1,440</td><td class="num">0.067</td><td class="num">0</td><td class="num">2,528</td><td class="num">1,922</td><td class="num"><b>389</b></td><td class="num">8</td><td class="num">0</td></tr>
+<tr><td><code>--fail-rate 0.2</code></td><td class="num">1,440</td><td class="num">0.030</td><td class="num">0</td><td class="num">3,324</td><td class="num">2,486</td><td class="num">0</td><td class="num">7</td><td class="num">0</td></tr>
 </tbody>
 </table>
 </div>
 
-<p class="small">실측 2026-08-06 · Windows 11 · Release 빌드 · 원자료 <code>lab/ch01_variants.csv</code></p>
+<p class="small">실측 2026-09-24 · Windows 11 · Release 빌드 · <code>--max-speed --no-dashboard</code> · 로컬 생성 플랜 스토어 포함. p99는 기계 부하에 따라 변한다.</p>
 
 <h3>이 표에서 볼 것 다섯</h3>
 
@@ -317,7 +316,7 @@ PS&gt; Invoke-RestMethod http://localhost:5080/status | ConvertTo-Json
   <b>LLM 열이 전부 0이다</b>
   <p>
     옵션을 어떻게 바꾸든 <code>--no-llm</code> 인 한 LLM 은 안 불린다.
-    명령은 최대 <b>279만 건</b>이 나갔다. 플랜은 이미 있었고 런타임은 실행만 했다.
+    명령은 최대 <b>286,349건</b>이 나갔다. 플랜은 이미 있었고 런타임은 실행만 했다.
   </p>
 </li>
 <li>
@@ -328,22 +327,22 @@ PS&gt; Invoke-RestMethod http://localhost:5080/status | ConvertTo-Json
   </p>
 </li>
 <li>
-  <b>NPC 100배에 p99 는 23배다</b> <span class="pill">0.105 → 2.368 ms</span>
+  <b>NPC 100배에 p99 는 약 11배다</b> <span class="pill">0.061 → 0.649 ms</span>
   <p>
-    선형보다 낫고, 여전히 예산 20ms 의 <b>12%</b> 다. 5,000마리는 이 제품의 설계 목표치다.
+    선형보다 낫고, 여전히 예산 20ms 의 <b>약 3%</b> 다. 5,000마리는 이 제품의 설계 목표치다.
   </p>
 </li>
 <li>
-  <b><code>--npcs 5000</code> 의 스캔/틱이 정확히 150이다</b>
+  <b><code>--npcs 5000</code> 회차 마지막 틱의 스캔 수가 150이다</b>
   <p>
     우연이 아니라 <b>상한값</b>이다 (<code>CognitionScheduler.MaxScansPerTick</code>).
-    5,000마리를 매 틱 전수 조사하지 않고 <b>150마리만</b> 본다.
+    5,000마리를 매 틱 전수 조사하지 않고 <b>최대 150마리만</b> 본다.
     이 상한 하나가 "NPC 를 늘려도 인지 비용은 O(1)" 을 만든다 → 6장
   </p>
 </li>
 <li>
   <b><code>--drop-rate 0.2</code> 에서 명령은 줄고 타임아웃은 늘었다</b>
-  <span class="pill">명령 26,746 → 20,509</span> <span class="pill">타임아웃 3,980 → 5,802</span>
+  <span class="pill">명령 2,913 → 2,528</span> <span class="pill">타임아웃 0 → 389</span>
   <p>
     명령 5건 중 1건을 일부러 버렸는데 <b>NPC 는 멈추지 않았다.</b>
     합성한 타임아웃이 그 자리를 메웠기 때문이다. 11장에서 더 세게 흔든다.
@@ -362,7 +361,7 @@ PS&gt; Invoke-RestMethod http://localhost:5080/status | ConvertTo-Json
   </p>
   <p>
     <b>② 배속은 "같은 것을 빨리 보기"가 아니다.</b>
-    배속 600은 스텝의 16%가 타임아웃이고, 배속 60은 6%다.
+    이 회차에서는 배속 600과 60 모두 합성 타임아웃이 0이다. 이동 예상 시간과 지속형 액션 시간이 마감에 반영된다.
     배속을 올리면 <b>다른 세계</b>가 된다 — 게임서버가 이동을 마치기 전에 시간이 지나가기 때문이다.
     NPC 의 하루를 제대로 보려면 배속을 60쯤으로 낮춘다. 2장이 그렇게 한다.
   </p>
@@ -372,7 +371,7 @@ PS&gt; Invoke-RestMethod http://localhost:5080/status | ConvertTo-Json
 
 <ul class="checks">
   <li>실행이 <b>스스로 끝난다</b> — <code>--days 1</code> 이면 1,440틱 뒤에 종료 요약을 찍고 나간다</li>
-  <li>종료 요약에 <code>llm 0</code> 인데 <code>commands</code> 가 <b>수천~수만</b></li>
+  <li>종료 요약에 <code>llm 0</code> 인데 <code>commands</code> 가 <b>1,000건 이상</b></li>
   <li><code>bytes/tick 0</code> · <code>overruns 0</code> · <code>drops link 0 sim 0</code></li>
   <li>도는 동안 <code>/status</code> 가 응답하고 <code>tick</code> 이 <b>계속 증가</b>한다</li>
   <li>브라우저로 <code>/dashboard</code> 가 열린다</li>
@@ -392,18 +391,18 @@ PS&gt; Invoke-RestMethod http://localhost:5080/status | ConvertTo-Json
 
 <div class="term">
   <span class="cap">터미널 — 결과</span>
-<pre><code>tick p50 0.012ms · p99 0.189ms · max 10.582ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 67.7MB
-ticks 1440 · game day 1 · events 7430 · commands 6477 · steps 5712 · timeouts <span class="hl2">2744</span> ·
-scan/tick 2 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 · llm 0</code></pre>
+<pre><code>tick p50 0.004ms · p99 0.134ms · max 8.634ms · overruns 0 · gen0 0 · bytes/tick 0 · heap 70.8MB
+ticks 1440 · game day 1 · events 3409 · commands 1070 · steps 638 · timeouts <span class="hl2">427</span> ·
+scan/tick 4 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 · llm 0</code></pre>
 </div>
 
 <div class="tablewrap">
 <table>
 <thead><tr><th></th><th class="num">기준</th><th class="num">drop 0.5</th><th>무슨 일이</th></tr></thead>
 <tbody>
-<tr><td><code>commands</code></td><td class="num">11,825</td><td class="num">6,477</td><td>절반이 버려졌으니 줄어든다</td></tr>
-<tr><td><code>steps</code></td><td class="num">11,118</td><td class="num">5,712</td><td>진행이 느려진다</td></tr>
-<tr><td><code>timeouts</code></td><td class="num">1,381</td><td class="num"><b>2,744</b></td><td><b>합성 실패가 그 자리를 메운다</b></td></tr>
+<tr><td><code>commands</code></td><td class="num">1,155</td><td class="num">1,070</td><td>일부 명령의 완료가 늦어진다</td></tr>
+<tr><td><code>steps</code></td><td class="num">948</td><td class="num">638</td><td>진행이 느려진다</td></tr>
+<tr><td><code>timeouts</code></td><td class="num">0</td><td class="num"><b>427</b></td><td><b>합성 실패가 유실 명령을 처리한다</b></td></tr>
 <tr><td><code>overruns</code></td><td class="num">0</td><td class="num">0</td><td>틱은 여전히 예산 안</td></tr>
 <tr><td>NPC</td><td colspan="2" style="text-align:center">계속 움직인다</td><td>크래시 없음 · 멈춤 없음</td></tr>
 </tbody>
@@ -412,7 +411,7 @@ scan/tick 2 · interrupts 20 · replan-q 20 · drops link 0 sim 0 · backlogs 0 
 
 <p>
   명령의 절반이 게임서버에 도착하지 못했는데도 <b>NPC 는 멈추지 않았다.</b>
-  느려졌을 뿐이고, 타임아웃 합성이 정확히 두 배로 늘어 그 자리를 메웠다.
+  느려졌지만 타임아웃 합성이 유실 명령을 처리했다.
 </p>
 
 <div class="ok">

@@ -110,8 +110,8 @@ public sealed class PlanStoreWiringTests : IDisposable
         Assert.Equal(TestPaths.TotalKeys, metrics.Cache.ColdBuckets);
 
         // 폴백 40개는 그대로 등록돼 있다 — 이것이 시나리오 C 가 통과하는 이유다.
-        Assert.Contains("폴백 40", log.ToString(), StringComparison.Ordinal);
-        Assert.Contains("planstore 없음", log.ToString(), StringComparison.Ordinal);
+        Assert.Contains("LLM 생성 0", log.ToString(), StringComparison.Ordinal);
+        Assert.Contains("직업별 기본 행동", log.ToString(), StringComparison.Ordinal);
     }
 
     /// <summary>일부만 채워진 스토어 — 나머지는 폴백으로 해소되고 경고가 남는다.</summary>

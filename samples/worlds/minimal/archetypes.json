@@ -1,0 +1,167 @@
+{
+  "$schema": "../docs/schema/archetypes.schema.json",
+  "version": 1,
+  "archetypes": [
+    {
+      "id": "farmer",
+      "code": 0,
+      "name_key": "npc.farmer",
+      "desc": "농부. 밀과 채소를 심고 거둔다. 마을에서 가장 수가 많고, 계절과 날씨에 하루가 좌우된다.",
+      "allowed_actions": [
+        "Emote",
+        "Farm",
+        "Flee",
+        "Gather",
+        "MoveTo",
+        "Observe",
+        "Rest",
+        "Sleep",
+        "Trade",
+        "Wait",
+        "Wander"
+      ],
+      "home_poi_type": "home",
+      "workplace_poi_type": "farm",
+      "primary_recipes": [],
+      "traits": {
+        "diligence": 85,
+        "sociability": 50,
+        "courage": 40,
+        "greed": 40
+      },
+      "default_goals": [
+        "tend_fields",
+        "harvest",
+        "sell_produce"
+      ],
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ],
+      "fallback_plan": "fb_farmer",
+      "combat_capable": false,
+      "population_weight": 0.3
+    },
+    {
+      "id": "town_guard",
+      "duty_hours": [
+        "Morning",
+        "Noon",
+        "Afternoon",
+        "Evening"
+      ],
+      "code": 1,
+      "name_key": "npc.town_guard",
+      "desc": "마을 위병. 거리를 돌고 초소를 지킨다. 수가 많아 마을 어디서든 한 명은 보인다.",
+      "allowed_actions": [
+        "Attack",
+        "Emote",
+        "Flee",
+        "MoveTo",
+        "Observe",
+        "Rest",
+        "Sleep",
+        "Wait",
+        "Wander"
+      ],
+      "home_poi_type": "home",
+      "workplace_poi_type": "guardhouse",
+      "primary_recipes": [],
+      "traits": {
+        "diligence": 75,
+        "sociability": 45,
+        "courage": 75,
+        "greed": 35
+      },
+      "default_goals": [
+        "stand_watch",
+        "patrol_streets",
+        "respond"
+      ],
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ],
+      "fallback_plan": "fb_town_guard",
+      "combat_capable": true,
+      "population_weight": 0.2
+    },
+    {
+      "id": "villager",
+      "code": 2,
+      "name_key": "npc.villager",
+      "desc": "평범한 주민. 정해진 일터가 없이 잡일과 심부름으로 하루를 보낸다. 마을 인구의 대부분을 차지한다.",
+      "allowed_actions": [
+        "Emote",
+        "Flee",
+        "Gossip",
+        "MoveTo",
+        "Observe",
+        "Rest",
+        "Sleep",
+        "Trade",
+        "Wait",
+        "Wander"
+      ],
+      "home_poi_type": "home",
+      "workplace_poi_type": null,
+      "primary_recipes": [],
+      "traits": {
+        "diligence": 55,
+        "sociability": 60,
+        "courage": 40,
+        "greed": 45
+      },
+      "default_goals": [
+        "do_errands",
+        "visit_market",
+        "chat"
+      ],
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ],
+      "fallback_plan": "fb_villager",
+      "combat_capable": false,
+      "population_weight": 0.5
+    }
+  ]
+}

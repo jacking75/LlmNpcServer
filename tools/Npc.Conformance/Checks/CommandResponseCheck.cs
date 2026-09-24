@@ -24,7 +24,7 @@ public sealed class CommandResponseCheck : IConformanceCheck
     public string Id => "C6.response";
 
     /// <inheritdoc/>
-    public string Title => "명령 응답 — timeout_s 안에 · 상관 ID 일치";
+    public string Title => "명령 응답 — 종류·마감·상관 ID 일치";
 
     /// <inheritdoc/>
     public CheckResult Run(Observation observation)
@@ -39,6 +39,8 @@ public sealed class CommandResponseCheck : IConformanceCheck
         // 상관 ID → 응답이 온 틱.
         var answered = new Dictionary<uint, long>();
         int unknown = 0;
+        int wrongKind = 0;
+        var violations = new List<string>();
 
         var issued = new Dictionary<uint, Issued>();
 
@@ -51,7 +53,10 @@ public sealed class CommandResponseCheck : IConformanceCheck
         {
             GameEvent ev = observed.Event;
 
-            if (ev.Kind is not (GameEventKind.NpcArrived
+            if (ev.Kind is not (GameEventKind.NpcSpawned
+                or GameEventKind.NpcDespawned
+                or GameEventKind.NpcInventoryChanged
+                or GameEventKind.NpcArrived
                 or GameEventKind.NpcActionCompleted
                 or GameEventKind.NpcActionFailed))
             {
@@ -62,20 +67,39 @@ public sealed class CommandResponseCheck : IConformanceCheck
 
             if (correlation == 0)
             {
+                if (ev.Kind is GameEventKind.NpcSpawned or GameEventKind.NpcDespawned)
+                {
+                    continue; // 재동기화 이벤트는 명령 응답이 아니다.
+                }
                 unknown++;
                 continue;
             }
 
-            if (!issued.ContainsKey(correlation))
+            if (!issued.TryGetValue(correlation, out Issued command))
             {
                 unknown++;
+                continue;
+            }
+
+            if (CommandResponses.For(command.Kind).Progress == ev.Kind)
+            {
+                continue;
+            }
+
+            if (ev.Kind != GameEventKind.NpcActionFailed
+                && !CommandResponses.IsSuccess(command.Kind, command.MoveToPoi, ev.Kind))
+            {
+                wrongKind++;
+                if (violations.Count < CheckResult.MaxViolations)
+                {
+                    violations.Add($"NPC {command.Npc.Value} {command.Kind}: 응답 종류 {ev.Kind}가 규약과 다르다");
+                }
                 continue;
             }
 
             answered.TryAdd(correlation, ev.OccurredAt.Value);
         }
 
-        var violations = new List<string>();
         int late = 0;
 
         foreach (Issued command in observation.Commands)
@@ -118,7 +142,7 @@ public sealed class CommandResponseCheck : IConformanceCheck
         string detail = string.Create(
             CultureInfo.InvariantCulture,
             $"명령 {observation.Commands.Length}건 · 응답 {answered.Count}건 ({rate:P1}) · "
-            + $"마감 초과 {late} · 모르는 상관 ID {unknown}");
+            + $"마감 초과 {late} · 종류 불일치 {wrongKind} · 모르는 상관 ID {unknown}");
 
         return violations.Count == 0
             ? CheckResult.Pass(Id, Title, detail)

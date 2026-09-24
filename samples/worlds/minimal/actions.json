@@ -1,0 +1,679 @@
+{
+  "$schema": "../docs/schema/actions.schema.json",
+  "version": 1,
+  "actions": [
+    {
+      "id": "MoveTo",
+      "code": 1,
+      "category": "movement",
+      "desc": "지정한 POI 로 이동한다. 경로 계산과 충돌 처리는 게임서버가 맡으므로 플래너는 목적지 심볼과 속도 등급만 정한다. 다음 스텝의 장소 전제조건(AtWorkplace, AtField 등)을 만족시키는 유일한 수단이므로, 장소를 요구하는 액션 앞에는 반드시 이 액션이 온다. 속도 run 은 도착이 빠르지만 체력을 더 쓰므로 위급하지 않으면 walk 를 쓴다.",
+      "params": {
+        "poi": {
+          "type": "poi_ref",
+          "required": true
+        },
+        "speed": {
+          "type": "enum",
+          "values": [
+            "walk",
+            "run"
+          ],
+          "default": "walk"
+        }
+      },
+      "requires": [],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping",
+        "IsExhausted"
+      ],
+      "grants": [],
+      "clears": [
+        "AtHome",
+        "AtWorkplace",
+        "AtMarket",
+        "AtTavern",
+        "AtTemple",
+        "AtGate",
+        "AtField",
+        "InWilderness"
+      ],
+      "duration": {
+        "kind": "distance",
+        "base_s": 0,
+        "per_meter_s": 0.6
+      },
+      "cost": 2,
+      "default_timeout_s": 300,
+      "emits": [
+        {
+          "command": "MoveTo",
+          "priority": "Normal",
+          "map": {
+            "TargetPoi": "$poi",
+            "Flags": "$speed"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcArrived"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Wander",
+      "code": 2,
+      "category": "movement",
+      "desc": "지금 있는 존 안을 목적 없이 돌아다닌다. 특별한 일과가 없는 주민이나 아이의 낮 시간을 채우는 데 쓴다. 장소 플래그가 전부 내려가므로 뒤에 장소 전제조건이 있는 액션을 두려면 MoveTo 를 다시 넣어야 한다.",
+      "params": {
+        "duration_s": {
+          "type": "int",
+          "min": 60,
+          "max": 3600,
+          "default": 600
+        }
+      },
+      "requires": [],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping",
+        "IsExhausted"
+      ],
+      "grants": [],
+      "clears": [
+        "AtHome",
+        "AtWorkplace",
+        "AtMarket",
+        "AtTavern",
+        "AtTemple",
+        "AtGate",
+        "AtField"
+      ],
+      "duration": {
+        "kind": "param",
+        "base_s": 0,
+        "per_meter_s": 0,
+        "param": "duration_s"
+      },
+      "cost": 1,
+      "default_timeout_s": 3600,
+      "emits": [
+        {
+          "command": "MoveTo",
+          "priority": "Cosmetic",
+          "map": {
+            "Zone": "$zone",
+            "Amount": 50
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Flee",
+      "code": 3,
+      "category": "movement",
+      "desc": "위험을 피해 지정한 안전 지점으로 달아난다. 전투 상태를 내리며 언제나 뛰어서 이동한다. 플래너가 하루 계획에 미리 넣는 액션이 아니라, 인터럽트 규칙이 위협 감지 즉시 강제로 밀어넣는 액션이다.",
+      "params": {
+        "poi": {
+          "type": "poi_ref",
+          "required": true
+        }
+      },
+      "requires": [],
+      "requires_any": [],
+      "forbids": [],
+      "grants": [],
+      "clears": [
+        "AtHome",
+        "AtWorkplace",
+        "AtMarket",
+        "AtTavern",
+        "AtTemple",
+        "AtGate",
+        "AtField",
+        "InCombat"
+      ],
+      "duration": {
+        "kind": "distance",
+        "base_s": 0,
+        "per_meter_s": 0.35
+      },
+      "cost": 1,
+      "default_timeout_s": 300,
+      "emits": [
+        {
+          "command": "MoveTo",
+          "priority": "Critical",
+          "map": {
+            "TargetPoi": "$poi",
+            "Flags": "run"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcArrived"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Gather",
+      "code": 4,
+      "category": "labor",
+      "desc": "채집지에서 자원을 모은다. 광석·작물·약초처럼 가공 전 재료가 대상이며, 결과로 HasRawMaterial 이 선다. 반드시 AtField 상태여야 하므로 앞에 MoveTo($nearest_field) 가 필요하다. 자원이 고갈된 지역에서는 실패하며, 이때 런타임이 재계획을 요청한다. count 는 이후 Craft 가 소비할 양보다 크거나 같아야 한다.",
+      "params": {
+        "resource": {
+          "type": "item_ref",
+          "required": true
+        },
+        "count": {
+          "type": "int",
+          "min": 1,
+          "max": 20,
+          "default": 5
+        }
+      },
+      "requires": [
+        "AtField"
+      ],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping"
+      ],
+      "grants": [
+        "HasRawMaterial"
+      ],
+      "clears": [],
+      "duration": {
+        "kind": "fixed",
+        "base_s": 300,
+        "per_meter_s": 0
+      },
+      "cost": 4,
+      "default_timeout_s": 900,
+      "emits": [
+        {
+          "command": "Interact",
+          "priority": "Normal",
+          "map": {
+            "Item": "$resource",
+            "Amount": "$count"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Farm",
+      "code": 5,
+      "category": "labor",
+      "desc": "경작지에서 작물을 심거나 거둔다. 농기구가 있어야 하고 경작지에 있어야 한다. 밀·채소·포도처럼 제빵사와 양조업자의 재료가 되는 작물을 산출한다. 계절이나 날씨가 나쁘면 실패율이 오른다.",
+      "params": {
+        "crop": {
+          "type": "item_ref",
+          "required": true
+        },
+        "count": {
+          "type": "int",
+          "min": 1,
+          "max": 20,
+          "default": 5
+        }
+      },
+      "requires": [
+        "AtField",
+        "HasTool"
+      ],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping",
+        "IsExhausted"
+      ],
+      "grants": [
+        "HasRawMaterial"
+      ],
+      "clears": [],
+      "duration": {
+        "kind": "fixed",
+        "base_s": 480,
+        "per_meter_s": 0
+      },
+      "cost": 4,
+      "default_timeout_s": 900,
+      "emits": [
+        {
+          "command": "Interact",
+          "priority": "Normal",
+          "map": {
+            "Item": "$crop",
+            "Amount": "$count"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Trade",
+      "code": 6,
+      "category": "social",
+      "desc": "완성품을 팔아 화폐를 얻는다. HasProduct 를 소비하고 HasCoin 을 세운다. 시장이나 상대 NPC 앞에서 이뤄지며, 팔 물건이 없으면 실패하므로 앞에 Work 나 Craft 가 와야 한다. 하루 계획에서 생산 → 판매 → 귀가 흐름의 가운데 고리다.",
+      "params": {
+        "npc": {
+          "type": "npc_ref",
+          "required": false
+        },
+        "item": {
+          "type": "item_ref",
+          "required": true
+        },
+        "amount": {
+          "type": "int",
+          "min": 1,
+          "max": 20,
+          "default": 1
+        }
+      },
+      "requires": [],
+      "requires_any": [
+        "HasProduct",
+        "HasCoin"
+      ],
+      "forbids": [
+        "IsSleeping"
+      ],
+      "grants": [
+        "HasCoin"
+      ],
+      "clears": [
+        "HasProduct"
+      ],
+      "duration": {
+        "kind": "fixed",
+        "base_s": 180,
+        "per_meter_s": 0
+      },
+      "cost": 2,
+      "default_timeout_s": 600,
+      "emits": [
+        {
+          "command": "InventoryChange",
+          "priority": "Normal",
+          "map": {
+            "Item": "$item",
+            "Amount": "$amount"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcInventoryChanged"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Gossip",
+      "code": 7,
+      "category": "social",
+      "desc": "소문을 주고받는다. Talk 보다 오래 걸리고 주제가 더 좁다. 선술집이나 시장처럼 사람이 모이는 곳에서 저녁 시간대의 계획을 채우는 데 쓴다. 대사 텍스트는 만들지 않는다.",
+      "params": {
+        "npc": {
+          "type": "npc_ref",
+          "required": true
+        },
+        "topic": {
+          "type": "enum",
+          "values": [
+            "rumor",
+            "politics",
+            "trade",
+            "danger"
+          ],
+          "default": "rumor"
+        }
+      },
+      "requires": [],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping"
+      ],
+      "grants": [],
+      "clears": [],
+      "duration": {
+        "kind": "fixed",
+        "base_s": 180,
+        "per_meter_s": 0
+      },
+      "cost": 1,
+      "default_timeout_s": 300,
+      "emits": [
+        {
+          "command": "Speak",
+          "priority": "Cosmetic",
+          "map": {
+            "TargetNpc": "$npc",
+            "Dialogue": "$topic"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Sleep",
+      "code": 8,
+      "category": "needs",
+      "desc": "자택에서 지정한 시간대까지 잔다. 반드시 AtHome 이어야 한다. loop 가 true 인 하루 계획은 이 액션으로 끝나야 다음 사이클의 첫 스텝으로 되돌아갈 수 있다. 기상 시점에 수면 상태가 풀리고 IsRested 가 선다.",
+      "params": {
+        "until_time": {
+          "type": "enum",
+          "values": [
+            "Dawn",
+            "Morning",
+            "Noon",
+            "Afternoon",
+            "Evening",
+            "Night"
+          ],
+          "default": "Morning"
+        }
+      },
+      "requires": [
+        "AtHome"
+      ],
+      "requires_any": [],
+      "forbids": [],
+      "grants": [
+        "IsRested"
+      ],
+      "clears": [
+        "IsSleeping",
+        "IsExhausted"
+      ],
+      "duration": {
+        "kind": "until_time",
+        "base_s": 0,
+        "per_meter_s": 0,
+        "param": "until_time"
+      },
+      "cost": 0,
+      "default_timeout_s": 7200,
+      "emits": [
+        {
+          "command": "SetVisualState",
+          "priority": "Normal",
+          "map": {
+            "Visual": "Sleeping"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted",
+        "GameTimeChanged"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Rest",
+      "code": 9,
+      "category": "needs",
+      "desc": "그 자리에서 잠깐 쉰다. 장소 전제조건이 없어 어디서든 쓸 수 있고 IsRested 를 세운다. 자택으로 돌아갈 시간이 없는 야외 계획이나 근무 교대 사이의 짧은 휴식에 쓴다. loop 가 false 인 계획은 Sleep 또는 이 액션으로 끝나야 한다.",
+      "params": {
+        "duration_s": {
+          "type": "int",
+          "min": 60,
+          "max": 3600,
+          "default": 600
+        }
+      },
+      "requires": [],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping"
+      ],
+      "grants": [
+        "IsRested"
+      ],
+      "clears": [
+        "IsExhausted"
+      ],
+      "duration": {
+        "kind": "param",
+        "base_s": 0,
+        "per_meter_s": 0,
+        "param": "duration_s"
+      },
+      "cost": 0,
+      "default_timeout_s": 3600,
+      "emits": [
+        {
+          "command": "SetVisualState",
+          "priority": "Cosmetic",
+          "map": {
+            "Visual": "Sitting"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Attack",
+      "code": 10,
+      "category": "combat",
+      "desc": "적대 대상을 공격한다. 무기를 장비하고 있어야 하며 성공하면 InCombat 이 선다. 실제 판정은 게임서버가 한다. 플래너가 하루 계획에 미리 넣는 액션이 아니라, 인터럽트 규칙이 위협 감지 즉시 밀어넣는 액션이다.",
+      "params": {
+        "target": {
+          "type": "npc_ref",
+          "required": true
+        }
+      },
+      "requires": [
+        "HasWeapon"
+      ],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping"
+      ],
+      "grants": [
+        "InCombat"
+      ],
+      "clears": [],
+      "duration": {
+        "kind": "fixed",
+        "base_s": 30,
+        "per_meter_s": 0
+      },
+      "cost": 4,
+      "default_timeout_s": 120,
+      "emits": [
+        {
+          "command": "CombatAction",
+          "priority": "Critical",
+          "map": {
+            "TargetNpc": "$target",
+            "Flags": "MeleeAttack"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted",
+        "CombatEnded"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Wait",
+      "code": 11,
+      "category": "misc",
+      "desc": "정해진 시간 동안 제자리에서 기다린다. 상점 개점 시각이나 손님을 기다릴 때처럼 다음 행동의 조건이 시간에 달려 있을 때 쓴다. 계획을 채우는 용도로 남발하면 NPC 가 멍하니 서 있는 것처럼 보이므로 하루 계획에 한 번을 넘지 않는 것이 좋다.",
+      "params": {
+        "duration_s": {
+          "type": "int",
+          "min": 5,
+          "max": 600,
+          "default": 60
+        }
+      },
+      "requires": [],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping"
+      ],
+      "grants": [],
+      "clears": [],
+      "duration": {
+        "kind": "param",
+        "base_s": 0,
+        "per_meter_s": 0,
+        "param": "duration_s"
+      },
+      "cost": 0,
+      "default_timeout_s": 600,
+      "emits": [
+        {
+          "command": "SetVisualState",
+          "priority": "Cosmetic",
+          "map": {
+            "Visual": "Idle"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Observe",
+      "code": 12,
+      "category": "misc",
+      "desc": "대상을 지켜본다. 감시인이나 정찰병처럼 보는 것 자체가 일인 아키타입의 근무를 표현한다. 상태를 바꾸지 않으므로 계획의 뼈대가 아니라 근무 시간을 채우는 살이다.",
+      "params": {
+        "target": {
+          "type": "npc_ref",
+          "required": true
+        },
+        "duration_s": {
+          "type": "int",
+          "min": 30,
+          "max": 3600,
+          "default": 300
+        }
+      },
+      "requires": [],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping"
+      ],
+      "grants": [],
+      "clears": [],
+      "duration": {
+        "kind": "param",
+        "base_s": 0,
+        "per_meter_s": 0,
+        "param": "duration_s"
+      },
+      "cost": 1,
+      "default_timeout_s": 3600,
+      "emits": [
+        {
+          "command": "FaceTo",
+          "priority": "Cosmetic",
+          "map": {
+            "TargetNpc": "$target"
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    },
+    {
+      "id": "Emote",
+      "code": 13,
+      "category": "misc",
+      "desc": "몸짓 하나를 재생한다. 상태를 바꾸지 않는 순수한 연출이며 가장 값싼 액션이다. 역압이 걸리면 가장 먼저 버려지므로 계획의 성립을 이 액션에 의존해서는 안 된다.",
+      "params": {
+        "animation": {
+          "type": "enum",
+          "values": [
+            "wave",
+            "nod",
+            "shrug",
+            "cheer",
+            "sigh",
+            "point"
+          ],
+          "default": "nod"
+        }
+      },
+      "requires": [],
+      "requires_any": [],
+      "forbids": [
+        "IsSleeping"
+      ],
+      "grants": [],
+      "clears": [],
+      "duration": {
+        "kind": "fixed",
+        "base_s": 10,
+        "per_meter_s": 0
+      },
+      "cost": 0,
+      "default_timeout_s": 60,
+      "emits": [
+        {
+          "command": "PlayAnimation",
+          "priority": "Cosmetic",
+          "map": {
+            "Animation": "$animation",
+            "Amount": 1
+          }
+        }
+      ],
+      "completes_on": [
+        "NpcActionCompleted"
+      ],
+      "fails_on": [
+        "NpcActionFailed"
+      ]
+    }
+  ]
+}

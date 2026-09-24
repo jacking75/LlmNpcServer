@@ -275,7 +275,7 @@
     <span class="k">int</span> index = <span class="t">Math</span>.Min(_store.StepIndex[npc], plan.Steps.Length - <span class="n">1</span>);
     <span class="k">long</span> budget = TimeoutTicks(plan.Steps[index].TimeoutSeconds);
 
-    <span class="k">if</span> (tick.Value - _store.StepIssuedTick[npc] &lt; budget) <span class="k">return false</span>;
+    <span class="k">if</span> (tick.Value &lt; _store.StepDeadlineTick[npc]) <span class="k">return false</span>;
 
     _correlations.Invalidate(npc);                             <span class="c">// 늦게 온 응답을 무시한다</span>
     _store.StepStatus[npc] = (<span class="k">byte</span>)<span class="t">StepStatus</span>.Failed;

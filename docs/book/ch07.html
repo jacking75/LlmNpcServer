@@ -545,7 +545,7 @@
 
   document.getElementById('fsmEv1').addEventListener('click', function () {
     if (cur === 'Unspawned') { log.unshift('  Unspawned 에서는 명령을 발행하지 않는다 (docs/02 §3.3)'); render(); return; }
-    if (cur === 'Ready') go('Waiting', 'Emit — 상관 ID 발급 · StepIssuedTick 기록');
+    if (cur === 'Ready') go('Waiting', 'Emit — 상관 ID 발급 · StepDeadlineTick 기록');
     else { log.unshift('  Ready 상태에서만 발행한다'); render(); }
   });
   document.getElementById('fsmEv2').addEventListener('click', function () {

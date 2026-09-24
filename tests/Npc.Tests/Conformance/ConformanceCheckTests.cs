@@ -347,6 +347,30 @@ public sealed class ConformanceCheckTests
         Assert.Contains(result.Violations, v => v.Contains("모르는 상관 ID", StringComparison.Ordinal));
     }
 
+    /// <summary>같은 상관 ID라도 명령과 다른 성공 이벤트를 보내면 불합격이다.</summary>
+    [Fact]
+    public void CommandResponse_CatchesWrongEventKind()
+    {
+        Observation observation = Clean() with
+        {
+            Commands = [new Issued(new CorrelationId(1), NpcCommandKind.MoveTo, new NpcId(0), 100, 100)],
+            Events = [Event(GameEventKind.NpcActionCompleted, 1, tick: 110, npc: 0) with
+                { Event = new GameEvent
+                    {
+                        Kind = GameEventKind.NpcActionCompleted,
+                        Sequence = 1,
+                        OccurredAt = new Tick(110),
+                        Npc = new NpcId(0),
+                        Correlation = new CorrelationId(1),
+                    } }],
+        };
+
+        CheckResult result = new CommandResponseCheck().Run(observation);
+
+        Assert.Equal(Verdict.Fail, result.Verdict);
+        Assert.Contains(result.Violations, v => v.Contains("응답 종류", StringComparison.Ordinal));
+    }
+
     // ---------------------------------------------------------------- 처리량
 
     /// <summary>드롭이 있으면 위반이다.</summary>

@@ -1,0 +1,118 @@
+{
+  "$schema": "../docs/schema/items.schema.json",
+  "version": 1,
+  "items": [
+    {
+      "id": "timber",
+      "code": 1,
+      "category": "raw",
+      "grants": [
+        "HasRawMaterial"
+      ],
+      "stack": 30
+    },
+    {
+      "id": "wheat",
+      "code": 2,
+      "category": "raw",
+      "grants": [
+        "HasRawMaterial"
+      ],
+      "stack": 50
+    },
+    {
+      "id": "flour",
+      "code": 3,
+      "category": "raw",
+      "grants": [
+        "HasRawMaterial"
+      ],
+      "stack": 50
+    },
+    {
+      "id": "bread",
+      "code": 4,
+      "category": "food",
+      "grants": [
+        "HasFood"
+      ],
+      "stack": 20
+    },
+    {
+      "id": "water",
+      "code": 5,
+      "category": "drink",
+      "grants": [
+        "HasWater"
+      ],
+      "stack": 10
+    },
+    {
+      "id": "hoe",
+      "code": 6,
+      "category": "tool",
+      "grants": [
+        "HasTool"
+      ],
+      "stack": 1
+    },
+    {
+      "id": "guard_spear",
+      "code": 7,
+      "category": "weapon",
+      "grants": [
+        "HasWeapon"
+      ],
+      "stack": 1
+    },
+    {
+      "id": "coin",
+      "code": 8,
+      "category": "currency",
+      "grants": [
+        "HasCoin"
+      ],
+      "stack": 99999
+    }
+  ],
+  "recipes": [
+    {
+      "id": "flour",
+      "workplace_type": "bakery",
+      "inputs": [
+        {
+          "item": "wheat",
+          "count": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "flour",
+          "count": 2
+        }
+      ],
+      "duration_s": 240
+    },
+    {
+      "id": "bread",
+      "workplace_type": "bakery",
+      "inputs": [
+        {
+          "item": "flour",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "bread",
+          "count": 3
+        }
+      ],
+      "duration_s": 300
+    }
+  ]
+}

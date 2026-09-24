@@ -15,6 +15,17 @@
    npc buckets                       # 지금 무엇이 채워져 있나
    npc diff                          # 무엇이 무효인가
    ```
+   실제 조회된 버킷만 선택하려면 호스트의 `/heatmap.csv`를 저장하고 이름 목록을 만든다.
+   관측 시간과 시나리오가 짧으면 필요한 버킷이 빠질 수 있으므로 여러 상황을 관측한다.
+   ```powershell
+   Invoke-WebRequest http://localhost:5080/heatmap.csv -OutFile heatmap.csv
+   Import-Csv heatmap.csv | Where-Object { [long]$_.queries -gt 0 } |
+       ForEach-Object { "$($_.archetype)@$($_.time_of_day).$($_.region_state).$($_.climate)" } |
+       Set-Content -Encoding utf8 reachable-buckets.txt
+   dotnet run -c Release --project tools/Npc.Prebake -- --buckets-file reachable-buckets.txt --plan
+   ```
+   목록 파일은 버킷 이름을 한 줄에 하나씩 담는다. `--buckets-file`은 정확히 일치하는
+   이름만 받으며, `--only`와 함께 쓰면 교집합을 선택한다. 생성 실행에는 비용 승인이 필요하다.
 2. **작게 시작한다.**
    ```
    dotnet run -c Release --project tools/Npc.Prebake -- `

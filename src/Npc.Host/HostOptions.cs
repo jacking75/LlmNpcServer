@@ -473,81 +473,13 @@ public sealed record HostOptions
     public bool Help { get; init; }
 
     /// <summary>사용법.</summary>
-    public static string Usage =>
-        """
-        사용법: Npc.Host [validate ...] [healthcheck ...] [hints ...] [schema ...] [옵션]
+    public static string Usage => HostOptionCatalog.Render(all: false);
 
-          --loopback              Npc.Sim 인프로세스 월드에 직결 (기본)
-          --link null|record|replay|loopback|tcp
-                                  링크 구현체 교체. tcp 는 실제 게임서버에 붙는다 (P6)
-          --trace <path>          --link record 의 출력 · --link replay 의 입력 (jsonl)
-          --gs-host <host>        게임서버 호스트 (기본 127.0.0.1). --link tcp 전용
-          --gs-port N             게임서버 링크 포트 (기본 7010)
-          --zone <id>[,<id>]      로스터 존 필터. 게임서버와 같아야 한다
-          --shard N               맡을 샤드 (A-08). 0=단일. --zone 보다 우선한다
-          --shards <path>         샤드 정의 파일 (기본 deploy/shards.json)
-          --dev-control           POST /control/* 을 연다 (기본 꺼짐). 데모용이다
-          --watch                 planstore/·masterdata/ 를 감시해 자동 리로드 (A-07). 개발용이다
-          --npcs N                NPC 수 (기본 500)
-          --time-scale N          시간 압축. 1=실시간, 60=1초당 게임 1분 (기본 60)
-          --days N                돌릴 게임 일수. 0=무제한 (기본 1)
-          --tier none|t1|t2|all   어느 티어까지 켤까 (기본 none)
-          --no-llm                --tier none 의 별칭
-          --t1-workers N          T1(로컬) 워커 수 (기본 2)
-          --t2-workers N          T2(외부) 워커 수 (기본 8)
-          --t1-engine <id>        T1 엔진 id (기본: appsettings.Llm.json 의 첫 로컬 엔진)
-          --t2-engine <id>        T2 엔진 id (기본: appsettings.Llm.json 의 default)
-          --scenario <jsonl>      시나리오 이벤트 주입
-          --fail-rate <0~1>       Sim 의 액션 실패 주입
-          --drop-rate <0~1>       Sim 의 명령 유실 주입
-          --player-bots N         가상 플레이어 수 (기본 20)
-          --hostile-bots N        그중 적대로 판정할 봇 수 (기본 0. B-06 · 대역 전용)
-          --masterdata <dir>      마스터데이터 디렉터리 (기본 ./masterdata)
-          --planstore <dir>       프리베이크된 플랜 스토어 (기본 ./planstore). 없으면 폴백만
-          --seed N                Sim 시드 (기본 20260725)
-          --port N                대시보드·메트릭 포트 (기본 5080)
-          --bind <addr>           웹 호스트 바인드 주소 (기본 127.0.0.1).
-                                  0.0.0.0 은 NPC_ADMIN_TOKEN 이 있을 때만 허용한다
-          --config <path>         설정 파일 (기본 npc.settings.json 을 자동 탐색)
-          --profile dev|service   실행 프로파일. service 는 --days 0 과 스냅샷을 강제한다
-          --snapshot-dir <dir>    NPC 상태 스냅샷 디렉터리 (기본 ./state)
-          --snapshot-interval-s N 스냅샷 주기 초. 0=끔 (기본: service 60 · dev 꺼짐)
-          --memory <dir>       NPC 기억·관계 저장소 폴더 (D-03). 없으면 꺼짐
-          --memory-ttl-days N  기억 보존 게임 일. 0=지우지 않음
-          --snapshot-keep N       보존할 스냅샷 수 (기본 3)
-          --restore auto|none|<path>  복원 정책 (기본 auto). 조건이 안 맞으면 시드로 기동한다
-          --shutdown-timeout-s N  정상 종료 예산 초 (기본 15). 넘기면 종료 코드 2
-          --tick-sync-stall-s N   TickSync 가 멈춰도 되는 상한 초. 0=끔 (기본 5)
-          --otlp-endpoint <url>   OpenTelemetry 수집기 주소 (예 http://collector:4317)
-          --prometheus            /metrics/prometheus 를 연다 (--profile service 는 자동)
-          --alarm-webhook <url>   경보 웹훅 (Slack/Teams 호환 JSON)
-          --alarm-cooldown-s N    같은 경보의 재발화 간격 초 (기본 300)
-          --log-format text|json  로그 형식 (기본 text · --profile service 는 json)
-          --link-tls off|tls|mtls 링크 암호화 (기본 off). 비밀은 NPC_LINK_SECRET 환경변수
-          --link-cert <pfx>       클라이언트 인증서. mtls 전용
-                                  (비밀번호는 NPC_LINK_CERT_PASSWORD 환경변수)
-          --link-tls-host <name>  TLS SNI 이름 (기본: --gs-host)
-          --require-link-auth     게임서버가 인증을 지원하지 않으면 거절한다
-          --billing-cap-usd <n>   벽시계 하루 비용 캡(USD). 0=끔. 넘으면 T2 를 끊는다
-          --billing-reset-hour N  청구일이 바뀌는 UTC 시각 0~23 (기본 0)
-          --budget-individual-share <0~1>
-                                  개체 재계획이 쓸 T2 예산의 몫 (기본 0.20).
-                                  넘으면 거절이 아니라 T1 대기다
-          --weights A|B|C|D       재계획 점수 가중치 세트 (docs/14 §2 표. 기본 B)
-          --dynamic-roster        런타임 스폰·디스폰 허용 (B-05). 게임서버도 켜야 한다
-          --npc-capacity N        NpcStore 슬롯 수. 0=동적이면 로스터×1.2 (B-05)
-          --planstore-sha <sha8>  플랜 스토어를 그 프리픽스 회차로 고정 (C-03. 진단용)
-          --query-max-streams N   조회 스트림(SSE) 동시 연결 상한 (기본 8. 0=끔. B-08)
-          --scan-cap N            인지 스캔 틱당 상한. 0=상한 해제 (측정 전용, T4-16)
-          --max-speed             10Hz 페이싱 없이 최대 속도로 (측정용)
-          --no-dashboard          웹 호스트를 띄우지 않는다 (헬스 라우트는 계속 뜬다)
-          --on-link-fault exit|wait  링크 Faulted 정책 (기본 exit → 종료 코드 3)
-          --fault-grace-s N       Faulted 후 종료까지 유예 초 (기본 5)
-          --live-stall-s N        /healthz/live 가 허용하는 루프 정지 초 (기본 30)
-          --ready-tick-stall-s N  /healthz/ready 가 허용하는 틱 정지 초 (기본 10)
-          --health-port N         프로브 전용 포트. --no-dashboard 와 함께 쓰면 프로브만 뜬다
-          -h, --help              이 도움말
-        """;
+    /// <summary>전체 옵션 도움말.</summary>
+    public static string UsageAll => HostOptionCatalog.Render(all: true);
+
+    /// <summary>옵션 마크다운 문서.</summary>
+    public static string UsageMarkdown => HostOptionCatalog.Render(all: true, markdown: true);
 
     /// <summary>
     /// 마스터데이터 폴더를 실제 경로로 푼다.
@@ -626,10 +558,10 @@ public sealed record HostOptions
     /// <summary>
     /// 스냅샷 폴더를 절대경로로 푼다 (A-01). 없으면 만들지 않는다 — 쓰기 시점에 만든다.
     ///
-    /// <c>--masterdata</c> 와 달리 위로 올라가며 찾지 않는다. 스냅샷은 <b>이번 회차가 만드는 것</b>
-    /// 이고, 상위 폴더의 남의 스냅샷을 주워 복원하면 그것이야말로 사고다.
+    /// 상대경로는 저장소 또는 배포 묶음 루트 기준이다. 같은 명령을 어느 폴더에서
+    /// 시작하든 스냅샷이 같은 곳에 남아야 복원이 가능하다.
     /// </summary>
-    public string ResolveSnapshotDir() => Path.GetFullPath(SnapshotDir);
+    public string ResolveSnapshotDir() => ToRepoAbsolute(SnapshotDir);
 
     /// <summary>
     /// 플랜 스토어 폴더를 실제 경로로 푼다.

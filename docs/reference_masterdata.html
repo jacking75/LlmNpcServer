@@ -218,6 +218,10 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
         </tbody>
       </table></div>
       <p><code>Npc.Core/WorldFlags.cs</code>의 <code>[Flags] enum WorldFlags : ulong</code>은 이 파일에서 <strong>소스 생성기가 자동 생성</strong>한다. 손으로 쓰지 않는다.</p>
+      <h3>엔진 코어 어휘</h3>
+      <p><code>npc explain core</code>가 이름으로 고정된 어휘를 보여 준다. 월드 플래그 일부는 인지·검증·계획 코드가 직접 읽고, POI 역할 10종은 바인더가 해석한다. 시간대 6종·지역 상태 4종·기후 3종의 순서는 플랜 캐시 키다. <code>MoveTo</code>와 <code>Gather</code>는 소요 예측에서 이름으로 조회한다.</p>
+      <p>다른 <code>--masterdata</code> 폴더를 쓰더라도 <code>world_flags.json</code>의 이름과 bit는 이 바이너리를 빌드할 때 사용한 파일과 같아야 한다. 로더는 다른 파일보다 먼저 이를 검사하고 차이를 <code>+추가, −삭제, bit 변경</code>으로 알려 준다. 바꾸려면 저장소의 원본을 수정하고 다시 빌드한다.</p>
+      <p>새 세계는 <code>npc init &lt;폴더&gt;</code>로 60 NPC 최소 템플릿에서 시작할 수 있다. 템플릿은 같은 플래그와 버킷 축을 쓰고, 액션·아이템·아키타입은 필요한 항목만 가진다. V10 정원 검사는 해당 폴더의 <code>npc_instances.json</code> 인원 수를 기준으로 한다. POI·아키타입 수정 뒤에는 <code>gen_poi_distances.cs</code>와 <code>gen_npcs.cs</code>에 <code>--masterdata &lt;폴더&gt;</code>를 주어 파생물을 다시 만든다.</p>
       <h3>이탈 판정 — 인지 스캔의 핵심 연산</h3>
       <p>비트 연산 세 번이다. NPC 5,000을 매 틱 훑어야 하므로 이보다 무거우면 안 된다.</p>
 <pre><code>static bool IsDeviated(WorldFlags cur, WorldFlags required,
@@ -261,6 +265,8 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
   "completes_on": ["NpcArrived"],              // 이 이벤트 수신 시 스텝 완료
   "fails_on":     ["NpcActionFailed"]
 }</code></pre>
+      <p><code>default_timeout_s</code>와 플랜 스텝의 <code>timeout_s</code>는 응답 마감의 하한이다. 실제 마감은 게임서버가 시간을 소유하는 명령의 예상 소요를 포함해 <code>max(timeout_s, ceil(예상 소요 초 × 1.5) + 30)</code>으로 정한다. 제작 레시피의 예상 소요는 <code>duration_s × max(count, 1)</code>이다.</p>
+      <p><code>duration</code>은 게임서버가 시간을 소유하는 이동·상호작용에서는 응답 마감의 예상 소요로 쓰고, 즉시 응답하는 표시 명령에서는 NPC 서버의 <code>Holding</code> 지속 시간으로 쓴다. <code>kind: until_time</code>은 선택한 시간대가 다시 시작할 때까지 센다.</p>
 
       <h3><code>emits[].map</code> 값 문법</h3>
       <div class="table-wrap"><table>

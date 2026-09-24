@@ -19,7 +19,7 @@ public enum TargetMode
     /// <summary><c>--resume</c>. 미생성 버킷만.</summary>
     Resume,
 
-    /// <summary><c>--only</c> glob.</summary>
+    /// <summary><c>--only</c> glob 또는 <c>--buckets-file</c> 목록.</summary>
     Only,
 
     /// <summary>할 것이 없다. 무효화 범위가 None 이다.</summary>
@@ -92,6 +92,21 @@ public static class TargetSelector
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(data);
 
+        if (options.BucketsFile is not null)
+        {
+            var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (BucketKey bucket in All(data.Buckets))
+            {
+                known.Add(bucket.Format(data.Archetypes[bucket.A].Id));
+            }
+
+            string? unknown = options.BucketNames.FirstOrDefault(name => !known.Contains(name));
+            if (unknown is not null)
+            {
+                throw new ArgumentException($"--buckets-file 에 마스터데이터에 없는 버킷이 있다: '{unknown}'");
+            }
+        }
+
         TargetMode mode = ModeOf(options, scope);
 
         IEnumerable<BucketKey> candidates = mode switch
@@ -153,12 +168,12 @@ public static class TargetSelector
         return [.. sorted];
     }
 
-    /// <summary>어느 모드로 도는가. <c>--only</c> 가 가장 세다.</summary>
+    /// <summary>어느 모드로 도는가. 명시한 버킷 필터가 가장 세다.</summary>
     public static TargetMode ModeOf(PrebakeOptions options, InvalidationScope scope)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        if (!options.Only.IsEmpty)
+        if (!options.Only.IsEmpty || options.BucketsFile is not null)
         {
             return TargetMode.Only;
         }

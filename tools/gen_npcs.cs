@@ -36,6 +36,7 @@ const int TraitSpread = 15;   // trait_offsets 범위 ±15 (docs/01 §9)
 int seed = 20260725;
 int population = DefaultPopulation;
 string? outArg = null;
+string? masterDataArg = null;
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -48,6 +49,9 @@ for (int i = 0; i < args.Length; i++)
             break;
         case "--out" when i + 1 < args.Length:
             outArg = args[++i];
+            break;
+        case "--masterdata" when i + 1 < args.Length:
+            masterDataArg = args[++i];
             break;
         // 부하 매트릭스의 10,000(스트레스) 축을 재려면 그만큼의 인스턴스가 있어야 한다
         // (docs/14 §6 · T4-16 에서 --npcs 10000 이 조용히 5,000 으로 줄던 문제).
@@ -65,7 +69,7 @@ for (int i = 0; i < args.Length; i++)
 }
 
 string root = FindRepoRoot();
-string masterData = Path.Combine(root, "masterdata");
+string masterData = masterDataArg is null ? Path.Combine(root, "masterdata") : Path.GetFullPath(masterDataArg);
 string outPath = outArg ?? Path.Combine(masterData, "npc_instances.json");
 
 using JsonDocument zonesDoc = JsonDocument.Parse(File.ReadAllText(Path.Combine(masterData, "zones.json")));

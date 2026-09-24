@@ -161,14 +161,14 @@ public sealed class SnapshotRoundTripTests : IDisposable
         NpcStore store = Empty();
 
         store.StepStatus[0] = (byte)StepStatus.Waiting;
-        store.StepIssuedTick[0] = 999;
+        store.StepDeadlineTick[0] = 999;
         store.StepStatus[1] = (byte)StepStatus.Completed;
 
         int reissued = store.ReissueWaitingSteps();
 
         Assert.Equal(1, reissued);
         Assert.Equal((byte)StepStatus.Ready, store.StepStatus[0]);
-        Assert.Equal(0, store.StepIssuedTick[0]);
+        Assert.Equal(0, store.StepDeadlineTick[0]);
 
         // 다른 상태는 건드리지 않는다.
         Assert.Equal((byte)StepStatus.Completed, store.StepStatus[1]);
@@ -252,7 +252,7 @@ public sealed class SnapshotRoundTripTests : IDisposable
             store.PlanId[i] = (int)(h % 97);
             store.StepIndex[i] = (byte)(h % 7);
             store.StepStatus[i] = (byte)(h % 6);
-            store.StepIssuedTick[i] = h % 5000;
+            store.StepDeadlineTick[i] = h % 5000;
             store.Lod[i] = (byte)(h % 4);
             store.Pos[i] = new WorldPos(h % 100, (h / 3) % 100, (h / 7) % 100);
             store.Hp[i] = (short)(h % 100);

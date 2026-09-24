@@ -1,0 +1,2052 @@
+{
+  "$schema": "../docs/schema/npc_instances.schema.json",
+  "version": 1,
+  "seed": 20260725,
+  "_comment": [
+    "docs/01 \u00A79 \u00B7 docs/11 \u00A78. tools/gen_npcs.cs \uAC00 \uB9CC\uB4E0\uB2E4. \uC190\uC73C\uB85C \uD3B8\uC9D1\uD558\uC9C0 \uC54A\uB294\uB2E4.",
+    "trait_offsets \uB294 \uD50C\uB79C \uC120\uD0DD\uC5D0 \uC601\uD5A5\uC744 \uC8FC\uC9C0 \uC54A\uB294\uB2E4 \u2014 \uAC19\uC740 \uBC84\uD0B7\uC758 NPC \uB294 \uAC19\uC740 \uD50C\uB79C\uC744 \uC4F4\uB2E4.",
+    "\uC18C\uC694\uC2DC\uAC04\u00B7\uB300\uAE30\uC2DC\uAC04\u00B7\uACBD\uB85C \uB79C\uB364\uD654\uC5D0\uB9CC \uC4F0\uB294 \uAC12\uC2FC \uB2E4\uC591\uC131\uC758 \uC6D0\uCC9C\uC774\uB2E4."
+  ],
+  "npcs": [
+    {
+      "id": 1,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 37.7,
+        "y": 0,
+        "z": -1
+      },
+      "trait_offsets": {
+        "diligence": -13,
+        "sociability": -6,
+        "courage": 10,
+        "greed": 12
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": -44.4,
+        "y": 0,
+        "z": 37.6
+      },
+      "trait_offsets": {
+        "diligence": 1,
+        "sociability": 3,
+        "courage": -5,
+        "greed": 13
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 2.8,
+        "y": 0,
+        "z": -76.4
+      },
+      "trait_offsets": {
+        "diligence": -6,
+        "sociability": -5,
+        "courage": -11,
+        "greed": 11
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 55.9,
+        "y": 0,
+        "z": 76
+      },
+      "trait_offsets": {
+        "diligence": -6,
+        "sociability": -15,
+        "courage": -6,
+        "greed": 9
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 37.7,
+        "y": 0,
+        "z": -4
+      },
+      "trait_offsets": {
+        "diligence": -14,
+        "sociability": -3,
+        "courage": 14,
+        "greed": 12
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": -43.4,
+        "y": 0,
+        "z": 43.6
+      },
+      "trait_offsets": {
+        "diligence": -1,
+        "sociability": -7,
+        "courage": -3,
+        "greed": 12
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 8.8,
+        "y": 0,
+        "z": -73.4
+      },
+      "trait_offsets": {
+        "diligence": 12,
+        "sociability": -5,
+        "courage": 13,
+        "greed": -9
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 53.9,
+        "y": 0,
+        "z": 77
+      },
+      "trait_offsets": {
+        "diligence": 6,
+        "sociability": -3,
+        "courage": -2,
+        "greed": -9
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 30.7,
+        "y": 0,
+        "z": 3
+      },
+      "trait_offsets": {
+        "diligence": -12,
+        "sociability": -15,
+        "courage": -11,
+        "greed": -5
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": -48.4,
+        "y": 0,
+        "z": 40.6
+      },
+      "trait_offsets": {
+        "diligence": -14,
+        "sociability": -15,
+        "courage": 3,
+        "greed": 5
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 10.8,
+        "y": 0,
+        "z": -78.4
+      },
+      "trait_offsets": {
+        "diligence": 5,
+        "sociability": -8,
+        "courage": 14,
+        "greed": -12
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 53.9,
+        "y": 0,
+        "z": 71
+      },
+      "trait_offsets": {
+        "diligence": -13,
+        "sociability": -14,
+        "courage": 6,
+        "greed": 2
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 31.7,
+        "y": 0,
+        "z": 2
+      },
+      "trait_offsets": {
+        "diligence": 7,
+        "sociability": -1,
+        "courage": -9,
+        "greed": 10
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": -44.4,
+        "y": 0,
+        "z": 37.6
+      },
+      "trait_offsets": {
+        "diligence": -8,
+        "sociability": -14,
+        "courage": 3,
+        "greed": 6
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 9.8,
+        "y": 0,
+        "z": -74.4
+      },
+      "trait_offsets": {
+        "diligence": 2,
+        "sociability": 2,
+        "courage": -12,
+        "greed": -14
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 54.9,
+        "y": 0,
+        "z": 76
+      },
+      "trait_offsets": {
+        "diligence": 10,
+        "sociability": -2,
+        "courage": 11,
+        "greed": -10
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": 33.7,
+        "y": 0,
+        "z": 2
+      },
+      "trait_offsets": {
+        "diligence": 1,
+        "sociability": -8,
+        "courage": 8,
+        "greed": 9
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "archetype": "farmer",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": "farm_001_08",
+      "spawn_pos": {
+        "x": -40.4,
+        "y": 0,
+        "z": 37.6
+      },
+      "trait_offsets": {
+        "diligence": 4,
+        "sociability": -5,
+        "courage": -2,
+        "greed": -8
+      },
+      "initial_inventory": [
+        {
+          "item": "hoe",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": 3.8,
+        "y": 0,
+        "z": -80.4
+      },
+      "trait_offsets": {
+        "diligence": -10,
+        "sociability": 6,
+        "courage": 11,
+        "greed": -11
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": 54.9,
+        "y": 0,
+        "z": 71
+      },
+      "trait_offsets": {
+        "diligence": 5,
+        "sociability": 8,
+        "courage": 2,
+        "greed": -13
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": 35.7,
+        "y": 0,
+        "z": 0
+      },
+      "trait_offsets": {
+        "diligence": 5,
+        "sociability": -5,
+        "courage": 8,
+        "greed": 3
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": -44.4,
+        "y": 0,
+        "z": 42.6
+      },
+      "trait_offsets": {
+        "diligence": -1,
+        "sociability": 4,
+        "courage": -12,
+        "greed": -1
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": 5.8,
+        "y": 0,
+        "z": -77.4
+      },
+      "trait_offsets": {
+        "diligence": 9,
+        "sociability": -9,
+        "courage": 1,
+        "greed": 6
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": 56.9,
+        "y": 0,
+        "z": 69
+      },
+      "trait_offsets": {
+        "diligence": -3,
+        "sociability": 8,
+        "courage": 2,
+        "greed": 4
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": 30.7,
+        "y": 0,
+        "z": 4
+      },
+      "trait_offsets": {
+        "diligence": -13,
+        "sociability": 7,
+        "courage": -7,
+        "greed": -6
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": -41.4,
+        "y": 0,
+        "z": 41.6
+      },
+      "trait_offsets": {
+        "diligence": 11,
+        "sociability": -3,
+        "courage": 0,
+        "greed": -8
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": 2.8,
+        "y": 0,
+        "z": -78.4
+      },
+      "trait_offsets": {
+        "diligence": 6,
+        "sociability": 6,
+        "courage": -13,
+        "greed": 8
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": 51.9,
+        "y": 0,
+        "z": 75
+      },
+      "trait_offsets": {
+        "diligence": -12,
+        "sociability": 9,
+        "courage": -3,
+        "greed": 5
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": 32.7,
+        "y": 0,
+        "z": -4
+      },
+      "trait_offsets": {
+        "diligence": 3,
+        "sociability": -13,
+        "courage": -1,
+        "greed": 6
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "archetype": "town_guard",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": "guardhouse_001_01",
+      "spawn_pos": {
+        "x": -48.4,
+        "y": 0,
+        "z": 40.6
+      },
+      "trait_offsets": {
+        "diligence": -8,
+        "sociability": 1,
+        "courage": 10,
+        "greed": -1
+      },
+      "initial_inventory": [
+        {
+          "item": "guard_spear",
+          "count": 1
+        },
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 10.8,
+        "y": 0,
+        "z": -77.4
+      },
+      "trait_offsets": {
+        "diligence": -1,
+        "sociability": -2,
+        "courage": -8,
+        "greed": -12
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 55.9,
+        "y": 0,
+        "z": 76
+      },
+      "trait_offsets": {
+        "diligence": 13,
+        "sociability": 14,
+        "courage": 1,
+        "greed": 9
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 38.7,
+        "y": 0,
+        "z": -2
+      },
+      "trait_offsets": {
+        "diligence": -3,
+        "sociability": -5,
+        "courage": -4,
+        "greed": -11
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": -43.4,
+        "y": 0,
+        "z": 43.6
+      },
+      "trait_offsets": {
+        "diligence": 7,
+        "sociability": -3,
+        "courage": 9,
+        "greed": 10
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 4.8,
+        "y": 0,
+        "z": -74.4
+      },
+      "trait_offsets": {
+        "diligence": 1,
+        "sociability": -8,
+        "courage": -12,
+        "greed": 13
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 56.9,
+        "y": 0,
+        "z": 69
+      },
+      "trait_offsets": {
+        "diligence": 7,
+        "sociability": -14,
+        "courage": -11,
+        "greed": -2
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 36.7,
+        "y": 0,
+        "z": 0
+      },
+      "trait_offsets": {
+        "diligence": 11,
+        "sociability": 8,
+        "courage": 9,
+        "greed": 4
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": -45.4,
+        "y": 0,
+        "z": 39.6
+      },
+      "trait_offsets": {
+        "diligence": 15,
+        "sociability": -7,
+        "courage": 4,
+        "greed": -8
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 2.8,
+        "y": 0,
+        "z": -76.4
+      },
+      "trait_offsets": {
+        "diligence": 11,
+        "sociability": -4,
+        "courage": 15,
+        "greed": -5
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 57.9,
+        "y": 0,
+        "z": 76
+      },
+      "trait_offsets": {
+        "diligence": -14,
+        "sociability": 3,
+        "courage": -4,
+        "greed": 12
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 30.7,
+        "y": 0,
+        "z": -1
+      },
+      "trait_offsets": {
+        "diligence": 10,
+        "sociability": 15,
+        "courage": 3,
+        "greed": -15
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": -46.4,
+        "y": 0,
+        "z": 42.6
+      },
+      "trait_offsets": {
+        "diligence": 9,
+        "sociability": 15,
+        "courage": 1,
+        "greed": -4
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 10.8,
+        "y": 0,
+        "z": -78.4
+      },
+      "trait_offsets": {
+        "diligence": -14,
+        "sociability": 8,
+        "courage": 6,
+        "greed": -10
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 56.9,
+        "y": 0,
+        "z": 72
+      },
+      "trait_offsets": {
+        "diligence": 15,
+        "sociability": -11,
+        "courage": -7,
+        "greed": 5
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 30.7,
+        "y": 0,
+        "z": -3
+      },
+      "trait_offsets": {
+        "diligence": 9,
+        "sociability": -12,
+        "courage": -11,
+        "greed": 4
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": -48.4,
+        "y": 0,
+        "z": 43.6
+      },
+      "trait_offsets": {
+        "diligence": -10,
+        "sociability": 1,
+        "courage": 10,
+        "greed": 1
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 2.8,
+        "y": 0,
+        "z": -78.4
+      },
+      "trait_offsets": {
+        "diligence": -5,
+        "sociability": 15,
+        "courage": 5,
+        "greed": 0
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 51.9,
+        "y": 0,
+        "z": 70
+      },
+      "trait_offsets": {
+        "diligence": -2,
+        "sociability": 12,
+        "courage": 1,
+        "greed": 14
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 31.7,
+        "y": 0,
+        "z": 4
+      },
+      "trait_offsets": {
+        "diligence": -14,
+        "sociability": 12,
+        "courage": 4,
+        "greed": 6
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": -47.4,
+        "y": 0,
+        "z": 38.6
+      },
+      "trait_offsets": {
+        "diligence": 12,
+        "sociability": -4,
+        "courage": 7,
+        "greed": -3
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 5.8,
+        "y": 0,
+        "z": -77.4
+      },
+      "trait_offsets": {
+        "diligence": -11,
+        "sociability": 8,
+        "courage": -15,
+        "greed": 1
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 52.9,
+        "y": 0,
+        "z": 71
+      },
+      "trait_offsets": {
+        "diligence": -13,
+        "sociability": -3,
+        "courage": 11,
+        "greed": 11
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 35.7,
+        "y": 0,
+        "z": -3
+      },
+      "trait_offsets": {
+        "diligence": -14,
+        "sociability": -5,
+        "courage": -2,
+        "greed": -2
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": -47.4,
+        "y": 0,
+        "z": 42.6
+      },
+      "trait_offsets": {
+        "diligence": -14,
+        "sociability": 0,
+        "courage": 6,
+        "greed": 10
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 9.8,
+        "y": 0,
+        "z": -79.4
+      },
+      "trait_offsets": {
+        "diligence": -2,
+        "sociability": 7,
+        "courage": 9,
+        "greed": -3
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 59.9,
+        "y": 0,
+        "z": 70
+      },
+      "trait_offsets": {
+        "diligence": -8,
+        "sociability": 13,
+        "courage": -13,
+        "greed": 0
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_001_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 32.7,
+        "y": 0,
+        "z": -2
+      },
+      "trait_offsets": {
+        "diligence": 15,
+        "sociability": -4,
+        "courage": -5,
+        "greed": 10
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_002_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": -46.4,
+        "y": 0,
+        "z": 41.6
+      },
+      "trait_offsets": {
+        "diligence": -2,
+        "sociability": 5,
+        "courage": -7,
+        "greed": -10
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_003_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 9.8,
+        "y": 0,
+        "z": -75.4
+      },
+      "trait_offsets": {
+        "diligence": -14,
+        "sociability": 7,
+        "courage": 15,
+        "greed": -11
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "archetype": "villager",
+      "zone": "town_center",
+      "home_poi": "house_004_01",
+      "workplace_poi": null,
+      "spawn_pos": {
+        "x": 52.9,
+        "y": 0,
+        "z": 74
+      },
+      "trait_offsets": {
+        "diligence": -7,
+        "sociability": 2,
+        "courage": -6,
+        "greed": -6
+      },
+      "initial_inventory": [
+        {
+          "item": "bread",
+          "count": 2
+        },
+        {
+          "item": "water",
+          "count": 1
+        },
+        {
+          "item": "coin",
+          "count": 10
+        }
+      ]
+    }
+  ]
+}

@@ -167,7 +167,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
         </div>
         <p>현재 실측에서는 5,000 NPC가 게임 시간 7일과 10,080틱을 완주했고, 캐시 히트율은 <strong>98.67%</strong>, 틱 p99는 <strong>0.801ms</strong>였다. 결정론 리플레이도 바이트 단위 동일 판정을 통과했다.</p>
       </div>
-      <div class="refs"><a href="../README.md">README</a><a href="reference_metrics.html">실측 데이터</a><a href="index.html">프로젝트 안내서</a></div>
+      <div class="refs"><a href="https://github.com/jacking75/LlmNpcServer/blob/main/README.md">README</a><a href="reference_metrics.html">실측 데이터</a><a href="index.html">프로젝트 안내서</a></div>
     </article>
 
     <article class="faq-card" id="q2" data-search="언제 사용 적합 생활형 npc 도시 주민 상인 경비 농부 날씨 전쟁 라이브 이벤트 r&d">
@@ -196,7 +196,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
           <div class="mini"><strong>무제한 즉흥 행동</strong><p>실제 행동은 마스터데이터와 제한된 DSL 안에서만 가능하다.</p></div>
           <div class="mini"><strong>작은 프로젝트</strong><p>별도 NPC 서버와 TCP 연동 비용이 제작 공수 절감보다 클 수 있다.</p></div>
         </div>
-        <div class="callout warn"><strong>현재는 상용 완성품이 아니라 R&amp;D 구현체다.</strong><p>203개 태스크 중 196개가 완료됐지만 플랜 다양성은 목표 60%보다 낮은 37.1%이며, GPU 부하와 사람 대상 품질 평가도 완결되지 않았다.</p></div>
+        <div class="callout warn"><strong>현재는 상용 완성품이 아니라 R&amp;D 구현체다.</strong><p>GPU 부하와 사람 대상 품질 평가 등 미측정 항목이 남아 있다. 최신 판정은 <a href="reference_metrics.html">성능·한계 레퍼런스</a>를 본다.</p></div>
         <p>따라서 현재 평가는 “검증된 범용 상용 NPC 서버”보다 <strong>구조와 성능 가능성이 구체적으로 증명된 기술 검증 구현체</strong>가 적절하다.</p>
       </div>
       <div class="refs"><a href="reference_metrics.html#gate">수용 기준 판정</a><a href="reference_metrics.html">실측 데이터</a></div>
@@ -238,7 +238,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
 }</code></pre>
         <p class="muted">위 예시는 권장 확장 형태이며 현재 <code>npc_instances.json</code> 스키마에 모두 구현된 필드는 아니다.</p>
       </div>
-      <div class="refs"><a href="reference_masterdata.html">마스터데이터 레퍼런스</a><a href="../masterdata/actions.json">액션 카탈로그</a><a href="../masterdata/archetypes.json">아키타입</a></div>
+      <div class="refs"><a href="reference_masterdata.html">마스터데이터 레퍼런스</a><a href="https://github.com/jacking75/LlmNpcServer/blob/main/masterdata/actions.json">액션 카탈로그</a><a href="https://github.com/jacking75/LlmNpcServer/blob/main/masterdata/archetypes.json">아키타입</a></div>
     </article>
 
     <article class="faq-card" id="q5" data-search="특정 위치 순찰 돌아다니다 플레이어 보면 공격 patrol hostile aggro 인터럽트 흐름">
@@ -304,7 +304,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
         <div class="callout warn"><strong>현재 그대로는 “보이는 모든 플레이어를 선제공격”하지 않는다.</strong><p><code>PlayerProximity</code>는 <code>PlayerNearby</code>만 설정하고, 기존 공격 인터럽트는 <code>ThreatNearby</code>를 조건으로 사용한다.</p></div>
         <p>선제공격 NPC를 만들려면 게임서버의 적대 판정, <code>HostilePlayerNearby</code>에 해당하는 상태나 이벤트, <code>$nearest_hostile_player</code> 같은 대상 바인딩, 플레이어를 대상으로 하는 공격 액션 연결이 필요하다.</p>
       </div>
-      <div class="refs"><a href="../src/Npc.Runtime/EventApplier.cs">이벤트 적용기</a><a href="../src/Npc.Contracts/NpcCommand.cs">명령 계약</a><a href="../masterdata/interrupts.json">인터럽트 규칙</a></div>
+      <div class="refs"><a href="https://github.com/jacking75/LlmNpcServer/blob/main/src/Npc.Runtime/EventApplier.cs">이벤트 적용기</a><a href="https://github.com/jacking75/LlmNpcServer/blob/main/src/Npc.Contracts/NpcCommand.cs">명령 계약</a><a href="https://github.com/jacking75/LlmNpcServer/blob/main/masterdata/interrupts.json">인터럽트 규칙</a></div>
     </article>
 
     <article class="faq-card" id="q7" data-search="npc 대화 가능 talk gossip speak dialogue id 고정 대사 자연어">
@@ -323,7 +323,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
         </div>
         <p>이 방식은 응답이 빠르고 안전하며 번역·음성·검수·등급 심의를 관리하기 쉽다.</p>
       </div>
-      <div class="refs"><a href="../masterdata/actions.json">Talk·Gossip 액션</a><a href="../src/Npc.Contracts/NpcCommand.cs">Speak 계약</a></div>
+      <div class="refs"><a href="https://github.com/jacking75/LlmNpcServer/blob/main/masterdata/actions.json">Talk·Gossip 액션</a><a href="https://github.com/jacking75/LlmNpcServer/blob/main/src/Npc.Contracts/NpcCommand.cs">Speak 계약</a></div>
     </article>
 
     <article class="faq-card" id="q8" data-search="실시간 자유대화 대화 서버 llm persona lore memory quest safety fallback 구조화 출력">

@@ -36,6 +36,18 @@ if (args.Length > 0 && args[0] == ValidateCommand.Name)
     return ValidateCommand.Run(args[1..], Console.Out);
 }
 
+if (args.Length > 0 && args[0] == DoctorCommand.Name)
+{
+    return await DoctorCommand.RunAsync(args[1..], Console.Out);
+}
+
+if (args.Contains("--help-all", StringComparer.Ordinal))
+{
+    Console.Out.Write(args.Contains("--markdown", StringComparer.Ordinal)
+        ? HostOptions.UsageMarkdown : HostOptions.UsageAll);
+    return 0;
+}
+
 // 컨테이너 HEALTHCHECK 진입점 (A-09). aspnet 이미지에 curl 이 없어서 .NET 으로 친다.
 if (args.Length > 0 && args[0] == HealthCheckCommand.Name)
 {
@@ -232,6 +244,8 @@ var adminAuth = new AdminAuth(AdminAuth.TokenFromEnvironment());
 
 // B-08 — SSE 연결 수 상한. 0 이면 스트림을 열지 않는다.
 var streams = new StreamLimiter(options.QueryMaxStreams);
+var world = new WorldEndpoints(host.Store, host.Data, host.ZoneStates,
+    () => host.Clock.Current.Value);
 
 if (adminAuth.Enabled)
 {
@@ -263,6 +277,8 @@ if (adminAuth.Enabled)
 app.MapGet("/", () => Results.Redirect("/dashboard"));
 app.MapGet("/status", () => host.Snapshot());
 app.MapGet("/metrics", () => host.Metrics.Snapshot());
+app.MapGet(WorldEndpoints.MapRoute, () => world.Map);
+app.MapGet(WorldEndpoints.NpcsRoute, () => world.Npcs());
 
 // NPC 추적 (T4-21). SoA 배열을 읽기만 하고 값을 복사해 나간다 — 틱 루프를 막지 않는다.
 app.MapGet(NpcTraceEndpoint.Route, (int id) => host.Trace(id));
@@ -476,6 +492,7 @@ internal sealed class NpcHost : IAsyncDisposable
     private readonly NpcStore _store;
     private readonly PlanStore _plans;
     private readonly MasterDataSet _data;
+    private readonly ZoneStateTable _zoneStates;
     private readonly NpcMeter _meter;
     private readonly SimDriver? _driver;
     private readonly NullGameServerLink? _nullLink;
@@ -508,6 +525,7 @@ internal sealed class NpcHost : IAsyncDisposable
         NpcStore store,
         PlanStore plans,
         MasterDataSet data,
+        ZoneStateTable zoneStates,
         NpcMeter meter,
         SimDriver? driver,
         NullGameServerLink? nullLink,
@@ -530,6 +548,7 @@ internal sealed class NpcHost : IAsyncDisposable
         _store = store;
         _plans = plans;
         _data = data;
+        _zoneStates = zoneStates;
         _meter = meter;
         _tcp = tcp;
         _driver = driver;
@@ -618,6 +637,12 @@ internal sealed class NpcHost : IAsyncDisposable
 
     /// <summary>NPC 상태. 측정 하네스가 읽는다 — <b>쓰지 않는다</b> (T4-17·T4-21).</summary>
     public NpcStore Store => _store;
+
+    /// <summary>지도 API가 읽는 마스터데이터.</summary>
+    public MasterDataSet Data => _data;
+
+    /// <summary>지도 API가 읽는 존 상태.</summary>
+    public ZoneStateTable ZoneStates => _zoneStates;
 
     /// <summary>
     /// 플랜 스토어. <b>어느 회차의 플랜이 올라왔는지</b>를 밖에서 세려고 연다 (C-03).
@@ -998,7 +1023,7 @@ internal sealed class NpcHost : IAsyncDisposable
         // 개별 재계획 플랜은 레지스트리가 아니라 512칸 링에서 온다 (docs/13 §2 · T4-12).
         plans.Individual = individualPool;
 
-        var executor = new PlanExecutor(data, store, plans, correlations, emitter, options.TimeScale)
+        var executor = new PlanExecutor(data, store, plans, correlations, emitter, options.TimeScale, clock)
         {
             Swapper = swapper,
             ReplanQueue = replanQueue,
@@ -1274,7 +1299,7 @@ internal sealed class NpcHost : IAsyncDisposable
         }
 
         var host = new NpcHost(
-            options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data,
+            options, link, loop, clock, executor, cognition, interrupts, replanQueue, store, plans, data, zoneStates,
             meter, driver, nullLink, tcp, totalTicks, roster, tiers, switches, snapshotWriter, alarms)
         {
             Restore = restore,
@@ -1582,6 +1607,7 @@ internal sealed class NpcHost : IAsyncDisposable
         ReplanQueued: _replanQueue.Count,
         EventBacklogs: _loop.EventBacklogs,
         LlmCalls: _tiers.Stats?.Calls ?? 0,
+        Tier: _options.Tier.ToString().ToLowerInvariant(),
         LinkState: _link.State.ToString(),
         LinkReject: LinkRejectReason,
         LinkNegotiation: _tcp?.NegotiationDetail ?? "링크 없음",
@@ -1616,9 +1642,19 @@ internal sealed class NpcHost : IAsyncDisposable
             $"ticks {s.TicksProcessed} · game day {s.GameDay} · events {s.EventsDrained} · "
             + $"commands {s.CommandsEmitted} · steps {s.StepsAdvanced} · "
             + $"timeouts {s.TimeoutsSynthesized} · scan/tick {s.ScanPerTick} · "
-            + $"interrupts {s.InterruptsForced} · replan-q {s.ReplanQueued} · "
+            + $"interrupts {s.InterruptsForced} · replan-q {s.ReplanQueued}"
+            + (_options.NoLlm ? " (LLM 꺼짐: 소비자 없음)" : string.Empty) + " · "
             + $"drops link {s.Link.CommandsDropped} sim {_driver?.CommandsDropped ?? 0} · "
-            + $"backlogs {s.EventBacklogs} · llm {s.LlmCalls}");
+            + $"backlogs {s.EventBacklogs} · llm {s.LlmCalls}"
+            + (_options.NoLlm ? " (LLM 꺼짐 — --tier none)" : string.Empty));
+
+        string? issue = RunVerdict.FirstIssue(
+            m.Tick.P99Ms, m.Tick.BytesPerTick, m.Link.EventGaps, m.Tick.Overruns,
+            s.Link.CommandsDropped, _driver?.CommandsDropped ?? 0,
+            s.TimeoutsSynthesized, s.StepsAdvanced, _options.DropRate == 0);
+        log.WriteLine(issue is null
+            ? $"판정: 정상 — 틱 p99 {m.Tick.P99Ms:0.###}ms (예산 {RunVerdict.TickBudgetMs:0}ms) · 틱 할당 {m.Tick.BytesPerTick}B · 링크 드롭 0 · 이벤트 갭 0"
+            : $"판정: 주의 — {issue}");
     }
 
     /// <inheritdoc />
@@ -1693,9 +1729,9 @@ internal sealed class NpcHost : IAsyncDisposable
 
         if (layout.Shape == PlanStoreShape.Missing)
         {
-            log.WriteLine(
-                $"planstore 없음 ({layout}) — 폴백 {plans.FilledFallbacks}개로 돈다. "
-                + $"프리픽스 {PromptManifest.ShortSha(prefix.Sha256)} 의 프리베이크가 필요하다.");
+            log.WriteLine(options.NoLlm
+                ? $"info: 플랜: LLM 생성 0 · 사람 고정 0 · 나머지 {plans.ColdBuckets:N0} 버킷은 직업별 기본 행동으로 돈다 (LLM 없이도 정상)"
+                : $"planstore 없음 ({layout}) — 폴백 {plans.FilledFallbacks}개로 돈다. 프리픽스 {PromptManifest.ShortSha(prefix.Sha256)} 의 프리베이크가 필요하다.");
 
             SavePrefixArtifact(root, prefix, promptVersion, log);
 
@@ -1706,7 +1742,7 @@ internal sealed class NpcHost : IAsyncDisposable
         {
             // 어느 프리픽스로 만든 것인지 경로에 안 적혀 있다. manifest 의 prefix_hash 가
             // 그것을 말해 주고, 어긋나면 아래 WarnIfStale 이 잡는다.
-            log.WriteLine($"planstore: 평면 배치다 (C-03 이전). 다음 프리베이크부터 {PromptManifest.ShortSha(prefix.Sha256)}/ 에 쌓인다.");
+            log.WriteLine($"planstore: 기존 폴더 구조를 읽었다. 새 플랜은 {PromptManifest.ShortSha(prefix.Sha256)}/ 에 저장된다.");
         }
 
         SavePrefixArtifact(root, prefix, promptVersion, log);
@@ -1734,10 +1770,15 @@ internal sealed class NpcHost : IAsyncDisposable
 
         if (plans.ColdBuckets > 0)
         {
-            log.WriteLine($"warn: 미생성 버킷 {plans.ColdBuckets}건. 아키타입 폴백으로 해소된다.");
+            log.WriteLine(options.NoLlm && report.Total == report.Pinned
+                ? $"info: 플랜: LLM 생성 0 · 사람 고정 {report.Pinned} · 나머지 {plans.ColdBuckets:N0} 버킷은 직업별 기본 행동으로 돈다 (LLM 없이도 정상)"
+                : $"warn: 미생성 버킷 {plans.ColdBuckets}건. 아키타입 폴백으로 해소된다.");
         }
 
-        WarnIfStale(storeDir, data, prefix.Sha256, log);
+        if (!options.NoLlm || report.Total > report.Pinned)
+        {
+            WarnIfStale(storeDir, data, prefix.Sha256, log);
+        }
 
         return plans;
     }
@@ -1897,6 +1938,7 @@ internal sealed class NpcHost : IAsyncDisposable
 /// <param name="ReplanQueued">재계획 큐 깊이.</param>
 /// <param name="EventBacklogs">한 틱 상한에 걸려 다음 틱으로 넘긴 횟수.</param>
 /// <param name="LlmCalls">LLM 호출 수. P1 에서는 항상 0 이다.</param>
+/// <param name="Tier">활성 LLM 티어. none이면 재계획 소비자가 없다.</param>
 /// <param name="LinkState">링크 접속 상태 (A-03). <c>/status</c> 가 링크와 무관하게 200 이던 결손을 메운다.</param>
 /// <param name="LinkReject">핸드셰이크 거절 사유. 없으면 null.</param>
 /// <param name="LinkNegotiation">협상 결과 (B-01). 프로토콜·계약·기능 비트.</param>
@@ -1936,6 +1978,7 @@ internal readonly record struct HostSnapshot(
     int ReplanQueued,
     long EventBacklogs,
     long LlmCalls,
+    string Tier,
     string LinkState,
     string? LinkReject,
     string LinkNegotiation,

@@ -127,7 +127,7 @@ public sealed partial class LlmPackTests
             "--masterdata", "--planstore", "--json", "--apply", "--population",
             "--out", "--from", "--weight", "--workplace", "--bucket", "--base",
             "--check", "--state", "--archetype", "--budget-usd", "--limit",
-            "--concurrency", "--resume", "--seed", "--trace", "--npc", "--url",
+            "--concurrency", "--resume", "--only", "--buckets-file", "--seed", "--trace", "--npc", "--url",
             "--headless", "--format", "--help",
 
             // E-03 — MCP 서버의 플래그. 호스트 옵션표에도 CLI 에도 없다.

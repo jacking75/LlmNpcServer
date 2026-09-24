@@ -44,6 +44,7 @@ internal static class Cli
         int timeScale = Int(args, "--time-scale", 600);
         int seconds = Int(args, "--seconds", 60);
         string outDir = Flag(args, "--out") ?? "docs/measurements";
+        bool probe = args.Contains("--probe");
 
         MasterDataSet data;
 
@@ -95,6 +96,11 @@ internal static class Cli
 
         try
         {
+            if (probe)
+            {
+                await ProbeAsync(link, observer, roster, data, cts.Token).ConfigureAwait(false);
+            }
+
             await Task.Delay(TimeSpan.FromSeconds(seconds), cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -185,6 +191,64 @@ internal static class Cli
             ? value
             : fallback;
 
+    /// <summary>재동기화 뒤 안전한 명령 세 가지를 보내 C6 응답을 실제로 관찰한다.</summary>
+    private static async Task ProbeAsync(
+        TcpGameServerLink link, Observer observer, NpcRoster roster,
+        MasterDataSet data, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+
+        while (link.State != LinkState.Connected
+            || observer.EventCount < roster.Count + data.Zones.Zones.Length * 2)
+        {
+            await Task.Delay(50, timeout.Token).ConfigureAwait(false);
+        }
+
+        NpcInstanceDef first = roster.Npcs[0];
+        long tick = observer.Events[^1].Event.OccurredAt.Value;
+        var id = new NpcId(first.Id);
+        var issued = new Tick(tick);
+
+        var visual = new NpcCommand
+        {
+            Kind = NpcCommandKind.SetVisualState,
+            Npc = id,
+            IssuedAt = issued,
+            Correlation = new CorrelationId(0xF001),
+            Priority = CommandPriority.Normal,
+            Visual = VisualState.Idle,
+        };
+        var move = new NpcCommand
+        {
+            Kind = NpcCommandKind.MoveTo,
+            Npc = id,
+            IssuedAt = issued,
+            Correlation = new CorrelationId(0xF002),
+            Priority = CommandPriority.Normal,
+            TargetPoi = first.Home,
+        };
+        var inventory = new NpcCommand
+        {
+            Kind = NpcCommandKind.InventoryChange,
+            Npc = id,
+            IssuedAt = issued,
+            Correlation = new CorrelationId(0xF003),
+            Priority = CommandPriority.Normal,
+            Item = data.Items.Items[0].Code,
+            Amount = 1,
+        };
+
+        foreach (NpcCommand command in new[] { visual, move, inventory })
+        {
+            link.Enqueue(in command);
+            observer.RecordIssued(in command, timeoutTicks: 200);
+        }
+
+        await link.FlushAsync(ct).ConfigureAwait(false);
+        Console.Out.WriteLine("C6 확인용 명령 3건을 보냈다.");
+    }
+
     private const string Usage = """
         Npc.Conformance — 게임서버 적합성 테스트 키트 (B-07)
 
@@ -202,6 +266,7 @@ internal static class Cli
           --time-scale <배속>  게임서버와 같아야 붙는다 (기본 600)
           --seconds <초>       관찰 시간 (기본 60)
           --out <폴더>         보고서 폴더 (기본 docs/measurements)
+          --probe              재동기화 뒤 안전한 명령 3건을 보내 C6 를 확인한다
 
         환경변수:
           NPC_LINK_SECRET      링크 HMAC 비밀 hex 64자. 게임서버가 인증을 켰으면 필요하다

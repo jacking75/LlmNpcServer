@@ -32,7 +32,7 @@
   <span class="tag">집필 현황</span>
   <b>0부 · 1부 · 2부(0~9장) 완성.</b> 예제 스크립트를 실제로 만들어 돌려 보고,
   <b>그 출력을 그대로 실었다</b> — 책에 있는 수치·로그·오류 메시지 중 지어낸 것은 없다.
-  3부부터는 아직 목차만 잡혀 있다 (아래 카드의 <span class="pill">예정</span>).
+  0~21장의 본문과 실행 예제가 있다.
   <br>
   → <a href="ch00.html"><b>0장부터 시작하기</b></a>
 </div>
@@ -326,10 +326,10 @@
       <div class="check">
         <h5>동작 확인</h5>
         <ol>
-          <li><span class="sig">llm 0 인데 commands 11,825</span> — 이 두 숫자가 이 장의 전부다</li>
-          <li>NPC 5,000에서도 <b>p99 2.368ms · bytes/tick 0 · 스캔/틱 정확히 150</b></li>
+          <li><span class="sig">LLM 호출 0회 · 명령 1,155건</span> — NPC 20명 하루 실행의 기준선이다</li>
+          <li>NPC 5,000에서도 <b>p99 0.649ms · bytes/tick 0 · 스캔/틱 최대 150</b></li>
           <li><code>--drop-rate 0.5</code> 로 명령 절반을 버려도 <b>NPC 가 안 멈춘다</b>
-              (타임아웃 합성이 1,381 → 2,744로 대신 오른다)</li>
+              (타임아웃 합성이 0 → 427건으로 오른다)</li>
         </ol>
       </div>
     </div>
@@ -989,7 +989,7 @@
 <tr><td><b>B</b></td><td><a href="appendix.html#b">관측 엔드포인트 사전</a></td><td><code>/status</code> · <code>/metrics</code> · <code>/npc/{id}</code> · <code>/heatmap.csv</code>. <b>정상 범위와 경보 기준</b></td></tr>
 <tr><td><b>C</b></td><td><a href="appendix.html#c">오류 사전</a></td><td>검증 V1~V13 · 플랜 검증기 4단 실패 코드 · 링크 거절 사유. <b>증상 → 원인 → 조치</b></td></tr>
 <tr><td><b>D</b></td><td><a href="appendix.html#d">되돌리기와 청소</a></td><td><code>lab/</code> 정리 · 플랜 스토어 무효화 판단 · <code>git</code> 원복 · 프리베이크 재실행 시점</td></tr>
-<tr><td><b>E</b></td><td><a href="appendix.html#e">이 책 ↔ 저장소 대조표</a></td><td>각 장이 건드리는 파일을 <a href="../../CODEMAP.md"><code>CODEMAP.md</code></a> 의 줄과 이어 붙인 표</td></tr>
+<tr><td><b>E</b></td><td><a href="appendix.html#e">이 책 ↔ 저장소 대조표</a></td><td>각 장이 건드리는 파일을 <a href="https://github.com/jacking75/LlmNpcServer/blob/main/CODEMAP.md"><code>CODEMAP.md</code></a> 의 줄과 이어 붙인 표</td></tr>
 </tbody>
 </table>
 </div>

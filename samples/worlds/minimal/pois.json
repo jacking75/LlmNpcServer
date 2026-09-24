@@ -1,0 +1,272 @@
+{
+  "$schema": "../docs/schema/pois.schema.json",
+  "version": 1,
+  "pois": [
+    {
+      "id": "house_001_01",
+      "code": 1,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 34.7,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_002_01",
+      "code": 2,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": -44.4,
+        "y": 0.0,
+        "z": 40.6
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_003_01",
+      "code": 3,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 6.8,
+        "y": 0.0,
+        "z": -77.4
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "house_004_01",
+      "code": 4,
+      "zone": "town_center",
+      "type": "home",
+      "subtype": "house",
+      "pos": {
+        "x": 55.9,
+        "y": 0.0,
+        "z": 73.0
+      },
+      "capacity": 56,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtHome"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "farm_001_08",
+      "code": 5,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "farm",
+      "pos": {
+        "x": 1007.1,
+        "y": 0.0,
+        "z": 671.1
+      },
+      "capacity": 34,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [],
+      "resources": [
+        "wheat"
+      ]
+    },
+    {
+      "id": "guardhouse_001_01",
+      "code": 6,
+      "zone": "town_center",
+      "type": "workplace",
+      "subtype": "guardhouse",
+      "pos": {
+        "x": 52.3,
+        "y": 0.0,
+        "z": -232.4
+      },
+      "capacity": 55,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "bakery_001_02",
+      "code": 7,
+      "zone": "town_center",
+      "type": "workplace",
+      "subtype": "bakery",
+      "pos": {
+        "x": -131.6,
+        "y": 0.0,
+        "z": -757.7
+      },
+      "capacity": 16,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Afternoon"
+      },
+      "grants": [
+        "AtWorkplace"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "market_stall_001_01",
+      "code": 8,
+      "zone": "town_center",
+      "type": "market",
+      "subtype": "market_stall",
+      "pos": {
+        "x": 225.8,
+        "y": 0.0,
+        "z": 30.4
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Morning",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtMarket"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "tavern_001_01",
+      "code": 9,
+      "zone": "town_center",
+      "type": "tavern",
+      "subtype": "tavern",
+      "pos": {
+        "x": 149.8,
+        "y": 0.0,
+        "z": -149.1
+      },
+      "capacity": 20,
+      "open_hours": {
+        "from": "Noon",
+        "to": "Night"
+      },
+      "grants": [
+        "AtTavern"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "temple_001_01",
+      "code": 10,
+      "zone": "town_center",
+      "type": "temple",
+      "subtype": "temple",
+      "pos": {
+        "x": -142.5,
+        "y": 0.0,
+        "z": -170.8
+      },
+      "capacity": 26,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtTemple"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "gatehouse_001_06",
+      "code": 11,
+      "zone": "town_center",
+      "type": "gate",
+      "subtype": "gatehouse",
+      "pos": {
+        "x": 981.1,
+        "y": 0.0,
+        "z": -21.0
+      },
+      "capacity": 18,
+      "open_hours": {
+        "from": "Night",
+        "to": "Night"
+      },
+      "grants": [
+        "AtGate"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    },
+    {
+      "id": "pasture_001_08",
+      "code": 12,
+      "zone": "farmlands",
+      "type": "field",
+      "subtype": "pasture",
+      "pos": {
+        "x": 1091.9,
+        "y": 0.0,
+        "z": 1234.9
+      },
+      "capacity": 22,
+      "open_hours": {
+        "from": "Dawn",
+        "to": "Evening"
+      },
+      "grants": [
+        "AtField"
+      ],
+      "allowed_archetypes": [],
+      "resources": []
+    }
+  ]
+}

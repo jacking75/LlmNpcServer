@@ -33,7 +33,7 @@ public sealed class PlanExecutorTests
         var applier = new EventApplier(s_data, store, clock, correlations);
         PlanStore plans = PlanStore.CreateIdleOnly(s_data);
         var emitter = new CommandEmitter(s_data, new PoiBinder(s_data.Pois));
-        var executor = new PlanExecutor(s_data, store, plans, correlations, emitter);
+        var executor = new PlanExecutor(s_data, store, plans, correlations, emitter, timeScale: 600, clock: clock);
 
         Assert.True(s_data.Archetypes.TryGet(archetype, out ArchetypeDef def));
         PoiId home = s_data.Pois.OfSubtype("house")[0];
@@ -130,9 +130,13 @@ public sealed class PlanExecutorTests
         {
             h.Executor.Step(new Tick(tick++), h.Link);
             Complete(h, 0, tick++);
+            h.Executor.Step(new Tick(tick++), h.Link);
+            if ((StepStatus)h.Store.StepStatus[0] == StepStatus.Holding)
+            {
+                tick = Math.Max(tick, h.Store.StepDeadlineTick[0]);
+                h.Executor.Step(new Tick(tick++), h.Link);
+            }
         }
-
-        h.Executor.Step(new Tick(tick), h.Link);
 
         Assert.Equal(0, h.Store.StepIndex[0]);
         Assert.Equal(5, h.Executor.CommandsEmitted);
@@ -158,9 +162,13 @@ public sealed class PlanExecutorTests
         {
             h.Executor.Step(new Tick(tick++), h.Link);
             Complete(h, 0, tick++);
+            h.Executor.Step(new Tick(tick++), h.Link);
+            if ((StepStatus)h.Store.StepStatus[0] == StepStatus.Holding)
+            {
+                tick = Math.Max(tick, h.Store.StepDeadlineTick[0]);
+                h.Executor.Step(new Tick(tick++), h.Link);
+            }
         }
-
-        h.Executor.Step(new Tick(tick), h.Link);
 
         Assert.Equal((byte)StepStatus.Done, h.Store.StepStatus[0]);
     }

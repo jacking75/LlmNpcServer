@@ -52,7 +52,7 @@ public sealed class TimeoutSynthesisTests
         Assert.Equal((byte)StepStatus.Waiting, h.Store.StepStatus[0]);
         Assert.Equal(0, h.Store.StepIndex[0]);
 
-        long budget = h.Executor.TimeoutTicks(300);
+        long budget = h.Store.StepDeadlineTick[0] - 1;
         Assert.True(budget > 0);
 
         // 예산 안에서는 아무 일도 없다.
@@ -99,7 +99,7 @@ public sealed class TimeoutSynthesisTests
         h.Executor.Step(new Tick(1), h.Link);
         CorrelationId dropped = h.Link.Commands[0].Correlation;
 
-        long budget = h.Executor.TimeoutTicks(300);
+        long budget = h.Store.StepDeadlineTick[0] - 1;
         h.Executor.Step(new Tick(1 + budget), h.Link);
 
         // 뒤늦게 도착한 응답.
@@ -131,6 +131,30 @@ public sealed class TimeoutSynthesisTests
         PlanExecutorTests.Harness h = NewHarness(timeScale);
 
         Assert.Equal(expected, h.Executor.TimeoutTicks(seconds));
+    }
+
+    /// <summary>실측에서 500m 이상 이동 대부분이 정상 도착 전에 합성 타임아웃됐다.</summary>
+    [Fact]
+    public void Executor_LongMoveDoesNotExpireBeforeExpectedArrival()
+    {
+        MasterDataSet data = MasterDataLoader.Load(TestPaths.MasterData);
+        PlanExecutorTests.Harness h = NewHarness(timeScale: 600);
+        var home = new PoiId(h.Store.CurrentPoi[0]);
+        PoiId far = data.Pois.Pois
+            .Select(p => p.Code)
+            .First(p => data.Pois.Distance(home, p) >= 1500);
+        h.Store.WorkPoi[0] = far.Value;
+        h.Executor.AssignPlan(0, h.Plans.Register(PlanExecutorTests.Compile(SkipPlan)));
+
+        h.Executor.Step(new Tick(1), h.Link);
+
+        float distance = data.Pois.Distance(home, far);
+        long expectedArrival = 1 + h.Executor.TimeoutTicks((int)Math.Ceiling(distance * 0.6));
+        Assert.True(h.Store.StepDeadlineTick[0] > expectedArrival);
+
+        h.Executor.Step(new Tick(expectedArrival), h.Link);
+        Assert.Equal(0, h.Executor.TimeoutsSynthesized);
+        Assert.Equal((byte)StepStatus.Waiting, h.Store.StepStatus[0]);
     }
 
     /// <summary>모든 스텝에 타임아웃이 있어야 한다 — 하나라도 0 이면 그 스텝에서 영구 정지한다.</summary>

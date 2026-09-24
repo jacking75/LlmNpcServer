@@ -1,0 +1,5 @@
+{
+  "$schema": "../docs/schema/npc_overrides.schema.json",
+  "version": 1,
+  "overrides": []
+}

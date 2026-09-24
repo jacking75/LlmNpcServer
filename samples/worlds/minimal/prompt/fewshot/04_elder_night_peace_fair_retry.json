@@ -1,0 +1,45 @@
+{
+  "_comment": "docs/12 §8 의 V3.PRECONDITION_UNMET 처방 — 정합성 실패와 그 수정을 같이 보여 준다 (T2-21 3차).",
+  "request": {
+    "archetype": "elder",
+    "allowed_actions": ["Drink", "Eat", "Emote", "Gossip", "Greet", "MoveTo", "Observe", "Pray", "Rest", "Sleep", "Talk", "Wait", "Wander"],
+    "time_of_day": "Night",
+    "region_state": "Peace",
+    "climate": "Fair",
+    "flags": ["HasFood", "HasWater", "HasCoin", "IsNight", "RegionPeaceful"],
+    "traits": { "diligence": 30, "sociability": 70, "courage": 40, "greed": 30 },
+    "goals": ["share_stories", "keep_the_shrine", "rest_often"]
+  },
+  "rejected_plan": {
+    "schema": 1,
+    "goal": "evening_prayer",
+    "steps": [
+      { "action": "Pray", "args": { "duration_s": 900 } },
+      { "action": "Gossip", "args": { "npc": "nearest:villager", "topic": "rumor" } },
+      { "action": "Sleep", "args": { "until_time": "Morning" } }
+    ],
+    "loop": true
+  },
+  "rejection": {
+    "previous_attempt_failed": {
+      "stage": "Coherence",
+      "code": "V3.PRECONDITION_UNMET",
+      "step": 0,
+      "detail": "Pray requires AtTemple but no preceding step grants it."
+    }
+  },
+  "plan": {
+    "schema": 1,
+    "goal": "night_prayer_then_home",
+    "reasoning": "night, peaceful; walk to the shrine first, then home to sleep - the rejected plan prayed without going to the temple",
+    "steps": [
+      { "action": "MoveTo", "args": { "poi": "$temple", "speed": "walk" }, "timeout_s": 600 },
+      { "action": "Pray", "args": { "duration_s": 900 }, "timeout_s": 1200 },
+      { "action": "Gossip", "args": { "npc": "nearest:villager", "topic": "rumor" }, "timeout_s": 600 },
+      { "action": "MoveTo", "args": { "poi": "$home", "speed": "walk" }, "timeout_s": 600 },
+      { "action": "Sleep", "args": { "until_time": "Morning" } }
+    ],
+    "on_step_fail": "fallback",
+    "loop": true
+  }
+}

@@ -27,12 +27,23 @@ public sealed class PlanExecutor
     private readonly CommandEmitter _emitter;
     private readonly MasterDataSet _data;
     private readonly int _timeScale;
+    private readonly GameClock? _clock;
     private readonly NpcCommand[] _batch = new NpcCommand[CommandEmitter.MaxCommandsPerStep];
+    private readonly DurationKind[] _durationKind;
+    private readonly int[] _baseSeconds;
+    private readonly float[] _perMeterSeconds;
+    private readonly int[] _runArgOrdinal;
+    private readonly int[] _recipeSeconds;
+    private readonly bool[] _npcOwned;
+    private readonly int[][] _untilStartSeconds;
+
+    // 게임서버 경로 우회와 Sim의 도착 틱 반올림을 허용한다. timeout_s는 최소 보장이다.
+    private const double DeadlineFactor = 1.5;
+    private const int DeadlineGraceSeconds = 30;
 
     /// <summary>
     /// 마지막으로 처리한 틱. <see cref="AssignPlan"/> 이 배정 시각을 남길 때 쓴다 (docs/14 §2).
-    /// 실행기가 현재 시각을 스스로 알면 안 되므로 <see cref="Step"/> 이 들고 온 값만 기억한다 —
-    /// <c>GameClock</c> 을 참조하지 않는 이유와 같다.
+    /// 실행기가 벽시계를 읽지 않도록 <see cref="Step"/>이 들고 온 틱만 기억한다.
     /// </summary>
     private long _tick;
 
@@ -53,7 +64,8 @@ public sealed class PlanExecutor
         PlanStore plans,
         CorrelationTable correlations,
         CommandEmitter emitter,
-        int timeScale = 1)
+        int timeScale = 1,
+        GameClock? clock = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(store);
@@ -68,6 +80,62 @@ public sealed class PlanExecutor
         _correlations = correlations;
         _emitter = emitter;
         _timeScale = timeScale;
+        _clock = clock;
+
+        int actionSlots = data.Actions.MaxCode + 1;
+        _durationKind = new DurationKind[actionSlots];
+        _baseSeconds = new int[actionSlots];
+        _perMeterSeconds = new float[actionSlots];
+        _runArgOrdinal = new int[actionSlots];
+        _npcOwned = new bool[actionSlots];
+        _untilStartSeconds = new int[actionSlots][];
+        Array.Fill(_runArgOrdinal, -1);
+        foreach (ActionDef action in data.Actions.Actions)
+        {
+            int code = action.Code.Value;
+            _durationKind[code] = action.Duration.Kind;
+            _baseSeconds[code] = action.Duration.BaseSeconds;
+            _perMeterSeconds[code] = action.Duration.PerMeterSeconds;
+            bool gameServerOwned = false;
+            foreach (EmitDef emit in action.Emits)
+            {
+                CommandTimeOwner owner = CommandResponses.For(emit.Command).TimeOwner;
+                if (owner == CommandTimeOwner.NpcServer) _npcOwned[code] = true;
+                if (owner == CommandTimeOwner.GameServer) gameServerOwned = true;
+            }
+            _npcOwned[code] &= !gameServerOwned;
+
+            if (action.Duration.Kind == DurationKind.UntilTime
+                && action.Param(action.Duration.Param ?? string.Empty) is { } target)
+            {
+                int[] starts = new int[target.EnumValues.Length];
+                for (int i = 0; i < starts.Length; i++)
+                {
+                    if (Enum.TryParse(target.EnumValues[i], out Core.TimeOfDay time))
+                    {
+                        starts[i] = data.Buckets.GameHoursOf(time).From * 3600;
+                    }
+                }
+                _untilStartSeconds[code] = starts;
+            }
+            foreach (ParamDef param in action.Params)
+            {
+                if (param.Type == ParamType.Enum)
+                {
+                    _runArgOrdinal[code] = param.EnumValues.IndexOf("run");
+                    if (_runArgOrdinal[code] >= 0) break;
+                }
+            }
+        }
+
+        _recipeSeconds = new int[data.Items.MaxCode + 1];
+        foreach (RecipeDef recipe in data.Items.Recipes)
+        {
+            if (data.Items.TryGet(recipe.Id, out ItemDef item))
+            {
+                _recipeSeconds[item.Code.Value] = recipe.DurationSeconds;
+            }
+        }
     }
 
     /// <summary>
@@ -129,6 +197,12 @@ public sealed class PlanExecutor
                     break;
 
                 case StepStatus.Completed:
+                    if (BeginHolding(i, tick)) continue;
+                    AdvanceStep(i);
+                    break;
+
+                case StepStatus.Holding:
+                    if (tick.Value < _store.StepDeadlineTick[i]) continue;
                     AdvanceStep(i);
                     break;
 
@@ -184,7 +258,7 @@ public sealed class PlanExecutor
 
         // 인터럽트 액션이 끝나면 원래 플랜의 현재 스텝을 다시 낸다.
         _store.StepStatus[npc] = (byte)StepStatus.Waiting;
-        _store.StepIssuedTick[npc] = tick.Value;
+        _store.StepDeadlineTick[npc] = DeadlineFor(npc, step, count, tick.Value);
     }
 
     /// <summary>
@@ -203,6 +277,7 @@ public sealed class PlanExecutor
         _store.StepRetries[npc] = 0;
         _store.PlanAssignedTick[npc] = _tick;
         _store.PendingUrgency[npc] = 0;
+        _store.StepDeadlineTick[npc] = 0;
         _correlations.Invalidate(npc);
 
         // 개별 플랜에서 벗어나면 슬롯을 즉시 놓아준다. LRU 회수만 믿으면 512칸이
@@ -351,7 +426,7 @@ public sealed class PlanExecutor
 
         CommandsEmitted += count;
         _store.StepStatus[npc] = (byte)StepStatus.Waiting;
-        _store.StepIssuedTick[npc] = tick.Value;
+        _store.StepDeadlineTick[npc] = DeadlineFor(npc, step, count, tick.Value);
     }
 
     /// <summary>
@@ -387,17 +462,7 @@ public sealed class PlanExecutor
     /// <returns>타임아웃이 발생해 스텝이 실패로 바뀌었으면 true.</returns>
     private bool SynthesizeTimeout(int npc, Tick tick)
     {
-        CompiledPlan plan = PlanOf(npc);
-
-        if (plan.Steps.IsEmpty)
-        {
-            return false;
-        }
-
-        int index = Math.Min(_store.StepIndex[npc], plan.Steps.Length - 1);
-        long budget = TimeoutTicks(plan.Steps[index].TimeoutSeconds);
-
-        if (tick.Value - _store.StepIssuedTick[npc] < budget)
+        if (tick.Value < _store.StepDeadlineTick[npc])
         {
             return false;
         }
@@ -407,6 +472,84 @@ public sealed class PlanExecutor
         _store.LastFailReason[npc] = (byte)ActionFailReason.Timeout;
         TimeoutsSynthesized++;
         return true;
+    }
+
+    private long DeadlineFor(int npc, in CompiledStep step, int commands, long tick)
+    {
+        double expected = 0;
+        int code = step.Action.Value;
+
+        for (int c = 0; c < commands; c++)
+        {
+            NpcCommand command = _batch[c];
+            if (command.Kind == NpcCommandKind.MoveTo && _durationKind[code] == DurationKind.Distance
+                && command.TargetPoi.Value != 0)
+            {
+                var from = new PoiId(_store.CurrentPoi[npc]);
+                if (from.Value != 0 && from != command.TargetPoi)
+                {
+                    float meters = _data.Pois.Distance(from, command.TargetPoi);
+                    if (!float.IsInfinity(meters))
+                    {
+                        double speed = _runArgOrdinal[code] == step.ArgFlags
+                            ? ActionDuration.RunSpeedFactor : 1;
+                        expected = _baseSeconds[code] + meters * _perMeterSeconds[code] * speed;
+                    }
+                }
+            }
+            else if (command.Kind == NpcCommandKind.Interact)
+            {
+                int recipe = command.Item.Value < _recipeSeconds.Length
+                    ? _recipeSeconds[command.Item.Value] : 0;
+                expected = recipe > 0
+                    ? (double)recipe * Math.Max(command.Amount, 1)
+                    : _baseSeconds[code];
+            }
+            else if (command.Kind == NpcCommandKind.CombatAction)
+            {
+                expected = _baseSeconds[code];
+            }
+        }
+
+        int seconds = expected > 0
+            ? Math.Max(step.TimeoutSeconds, checked((int)Math.Ceiling(expected * DeadlineFactor) + DeadlineGraceSeconds))
+            : step.TimeoutSeconds;
+        return tick + TimeoutTicks(seconds);
+    }
+
+    private bool BeginHolding(int npc, Tick tick)
+    {
+        CompiledPlan plan = PlanOf(npc);
+        if (plan.Steps.IsEmpty) return false;
+
+        CompiledStep step = plan.Steps[Math.Min(_store.StepIndex[npc], plan.Steps.Length - 1)];
+        int code = step.Action.Value;
+        if (!_npcOwned[code]) return false;
+
+        long seconds = _durationKind[code] switch
+        {
+            DurationKind.Param => step.Count > 0 ? step.Count : _baseSeconds[code],
+            DurationKind.UntilTime => SecondsUntil(code, step.ArgFlags, tick.Value),
+            _ => _baseSeconds[code],
+        };
+
+        // 올림 환산: "아침까지"가 한 틱 일찍 끝나서는 안 된다.
+        long ticks = Math.Max(1, (Math.Max(seconds, 1) * Tick.PerSecond + _timeScale - 1) / _timeScale);
+        _store.StepDeadlineTick[npc] = tick.Value + ticks;
+        _store.StepStatus[npc] = (byte)StepStatus.Holding;
+        return true;
+    }
+
+    private long SecondsUntil(int code, byte ordinal, long tick)
+    {
+        int[] starts = _untilStartSeconds[code] ?? [];
+        if (ordinal >= starts.Length) return Math.Max(_baseSeconds[code], 1);
+
+        long gameSeconds = _clock?.GameSeconds ?? 6 * 3600 + tick * _timeScale / Tick.PerSecond;
+        long now = gameSeconds % GameClock.SecondsPerGameDay;
+        long remaining = starts[ordinal] - now;
+        if (remaining <= 0) remaining += GameClock.SecondsPerGameDay;
+        return remaining;
     }
 
     /// <summary>게임 초 → 틱. 게임초 = 틱 × TimeScale ÷ 10 의 역이다 (docs/11 §5).</summary>

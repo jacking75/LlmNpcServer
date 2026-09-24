@@ -156,6 +156,40 @@ public sealed class TargetSelectorTests
         Assert.Equal(InvalidationScope.None, smiths.Scope);
     }
 
+    [Fact]
+    public void Target_BucketsFileSelectsExactNamesAndRejectsUnknown()
+    {
+        string file = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(file, "# 관측된 버킷\nblacksmith@Dawn.Peace.Fair\nfarmer@Night.War.Cold\n");
+            TargetSelection selected = TargetSelector.Select(
+                Options("--buckets-file", file), s_data, null, InvalidationScope.None);
+            Assert.Equal(TargetMode.Only, selected.Mode);
+            Assert.Equal(2, selected.Count);
+            Assert.Equal(
+                ["blacksmith@Dawn.Peace.Fair", "farmer@Night.War.Cold"],
+                selected.Buckets.Select(b => b.Format(s_data.Archetypes[b.A].Id)).ToArray());
+
+            TargetSelection intersection = TargetSelector.Select(
+                Options("--buckets-file", file, "--only", "blacksmith@*"),
+                s_data, null, InvalidationScope.None);
+            Assert.Single(intersection.Buckets);
+
+            File.WriteAllText(file, "missing@Dawn.Peace.Fair\n");
+            Assert.Contains("마스터데이터에 없는 버킷", Assert.Throws<ArgumentException>(() =>
+                TargetSelector.Select(Options("--buckets-file", file), s_data, null, InvalidationScope.None)).Message);
+
+            File.WriteAllText(file, "bad-name\n");
+            Assert.False(PrebakeOptions.TryParse(["--buckets-file", file], out _, out string? error));
+            Assert.Contains("잘못된 버킷", error);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
     /// <summary>무효화가 None 이면 할 것이 없다.</summary>
     [Fact]
     public void Target_NoneSelectsNothing()

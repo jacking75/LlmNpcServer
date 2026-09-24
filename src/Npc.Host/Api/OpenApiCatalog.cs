@@ -74,6 +74,24 @@ internal static class OpenApiCatalog
             Protected: true),
 
         new ApiRoute(
+            WorldEndpoints.MapRoute,
+            "get_world",
+            "지도 정적 데이터",
+            "존의 중심·경계와 POI 위치. 기동 때 한 번 조립한다.",
+            typeof(WorldMap),
+            [],
+            Protected: true),
+
+        new ApiRoute(
+            WorldEndpoints.NpcsRoute,
+            "get_world_npcs",
+            "지도 NPC 위치",
+            "활성 슬롯만 담은 열 배열. 웹 스레드에서 최대 1초에 한 번 만든다.",
+            typeof(WorldNpcSnapshot),
+            [],
+            Protected: true),
+
+        new ApiRoute(
             "/npcs",
             "list_npcs",
             "NPC 벌크 요약",

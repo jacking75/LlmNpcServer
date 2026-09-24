@@ -1,0 +1,28 @@
+{
+  "$schema": "../docs/schema/zones.schema.json",
+  "version": 1,
+  "zones": [
+    {
+      "id": "town_center",
+      "code": 1,
+      "name_key": "zone.town_center",
+      "adjacent": [
+        "farmlands"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 60
+    },
+    {
+      "id": "farmlands",
+      "code": 2,
+      "name_key": "zone.farmlands",
+      "adjacent": [
+        "town_center"
+      ],
+      "default_region_state": "Peace",
+      "default_climate": "Fair",
+      "capacity": 60
+    }
+  ]
+}

@@ -78,17 +78,7 @@ public sealed class InteractionSim
 
     /// <summary>이 아이템(레시피)에 걸리는 게임 초.</summary>
     public int WorkSecondsFor(ItemId item, int count)
-    {
-        int batches = count < 1 ? 1 : count;
-
-        if (item.Value != 0
-            && _world.Data.Items.TryGetRecipe(_world.Data.Items[item].Id, out RecipeDef recipe))
-        {
-            return recipe.DurationSeconds * batches;
-        }
-
-        return _defaultWorkSeconds;
-    }
+        => ActionDuration.WorkSeconds(_world.Data, item, count, _defaultWorkSeconds);
 
     /// <summary>게임 초 → 틱. 최소 1틱.</summary>
     public long WorkTicks(int gameSeconds)

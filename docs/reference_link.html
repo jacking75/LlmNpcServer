@@ -330,6 +330,27 @@ public enum VisualState : byte
           <tr><td colspan="3"><strong>모든 명령 공통 (v2 · B-02)</strong> — <code>Instance</code>(채널·인스턴스 던전) · <code>Faction</code>(대상 세력) · <code>ExtA</code>/<code>ExtB</code>(예약, 지금은 항상 0). <code>ExtSlots</code>를 켜지 않은 게임서버에는 나가지 않는다</td></tr>
         </tbody>
       </table></div>
+      <h3>명령별 응답 규약</h3>
+      <p>모든 응답은 명령의 <code>Correlation</code>을 되돌려주고, 응답에는 계속 증가하는 <code>Sequence</code>를 붙인다. 실패하면 <code>NpcActionFailed</code>를 보낸다. 아래 성공 이벤트가 오기 전의 진행 이벤트는 스텝을 끝내지 않는다. 종류와 시간 소유자는 <code>Npc.Contracts.CommandResponses</code>가 원천이다.</p>
+      <div class="table-wrap"><table id="command-responses">
+        <thead><tr><th>명령</th><th>성공 응답</th><th>언제·누가 시간을 세는가</th><th>대표 실패</th></tr></thead>
+        <tbody>
+          <tr data-command="Spawn"><td>Spawn</td><td>NpcSpawned</td><td>생성 즉시</td><td>Rejected</td></tr>
+          <tr data-command="Despawn"><td>Despawn</td><td>NpcDespawned</td><td>제거 즉시</td><td>Rejected</td></tr>
+          <tr data-command="MoveTo"><td>MoveTo</td><td>TargetPoi 이동: NpcTransform 반복 → NpcArrived. TargetPos·TargetNpc 추종·Zone 배회: NpcActionCompleted</td><td>POI 이동 완료 시, 게임서버. 대역의 비 POI 이동은 즉시 완료</td><td>Unreachable, TargetGone</td></tr>
+          <tr data-command="Stop"><td>Stop</td><td>NpcActionCompleted</td><td>즉시</td><td>Rejected</td></tr>
+          <tr data-command="FaceTo"><td>FaceTo</td><td>NpcActionCompleted</td><td>게임서버는 즉시 응답; NPC 서버가 액션 지속 시간을 센다</td><td>TargetGone</td></tr>
+          <tr data-command="PlayAnimation"><td>PlayAnimation</td><td>NpcActionCompleted</td><td>게임서버는 즉시 응답; NPC 서버가 액션 지속 시간을 센다</td><td>Rejected</td></tr>
+          <tr data-command="SetVisualState"><td>SetVisualState</td><td>NpcActionCompleted</td><td>게임서버는 즉시 응답; NPC 서버가 액션 지속 시간을 센다</td><td>Rejected</td></tr>
+          <tr data-command="Interact"><td>Interact</td><td>NpcInventoryChanged(입출력) → NpcActionCompleted</td><td>레시피 duration_s × count 뒤, 게임서버</td><td>InsufficientResource, InventoryFull</td></tr>
+          <tr data-command="Speak"><td>Speak</td><td>NpcActionCompleted</td><td>게임서버는 즉시 응답; NPC 서버가 액션 지속 시간을 센다</td><td>TargetGone</td></tr>
+          <tr data-command="InventoryChange"><td>InventoryChange</td><td>NpcInventoryChanged</td><td>즉시</td><td>InsufficientResource, InventoryFull</td></tr>
+          <tr data-command="CombatAction"><td>CombatAction</td><td>NpcActionCompleted</td><td>판정 뒤, 게임서버</td><td>Interrupted, Dead</td></tr>
+          <tr data-command="SetAggro"><td>SetAggro</td><td>NpcActionCompleted</td><td>즉시</td><td>Rejected</td></tr>
+        </tbody>
+      </table></div>
+      <p>명령과 무관한 주기 통보는 <code>TickSync</code> 매 틱, <code>GameTimeChanged</code> 시간대 경계, <code>ZoneStateChanged</code>·<code>WeatherChanged</code> 재동기화와 변경 시, <code>PlayerProximity</code> §11 규약, <code>NpcVitalsChanged</code> 상태 변경 시 보낸다.</p>
+      <p><code>FaceTo</code>·<code>PlayAnimation</code>·<code>SetVisualState</code>·<code>Speak</code>는 게임서버가 즉시 완료를 돌려준다. NPC 서버는 그 뒤 액션의 <code>duration</code>이 끝날 때까지 <code>Holding</code> 상태를 유지한다. 이 동안에는 진행 중 명령이 없으므로 새 플랜을 스텝 경계에서 안전하게 적용한다. <code>until_time</code>은 해당 시간대 시작까지 기다리고, 이미 지났으면 다음 날까지 기다린다.</p>
       <div class="callout"><strong>대상은 ID로 지정한다. 좌표를 계산해 보내지 않는다</strong><p>NPC 서버는 플레이어 좌표를 저장하지 않는다. <code>nearest:&lt;archetype&gt;</code> 같은 참조도 대상을 여기서 고르지 않고 아키타입만 실어 보낸다 — 근접 판정은 게임서버 소관이다. 5,000 NPC × 플레이어 20이면 틱당 10만 회 거리 계산이고, 그것만으로 20ms 틱 예산이 날아간다.</p></div>
     </section>
 
@@ -425,7 +446,7 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
    │  → 폴백 플랜 전환 + 재계획 큐 삽입          │</code></pre>
       <ul>
         <li>상관 없는 이벤트(<code>NpcTransform</code>, <code>DamageTaken</code> 등)는 <code>Correlation = default</code>다.</li>
-        <li>명령 발행 후 <code>timeout_s</code> 안에 대응 이벤트가 안 오면 <strong>NPC 서버가 로컬에서 <code>ActionFailed(Timeout)</code>을 합성</strong>한다. 이것이 명령 유실 방어책이다.</li>
+        <li><code>timeout_s</code>는 응답 마감의 하한이다. 게임서버가 시간을 소유하는 이동·상호작용은 <code>max(timeout_s, ceil(예상 소요 초 × 1.5) + 30)</code>초를 마감으로 쓴다. 이동은 현재 POI와 목표 POI 사이 거리, 상호작용은 레시피 <code>duration_s × max(count, 1)</code>을 예상 소요에 반영한다. 마감까지 대응 이벤트가 없으면 <strong>NPC 서버가 로컬에서 <code>ActionFailed(Timeout)</code>을 합성</strong>한다.</li>
         <li>따라서 <code>ActionFailReason.Timeout</code>은 <strong>게임서버가 보내는 값이 아니다.</strong></li>
       </ul>
       <div class="callout bad"><strong>명령은 유실된다고 가정한다</strong><p>게임서버가 명령을 못 받았거나 응답을 못 보낸 경우에도 NPC는 계속 살아야 한다. 이 경로는 <code>Npc.Sim --drop-rate</code>로 상시 테스트한다.</p></div>
@@ -524,6 +545,7 @@ public enum ProximityChange : byte { Enter = 0, Leave = 1 }</code></pre>
       <p><strong>프레임 버전으로 배치를 고른다.</strong> 수신 측은 협상 결과가 아니라 <strong>프레임 헤더의 <code>Ver</code></strong>를 보고 v1/v2 배치를 고른다. 협상 직후의 경계에서 두 버전이 섞여 도착할 수 있고, 그때 협상값으로 읽으면 배치가 어긋나 스트림 전체가 쓰레기가 된다.</p>
 
       <h3>다른 언어로 구현할 때 — <code>docs/wire/</code> (B-03)</h3>
+      <p>먼저 <code>dotnet run --project tools/Npc.Cli -- export link-bundle --npcs 300 --out bundle.json</code>을 실행한다. 게임서버는 이 번들의 구조·내용·로스터 해시, 순서 있는 NPC 목록, 스폰 좌표, 존 마스크, 명령 응답 표를 읽는다. <code>--zone</code>·<code>--shard</code>·<code>--dynamic-roster</code>는 NPC 서버 실행 인자와 같아야 한다. <code>Hello.timeScale</code>도 실행 인자와 같게 지정한다. 해시 계산이나 로스터 선택을 다른 언어에서 다시 구현하지 않는다.</p>
       <p><strong>지금까지의 프로토콜 명세는 사실상 "C# DTO 의 선언 순서" 였다.</strong> C++ 게임서버를 쓰는 팀은 그것을 추측해야 했고, 추측이 틀린 것은 통합 시험에서야 드러난다. v2 부터는 추측할 자리를 없앤다.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>산출물</th><th>무엇</th><th>어떻게 지키나</th></tr></thead>

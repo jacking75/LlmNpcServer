@@ -8,71 +8,75 @@
 > **작업 규칙.** 태스크 하나를 끝낼 때마다 **즉시** 체크박스를 `- [x]` 로 바꾸고 완료 일시(KST,
 > 시스템 명령으로 확인)를 덧붙인다. 여러 개를 몰아서 체크하지 않는다. 각 태스크는 CLAUDE.md 의
 > "변경 하나 = 커밋 하나"·"문서와 어긋나는 변경이면 같은 커밋에서 레퍼런스 HTML 도 고친다"를 따른다.
-> 끝나면 `working_log.md` 에 항목을 더한다.
+> 작업 로그 파일은 사용하지 않는다. 완료 근거와 시각은 각 태스크 항목에 남긴다.
 
 ## 태스크 목록
 
 **P0 — 이것이 없으면 남이 쓸 수 없다**
 
-- [ ] [T1. 라이선스를 정하고 명시한다](#t1) — ⚠ 사람 결정
-- [ ] [T2. 스텝 마감을 예상 소요 시간에서 도출한다 — "500m 벽" 제거](#t2)
-- [ ] [T3. 명령별 응답 규약을 한 곳에 정의한다](#t3)
-- [ ] [T4. 지속형 액션의 시간을 NPC 서버가 센다 — "1틱 수면" 제거](#t4)
+- [ ] [T1. 라이선스를 정하고 명시한다](#t1) — 사람 결정 대기 (LICENSE 없음)
+- [x] [T2. 스텝 마감을 예상 소요 시간에서 도출한다 — "500m 벽" 제거](#t2) — 완료 2026-09-24 09:16 KST
+- [x] [T3. 명령별 응답 규약을 한 곳에 정의한다](#t3) — 완료 2026-09-24 09:16 KST
+- [x] [T4. 지속형 액션의 시간을 NPC 서버가 센다 — "1틱 수면" 제거](#t4) — 완료 2026-09-24 09:16 KST
 
 **P1 — 게임서버 연동을 끝까지 잇는다**
 
-- [ ] [T5. 게임서버 연동 번들을 내보낸다 — `npc export link-bundle`](#t5)
-- [ ] [T6. 파이썬 최소 게임서버 예제 — 적합성 키트 통과까지](#t6)
+- [x] [T5. 게임서버 연동 번들을 내보낸다 — `npc export link-bundle`](#t5) — 완료 2026-09-24 08:49 KST
+- [x] [T6. 파이썬 최소 게임서버 예제 — 적합성 키트 통과까지](#t6) — 완료 2026-09-24 08:49 KST
 
 **P1 — 처음 온 사람이 5분 안에 가치를 본다**
 
-- [ ] [T7. 첫 실행 로그 · 종료 판정 · 실행 기준 폴더를 초심자용으로](#t7)
-- [ ] [T8. `Npc.Host doctor` — 한 번에 진단하고 다음 할 일을 말한다](#t8)
-- [ ] [T9. 대시보드 라이브 지도](#t9)
+- [x] [T7. 첫 실행 로그 · 종료 판정 · 실행 기준 폴더를 초심자용으로](#t7) — 완료 2026-09-24 09:16 KST
+- [x] [T8. `Npc.Host doctor` — 한 번에 진단하고 다음 할 일을 말한다](#t8) — 완료 2026-09-24 09:16 KST
+- [x] [T9. 대시보드 라이브 지도](#t9) — 완료 2026-09-24 08:49 KST
 - [ ] [T10. 데모 플랜 팩](#t10) — ⚠ 사람 결정 + 비용 승인
 
 **P1 — 문서를 줄이고 사실에 맞춘다**
 
-- [ ] [T11. 사용자 대면 문자열에서 내부 작업 ID 제거 · `--help` 그룹화 · 옵션 문서 생성](#t11)
+- [x] [T11. 사용자 대면 문자열에서 내부 작업 ID 제거 · `--help` 그룹화 · 옵션 문서 생성](#t11) — 완료 2026-09-24 08:49 KST
 - [ ] [T12. README 재구성 (≤ 250줄)](#t12)
-- [ ] [T13. 낡은·모순 문서 정리 + README 드리프트 테스트](#t13)
+- [x] [T13. 낡은·모순 문서 정리 + README 드리프트 테스트](#t13) — 완료 2026-09-24 09:33 KST
 - [ ] [T14. HTML 문서를 GitHub 에서 읽히게 한다 (GitHub Pages)](#t14) — ⚠ 사람 결정
 
 **P2 — 예제 마을이 아니라 "우리 게임"으로 옮겨 가는 길**
 
-- [ ] [T15. 엔진 코어 어휘 등록부 + 친절한 오류](#t15)
-- [ ] [T16. 최소 월드 템플릿 — `npc init`](#t16)
-- [ ] [T17. 도입 가이드 `docs/ADOPTION.md`](#t17)
+- [x] [T15. 엔진 코어 어휘 등록부 + 친절한 오류](#t15) — 완료 2026-09-24 09:03 KST
+- [x] [T16. 최소 월드 템플릿 — `npc init`](#t16) — 완료 2026-09-24 09:03 KST
+- [x] [T17. 도입 가이드 `docs/ADOPTION.md`](#t17) — 완료 2026-09-24 09:15 KST
 
 **P2 — 설치와 LLM 연결**
 
-- [ ] [T18. LLM 엔진 연결을 쉽게 — OpenAI 키 · Ollama · LM Studio](#t18)
+- [x] [T18. LLM 엔진 연결을 쉽게 — OpenAI 키 · Ollama · LM Studio](#t18) — 완료 2026-09-24 09:14 KST (설정·병합 검증 완료, 실제 엔진 호출 미실시)
 - [ ] [T19. 배포 산출물(자체 포함 zip) + 플랫폼 표기 정정](#t19) — ⚠ 릴리스 게시는 사람 결정
 
 ### 순서와 의존
 
-| 태스크 | 먼저 끝나야 하는 것 | 이유 |
-|---|---|---|
-| T4 | T2 · T3 | T2 가 만드는 `StepDeadlineTick` 을 쓰고, "즉시형 명령" 목록의 원천이 T3 의 표다 |
-| T5 | T3 | 번들에 응답 규약표를 싣는다 |
-| T6 | T5 | 파이썬 게임서버가 번들만 읽는다 |
-| T12 | T8 · T9 · T11 | README 5분 체험이 `doctor`·지도 스크린샷·옵션 문서를 가리킨다 |
-| T13 | T12 · (T2 · T4) | README 드리프트 테스트는 새 README 에 건다. 실습서 수치는 T2·T4 뒤에 다시 돈다 |
-| T16 | T15 | 템플릿이 코어 어휘와 빌드 일치를 지켜야 한다 |
-| T17 | T5 · T6 · T15 · T16 · T18 | 가이드가 이것들을 가리킨다 |
+
+| 태스크 | 먼저 끝나야 하는 것               | 이유                                                         |
+| --- | ------------------------- | ---------------------------------------------------------- |
+| T4  | T2 · T3                   | T2 가 만드는 `StepDeadlineTick` 을 쓰고, "즉시형 명령" 목록의 원천이 T3 의 표다 |
+| T5  | T3                        | 번들에 응답 규약표를 싣는다                                            |
+| T6  | T5                        | 파이썬 게임서버가 번들만 읽는다                                          |
+| T12 | T8 · T9 · T11             | README 5분 체험이 `doctor`·지도 스크린샷·옵션 문서를 가리킨다                 |
+| T13 | T12 · (T2 · T4)           | README 드리프트 테스트는 새 README 에 건다. 실습서 수치는 T2·T4 뒤에 다시 돈다     |
+| T16 | T15                       | 템플릿이 코어 어휘와 빌드 일치를 지켜야 한다                                  |
+| T17 | T5 · T6 · T15 · T16 · T18 | 가이드가 이것들을 가리킨다                                             |
+
 
 **세션 묶음 제안** — A: T2 → T3 → T4 (런타임, 검증이 무겁다) · B: T5 → T6 · C: T7 → T8 → T9 ·
 D: T11 → T12 → T13 · E: T15 → T16 → T18 → T17 · 결정이 나는 대로: T1 · T10 · T14 · T19
 
 ### 세션 시작 전에 사용자에게 받을 결정
 
-| # | 결정 | 선택지 | 권장 |
-|---|---|---|---|
-| T1 | 저장소 라이선스 | Apache-2.0 · MIT · 비공개 전환 | **Apache-2.0** — 수정·상용 허용 + 특허 허여 명시. 사내 정책·법무 확인이 필요하면 그것이 선행 |
-| T2 · T4 | 계약 **의미** 변경 승인 | ① `timeout_s` 를 "하한"으로, 마감은 예상 소요에서 도출 ② 즉시형 명령의 지속 시간은 NPC 서버가 센다 | 둘 다 승인 — 와이어·패킷은 안 바뀌고 레퍼런스 문서의 문장만 바뀐다 |
-| T10 | 데모 플랜 팩 | A 커밋 · B 릴리스 첨부 · C 안 함 | **A** (프리베이크 약 $0.37 — 비용 승인 필요) |
-| T14 | GitHub Pages 켜기 | 켠다 · 안 켠다 | **켠다** (`main` · `/docs`) — 공개 행위라 승인 필요 |
-| T19 | GitHub Release 게시 | 게시 · zip 만 만든다 | zip 을 만든 뒤 결정 |
+
+| #       | 결정                | 선택지                                                                | 권장                                                             |
+| ------- | ----------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| T1      | 저장소 라이선스          | Apache-2.0 · MIT · 비공개 전환                                          | **Apache-2.0** — 수정·상용 허용 + 특허 허여 명시. 사내 정책·법무 확인이 필요하면 그것이 선행 |
+| T2 · T4 | 계약 **의미** 변경 승인   | ① `timeout_s` 를 "하한"으로, 마감은 예상 소요에서 도출 ② 즉시형 명령의 지속 시간은 NPC 서버가 센다 | 둘 다 승인 — 와이어·패킷은 안 바뀌고 레퍼런스 문서의 문장만 바뀐다                        |
+| T10     | 데모 플랜 팩           | A 커밋 · B 릴리스 첨부 · C 안 함                                            | **A** (프리베이크 약 $0.37 — 비용 승인 필요)                               |
+| T14     | GitHub Pages 켜기   | 켠다 · 안 켠다                                                          | **켠다** (`main` · `/docs`) — 공개 행위라 승인 필요                       |
+| T19     | GitHub Release 게시 | 게시 · zip 만 만든다                                                     | zip 을 만든 뒤 결정                                                  |
+
 
 ---
 
@@ -89,39 +93,43 @@ D: T11 → T12 → T13 · E: T15 → T16 → T18 → T17 · 결정이 나는 대
 
 - 깨끗한 클론 → `dotnet build -c Release` **17초, 경고 0** (NuGet 캐시가 있는 기계 기준)
 - README 빠른 시작이 **그대로 돈다** — NPC 500 · 게임 1일 · 틱 p99 **0.323ms** · 틱당 할당 **0B** · 링크 드롭 0
-- 계약 N1~N8 · 와이어 v2 · C++/파이썬 참조 코덱 · 골든 바이트 · 적합성 키트 — 연동의 **바닥 공사**는 이미 되어 있다
+- 계약 N1\~N8 · 와이어 v2 · C++/파이썬 참조 코덱 · 골든 바이트 · 적합성 키트 — 연동의 **바닥 공사**는 이미 되어 있다
 - Studio(JSON 없이 편집) · `npc` CLI(`--json` · `fix_hint`) · MCP — **콘텐츠 작성은 쉽다**
 - 실습서 21장 + 실제로 돌아가는 예제 스크립트
 - 미측정을 미측정이라 적는 문화 — 이 계획서도 그 규칙을 따른다
 
 ### 1.3 실용적인가 — 막는 것
 
-| # | 문제 | 근거 (이번 조사) | 영향 | 태스크 |
-|---|---|---|---|---|
-| 1 | **라이선스 없음** | `gh repo view` → `PUBLIC` · `licenseInfo: null`. README 끝 "본 저장소 자체의 라이선스는 사내 정책에 따른다" | 읽을 수는 있어도 **복제·수정·배포할 권리가 없다** | T1 |
-| 2 | **지속형 액션이 1틱에 끝난다** | 트레이스: NPC #1 이 06:24 에 `SetVisualState(Sleeping)` → **06:25 에 다시 일터로**. 같은 7스텝 루프가 24분 주기로 06:00~08:40 사이 7회. `SimWorld.cs` 가 `SetVisualState`·`PlayAnimation`·`Speak`·`FaceTo` 에 즉시 완료를 돌려주고, 런타임에는 duration 을 보는 코드가 없다(`src/Npc.Runtime` 에서 `Duration` 0건). `Sleep` 명령에는 시간 정보가 실리지 않는다 | "밤엔 귀가해 아침까지 잔다"가 **성립하지 않는다**. NPC 한 마리가 게임 하루에 명령 약 600건. Studio "하루 재생"(소요 시간 반영)과 실제 서버가 다르게 움직인다 | T3 · T4 |
-| 3 | **MoveTo 500m 벽** | MoveTo `timeout_s 300` × `per_meter_s 0.6` = 500m. 월드는 x −1,939~1,895 · z −1,592~1,756m, **POI 쌍의 87 %가 500m 초과**. 트레이스: 500m 이상 이동은 거의 전부 도착 전에 타임아웃 ([T2 표](#t2)) | 오류 주입 없는 회차에서도 **스텝의 13.5 %가 합성 타임아웃**(40,209 / 298,092). 먼 곳에 끝내 도착하지 못한다 | T2 |
-| 4 | **비-.NET 게임서버가 핸드셰이크를 못 맞춘다** | Hello 는 구조·내용·로스터 해시 셋을 요구하는데 **값을 얻는 명령도 알고리즘 문서도 없다**. `npc_wire.h`·`npc_wire.py` 는 해시 필드를 인코딩만 한다. 로스터는 `--npcs` 균등 간격 선택 공식(`NpcRoster.Select`)에 달렸다. 실습서 13장은 C# 라이브러리를 직접 불러 해시를 얻는다 | C++ 팀은 우리 C# 을 돌려 보기 전에는 **첫 연결도 못 한다** | T5 · T6 |
-| 5 | **명령별 응답 규약이 표로 없다** | `reference_link.html` §05 는 필드·의미만. "무엇을 언제 돌려주는가"는 `SimWorld`·`MovementSim`·`InteractionSim` 코드가 사실상의 사양 | 게임서버 팀이 우리 C# 코드를 읽어야 한다 | T3 |
-| 6 | **첫 실행에서 가치가 안 보인다** | 깨끗한 클론: 버킷 19/2880(전부 pinned) · 캐시 히트율 **0 %** · `warn: 플랜 스토어가 낡았다 … Prebake 로 재생성` · 재계획 큐 395 적체 | README 의 98.67 % 를 보려면 API 키와 비용이 든다. 첫 화면이 경고다 | T7 · T10 |
-| 7 | **자기 세계로 옮기는 길이 없다** | 실습서는 예제 마을에 더하는 방식뿐. `world_flags.json` 은 **저장소 경로에서 빌드 시 enum 으로 컴파일**된다(`Npc.Core.csproj` 의 `WorldFlagsJson`). 런타임이 이름으로 아는 플래그 약 40종(`EventApplier` 28곳), POI 심볼 10개 고정(`PoiSymbol.TryParse`), 버킷 축 고정(enum 6·4·3), 생성기가 저장소 `masterdata/` 에 고정 | 도입자가 무엇은 바꿔도 되고 무엇은 못 바꾸는지 모른다. 어기면 알아볼 수 없는 빌드·로드 오류 | T15 · T16 · T17 |
+
+| #   | 문제                            | 근거 (이번 조사)                                                                                                                                                                                                                                                                                  | 영향                                                                                                    | 태스크             |
+| --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | --------------- |
+| 1   | **라이선스 없음**                   | `gh repo view` → `PUBLIC` · `licenseInfo: null`. README 끝 "본 저장소 자체의 라이선스는 사내 정책에 따른다"                                                                                                                                                                                                      | 읽을 수는 있어도 **복제·수정·배포할 권리가 없다**                                                                        | T1              |
+| 2   | **지속형 액션이 1틱에 끝난다**           | 트레이스: NPC #1 이 06:24 에 `SetVisualState(Sleeping)` → **06:25 에 다시 일터로**. 같은 7스텝 루프가 24분 주기로 06:00\~08:40 사이 7회. `SimWorld.cs` 가 `SetVisualState`·`PlayAnimation`·`Speak`·`FaceTo` 에 즉시 완료를 돌려주고, 런타임에는 duration 을 보는 코드가 없다(`src/Npc.Runtime` 에서 `Duration` 0건). `Sleep` 명령에는 시간 정보가 실리지 않는다 | "밤엔 귀가해 아침까지 잔다"가 **성립하지 않는다**. NPC 한 마리가 게임 하루에 명령 약 600건. Studio "하루 재생"(소요 시간 반영)과 실제 서버가 다르게 움직인다 | T3 · T4         |
+| 3   | **MoveTo 500m 벽**             | MoveTo `timeout_s 300` × `per_meter_s 0.6` = 500m. 월드는 x −1,939~~1,895 · z −1,592~~1,756m, **POI 쌍의 87 %가 500m 초과**. 트레이스: 500m 이상 이동은 거의 전부 도착 전에 타임아웃 ([T2 표](#t2))                                                                                                                       | 오류 주입 없는 회차에서도 **스텝의 13.5 %가 합성 타임아웃**(40,209 / 298,092). 먼 곳에 끝내 도착하지 못한다                            | T2              |
+| 4   | **비-.NET 게임서버가 핸드셰이크를 못 맞춘다** | Hello 는 구조·내용·로스터 해시 셋을 요구하는데 **값을 얻는 명령도 알고리즘 문서도 없다**. `npc_wire.h`·`npc_wire.py` 는 해시 필드를 인코딩만 한다. 로스터는 `--npcs` 균등 간격 선택 공식(`NpcRoster.Select`)에 달렸다. 실습서 13장은 C# 라이브러리를 직접 불러 해시를 얻는다                                                                                                  | C++ 팀은 우리 C# 을 돌려 보기 전에는 **첫 연결도 못 한다**                                                               | T5 · T6         |
+| 5   | **명령별 응답 규약이 표로 없다**          | `reference_link.html` §05 는 필드·의미만. "무엇을 언제 돌려주는가"는 `SimWorld`·`MovementSim`·`InteractionSim` 코드가 사실상의 사양                                                                                                                                                                                   | 게임서버 팀이 우리 C# 코드를 읽어야 한다                                                                              | T3              |
+| 6   | **첫 실행에서 가치가 안 보인다**          | 깨끗한 클론: 버킷 19/2880(전부 pinned) · 캐시 히트율 **0 %** · `warn: 플랜 스토어가 낡았다 … Prebake 로 재생성` · 재계획 큐 395 적체                                                                                                                                                                                         | README 의 98.67 % 를 보려면 API 키와 비용이 든다. 첫 화면이 경고다                                                       | T7 · T10        |
+| 7   | **자기 세계로 옮기는 길이 없다**          | 실습서는 예제 마을에 더하는 방식뿐. `world_flags.json` 은 **저장소 경로에서 빌드 시 enum 으로 컴파일**된다(`Npc.Core.csproj` 의 `WorldFlagsJson`). 런타임이 이름으로 아는 플래그 약 40종(`EventApplier` 28곳), POI 심볼 10개 고정(`PoiSymbol.TryParse`), 버킷 축 고정(enum 6·4·3), 생성기가 저장소 `masterdata/` 에 고정                                          | 도입자가 무엇은 바꿔도 되고 무엇은 못 바꾸는지 모른다. 어기면 알아볼 수 없는 빌드·로드 오류                                                 | T15 · T16 · T17 |
+
 
 ### 1.4 사용하기 쉬운가
 
 **콘텐츠 작성은 쉽다. 처음 접하는 사람에게는 어렵다.**
 
-| 문제 | 근거 | 태스크 |
-|---|---|---|
-| 문서가 너무 많고 진입점이 여럿이다 | README 820줄 · `docs/index.html` 200KB · 책 13장 · 실습서 21장 · 레퍼런스 3 · LLM 팩 · FAQ · 기동 흐름 · 테스트 베드 안내 · Studio 매뉴얼. "읽는 순서"가 README 안에서만 세 번 나온다 | T12 · T17 |
-| 문서가 사실과 다르다 | README "MCP 서버 없음"(`tools/Npc.Mcp`·`.mcp.json` 있음) · "`repair`·`review` 아직 없다"(`npc --help` 에 있음) · "현재 상태: 구현 진행 중"(같은 파일 753행 "구현이 끝난 제품") · `docs/index.html` "TCP 골격 · P4 미착수 · 16개 중 9 통과 · 기준일 2026-07-27" · 실습서 목차 "3부부터 목차만"(21장 전부 본문 있음) · CLAUDE.md "TestClient 미착수" · GPU 요구가 12GB/8GB 로 갈린다 | T12 · T13 |
-| GitHub 에서 문서가 안 읽힌다 | 공개 저장소의 핵심 문서가 전부 `.html` — GitHub 은 **소스를 보여 준다** | T14 |
-| 내부 작업 ID 가 화면에 나온다 | `Npc.Host --help` 11곳(A-07·A-08·B-05·B-06·B-08·C-03·D-03·P6·T4-16·지운 문서 `docs/14 §2`) · `npc --help` 4곳(B-08·C-05·T22·T29) · 기동 로그 "평면 배치다 (C-03 이전)" | T11 |
-| 옵션이 평면으로 64개 | `Npc.Host --help` 73줄, 그룹 없음 | T11 |
-| 종료 요약이 판정을 안 한다 | `timeouts 40209 · interrupts 500 · replan-q 500 · llm 0` — 정상인가? 대답이 없다 | T7 |
-| `dotnet run` 의 작업 폴더가 엉뚱하다 | `launchSettings.json` 때문에 스냅샷이 `src/Npc.Host/state` 에 쌓이고 환경이 `Development` | T7 |
-| 받아서 바로 못 쓴다 | 릴리스·태그 0, 이미지 미게시, 소스 빌드만. OS 표기는 "Windows" — 실제로는 WinForms 뷰어만 Windows 전용 | T19 |
-| LLM 을 붙이는 흔한 길이 없다 | 엔진 15개가 dotLLM·llama.cpp·OpenRouter·Poe·Gemini 뿐 — OpenAI 키·Ollama 예가 없다. 설정 주석이 지운 문서(`TASKS.md`·`docs/10`)와 "사용자 지시"를 말한다 | T18 |
-| "왜 안 되지"에 답하는 곳이 흩어져 있다 | `npc validate` · `npc regen --check` · `/status` · `samples/ch16_tier/check-engines.ps1` | T8 |
+
+| 문제                         | 근거                                                                                                                                                                                                                                                                                                       | 태스크       |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 문서가 너무 많고 진입점이 여럿이다        | README 820줄 · `docs/index.html` 200KB · 책 13장 · 실습서 21장 · 레퍼런스 3 · LLM 팩 · FAQ · 기동 흐름 · 테스트 베드 안내 · Studio 매뉴얼. "읽는 순서"가 README 안에서만 세 번 나온다                                                                                                                                                            | T12 · T17 |
+| 문서가 사실과 다르다                | README "MCP 서버 없음"(`tools/Npc.Mcp`·`.mcp.json` 있음) · "`repair`·`review` 아직 없다"(`npc --help` 에 있음) · "현재 상태: 구현 진행 중"(같은 파일 753행 "구현이 끝난 제품") · `docs/index.html` "TCP 골격 · P4 미착수 · 16개 중 9 통과 · 기준일 2026-07-27" · 실습서 목차 "3부부터 목차만"(21장 전부 본문 있음) · CLAUDE.md "TestClient 미착수" · GPU 요구가 12GB/8GB 로 갈린다 | T12 · T13 |
+| GitHub 에서 문서가 안 읽힌다        | 공개 저장소의 핵심 문서가 전부 `.html` — GitHub 은 **소스를 보여 준다**                                                                                                                                                                                                                                                       | T14       |
+| 내부 작업 ID 가 화면에 나온다         | `Npc.Host --help` 11곳(A-07·A-08·B-05·B-06·B-08·C-03·D-03·P6·T4-16·지운 문서 `docs/14 §2`) · `npc --help` 4곳(B-08·C-05·T22·T29) · 기동 로그 "평면 배치다 (C-03 이전)"                                                                                                                                                    | T11       |
+| 옵션이 평면으로 64개               | `Npc.Host --help` 73줄, 그룹 없음                                                                                                                                                                                                                                                                             | T11       |
+| 종료 요약이 판정을 안 한다            | `timeouts 40209 · interrupts 500 · replan-q 500 · llm 0` — 정상인가? 대답이 없다                                                                                                                                                                                                                                  | T7        |
+| `dotnet run` 의 작업 폴더가 엉뚱하다 | `launchSettings.json` 때문에 스냅샷이 `src/Npc.Host/state` 에 쌓이고 환경이 `Development`                                                                                                                                                                                                                              | T7        |
+| 받아서 바로 못 쓴다                | 릴리스·태그 0, 이미지 미게시, 소스 빌드만. OS 표기는 "Windows" — 실제로는 WinForms 뷰어만 Windows 전용                                                                                                                                                                                                                               | T19       |
+| LLM 을 붙이는 흔한 길이 없다         | 엔진 15개가 dotLLM·llama.cpp·OpenRouter·Poe·Gemini 뿐 — OpenAI 키·Ollama 예가 없다. 설정 주석이 지운 문서(`TASKS.md`·`docs/10`)와 "사용자 지시"를 말한다                                                                                                                                                                              | T18       |
+| "왜 안 되지"에 답하는 곳이 흩어져 있다    | `npc validate` · `npc regen --check` · `/status` · `samples/ch16_tier/check-engines.ps1`                                                                                                                                                                                                                 | T8        |
+
 
 ### 1.5 필요한 것이라고 알 수 있는가 (가치 전달)
 
@@ -137,7 +145,10 @@ D: T11 → T12 → T13 · E: T15 → T16 → T18 → T17 · 결정이 나는 대
 
 ## 2. 태스크 상세
 
-<a id="t1"></a>
+<a id="t1">
+
+</a>
+
 ### T1. 라이선스를 정하고 명시한다 — ⚠ 사람 결정
 
 **목적** 공개 저장소를 남이 법적으로 쓸 수 있게 한다. LICENSE 가 없으면 기본값은 "모든 권리 보유"다.
@@ -146,22 +157,26 @@ D: T11 → T12 → T13 · E: T15 → T16 → T18 → T17 · 결정이 나는 대
 
 **결정할 것** (세션 시작 시 사용자에게 묻는다)
 
-| 선택 | 의미 | 비고 |
-|---|---|---|
+
+| 선택              | 의미                           | 비고                 |
+| --------------- | ---------------------------- | ------------------ |
 | Apache-2.0 (권장) | 수정·상용 허용, 특허 허여 명시, 변경 고지 의무 | 회사가 쓴 코드를 공개할 때 무난 |
-| MIT | 가장 단순 | 특허 조항 없음 |
-| 비공개 전환 | 저장소를 private 으로 | "다른 사람"이 사내 인원뿐이라면 |
+| MIT             | 가장 단순                        | 특허 조항 없음           |
+| 비공개 전환          | 저장소를 private 으로              | "다른 사람"이 사내 인원뿐이라면 |
+
 
 저작권 줄의 주체(개인·회사)도 사용자에게 받는다. 법무 확인이 필요하면 `docs/legal/` 의 "법무 확인은 미실시" 표기를 유지한다.
 
 **변경할 파일**
 
-| 파일 | 무엇 |
-|---|---|
-| `LICENSE` (신규) | SPDX 공식 원문 그대로. 손으로 요약하지 않는다 |
-| `README.md` 라이선스 절 | 저장소 라이선스 + "dotLLM 은 GPLv3 라 번들하지 않는다" + 모델 약관 링크 |
-| `Directory.Build.props` | `<PackageLicenseExpression>` — `Npc.Cli` 가 `dotnet pack` 으로 도구 패키지가 된다 |
-| (Apache-2.0 이면) `NOTICE` | 제3자 고지. `tools/sbom.ps1` 산출물로 NuGet 의존 라이선스 목록 |
+
+| 파일                       | 무엇                                                                     |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `LICENSE` (신규)           | SPDX 공식 원문 그대로. 손으로 요약하지 않는다                                           |
+| `README.md` 라이선스 절       | 저장소 라이선스 + "dotLLM 은 GPLv3 라 번들하지 않는다" + 모델 약관 링크                      |
+| `Directory.Build.props`  | `<PackageLicenseExpression>` — `Npc.Cli` 가 `dotnet pack` 으로 도구 패키지가 된다 |
+| (Apache-2.0 이면) `NOTICE` | 제3자 고지. `tools/sbom.ps1` 산출물로 NuGet 의존 라이선스 목록                         |
+
 
 **검증** `dotnet build -c Release` 경고 0 · `dotnet pack -c Release tools/Npc.Cli` 의 nuspec 에 license 표기 · 푸시 후 `gh repo view --json licenseInfo` 가 선택한 라이선스를 보고.
 
@@ -171,7 +186,10 @@ D: T11 → T12 → T13 · E: T15 → T16 → T18 → T17 · 결정이 나는 대
 
 ---
 
-<a id="t2"></a>
+<a id="t2">
+
+</a>
+
 ### T2. 스텝 마감을 예상 소요 시간에서 도출한다 — "500m 벽" 제거
 
 **목적** 게임서버가 정상적으로 일하고 있는데 NPC 서버가 먼저 포기하는 일을 없앤다. `timeout_s` 는
@@ -187,20 +205,22 @@ python move_outcomes.py trace.jsonl      # 부록 A-1
 
 `MoveTo(poi)` 를 "명령 시점의 NPC 위치 ↔ 목표 POI" 거리로 묶은 결과 (게임 약 15시간, 100마리):
 
-| 거리 | 도착 | 무응답 → 합성 타임아웃 |
-|---|---|---|
-| 0 ~ 250m | 5,991 | 0 |
-| 250 ~ 500m | 2,931 | 472 |
-| 500 ~ 750m | 55 | 908 |
-| 750 ~ 1,000m | 20 | 867 |
-| 1,000m 이상 | 0 | 1,291 |
+
+| 거리            | 도착    | 무응답 → 합성 타임아웃 |
+| ------------- | ----- | ------------- |
+| 0 \~ 250m     | 5,991 | 0             |
+| 250 \~ 500m   | 2,931 | 472           |
+| 500 \~ 750m   | 55    | 908           |
+| 750 \~ 1,000m | 20    | 867           |
+| 1,000m 이상     | 0     | 1,291         |
+
 
 - 원인: `actions.json` MoveTo `per_meter_s 0.6` · `default_timeout_s 300` → 500m 를 넘으면 도착 전에
-  `PlanExecutor.SynthesizeTimeout`(388~410행)이 `ActionFailed(Timeout)` 을 합성한다. 폴백 플랜의 MoveTo 108개가 전부 `timeout_s: 300`
-- 같은 병이 Interact 에도 있다: Sim 은 레시피 `duration_s × count` 로 완료하는데(`InteractionSim.WorkSecondsFor`, 레시피 120~1,800s),
-  Craft 는 `timeout_s 1800` 에 `count` 상한 5 → 최대 9,000s
+`PlanExecutor.SynthesizeTimeout`(388\~410행)이 `ActionFailed(Timeout)` 을 합성한다. 폴백 플랜의 MoveTo 108개가 전부 `timeout_s: 300`
+- 같은 병이 Interact 에도 있다: Sim 은 레시피 `duration_s × count` 로 완료하는데(`InteractionSim.WorkSecondsFor`, 레시피 120\~1,800s),
+Craft 는 `timeout_s 1800` 에 `count` 상한 5 → 최대 9,000s
 - **소요 시간의 원천이 둘이다.** `ActionDuration.Seconds`(동작 예측 · Studio 하루 재생 · DryRun)는 Work 600 · Craft 900 고정값,
-  Sim 은 레시피 값. `ActionDuration.cs` 주석 "여기가 유일한 구현이다"가 Interact 에서는 사실이 아니다
+Sim 은 레시피 값. `ActionDuration.cs` 주석 "여기가 유일한 구현이다"가 Interact 에서는 사실이 아니다
 
 **설계 (권장) — `timeout_s` 를 하한으로 바꾼다**
 
@@ -210,30 +230,32 @@ expected_s    = ActionDuration.Seconds(...)      // 게임서버가 시간을 �
 ```
 
 - `expected_s` 는 `ActionDuration` 하나에서 나온다. **Interact 계열은 레시피가 있으면 `duration_s × max(count, 1)`** 을
-  쓰도록 `ActionDuration` 을 고치고, Sim 의 `WorkSecondsFor` 가 이 함수를 부르게 바꿔 원천을 하나로 만든다
+쓰도록 `ActionDuration` 을 고치고, Sim 의 `WorkSecondsFor` 가 이 함수를 부르게 바꿔 원천을 하나로 만든다
 - 배수 1.5 와 가산 30s 는 이름 있는 상수로 두고 이유(Sim 지터 · 경로 우회)를 주석에 적는다
 - **명령 유실 방어는 그대로다** — 응답이 끝내 안 오면 여전히 마감에 합성한다. 바뀌는 것은 마감 시각뿐
 - 대안(비권장): 콘텐츠의 `timeout_s` 를 올린다 → 폴백 108곳 + LLM 이 굽는 모든 플랜 + 프롬프트 규칙을 고쳐야 하고,
-  프리픽스·ContentHash 가 바뀌어 **플랜 스토어 전량 무효**. 월드가 커질 때마다 다시 터진다
+프리픽스·ContentHash 가 바뀌어 **플랜 스토어 전량 무효**. 월드가 커질 때마다 다시 터진다
 
 **변경할 파일**
 
-| 파일 | 무엇 |
-|---|---|
-| `src/Npc.MasterData/ActionDuration.cs` | Interact 계열에 레시피 반영 (기존 분기에 추가) |
-| `src/Npc.Sim/InteractionSim.cs` | `WorkSecondsFor` → `ActionDuration` 사용. 기본값(`Gather.base_s`) 경로 유지 |
-| `src/Npc.Runtime/NpcStore.cs` | `long[] StepDeadlineTick` 추가 — **"지금 상태가 끝나는 틱"**. Waiting 에서는 타임아웃 마감, T4 에서는 Holding 종료 |
-| `src/Npc.Runtime/PlanExecutor.cs` | 발행 시점(`StepIssuedTick` 을 쓰는 187·354행 근처)에서 마감을 계산해 저장. `SynthesizeTimeout` 은 `tick >= StepDeadlineTick` 비교로 |
-| `src/Npc.Runtime/NpcStoreSnapshot.cs` · `src/Npc.Host/Persistence/SnapshotFile.cs` | 새 배열 직렬화. `FormatVersion` **5 → 6** (옛 스냅샷은 기존 정책대로 시드 기동) |
-| `docs/reference_link.html` §07 상관 규약과 타임아웃 | 마감 공식으로 정정 |
-| `docs/reference_masterdata.html` actions 스키마 | `timeout_s`·`default_timeout_s` = **하한** |
-| `CLAUDE.md` §2.2 | "모든 플랜 스텝에 `timeout_s`" 옆에 하한의 뜻 한 줄 |
+
+| 파일                                                                                 | 무엇                                                                                                          |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `src/Npc.MasterData/ActionDuration.cs`                                             | Interact 계열에 레시피 반영 (기존 분기에 추가)                                                                             |
+| `src/Npc.Sim/InteractionSim.cs`                                                    | `WorkSecondsFor` → `ActionDuration` 사용. 기본값(`Gather.base_s`) 경로 유지                                          |
+| `src/Npc.Runtime/NpcStore.cs`                                                      | `long[] StepDeadlineTick` 추가 — **"지금 상태가 끝나는 틱"**. Waiting 에서는 타임아웃 마감, T4 에서는 Holding 종료                   |
+| `src/Npc.Runtime/PlanExecutor.cs`                                                  | 발행 시점(`StepIssuedTick` 을 쓰는 187·354행 근처)에서 마감을 계산해 저장. `SynthesizeTimeout` 은 `tick >= StepDeadlineTick` 비교로 |
+| `src/Npc.Runtime/NpcStoreSnapshot.cs` · `src/Npc.Host/Persistence/SnapshotFile.cs` | 새 배열 직렬화. `FormatVersion` **5 → 6** (옛 스냅샷은 기존 정책대로 시드 기동)                                                  |
+| `docs/reference_link.html` §07 상관 규약과 타임아웃                                         | 마감 공식으로 정정                                                                                                  |
+| `docs/reference_masterdata.html` actions 스키마                                       | `timeout_s`·`default_timeout_s` = **하한**                                                                    |
+| `CLAUDE.md` §2.2                                                                   | "모든 플랜 스텝에 `timeout_s`" 옆에 하한의 뜻 한 줄                                                                        |
+
 
 **틱 루프 제약 (CLAUDE.md §2.1)**
 
 - `ActionDuration.Seconds` 는 `action.Param(...)`·`Enum.TryParse`·`EnumValues.Contains("run")` 을 부른다 — **틱 안에서 그대로 부르지 않는다.**
-  `PlanExecutor` 생성 시 액션 code·아이템 code 로 인덱싱하는 표를 미리 만든다:
-  `durationKind[]` · `baseSeconds[]` · `perMeterSeconds[]` · `runArgOrdinal[]`(뛰기 열거값의 ordinal, 없으면 −1) · `recipeSeconds[]`(0 = 레시피 아님)
+`PlanExecutor` 생성 시 액션 code·아이템 code 로 인덱싱하는 표를 미리 만든다:
+`durationKind[]` · `baseSeconds[]` · `perMeterSeconds[]` · `runArgOrdinal[]`(뛰기 열거값의 ordinal, 없으면 −1) · `recipeSeconds[]`(0 = 레시피 아님)
 - 이동 거리: `data.Pois.Distance(NpcStore.CurrentPoi[npc], 목표)` — 배열 조회. 목표는 `PoiBinder` 가 이미 바인딩한 값
 - `CompiledStep`(16B, `CompiledStep_SizeIsBounded`)은 건드리지 않는다
 - 결정론: 틱·마스터데이터 값만 쓴다
@@ -252,7 +274,7 @@ expected_s    = ActionDuration.Seconds(...)      // 게임서버가 시간을 �
 3. `/status` 의 `timeoutsSynthesized / stepsAdvanced` 가 **13.5 % → 1 % 미만** (`--drop-rate 0`)
 4. `--drop-rate 0.3` 에서 NPC 가 멈추지 않는다 — 합성이 여전히 돈다
 5. 틱 루프를 건드렸다 → `dotnet test --filter Category=Load` 로 p99 ≤ 20ms · **`bytesPerTick` = 0**. `docs/measurements/W10_load.csv` 가
-   덮어써지므로 `git diff` 로 확인하고 `dotnet run --project tools/Npc.Cli -- perf --check`
+ 덮어써지므로 `git diff` 로 확인하고 `dotnet run --project tools/Npc.Cli -- perf --check`
 6. `dotnet test --filter Category=Determinism` 통과
 
 **완료 기준** 오류 주입 없는 루프백 회차에서 합성 타임아웃이 스텝의 1 % 미만이고, 먼 POI 에 실제로 도착한다. 레퍼런스 문서가 같은 커밋에서 새 뜻을 말한다.
@@ -263,32 +285,37 @@ expected_s    = ActionDuration.Seconds(...)      // 게임서버가 시간을 �
 
 ---
 
-<a id="t3"></a>
+<a id="t3">
+
+</a>
+
 ### T3. 명령별 응답 규약을 한 곳에 정의한다
 
 **목적** 게임서버 팀이 우리 C# 을 읽지 않고도 "이 명령을 받으면 무엇을, 언제 돌려주는가"를 안다. 그리고 T4·T5·적합성 키트가 **같은 표**를 쓴다.
 
-**근거** `reference_link.html` §05 명령 표는 필수 필드와 의미만 있다. 응답 이벤트·시점·시간 소유자는 `SimWorld.Handle`(354~366행)·`MovementSim`·`InteractionSim` 에 흩어져 있다. 적합성 키트 C6 는 "응답이 오는가"만 본다.
+**근거** `reference_link.html` §05 명령 표는 필수 필드와 의미만 있다. 응답 이벤트·시점·시간 소유자는 `SimWorld.Handle`(354\~366행)·`MovementSim`·`InteractionSim` 에 흩어져 있다. 적합성 키트 C6 는 "응답이 오는가"만 본다.
 
 **설계**
 
 - 단일 원천: `src/Npc.Contracts/CommandResponses.cs` — `NpcCommandKind` 별 `(응답 이벤트 종류들, 시간 소유자 GameServer|NpcServer|Instant, 실패 사유 후보)` 정적 표.
-  외부 의존 0 이라 Contracts 규칙에 맞다. **먼저 `Contracts_*` 리플렉션 테스트가 패킷이 아닌 타입을 거르는지 확인**하고, 걸리면 `Npc.Core` 에 둔다
+외부 의존 0 이라 Contracts 규칙에 맞다. **먼저 `Contracts_*` 리플렉션 테스트가 패킷이 아닌 타입을 거르는지 확인**하고, 걸리면 `Npc.Core` 에 둔다
 - 쓰는 곳: T4 즉시형 판정 · T5 번들 · 적합성 키트 C6(응답 종류가 표와 맞는가) · 레퍼런스 문서
 - 초안 — Sim 동작에서 옮겼다. **구현 세션에서 `MovementSim` 의 추종(Follow)·배회(Wander) 처리를 확인해 "(확인)" 칸을 채운다**:
 
-| 명령 | 게임서버가 할 일 | 돌려줄 이벤트 | 언제 | 시간 소유 |
-|---|---|---|---|---|
-| Spawn | NPC 생성 | `NpcSpawned`(corr) | 즉시 | — |
-| Despawn | 제거 | `NpcDespawned`(corr) | 즉시 | — |
-| MoveTo(TargetPoi/Pos) | 경로 이동 | `NpcTransform`×N → `NpcArrived`(corr, Poi) · 실패 `NpcActionFailed(Unreachable)` | 도착 시 | 게임서버 |
-| MoveTo(TargetNpc) 추종 | 따라가기 | `NpcActionCompleted`(corr) | (확인) | (확인) |
-| MoveTo(Zone+Amount) 배회 | 반경 배회 | `NpcActionCompleted`(corr) | (확인) | (확인) |
-| Interact | 작업 | `NpcInventoryChanged`(corr) × 입력·산출 → `NpcActionCompleted`(corr) · 실패 `InsufficientResource` | 레시피 `duration_s × count` 뒤 | 게임서버 |
-| InventoryChange | 증감 | `NpcInventoryChanged`(corr) · 실패 `InsufficientResource` | 즉시 | — |
-| CombatAction | 전투 판정 | `NpcActionCompleted` · `NpcActionFailed(Interrupted …)` | 판정 뒤 | 게임서버 |
-| SetVisualState · PlayAnimation · Speak · FaceTo | 표시 | `NpcActionCompleted`(corr) | **즉시** | **NPC 서버** (T4) |
-| Stop · SetAggro | 적용 | `NpcActionCompleted`(corr) | 즉시 | — |
+
+| 명령                                              | 게임서버가 할 일 | 돌려줄 이벤트                                                                                      | 언제                         | 시간 소유           |
+| ----------------------------------------------- | --------- | -------------------------------------------------------------------------------------------- | -------------------------- | --------------- |
+| Spawn                                           | NPC 생성    | `NpcSpawned`(corr)                                                                           | 즉시                         | —               |
+| Despawn                                         | 제거        | `NpcDespawned`(corr)                                                                         | 즉시                         | —               |
+| MoveTo(TargetPoi/Pos)                           | 경로 이동     | `NpcTransform`×N → `NpcArrived`(corr, Poi) · 실패 `NpcActionFailed(Unreachable)`               | 도착 시                       | 게임서버            |
+| MoveTo(TargetNpc) 추종                            | 따라가기      | `NpcActionCompleted`(corr)                                                                   | (확인)                       | (확인)            |
+| MoveTo(Zone+Amount) 배회                          | 반경 배회     | `NpcActionCompleted`(corr)                                                                   | (확인)                       | (확인)            |
+| Interact                                        | 작업        | `NpcInventoryChanged`(corr) × 입력·산출 → `NpcActionCompleted`(corr) · 실패 `InsufficientResource` | 레시피 `duration_s × count` 뒤 | 게임서버            |
+| InventoryChange                                 | 증감        | `NpcInventoryChanged`(corr) · 실패 `InsufficientResource`                                      | 즉시                         | —               |
+| CombatAction                                    | 전투 판정     | `NpcActionCompleted` · `NpcActionFailed(Interrupted …)`                                      | 판정 뒤                       | 게임서버            |
+| SetVisualState · PlayAnimation · Speak · FaceTo | 표시        | `NpcActionCompleted`(corr)                                                                   | **즉시**                     | **NPC 서버** (T4) |
+| Stop · SetAggro                                 | 적용        | `NpcActionCompleted`(corr)                                                                   | 즉시                         | —               |
+
 
   명령과 무관한 주기 이벤트도 같은 절에 적는다: `TickSync` 매 틱 · `GameTimeChanged` 시간대 경계 · `ZoneStateChanged`/`WeatherChanged`(재동기화 1회 + 변경 시) · `PlayerProximity`(발행 규약 §11) · `NpcVitalsChanged`
 
@@ -308,7 +335,10 @@ expected_s    = ActionDuration.Seconds(...)      // 게임서버가 시간을 �
 
 ---
 
-<a id="t4"></a>
+<a id="t4">
+
+</a>
+
 ### T4. 지속형 액션의 시간을 NPC 서버가 센다 — "1틱 수면" 제거
 
 **목적** "밤엔 집에 가서 아침까지 잔다", "근무 시간 동안 경비를 선다"가 실제로 그 시간만큼 지속되게 한다. **이 서버의 첫 번째 약속이다.**
@@ -323,7 +353,7 @@ t=  28 (06:28) Interact  item=20
 …            같은 7스텝이 24분 주기로 반복 (06:00~08:40 사이 7회)
 ```
 
-- `src/Npc.Sim/SimWorld.cs` 354~366행이 `SetVisualState`·`PlayAnimation`·`Speak`·`FaceTo`·`Stop`·`SetAggro` 에 **즉시** `NpcActionCompleted` 를 낸다
+- `src/Npc.Sim/SimWorld.cs` 354\~366행이 `SetVisualState`·`PlayAnimation`·`Speak`·`FaceTo`·`Stop`·`SetAggro` 에 **즉시** `NpcActionCompleted` 를 낸다
 - 이 명령들은 시간 정보를 싣지 않는다 — `Sleep` 의 `emits.map` 은 `{"Visual":"Sleeping"}` 뿐이라 게임서버는 언제 깨울지 알 수 없다
 - 런타임에 duration 을 보는 코드가 없다 (`src/Npc.Runtime/*.cs` 에서 `Duration` 0건)
 - 영향 액션 13종: Sleep(`until_time`) · Rest · Pray · Guard · Wait · Observe · Perform(`param`) · Bathe 300s · Gossip 180s · Talk 60s · CallForHelp 20s · Greet 15s · Emote 10s
@@ -332,26 +362,28 @@ t=  28 (06:28) Interact  item=20
 **설계 (권장) — 시간은 NPC 서버가 소유한다. 게임서버 계약은 바꾸지 않는다**
 
 - 규칙: 스텝이 내는 명령이 T3 표에서 **즉시형**(시간 소유 = NPC 서버)이면, 완료 이벤트를 받은 뒤 `ActionDuration` 만큼
-  새 상태 **`Holding`** 으로 머문다. 머무는 시간이 끝나면 스텝 경계로 넘어간다. 액션 이름을 코드에 박지 않는다(§2.4)
+새 상태 **`Holding`** 으로 머문다. 머무는 시간이 끝나면 스텝 경계로 넘어간다. 액션 이름을 코드에 박지 않는다(§2.4)
 - `until_time`: 목표 시간대의 시작 시각까지 — `ActionDuration.UntilTime` 과 같은 공식. 현재 시각은 `GameClock.GameSeconds`
 - **Holding 에는 진행 중인 명령이 없다 → 플랜 교체가 안전하다.** `PlanSwapper` 는 Holding 도 스텝 경계로 취급한다
-  (수면 중에도 버킷 전환·재계획 결과가 들어간다). 인터럽트는 지금처럼 즉시
+(수면 중에도 버킷 전환·재계획 결과가 들어간다). 인터럽트는 지금처럼 즉시
 - 대안 1(비권장): 명령에 지속 시간을 실어 게임서버가 센다 → 와이어 v2 확장 슬롯·계약 부 버전 변경 + 모든 게임서버 구현 부담.
-  NPC 서버 쪽 해결이 `reference_link.html` §01 "판단은 NPC 서버가 한다"와도 맞는다
+NPC 서버 쪽 해결이 `reference_link.html` §01 "판단은 NPC 서버가 한다"와도 맞는다
 - 대안 2: `actions.json` 에 `duration_owner` 필드 추가 — 액션 카탈로그가 프롬프트 프리픽스에 실리므로 **프리픽스 해시 변경 → 플랜 스토어 전량 무효**. 권장안은 데이터를 바꾸지 않는다
 
 **변경할 파일**
 
-| 파일 | 무엇 |
-|---|---|
-| `src/Npc.Runtime/NpcStore.cs` | `StepStatus.Holding = 6` — **뒤에만 추가**(값 재배치 금지). T2 의 `StepDeadlineTick` 을 Holding 종료 틱으로 쓴다 |
-| `src/Npc.Runtime/PlanExecutor.cs` | Completed 처리에서 즉시형이면 Holding 전이 + 종료 틱 계산. `Step()` 에 `case Holding:` — 종료 틱이 되면 `AdvanceStep` |
-| `src/Npc.Runtime/PlanSwapper.cs` | Holding 을 경계로 인정 |
-| `src/Npc.Runtime/CognitionScheduler.cs` | 이탈 판정이 Holding 을 "진행 중"으로 다루는지 확인 (수면 중 `IsSleeping` 등) |
-| `src/Npc.Host/Metrics/*` · `wwwroot/dashboard.html` | `byStepStatus` 의 Holding 칸(배열 8칸이라 여유 있음)과 표시 이름 |
-| `src/Npc.Host/Persistence/SnapshotFile.cs` | 새 상태 값이 복원되는지 (T2 에서 올린 형식 6 안에서) |
-| `docs/reference_link.html` §05·§07 | "즉시형 명령의 지속 시간은 NPC 서버가 센다" |
-| `docs/reference_masterdata.html` actions `duration` | kind 별로 누가 시간을 세는지 |
+
+| 파일                                                  | 무엇                                                                                             |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `src/Npc.Runtime/NpcStore.cs`                       | `StepStatus.Holding = 6` — **뒤에만 추가**(값 재배치 금지). T2 의 `StepDeadlineTick` 을 Holding 종료 틱으로 쓴다   |
+| `src/Npc.Runtime/PlanExecutor.cs`                   | Completed 처리에서 즉시형이면 Holding 전이 + 종료 틱 계산. `Step()` 에 `case Holding:` — 종료 틱이 되면 `AdvanceStep` |
+| `src/Npc.Runtime/PlanSwapper.cs`                    | Holding 을 경계로 인정                                                                               |
+| `src/Npc.Runtime/CognitionScheduler.cs`             | 이탈 판정이 Holding 을 "진행 중"으로 다루는지 확인 (수면 중 `IsSleeping` 등)                                        |
+| `src/Npc.Host/Metrics/*` · `wwwroot/dashboard.html` | `byStepStatus` 의 Holding 칸(배열 8칸이라 여유 있음)과 표시 이름                                               |
+| `src/Npc.Host/Persistence/SnapshotFile.cs`          | 새 상태 값이 복원되는지 (T2 에서 올린 형식 6 안에서)                                                              |
+| `docs/reference_link.html` §05·§07                  | "즉시형 명령의 지속 시간은 NPC 서버가 센다"                                                                    |
+| `docs/reference_masterdata.html` actions `duration` | kind 별로 누가 시간을 세는지                                                                             |
+
 
 **틱 루프 제약** 종료 틱 계산은 T2 에서 만든 액션 code 인덱스 표를 쓴다. `until_time` 목표 시각(시간대 6개의 시작 시)은 생성 시 `int[6]` 로. 할당 0.
 
@@ -377,7 +409,10 @@ t=  28 (06:28) Interact  item=20
 
 ---
 
-<a id="t5"></a>
+<a id="t5">
+
+</a>
+
 ### T5. 게임서버 연동 번들을 내보낸다 — `npc export link-bundle`
 
 **목적** 어떤 언어로 짠 게임서버든 **파일 하나**만 읽으면 핸드셰이크를 맞추고 NPC 를 스폰할 수 있게 한다.
@@ -388,7 +423,7 @@ t=  28 (06:28) Interact  item=20
 - 로스터 = `NpcRoster.Select(all, --npcs, --zone)` 의 **균등 간격 선택 공식** + SHA-256(순서 포함). 구조 해시는 "파일 바이트가 아니라 로드된 표에서" 계산(`StructuralHash.Compute`) — 다른 언어로 재구현하면 반드시 어긋난다
 - `npc validate --json` 이 구조·내용 해시는 내지만 로스터 해시와 로스터 목록은 없다
 
-**설계** `npc export link-bundle --npcs <N> [--zone a,b | --shard N] [--dynamic-roster] [--out <path>]` → JSON (snake_case · UTF-8 · 한글 비이스케이프 — `validate --json` 과 같은 규칙):
+**설계** `npc export link-bundle --npcs <N> [--zone a,b | --shard N] [--dynamic-roster] [--out <path>]` → JSON (snake\_case · UTF-8 · 한글 비이스케이프 — `validate --json` 과 같은 규칙):
 
 ```json
 {
@@ -433,7 +468,10 @@ t=  28 (06:28) Interact  item=20
 
 ---
 
-<a id="t6"></a>
+<a id="t6">
+
+</a>
+
 ### T6. 파이썬 최소 게임서버 예제 — 적합성 키트 통과까지
 
 **목적** "C# 이 아닌 게임서버도 붙는다"를 말이 아니라 실물로 보인다. 게임서버 팀이 복사해서 시작할 출발점.
@@ -460,7 +498,7 @@ dotnet run --project tools/Npc.Cli -- export link-bundle --npcs 300 --out sample
 python samples/python_gs/mini_gs.py --bundle samples/python_gs/bundle.json --port 7010 --time-scale 60
 dotnet run -c Release --project src/Npc.Host -- --link tcp --gs-port 7010 --npcs 300 --time-scale 60 --days 0
 # NPC 서버를 내리고, 적합성 키트를 같은 자리에 붙인다
-dotnet run --project tools/Npc.Conformance -- --host 127.0.0.1 --port 7010 --seconds 60
+dotnet run --project tools/Npc.Conformance -- --host 127.0.0.1 --port 7010 --npcs 300 --time-scale 60 --seconds 60 --probe
 ```
 
 - `http://localhost:5080/status` 의 `linkState` 가 `Connected` · `linkReject` 가 null · 대시보드에서 명령·이벤트가 늘어난다
@@ -473,7 +511,10 @@ dotnet run --project tools/Npc.Conformance -- --host 127.0.0.1 --port 7010 --sec
 
 ---
 
-<a id="t7"></a>
+<a id="t7">
+
+</a>
+
 ### T7. 첫 실행 로그 · 종료 판정 · 실행 기준 폴더를 초심자용으로
 
 **목적** 깨끗한 클론에서 README 대로 돌린 사람이 **화면만 보고** 정상인지 안다.
@@ -493,7 +534,7 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 - `warn` 두 줄이 고장처럼 읽히지만, LLM 을 안 쓰는 첫 실행에서는 **정상 상태**다
 - 요약 줄에 판정이 없다. `replan-q 500` 은 `--tier none` 이라 소비자가 없어서인데 설명이 없다
 - `dotnet run` 이 `src/Npc.Host/Properties/launchSettings.json` 을 따라 **작업 폴더를 `src/Npc.Host` 로** 잡는다 →
-  `./state` 가 `src/Npc.Host/state` 가 되고, 환경이 `Development`, 쓰지 않는 URL `5252` 가 적혀 있다
+`./state` 가 `src/Npc.Host/state` 가 되고, 환경이 `Development`, 쓰지 않는 URL `5252` 가 적혀 있다
 
 **구현**
 
@@ -507,7 +548,7 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
    - `llm 0 (LLM 꺼짐 — --tier none)` · `replan-q 500 (LLM 꺼짐: 소비자 없음)`
 3. 대시보드 재계획 패널에 같은 설명 한 줄 (`/status` 의 티어 정보를 읽어)
 4. `launchSettings.json`: `workingDirectory` 를 저장소 루트로 하거나 파일을 지워 셸의 작업 폴더를 쓰게 한다. `ASPNETCORE_ENVIRONMENT` 지정 제거(또는 `Production`), 쓰지 않는 `applicationUrl` 제거.
-   **지우기 전에** `grep -rn launchSettings` 로 스크립트·테스트가 이 프로필에 기대는지 확인
+ **지우기 전에** `grep -rn launchSettings` 로 스크립트·테스트가 이 프로필에 기대는지 확인
 
 **테스트** 판정 로직을 순수 함수로 빼고 경계만: "p99 20.0ms 는 정상, 20.1ms 는 주의" · "bytesPerTick 1 이면 주의". 문구는 테스트하지 않는다.
 
@@ -519,7 +560,10 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 
 ---
 
-<a id="t8"></a>
+<a id="t8">
+
+</a>
+
 ### T8. `Npc.Host doctor` — 한 번에 진단하고 다음 할 일을 말한다
 
 **목적** "왜 안 되지?"에 명령 하나로 답한다.
@@ -530,16 +574,18 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 
 **Host 에 두는 이유**: 이미 `validate`·`healthcheck`·`hints`·`schema` 하위 명령이 있고, LLM 설정을 읽는 `Npc.Llm` 을 참조하는 것이 Host 뿐이다 — `npc` CLI 에 두면 새 의존 간선이 생긴다(CLAUDE.md §3).
 
-| # | 항목 | 방법 | 실패 시 다음 할 일 |
-|---|---|---|---|
-| 1 | .NET 런타임 | `Environment.Version` ≥ 10 | 설치 링크 |
-| 2 | 마스터데이터 | `ValidateCommand` 의 코어 재사용 (V0~V13 + 로더) | 첫 위반 + `fix_hint` |
-| 3 | 파생물 신선도 | `DerivedArtifacts.Stale` | 돌릴 생성기 명령 |
-| 4 | world_flags 빌드 일치 | 주어진 폴더의 `world_flags.json` ↔ 빌드된 enum (T15 의 검사 재사용) | "저장소 `masterdata/world_flags.json` 을 갱신하고 다시 빌드" |
-| 5 | 플랜 스토어 | 현재 프리픽스 SHA, 그 폴더의 생성·고정·폴백 수 | Prebake 명령 + 예상 비용(버킷당 실측 단가 × 미생성 수) |
-| 6 | LLM 엔진 | `appsettings.Llm.json` 파싱, 체인의 엔진별 API 키 환경변수 **존재 여부만** | 넣을 환경변수 이름 |
-| 7 | (`--online`) 엔진 도달 | `GET {endpoint}/models`, 3초 타임아웃 — 외부 호출이라 기본 꺼짐 | 엔드포인트·키 확인 |
-| 8 | 포트 | 5080 · 7010 · 25056 사용 여부 | `--port` 로 바꾸는 법 |
+
+| #   | 항목                 | 방법                                                       | 실패 시 다음 할 일                                      |
+| --- | ------------------ | -------------------------------------------------------- | ------------------------------------------------ |
+| 1   | .NET 런타임           | `Environment.Version` ≥ 10                               | 설치 링크                                            |
+| 2   | 마스터데이터             | `ValidateCommand` 의 코어 재사용 (V0\~V13 + 로더)                | 첫 위반 + `fix_hint`                                |
+| 3   | 파생물 신선도            | `DerivedArtifacts.Stale`                                 | 돌릴 생성기 명령                                        |
+| 4   | world\_flags 빌드 일치 | 주어진 폴더의 `world_flags.json` ↔ 빌드된 enum (T15 의 검사 재사용)     | "저장소 `masterdata/world_flags.json` 을 갱신하고 다시 빌드" |
+| 5   | 플랜 스토어             | 현재 프리픽스 SHA, 그 폴더의 생성·고정·폴백 수                            | Prebake 명령 + 예상 비용(버킷당 실측 단가 × 미생성 수)            |
+| 6   | LLM 엔진             | `appsettings.Llm.json` 파싱, 체인의 엔진별 API 키 환경변수 **존재 여부만** | 넣을 환경변수 이름                                       |
+| 7   | (`--online`) 엔진 도달 | `GET {endpoint}/models`, 3초 타임아웃 — 외부 호출이라 기본 꺼짐         | 엔드포인트·키 확인                                       |
+| 8   | 포트                 | 5080 · 7010 · 25056 사용 여부                                | `--port` 로 바꾸는 법                                 |
+
 
 종료 코드 0 = 실패 없음 · 1 = 실패 있음. `--json` 은 `validate --json` 과 같은 규칙.
 
@@ -548,10 +594,10 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 **테스트**
 
 - **키 값이 출력에 절대 나오지 않는다** — 환경변수에 표식 문자열을 넣고 출력 전체에서 그 문자열이 0회 (시크릿 유출은 실제로 나는 사고 유형이다)
-- world_flags 불일치 판정 1건
+- world\_flags 불일치 판정 1건
 - 나머지는 기존 명령 재사용이라 새 테스트를 쓰지 않는다
 
-**검증** 깨끗한 클론에서 `doctor` → 1~4 OK · 5 "LLM 생성 0 — 폴백으로 정상" · 6 "키 없음 — LLM 없이 동작". `$env:OPENROUTER_API_KEY="x"` 후 6 OK. 실습서 4장 `samples/ch04_break/break.ps1` 의 패치 하나를 사본에 걸고 `--masterdata <사본>` → 2 실패.
+**검증** 깨끗한 클론에서 `doctor` → 1\~4 OK · 5 "LLM 생성 0 — 폴백으로 정상" · 6 "키 없음 — LLM 없이 동작". `$env:OPENROUTER_API_KEY="x"` 후 6 OK. 실습서 4장 `samples/ch04_break/break.ps1` 의 패치 하나를 사본에 걸고 `--masterdata <사본>` → 2 실패.
 
 **완료 기준** 막힌 사용자가 `doctor` 출력만 붙여 넣으면 원인이 보인다.
 
@@ -559,7 +605,10 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 
 ---
 
-<a id="t9"></a>
+<a id="t9">
+
+</a>
+
 ### T9. 대시보드 라이브 지도
 
 **목적** 설치 5분 뒤 브라우저에서 "NPC 수천 명이 마을에서 산다"를 **본다.** 이 서버가 필요한 이유를 설명하는 가장 빠른 방법이다.
@@ -571,9 +620,9 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 
 - `GET /world` — 정적: 존(code · id · 중심) · POI(code · type · zone · x · z). 기동 시 1회 만들어 캐시
 - `GET /world/npcs` — 동적, 열 배열 JSON: `{ "tick": n, "x": [...], "z": [...], "archetype": [...], "status": [...], "zone_state": [...] }`.
-  문자열 없음(§2.5). **1초에 한 번 이상 새로 만들지 않고 캐시** — 웹 스레드 비용 상한. 빈 슬롯(디스폰)은 제외
+문자열 없음(§2.5). **1초에 한 번 이상 새로 만들지 않고 캐시** — 웹 스레드 비용 상한. 빈 슬롯(디스폰)은 제외
 - `dashboard.html` 에 캔버스 패널: POI 점 · NPC 점(아키타입 색 = TestClient 의 황금각 팔레트) · 존 테두리(Peace 회색 · Alert 주황 · War 빨강) ·
-  클릭하면 기존 "NPC 추적" 패널에 id 를 채운다 · 휠 줌 / 드래그 팬. **외부 스크립트·CDN 없음**
+클릭하면 기존 "NPC 추적" 패널에 id 를 채운다 · 휠 줌 / 드래그 팬. **외부 스크립트·CDN 없음**
 - 인증은 기존 대시보드와 같은 정책(`NPC_ADMIN_TOKEN` 이 있으면 토큰 필요 — `AdminAuth`)
 - 틱 루프 무관 — 읽기만 한다. `bytesPerTick` 이 0 으로 남는지 확인
 
@@ -590,7 +639,10 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 
 ---
 
-<a id="t10"></a>
+<a id="t10">
+
+</a>
+
 ### T10. 데모 플랜 팩 — ⚠ 사람 결정 + 비용 승인
 
 **목적** LLM 키 없이도 첫 실행에서 "LLM 이 만든 플랜"과 헤드라인 수치(캐시 히트율)를 본다.
@@ -599,11 +651,13 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 
 **결정할 것**
 
-| 안 | 내용 | 비용 | 유지 부담 |
-|---|---|---|---|
+
+| 안          | 내용                                                                             | 비용                                    | 유지 부담                                                            |
+| ---------- | ------------------------------------------------------------------------------ | ------------------------------------- | ---------------------------------------------------------------- |
 | **A (권장)** | 현재 프리픽스의 **도달 집합 264 버킷**을 굽고 `planstore/<sha8>/plans/` 를 커밋 (gitignore 예외 1줄) | 약 $0.37 (`reference_metrics.html` 실측) | 프롬프트를 고칠 때마다 다시 구워야 한다 — `doctor`(T8)·기동 로그가 "데모 팩이 낡았다"고 말하게 한다 |
-| B | 같은 것을 GitHub Release 첨부 zip 으로 | 같음 | 저장소는 가볍다. 받는 단계가 하나 는다 |
-| C | 하지 않는다. T7 문구로만 안내 | 0 | 없음 |
+| B          | 같은 것을 GitHub Release 첨부 zip 으로                                                 | 같음                                    | 저장소는 가볍다. 받는 단계가 하나 는다                                           |
+| C          | 하지 않는다. T7 문구로만 안내                                                             | 0                                     | 없음                                                               |
+
 
 **구현 (A)**
 
@@ -613,7 +667,7 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 4. `rejected/` 는 커밋하지 않는다(실패 원자료는 로컬 보존 — CLAUDE.md §7)
 5. `.gitignore` 에 `!planstore/<sha8>/plans/` 예외 · CLAUDE.md §6 "반드시 커밋하는 것"에 한 줄 + 이유 · `manifest.json` 갱신분 커밋
 
-**검증** 깨끗한 클론 빠른 시작 → 버킷 283/2880 이상, 캐시 히트율 > 0 — **실측값을** README·`reference_metrics.html` 에 적는다
+**검증** 깨끗한 클론 빠른 시작 → 버킷 283/2880 이상, 캐시 히트율 &gt; 0 — **실측값을** README·`reference_metrics.html` 에 적는다
 
 **완료 기준** 키 없는 첫 실행에서 LLM 생성 플랜이 돌고 히트율이 0 이 아니다.
 
@@ -621,7 +675,10 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 
 ---
 
-<a id="t11"></a>
+<a id="t11">
+
+</a>
+
 ### T11. 사용자 대면 문자열에서 내부 작업 ID 제거 · `--help` 그룹화 · 옵션 문서 생성
 
 **목적** 처음 보는 사람이 모르는 기호를 없애고, 64개 옵션 중 지금 필요한 것만 보이게 한다.
@@ -639,10 +696,10 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 **설계**
 
 - 도움말 그룹 7개: ① 기본 실행 ② 게임서버 연결 ③ LLM ④ 저장·복원 ⑤ 관측·경보 ⑥ 보안 ⑦ 측정·개발용.
-  `--help` = ①~③ + "전체는 `--help-all`" (≤ 40줄) · `--help-all` = 전부
+`--help` = ①\~③ + "전체는 `--help-all`" (≤ 40줄) · `--help-all` = 전부
 - 옵션 표를 한 곳에서: 도움말 문자열을 `(그룹, 옵션, 인자, 설명)` 표로 바꾸고 `--help` · `--help-all` · `--help-all --markdown`(→ `docs/host_options.md`, 생성물)이 같은 표를 쓴다. README 의 옵션 표는 이 문서로 대체(T12)
 - 스캐너 테스트: 도움말 출력 · `docs/host_options.md` · 기동 로그 문구에 `\b[A-G]-\d{2}\b` · `\bT\d{2}\b` · `\bT\d-\d+\b` · `\bP\d\b` · `docs/\d{2}` 가 없다.
-  **대조군** 1건: 패턴이 든 문자열을 스캐너가 잡는다 · `T1`·`T2` 는 잡지 않는다 (CLAUDE.md §5.1 검사기 자체 시험)
+**대조군** 1건: 패턴이 든 문자열을 스캐너가 잡는다 · `T1`·`T2` 는 잡지 않는다 (CLAUDE.md §5.1 검사기 자체 시험)
 - 드리프트: `docs/host_options.md` == 생성 결과 (`LayoutDocTests` 방식 — 어긋나면 새로 써 두고 실패)
 
 **변경할 파일** `src/Npc.Host/HostOptions.cs` · `tools/Npc.Cli/Program.cs` · 기동 로그 출력부 · `appsettings.Llm.json` 주석(`_comment` 가 설정 로더에서 무시되는지 확인) · `docs/host_options.md`(신규 생성물) · `tests/Npc.Tests/Host/HostOptionsTests.cs`
@@ -657,34 +714,39 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 ---
 
-<a id="t12"></a>
+<a id="t12">
+
+</a>
+
 ### T12. README 재구성 (≤ 250줄)
 
 **목적** README 첫 화면에서 넷에 답한다 — ① 무엇인가 ② 나에게 필요한가 ③ 5분 체험 ④ 다음에 어디로.
 
-**근거** 820줄. 사용자 가이드 · 개발자 가이드 · 에이전트 지시문 · 로드맵(W1~W12, ❌ 3개) · 성능 목표 · 범위 밖이 한 파일에 있다.
+**근거** 820줄. 사용자 가이드 · 개발자 가이드 · 에이전트 지시문 · 로드맵(W1\~W12, ❌ 3개) · 성능 목표 · 범위 밖이 한 파일에 있다.
 상태가 모순이고(99행 "구현 진행 중" ↔ 753행 "구현이 끝난 제품"), 사실과 다른 문장이 있다(1.4 표). 인포그래픽 4장은 안 쓰이고, 화면 캡처는 0장.
 
 **목차**
 
 1. 한 줄 정의 + `docs/infographics/01-what-is-llmnpcserver.png`
 2. **이런 게임에 맞다 / 맞지 않다** — FAQ Q2·Q3 요약 표 6줄
-3. 실측 한눈에 — 넷만, 출처 링크: NPC 5,000 틱 p99 0.801ms · 틱 할당 0 · LLM 전면 차단에도 완주 · 2,880 상황 플랜 $5.12(도달 집합 $0.37)
+3. 실측 한눈에 — 넷만, 출처 링크: NPC 5,000 틱 p99 0.801ms · 틱 할당 0 · LLM 전면 차단에도 완주 · 2,880 상황 플랜 $5.12(도달 집합$0.37)
 4. **5분 체험** — `dotnet build` → `doctor`(T8) → 실행 → 대시보드 지도 스크린샷(T9) → Studio 한 줄
-5. 도입 경로 넷 — 콘텐츠(Studio · 실습서 2부) · 게임서버(번들 T5 · 파이썬 예제 T6 · 적합성 키트) · LLM(T18) · 운영(Docker) — 각 1~2줄, 전체는 `docs/ADOPTION.md`(T17)
+5. 도입 경로 넷 — 콘텐츠(Studio · 실습서 2부) · 게임서버(번들 T5 · 파이썬 예제 T6 · 적합성 키트) · LLM(T18) · 운영(Docker) — 각 1\~2줄, 전체는 `docs/ADOPTION.md`(T17)
 6. 현재 상태와 한계 — "기술 검증 구현체"를 한 문장, 미측정·미구현 5줄(`reference_metrics.html` §14 링크). **로드맵 표는 지운다**
 7. 문서 지도 — 사람 유형별 6줄 (처음 보는 사람 · 콘텐츠 · 게임서버 · LLM · 운영 · 코드 기여)
 8. 라이선스 (T1)
 
 **옮길 곳**
 
-| 지금 README 의 내용 | 옮길 곳 |
-|---|---|
-| 실행 옵션 표 · 환경변수 · 설정 파일 | `docs/host_options.md` (T11 생성물) + 시크릿은 `docs/security/secrets.md` |
-| "MMO 개발에 LLM 을 붙일 때" | `docs/llm/README.md`(신규) — `SKILL.md` 와 겹치는 것은 지우고 링크 |
-| 프로젝트 구조 · 핵심 아이디어 그림 | `CODEMAP.md` · `docs/book/` 링크 |
-| 빌드 · 테스트 · 스타일 | `CONTRIBUTING.md`(신규) — **CLAUDE.md §1 로 보내는 짧은 포인터**. 규칙을 두 벌로 쓰지 않는다(AGENTS.md 와 같은 원칙) |
-| 로드맵 W1~W12 · 성능 목표 | 삭제 — `reference_metrics.html` 이 판정을 가진다 |
+
+| 지금 README 의 내용         | 옮길 곳                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| 실행 옵션 표 · 환경변수 · 설정 파일 | `docs/host_options.md` (T11 생성물) + 시크릿은 `docs/security/secrets.md`                        |
+| "MMO 개발에 LLM 을 붙일 때"   | `docs/llm/README.md`(신규) — `SKILL.md` 와 겹치는 것은 지우고 링크                                     |
+| 프로젝트 구조 · 핵심 아이디어 그림   | `CODEMAP.md` · `docs/book/` 링크                                                            |
+| 빌드 · 테스트 · 스타일         | `CONTRIBUTING.md`(신규) — **CLAUDE.md §1 로 보내는 짧은 포인터**. 규칙을 두 벌로 쓰지 않는다(AGENTS.md 와 같은 원칙) |
+| 로드맵 W1\~W12 · 성능 목표    | 삭제 — `reference_metrics.html` 이 판정을 가진다                                                   |
+
 
 **구현** 옛 README 에서 **사라지는 사실이 없게** — 무엇을 어디로 옮겼는지를 커밋 메시지에 표로 남긴다.
 
@@ -696,24 +758,29 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 ---
 
-<a id="t13"></a>
+<a id="t13">
+
+</a>
+
 ### T13. 낡은·모순 문서 정리 + README 드리프트 테스트
 
 **목적** 문서가 코드와 어긋나는 곳을 없애고, 다시 어긋나면 테스트가 잡게 한다.
 
 **이번 조사에서 확인한 어긋남**
 
-| 파일 | 어긋남 | 고칠 방향 |
-|---|---|---|
-| `docs/index.html` (허브, 200KB) | 머리 칩 "태스크 132/164 완료 · 문서 기준일 2026-07-27" · §1 "P4 미착수 · 16개 중 9 통과 · 테스트 795건" · "실제 네트워크 전송은 안 만든다" · §3.4 · §5 · §15 "TCP 골격" · §14 틱 p99 0.37ms(README 0.801ms) | 상태·수치를 걷어 내고 `reference_metrics.html` 로 링크. **상태 수치는 `reference_metrics.html` 한 곳에만 둔다** — 허브는 "무엇을 어디서 읽는가"만 |
-| `docs/startup_flow.html` | 기준일 2026-07-27 — 이후 생긴 스냅샷 복원 · TCP 핸드셰이크 · 리로드 · `doctor` 가 흐름에 있는가 | 코드와 대조해 갱신하거나 기준일과 "이후 변경" 목록을 명시 |
-| `docs/tutorial/index.html` | "3부부터는 아직 목차만" — 21장 전부 본문이 있다 | 문구 삭제 |
-| `docs/FAQ.html` Q3 | "203개 태스크 중 196개" — 밖의 사람에게 뜻 없는 내부 계수 | 미측정·미구현 목록으로 교체 |
-| `CLAUDE.md` §3 | `Npc.TestClient … 미착수` — 실제로 있다 | 고친다 |
-| `CODEMAP.md` 머리 · `CLAUDE.md` §4 | "`src` 96 파일 20,914줄" · "96파일 21,000줄" — 실제 `git ls-files 'src/*.cs'` 는 **179 파일 48,768줄** | 숫자를 지우거나(다시 낡는다) 세는 명령을 같이 적는다 |
-| `appsettings.Llm.json` 주석 | 지운 문서(`docs/10` · `TASKS.md` · `W1_schema.md`) · "사용자 지시" | T11 과 함께 |
-| 실습서 1·2장 수치 | T2 · T4 이후 명령·타임아웃 수치가 바뀐다 | 예제를 다시 돌려 출력 갱신 ("책의 수치는 지어낸 것이 없다" 원칙 유지) |
-| GPU 요구 | README 12GB · 실습서 8GB · 실측 8GB | "8GB 에서 실측, 12GB 이상 권장(8B 모델 KV 캐시)"로 통일 |
+
+| 파일                               | 어긋남                                                                                                                                                                 | 고칠 방향                                                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `docs/index.html` (허브, 200KB)    | 머리 칩 "태스크 132/164 완료 · 문서 기준일 2026-07-27" · §1 "P4 미착수 · 16개 중 9 통과 · 테스트 795건" · "실제 네트워크 전송은 안 만든다" · §3.4 · §5 · §15 "TCP 골격" · §14 틱 p99 0.37ms(README 0.801ms) | 상태·수치를 걷어 내고 `reference_metrics.html` 로 링크. **상태 수치는 `reference_metrics.html` 한 곳에만 둔다** — 허브는 "무엇을 어디서 읽는가"만 |
+| `docs/startup_flow.html`         | 기준일 2026-07-27 — 이후 생긴 스냅샷 복원 · TCP 핸드셰이크 · 리로드 · `doctor` 가 흐름에 있는가                                                                                                | 코드와 대조해 갱신하거나 기준일과 "이후 변경" 목록을 명시                                                                             |
+| `docs/tutorial/index.html`       | "3부부터는 아직 목차만" — 21장 전부 본문이 있다                                                                                                                                      | 문구 삭제                                                                                                         |
+| `docs/FAQ.html` Q3               | "203개 태스크 중 196개" — 밖의 사람에게 뜻 없는 내부 계수                                                                                                                              | 미측정·미구현 목록으로 교체                                                                                               |
+| `CLAUDE.md` §3                   | `Npc.TestClient … 미착수` — 실제로 있다                                                                                                                                     | 고친다                                                                                                           |
+| `CODEMAP.md` 머리 · `CLAUDE.md` §4 | "`src` 96 파일 20,914줄" · "96파일 21,000줄" — 실제 `git ls-files 'src/*.cs'` 는 **179 파일 48,768줄**                                                                          | 숫자를 지우거나(다시 낡는다) 세는 명령을 같이 적는다                                                                                |
+| `appsettings.Llm.json` 주석        | 지운 문서(`docs/10` · `TASKS.md` · `W1_schema.md`) · "사용자 지시"                                                                                                           | T11 과 함께                                                                                                      |
+| 실습서 1·2장 수치                      | T2 · T4 이후 명령·타임아웃 수치가 바뀐다                                                                                                                                          | 예제를 다시 돌려 출력 갱신 ("책의 수치는 지어낸 것이 없다" 원칙 유지)                                                                    |
+| GPU 요구                           | README 12GB · 실습서 8GB · 실측 8GB                                                                                                                                      | "8GB 에서 실측, 12GB 이상 권장(8B 모델 KV 캐시)"로 통일                                                                      |
+
 
 **건드리지 않는 것** `masterdata/*.json` 의 `_comment` 도 지운 문서(`docs/01 §6` 등)를 가리키지만 **고치지 않는다** — 파일 바이트가 ContentHash 에 들어가 핸드셰이크 경고와 플랜 스토어 낡음이 난다. 고칠 가치가 있으면 무효화 범위(`npc diff`)를 보고 별도로 한다.
 
@@ -732,7 +799,10 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 ---
 
-<a id="t14"></a>
+<a id="t14">
+
+</a>
+
 ### T14. HTML 문서를 GitHub 에서 읽히게 한다 (GitHub Pages) — ⚠ 사람 결정
 
 **목적** 공개 저장소에서 문서를 클론 없이 읽게 한다.
@@ -757,7 +827,10 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 ---
 
-<a id="t15"></a>
+<a id="t15">
+
+</a>
+
 ### T15. 엔진 코어 어휘 등록부 + 친절한 오류
 
 **목적** 도입자가 "무엇은 바꿔도 되고, 무엇은 엔진이 이름으로 알고 있어 못 바꾸는가"를 안다. 어기면 알아볼 수 없는 빌드 오류 대신 한국어 한 문장으로 막는다.
@@ -765,7 +838,7 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 **근거**
 
 - `world_flags.json` 은 **저장소 경로에서 빌드 시 enum 으로 생성**된다 — `src/Npc.Core/Npc.Core.csproj` 의 `WorldFlagsJson = ..\..\masterdata\world_flags.json`.
-  다른 `--masterdata` 폴더가 플래그를 **더하면** `WorldFlagTable.TryParse` 실패로 로드가 깨지고, **빼면** `EventApplier` 등이 컴파일되지 않는다
+다른 `--masterdata` 폴더가 플래그를 **더하면** `WorldFlagTable.TryParse` 실패로 로드가 깨지고, **빼면** `EventApplier` 등이 컴파일되지 않는다
 - 런타임·검증기가 이름으로 참조하는 플래그 약 40종 — `EventApplier` 28곳 · `CoherenceValidator` 19곳 등 (IsRested · ThreatNearby · InCombat · PlayerNearby · HostilePlayerNearby · OnDuty · IsNight · AtWorkplace …)
 - POI 심볼 10개 고정: `$home $workplace $market $tavern $temple $gate $nearest_field $nearest_safe $nearest_shelter $patrol_route` (`src/Npc.Core/Plan/PoiSymbol.cs`)
 - 버킷 축 고정: 시간대 6 · 지역 상태 4 · 기후 3 (`src/Npc.Core/Planning/BucketKey.cs` 의 enum). `context_buckets.json` 은 값을 **설명**할 뿐 늘릴 수 없다
@@ -775,8 +848,8 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 - 등록부 `src/Npc.MasterData/CoreVocabulary.cs` — 네 종류의 목록과 "왜 엔진이 아는가" 한 줄씩
 - **로더 앞단 검사**: 주어진 폴더의 `world_flags.json` 이 빌드된 enum 과 이름·bit 가 같은가. 다르면
-  `이 폴더의 world_flags.json 이 빌드에 쓰인 것과 다르다: +X, −Y. 저장소 masterdata/world_flags.json 을 이것으로 바꾸고 다시 빌드한다`.
-  새 V-코드를 매길지는 `reference_masterdata.html` 의 검증 절을 **먼저** 고치고 정한다(번호는 뒤에만 추가)
+`이 폴더의 world_flags.json 이 빌드에 쓰인 것과 다르다: +X, −Y. 저장소 masterdata/world_flags.json 을 이것으로 바꾸고 다시 빌드한다`.
+새 V-코드를 매길지는 `reference_masterdata.html` 의 검증 절을 **먼저** 고치고 정한다(번호는 뒤에만 추가)
 - `npc explain core` — 등록부를 사람 말로. 플래그의 "누가 세우고 누가 읽는가"는 기존 `explain flag` 를 재사용
 - 문서: `reference_masterdata.html` 에 "엔진 코어 어휘" 절
 
@@ -793,7 +866,10 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 ---
 
-<a id="t16"></a>
+<a id="t16">
+
+</a>
+
 ### T16. 최소 월드 템플릿 — `npc init`
 
 **목적** 예제 마을(아키타입 40 · POI 243 · NPC 5,000 · `npc_instances.json` 3.3MB)을 고쳐 들어가는 대신 **작은 빈 세계에서 시작**하게 한다.
@@ -804,11 +880,11 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 1. 생성기에 `--masterdata <dir>` 인자 추가 (`tools/gen_npcs.cs` · `tools/gen_poi_distances.cs`). 잠금 파일(`derived.lock.json`)도 그 폴더에 쓴다
 2. 템플릿 `samples/worlds/minimal/` — 존 2 · POI 12(집 4 · 일터 3 · 시장 · 선술집 · 신전 · 성문 · 들) · 아키타입 3(villager · farmer · guard — guard 는 `duty_hours` 필수, V12) · 아이템 8 · 레시피 2 · 인터럽트 4 · 폴백 3 · NPC 60.
-   `world_flags.json` · `actions.json` · `context_buckets.json` 은 **예제와 같은 파일** (T15 — 코어 어휘·빌드 일치)
+ `world_flags.json` · `actions.json` · `context_buckets.json` 은 **예제와 같은 파일** (T15 — 코어 어휘·빌드 일치)
 3. `npc init <dir> [--template minimal]` — 템플릿 복사 → 생성기 실행 → `npc validate --masterdata <dir>` 결과 출력
 4. 템플릿이 계속 유효한지 CI 가 본다 — `build.ps1` 의 검증 단계에 `--masterdata samples/worlds/minimal` 한 줄
 
-**테스트** 드리프트 1건: "템플릿이 V0~V13 과 로더를 통과한다" — 마스터데이터 규칙이 바뀌면 템플릿도 같이 고치게 강제한다
+**테스트** 드리프트 1건: "템플릿이 V0\~V13 과 로더를 통과한다" — 마스터데이터 규칙이 바뀌면 템플릿도 같이 고치게 강제한다
 
 **검증** `npc init D:\tmp\myworld` → `npc validate --masterdata D:\tmp\myworld` 종료 코드 0 →
 `Npc.Host --masterdata D:\tmp\myworld --npcs 60 --no-llm --days 1` 판정 "정상"(T7) → `Npc.Studio --masterdata D:\tmp\myworld` 로 열린다
@@ -819,7 +895,10 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 ---
 
-<a id="t17"></a>
+<a id="t17">
+
+</a>
+
 ### T17. 도입 가이드 `docs/ADOPTION.md`
 
 **목적** "우리 게임에 넣으려면 무엇을, 누가, 어떤 순서로, 얼마나"에 답하는 **한 장**. GitHub 에서 바로 읽히게 Markdown 으로.
@@ -828,17 +907,17 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 **목차**
 
-0. 30초 판단 — 맞는 게임 / 안 맞는 게임
-1. 역할과 준비물 — 콘텐츠 · 게임서버 · LLM · 운영 담당별
-2. 1일차: 예제로 체험 — README 5분 체험 → Studio → `testbed/run_demo.ps1`
-3. 세계 매핑 — 우리 게임 개념 → 이 서버 개념
+1. 30초 판단 — 맞는 게임 / 안 맞는 게임
+2. 역할과 준비물 — 콘텐츠 · 게임서버 · LLM · 운영 담당별
+3. 1일차: 예제로 체험 — README 5분 체험 → Studio → `testbed/run_demo.ps1`
+4. 세계 매핑 — 우리 게임 개념 → 이 서버 개념
    - 존 · POI · 아키타입 · 아이템 · 액션(40 상한)
    - **고정된 것**(T15): 버킷 3축 — "계절은 기후로, 던전 위험도는 지역 상태로" 같은 매핑 예 · POI 역할 10종 — "선술집 = 휴식·사교 장소" 같은 의미 매핑
    - 최소 템플릿에서 시작(T16) → Studio 로 늘리기
-4. 게임서버 연동 — 번들(T5) → 응답 규약(T3) → 파이썬 예제(T6) → 적합성 키트 → 인증·TLS → 샤딩
-5. 플랜 굽기 — 비용 산식 · 엔진 선택(T18) · 검수와 pin · 프롬프트를 고치면 무엇이 무효가 되는가
-6. 운영 — Docker/k8s · 관리 API · 스냅샷 · 모니터링 · 킬스위치 · 시크릿
-7. 상용 투입 전 남은 것 — `reference_metrics.html` §14 미측정 · 법무 미실시 · 샤딩 2단계 미구현 · 블라인드 평가 미실시
+5. 게임서버 연동 — 번들(T5) → 응답 규약(T3) → 파이썬 예제(T6) → 적합성 키트 → 인증·TLS → 샤딩
+6. 플랜 굽기 — 비용 산식 · 엔진 선택(T18) · 검수와 pin · 프롬프트를 고치면 무엇이 무효가 되는가
+7. 운영 — Docker/k8s · 관리 API · 스냅샷 · 모니터링 · 킬스위치 · 시크릿
+8. 상용 투입 전 남은 것 — `reference_metrics.html` §14 미측정 · 법무 미실시 · 샤딩 2단계 미구현 · 블라인드 평가 미실시
 
 **비용 산식** (실측에서 나온 것만 쓰고, 외삽은 외삽이라고 적는다)
 
@@ -861,7 +940,10 @@ Studio 는 `StudioTextTests` 가 이미 개발자 낱말을 막는다(같은 방
 
 ---
 
-<a id="t18"></a>
+<a id="t18">
+
+</a>
+
 ### T18. LLM 엔진 연결을 쉽게 — OpenAI 키 · Ollama · LM Studio
 
 **목적** "내 OpenAI 키로", "내 PC 의 Ollama 로"를 저장소 파일을 고치지 않고 3줄로 붙인다.
@@ -890,7 +972,10 @@ README 의 LLM 절은 dotLLM 실행 파일(별도 배포 · GPLv3)부터 시작�
 
 ---
 
-<a id="t19"></a>
+<a id="t19">
+
+</a>
+
 ### T19. 배포 산출물(자체 포함 zip) + 플랫폼 표기 정정 — ⚠ 릴리스 게시는 사람 결정
 
 **목적** .NET SDK 가 없는 사람(게임서버 C++ 팀 · 기획자)도 받아서 실행한다. 플랫폼 표기를 사실대로 한다.
@@ -916,7 +1001,10 @@ README 의 LLM 절은 dotLLM 실행 파일(별도 배포 · GPLv3)부터 시작�
 
 ---
 
-<a id="appendix-a"></a>
+<a id="appendix-a">
+
+</a>
+
 ## 부록 A — 트레이스 분석 스크립트 (T2 · T4 검증용)
 
 기록 트레이스는 `--link record --trace <파일>` 로 만든다. 한 줄이 `{"Kind":…, "Command":{…}}` 또는 `{"Kind":…, "Event":{…}}` 다.
@@ -971,7 +1059,10 @@ for line in open(sys.argv[1], encoding='utf-8'):
     print(f"t={t:>5} ({int(h) % 24:02d}:{int(h * 60) % 60:02d}) {K[c['Kind']]:<10} {extra}")
 ```
 
-<a id="appendix-b"></a>
+<a id="appendix-b">
+
+</a>
+
 ## 부록 B — 깨끗한 클론 검증 절차
 
 작업 트리의 로컬 산출물(`planstore/plans/` 718개 등 gitignore 대상)이 결과를 오염시키므로, 사용자 경험 확인은 **항상 깨끗한 클론**에서 한다.
@@ -988,7 +1079,10 @@ dotnet run -c Release --no-build --project src/Npc.Host -- --loopback --npcs 500
 - 클론 원본은 **로컬 저장소**다 — 커밋하지 않은 변경은 클론에 없다. 확인하려는 변경은 먼저 커밋한다
 - 확인할 것: 기동 로그의 `warn` 줄 수 · 종료 요약 · `/status` · `/metrics` · 대시보드
 
-<a id="appendix-c"></a>
+<a id="appendix-c">
+
+</a>
+
 ## 부록 C — 이번 조사의 원자료 (2026-09-24)
 
 **환경** Windows 11 Pro · .NET SDK 10.0.400 · 커밋 `5f589a4` · 깨끗한 클론 61MB
@@ -1006,9 +1100,9 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 
 **기록 트레이스 (`--npcs 100`, 883틱 ≈ 게임 14.7시간) 명령 종류별 건수** — MoveTo 18,620 · SetVisualState 8,254 · InventoryChange 3,007 · Speak 2,943 · Interact 1,751 · PlayAnimation 1,029 · FaceTo 803 (NPC 당 364건)
 
-**월드 규모** — POI 243 · x −1,939.4 ~ 1,894.7 · z −1,591.6 ~ 1,755.9 · POI 쌍 거리 > 500m 86.9 % · > 1,000m 59.8 %
+**월드 규모** — POI 243 · x −1,939.4 \~ 1,894.7 · z −1,591.6 \~ 1,755.9 · POI 쌍 거리 &gt; 500m 86.9 % · &gt; 1,000m 59.8 %
 
-**레시피 소요** — 37종 · 120 ~ 1,800s (600s 6종 · 480s 6종 · 300s 5종 · 360s 5종 …)
+**레시피 소요** — 37종 · 120 \~ 1,800s (600s 6종 · 480s 6종 · 300s 5종 · 360s 5종 …)
 
 **도움말** — `Npc.Host --help` 73줄 · 옵션 64 · 내부 ID 11 · `npc --help` 42줄 · 내부 ID 4
 

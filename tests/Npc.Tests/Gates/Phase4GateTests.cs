@@ -446,7 +446,7 @@ public sealed class Phase4GateTests(Xunit.Abstractions.ITestOutputHelper output)
 
         for (int npc = 0; npc < host.Npcs; npc++)
         {
-            NpcTrace trace = host.Trace(npc);
+            NpcTrace trace = host.Trace(host.Roster.Npcs[npc].Id);
 
             if (!trace.Found || trace.Steps.Length == 0)
             {

@@ -83,7 +83,8 @@ public sealed class Observer
         lock (_gate)
         {
             _commands.Add(new Issued(
-                command.Correlation, command.Kind, command.Npc, command.IssuedAt.Value, timeoutTicks));
+                command.Correlation, command.Kind, command.Npc, command.IssuedAt.Value, timeoutTicks,
+                command.TargetPoi.Value != 0));
         }
     }
 

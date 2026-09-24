@@ -13,6 +13,7 @@
 | `<엔진별>_API_KEY` | 외부 LLM 제공사 키 | 제공사 형식 | `ChatClientFactory` | 그 엔진을 **끄고** 계속 간다 |
 
 엔진별 키 이름은 `appsettings.Llm.json` 의 `api_key_env` 에 있다. 코드에 키를 쓰지 않는다.
+`Npc.Host doctor` 는 키 환경변수의 존재 여부만 출력한다. 키 값은 텍스트·JSON 진단에 싣지 않는다.
 
 ```powershell
 # 링크 비밀 만들기 — 32바이트 hex (Windows PowerShell 5.1 에서도 돈다)

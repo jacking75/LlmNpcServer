@@ -32,7 +32,7 @@ public sealed class ShadowBuffer
         PlanId = new int[capacity];
         StepIndex = new byte[capacity];
         StepStatus = new byte[capacity];
-        StepIssuedTick = new long[capacity];
+        StepDeadlineTick = new long[capacity];
         Lod = new byte[capacity];
         Pos = new WorldPos[capacity];
         Hp = new short[capacity];
@@ -87,8 +87,8 @@ public sealed class ShadowBuffer
     /// <summary>스텝 상태.</summary>
     public byte[] StepStatus { get; }
 
-    /// <summary>스텝 발행 틱.</summary>
-    public long[] StepIssuedTick { get; }
+    /// <summary>현재 상태가 끝나는 틱.</summary>
+    public long[] StepDeadlineTick { get; }
 
     /// <summary>인지 LOD.</summary>
     public byte[] Lod { get; }

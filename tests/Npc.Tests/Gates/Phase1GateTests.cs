@@ -115,7 +115,7 @@ public sealed class Phase1GateTests
 
             await using (NpcHost host = NpcHost.Create(options, TextWriter.Null))
             {
-                blacksmith = FindBlacksmith(host);
+                blacksmith = host.Roster.Npcs[FindBlacksmith(host)].Id;
 
                 await host.RunAsync(CancellationToken.None);
             }

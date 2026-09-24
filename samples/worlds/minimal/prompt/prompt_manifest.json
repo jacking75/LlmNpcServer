@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "_comment": [
+    "C-03. 프롬프트 프리픽스의 사람이 읽는 이름표다. 손으로 올린다.",
+    "프리픽스의 신원은 SHA-256 이고 이 파일은 그 SHA 에 붙는 라벨이다 — 이 파일을 고쳐도",
+    "프리픽스 SHA 는 바뀌지 않는다. 프리픽스에 들어가는 것은 system_rules.md 와 fewshot/ 이다.",
+    "version 을 올리는 때: system_rules.md · fewshot · 액션/아키타입 카탈로그가 바뀌어",
+    "프리픽스 SHA 가 달라졌을 때. 그때 플랜 스토어는 전량 무효다."
+  ],
+  "prompt_version": "2026.09-r1",
+  "changelog": [
+    {
+      "version": "2026.09-r1",
+      "date": "2026-09-11",
+      "note": "B-06 — HostilePlayerNearby 플래그와 attack_hostile_player 인터럽트가 카탈로그에 들어오면서 프리픽스가 바뀌었다. 이전 회차의 플랜은 다른 SHA 디렉터리에 남는다."
+    },
+    {
+      "version": "2026.07-r1",
+      "date": "2026-07-28",
+      "note": "최초 측정 회차. 프리픽스 11,967 토큰 · 프리베이크 2,880건 $5.12."
+    }
+  ]
+}

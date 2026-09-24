@@ -33,10 +33,12 @@ public static class Program
 
         검증·설명
           validate                       V1~V13 + 로더 + 파생물 신선도
-          explain archetype|action|poi|item|flag|interrupt <id>
+          export link-bundle --npcs <N> [--zone a,b | --shard N] [--dynamic-roster] [--out <path>]
+          init <dir> [--template minimal]  60 NPC 작은 세계 생성
+          explain core | archetype|action|poi|item|flag|interrupt <id>
           card archetype <id> | npc <첨자> | roster <id>
-          forecast archetype <id> [--bucket <키>] [--npc <번호>]   하루 예측 (T22)
-          lint archetype <id>|all        건강 진단 — 검증은 통과하는데 이상한 정의 (T29)
+          forecast archetype <id> [--bucket <키>] [--npc <번호>]   하루 예측
+          lint archetype <id>|all        건강 진단 — 검증은 통과하는데 이상한 정의
           timeline archetype <id>        24시간 띠 (근무·폴백 스텝)
           hints [--out <path>]           검증 오류 사전. --out 은 markdown 을 생성한다
           schema [--out <dir>]           JSON Schema 발행 (기본 docs/schema)
@@ -49,7 +51,7 @@ public static class Program
 
         플랜
           plan validate <파일> [--bucket <키>]
-          plan repair <파일> [--bucket <키>]   결정론 자동 수선. 고친 JSON 을 낸다 (C-05)
+          plan repair <파일> [--bucket <키>]   결정론 자동 수선. 고친 JSON 을 낸다
           plan explain <파일> | narrate <파일>
           buckets [--archetype <id>] [--state missing|fallback|pinned|generated]
           pin <버킷>
@@ -67,8 +69,9 @@ public static class Program
           --apply              파일을 실제로 고친다 (기본은 dry-run)
           --population <n>     인구표 기준 NPC 수 (기본 5000)
 
-        미구현 — 의존 태스크를 기다린다
-          serve (B-08) · plan dryrun 은 validate 에 포함
+        추가 안내
+          serve 는 지원하지 않는다. 읽기 전용 조회는 Npc.Host API 를 쓴다.
+          plan dryrun 은 validate 에 포함한다.
         """;
 
     /// <summary>진입점.</summary>
@@ -117,6 +120,8 @@ public static class Program
         command switch
         {
             "validate" => ValidateCommand.Run(ctx),
+            "export" => ExportCommand.Run(ctx),
+            "init" => InitCommand.Run(ctx),
             "explain" => ExplainCommand.Run(ctx),
             "card" => CardCommand.Run(ctx),
             "timeline" => TimelineCommand.Run(ctx),
@@ -135,7 +140,7 @@ public static class Program
             "perf" => PerfCommand.Run(ctx),
 
             // 의존 태스크가 없다. "지원하지 않는다" 와 "아직 없다" 는 다른 말이라 구별해 낸다.
-            "serve" => Pending(error, command, "B-08 읽기 전용 질의 API"),
+            "serve" => Pending(error, command, "Npc.Host 읽기 전용 질의 API"),
 
             _ => Unknown(command, output, error),
         };

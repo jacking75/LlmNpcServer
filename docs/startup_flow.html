@@ -344,7 +344,7 @@ footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--line);color:v
     <span class="chip">틱 10Hz · 예산 20ms</span>
     <span class="chip">기동 22단계</span>
     <span class="chip">실행 축 3개 (스레드)</span>
-    <span class="chip">문서 기준일 2026-07-27</span>
+    <span class="chip">흐름 개요 · 최신 옵션은 생성 문서 참조</span>
   </div>
   <p class="oneline">
     <b>한 문장 요약 —</b> 기동은 <i>전부 한 번에 만들어 두는</i> 과정이고, 실행은
@@ -355,6 +355,7 @@ footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--line);color:v
     <a href="#tick">10 틱 한 번</a> 순으로. 옵션만 알고 싶으면
     <a href="#options">3 무엇을 고를 수 있나</a> 로 바로 가도 된다.
   </p>
+  <p class="sub">실행 전에는 <code>Npc.Host doctor</code>로 환경을 점검한다. 조립 중에는 스냅샷 복원과 TCP 핸드셰이크·재동기화가 가능하며, 실행 중에는 콘텐츠 리로드를 관리 API로 요청할 수 있다. 전체 옵션은 <a href="host_options.md">호스트 옵션 문서</a>를 본다.</p>
 </div>
 
 <!-- ============================================================ 1 -->
@@ -752,7 +753,7 @@ masterdata  C:\github_edu\LlmNpcServer\masterdata
     <text class="mono" x="26" y="96">int[]        PlanId       4B</text>
     <text class="mono" x="26" y="114">byte[]       StepIndex    1B</text>
     <text class="mono" x="26" y="132">byte[]       StepStatus   1B</text>
-    <text class="mono" x="26" y="150">long[]       StepIssuedTick 8B</text>
+    <text class="mono" x="26" y="150">long[]       StepDeadlineTick 8B</text>
     <text class="mono" x="26" y="168">byte[]       Lod          1B</text>
     <line class="sep" x1="26" y1="180" x2="294" y2="180"/>
     <text class="ta" x="26" y="200">HotBytesPerNpc = 23B</text>
@@ -1299,7 +1300,7 @@ app.<span class="fn">MapGet</span>(<span class="str">"/heatmap.csv"</span>, () =
     <span class="ty">int</span> index = Math.<span class="fn">Min</span>(_store.StepIndex[npc], plan.Steps.Length - <span class="num">1</span>);
     <span class="ty">long</span> budget = <span class="fn">TimeoutTicks</span>(plan.Steps[index].TimeoutSeconds);
 
-    <span class="kw">if</span> (tick.Value - _store.StepIssuedTick[npc] &lt; budget) { <span class="kw">return false</span>; }
+    <span class="kw">if</span> (tick.Value &lt; _store.StepDeadlineTick[npc]) { <span class="kw">return false</span>; }
 
     _correlations.<span class="fn">Invalidate</span>(npc);                    <span class="cmt">// 늦게 온 응답은 무시된다</span>
     _store.StepStatus[npc]    = (<span class="ty">byte</span>)StepStatus.Failed;
@@ -1538,7 +1539,7 @@ scan/tick 24 · interrupts 200 · replan-q 200 · drops link 0 sim 0 · backlogs
 </div>
 
 <footer>
-  LLM NPC 서버 — 기동부터 종료까지의 흐름 · 문서 기준일 2026-07-27 ·
+  LLM NPC 서버 — 기동부터 종료까지의 흐름 ·
   코드 인용은 저장소 실제 파일, 로그·수치는 실제 실행 결과다.
 </footer>
 
@@ -2056,9 +2057,9 @@ scan/tick 24 · interrupts 200 · replan-q 200 · drops link 0 sim 0 · backlogs
     unspawned: ['Unspawned (= 3)',
       '스폰 확인 전. <b>명령을 발행하지 않는다.</b> <code>NpcStore.Allocate</code> 의 초기값이 이것이다 — 0(<code>Ready</code>)으로 두면 게임서버에 존재하지도 않는 NPC 에게 명령이 나가고 전부 거절된다. 다만 이 저장소의 조립 루트는 인구 배치에서 곧바로 <code>Ready</code> 로 올리고, 게임서버 대역이 기동 시 <code>Spawn</code> 을 직접 적용한다.'],
     ready: ['Ready (= 0)',
-      '발행 대기. 다음 <code>PlanExecutor.Step</code> 에서 현재 스텝이 명령으로 바뀌어 나간다. 이때 <code>CorrelationId</code> 가 새로 발급되고 <code>StepIssuedTick</code> 에 지금 틱이 기록된다.'],
+      '발행 대기. 다음 <code>PlanExecutor.Step</code> 에서 현재 스텝이 명령으로 바뀌어 나간다. 이때 <code>CorrelationId</code> 가 새로 발급되고 <code>StepDeadlineTick</code> 에 마감 틱이 기록된다.'],
     waiting: ['Waiting (= 1)',
-      '명령을 보내고 응답을 기다린다. <b>매 틱</b> <code>SynthesizeTimeout</code> 이 <code>tick − StepIssuedTick ≥ TimeoutTicks(timeout_s)</code> 인지 확인한다. 넘으면 게임서버가 답을 안 줘도 <code>Failed</code> 로 넘어간다 — <b>명령은 유실된다고 가정한다.</b>'],
+      '명령을 보내고 응답을 기다린다. <b>매 틱</b> <code>SynthesizeTimeout</code> 이 <code>tick ≥ StepDeadlineTick</code> 인지 확인한다. 넘으면 게임서버가 답을 안 줘도 <code>Failed</code> 로 넘어간다 — <b>명령은 유실된다고 가정한다.</b>'],
     completed: ['Completed (= 4)',
       '완료 이벤트를 받았다. 다음 틱의 <code>AdvanceStep</code> 에서 전진한다. <b>여기가 스텝 경계이고, 플랜 스왑이 일어나는 유일한 지점</b>이다. 마지막 스텝이면 <code>loop</code> 에 따라 0번으로 돌아가거나 <code>Done</code> 이 된다.'],
     failed: ['Failed (= 5)',

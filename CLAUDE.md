@@ -134,7 +134,7 @@ NPC 상태는 **SoA(struct of arrays)**다. `class Npc`를 5,000개 만들지 �
 | N7 | 이벤트 처리는 멱등. 2회 주입 → 상태 해시 동일 |
 | N8 | 배치가 기본. `Enqueue` + `FlushAsync`만 노출 |
 
-**명령은 유실된다고 가정한다.** 모든 플랜 스텝에 `timeout_s`가 있고, 응답 이벤트가 안 오면 로컬에서 `ActionFailed(Timeout)`을 합성해 진행을 재개한다. 이 경로는 `Npc.Sim --drop-rate`로 상시 테스트한다.
+**명령은 유실된다고 가정한다.** 모든 플랜 스텝에 `timeout_s`가 있고, 응답 이벤트가 안 오면 로컬에서 `ActionFailed(Timeout)`을 합성해 진행을 재개한다. `timeout_s`는 하한이며, 게임서버가 시간을 소유하는 동작은 `max(timeout_s, ceil(예상 소요 초 × 1.5) + 30)`초를 기다린다. 이 경로는 `Npc.Sim --drop-rate`로 상시 테스트한다.
 
 ### 2.3 결정론
 
@@ -228,7 +228,7 @@ tools/Npc.Studio ← Core, MasterData, Narrative (독립 웹 GUI. Host·Runtime 
 ```
 testbed/Npc.TestBed.Protocol  ←  Wire
 testbed/Npc.TestGameServer    ←  Sim, MasterData, Wire, Protocol, Memory (D-03 — 기억은 게임서버가 쓴다)
-testbed/Npc.TestClient        ←  MasterData, Protocol   (net10.0-windows · 미착수)
+testbed/Npc.TestClient        ←  MasterData, Protocol   (net10.0-windows · 구현됨)
 ```
 
 **`Npc.Tests` 는 `Npc.TestClient` 를 참조하지 않는다** — 참조하면 테스트 프로젝트가 `net10.0-windows` 로 끌려간다.
@@ -275,7 +275,7 @@ tools/gen_*.cs      ←  #:project 로 MasterData (파생물 잠금 갱신)
 새 기능·수정을 시작하기 전:
 
 1. **`CODEMAP.md` 에서 해당 작업 줄을 찾는다** → 거기 적힌 파일만 연다.
-   `src` 96파일 21,000줄을 매번 훑지 않는다. 이름으로 못 찾으면 `CODEMAP.md` §2 의 추적 경로를 탄다
+   `src` 전체를 매번 훑지 않는다. 이름으로 못 찾으면 `CODEMAP.md` §2 의 추적 경로를 탄다
 2. 고칠 파일의 `tests/Npc.Tests/<같은이름>Tests.cs` 를 먼저 읽는다 — 무엇을 보장하는지가 거기 있다
 3. 건드리는 타입이 `docs/reference_link.html`·`docs/reference_masterdata.html`에 정의되어 있는가
    → 있으면 그 이름·시그니처를 그대로 쓴다

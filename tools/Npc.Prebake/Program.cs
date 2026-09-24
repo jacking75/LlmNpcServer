@@ -88,7 +88,16 @@ if (loaded.Total > 0 || loaded.Errors.Length > 0)
         + (loaded.Skipped + loaded.Failed > 0 ? $" · 건너뜀 {loaded.Skipped} · 실패 {loaded.Failed}" : string.Empty));
 }
 
-TargetSelection selection = TargetSelector.Select(options, data, existing, scope);
+TargetSelection selection;
+try
+{
+    selection = TargetSelector.Select(options, data, existing, scope);
+}
+catch (ArgumentException ex)
+{
+    Console.Error.WriteLine(ex.Message);
+    return 2;
+}
 ImmutableArray<BucketKey> buckets = selection.Buckets;
 
 Console.WriteLine(

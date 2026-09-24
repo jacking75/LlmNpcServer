@@ -97,7 +97,7 @@ public sealed class SnapshotRestoreTests : IDisposable
         var shadow = new ShadowBuffer(rig.Store.Count, rig.Store.InventoryStride, rig.Zones.Capacity);
 
         shadow.StepStatus[0] = (byte)StepStatus.Waiting;
-        shadow.StepIssuedTick[0] = 42;
+        shadow.StepDeadlineTick[0] = 42;
 
         SnapshotFile.Write(
             Path.Combine(_dir, SnapshotFile.NameOf(200)),

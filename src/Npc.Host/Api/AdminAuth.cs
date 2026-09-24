@@ -114,6 +114,7 @@ public sealed class AdminAuth
             || value.StartsWith("/admin", StringComparison.OrdinalIgnoreCase)
             || value.StartsWith("/npc", StringComparison.OrdinalIgnoreCase)
             || value.StartsWith("/status", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("/world", StringComparison.OrdinalIgnoreCase)
             || value.StartsWith("/metrics", StringComparison.OrdinalIgnoreCase)
             || value.StartsWith("/heatmap", StringComparison.OrdinalIgnoreCase)
             || value.StartsWith("/buckets", StringComparison.OrdinalIgnoreCase)

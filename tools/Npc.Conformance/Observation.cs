@@ -20,8 +20,10 @@ public readonly record struct Observed(GameEvent Event, int Frame, long ElapsedM
 /// <param name="Npc">대상 NPC.</param>
 /// <param name="IssuedTick">발행 틱.</param>
 /// <param name="TimeoutTicks">이 틱 안에 응답이 와야 한다.</param>
+/// <param name="MoveToPoi">MoveTo가 POI 이동인지. Follow·Wander는 false.</param>
 public readonly record struct Issued(
-    CorrelationId Correlation, NpcCommandKind Kind, NpcId Npc, long IssuedTick, long TimeoutTicks);
+    CorrelationId Correlation, NpcCommandKind Kind, NpcId Npc, long IssuedTick, long TimeoutTicks,
+    bool MoveToPoi = true);
 
 /// <summary>
 /// 한 회차의 관찰 기록 (B-07).

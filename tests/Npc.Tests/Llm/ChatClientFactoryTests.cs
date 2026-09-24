@@ -10,6 +10,46 @@ public sealed class ChatClientFactoryTests
     private static readonly LlmOptions s_options = LlmOptions.Load(TestPaths.At(LlmOptions.FileName));
 
     [Fact]
+    public void LocalConfiguration_OverridesAndAddsEnginesAndChain()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "npc-llm-merge-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string configPath = Path.Combine(directory, LlmOptions.FileName);
+            File.Copy(TestPaths.At(LlmOptions.FileName), configPath);
+            File.WriteAllText(Path.Combine(directory, LlmOptions.LocalFileName), """
+                {
+                  "preferred": ["ollama-qwen3-8b"],
+                  "chains": { "t1": ["ollama-qwen3-8b"] },
+                  "engines": [
+                    { "id": "ollama-qwen3-8b", "kind": "LlamaCpp", "model": "custom:8b",
+                      "endpoint": "http://localhost:11434/v1", "api_key_env": null,
+                      "input_usd_per_m_tok": 0, "cached_input_usd_per_m_tok": 0,
+                      "output_usd_per_m_tok": 0, "suffix_tag": "", "temperature": 0.4,
+                      "max_output_tokens": 1024, "force_json_schema": false, "timeout_seconds": 900 },
+                    { "id": "my-local", "kind": "LlamaCpp", "model": "my-model",
+                      "endpoint": "http://localhost:1234/v1", "api_key_env": null,
+                      "input_usd_per_m_tok": 0, "cached_input_usd_per_m_tok": 0,
+                      "output_usd_per_m_tok": 0, "suffix_tag": "", "temperature": 0.4,
+                      "max_output_tokens": 1024, "force_json_schema": false, "timeout_seconds": 900 }
+                  ]
+                }
+                """);
+            LlmOptions merged = LlmOptions.Load(configPath);
+            Assert.Equal("custom:8b", merged.Engine("ollama-qwen3-8b").Model);
+            Assert.Equal("my-model", merged.Engine("my-local").Model);
+            Assert.Equal("ollama-qwen3-8b", merged.PreferredEngine().Id);
+            Assert.Equal("ollama-qwen3-8b", Assert.Single(merged.Chain("t1")).Id);
+            Assert.Equal(s_options.Engines.Length + 1, merged.Engines.Length);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Options_LoadEveryEngineFromConfiguration()
     {
         Assert.NotEmpty(s_options.Engines);

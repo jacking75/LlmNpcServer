@@ -180,7 +180,7 @@ public sealed class ReplanScorerTests
     [Fact]
     public void NpcStore_HotBytesUnchanged()
     {
-        // Flags 8 + PlanId 4 + StepIndex 1 + StepStatus 1 + StepIssuedTick 8 + Lod 1 = 23.
+        // Flags 8 + PlanId 4 + StepIndex 1 + StepStatus 1 + StepDeadlineTick 8 + Lod 1 = 23.
         // 상한이지 고정값이 아니다 — 핫에 필드를 더하면 여기서 먼저 걸려야 한다.
         Assert.True(
             NpcStore.HotBytesPerNpc <= 24,

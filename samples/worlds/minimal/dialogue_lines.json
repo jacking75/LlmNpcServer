@@ -1,0 +1,70 @@
+{
+  "$schema": "../docs/schema/dialogue_lines.schema.json",
+  "version": 1,
+  "lines": [
+    {
+      "id": "call_for_help",
+      "code": 0,
+      "tags": [
+        "combat",
+        "urgent"
+      ],
+      "priority": "Critical"
+    },
+    {
+      "id": "danger",
+      "code": 1,
+      "tags": [
+        "gossip",
+        "warn"
+      ]
+    },
+    {
+      "id": "greeting",
+      "code": 2,
+      "tags": [
+        "talk",
+        "social"
+      ]
+    },
+    {
+      "id": "politics",
+      "code": 3,
+      "tags": [
+        "gossip"
+      ]
+    },
+    {
+      "id": "rumor",
+      "code": 4,
+      "tags": [
+        "talk",
+        "gossip"
+      ]
+    },
+    {
+      "id": "trade",
+      "code": 5,
+      "tags": [
+        "talk",
+        "gossip",
+        "commerce"
+      ]
+    },
+    {
+      "id": "warning",
+      "code": 6,
+      "tags": [
+        "talk",
+        "warn"
+      ]
+    },
+    {
+      "id": "work",
+      "code": 7,
+      "tags": [
+        "talk"
+      ]
+    }
+  ]
+}

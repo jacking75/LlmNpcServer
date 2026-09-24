@@ -23,6 +23,9 @@ public enum StepStatus : byte
 
     /// <summary>실패 이벤트를 받았거나 타임아웃이 합성됐다. 스텝 경계에서 on_step_fail 정책을 적용한다.</summary>
     Failed = 5,
+
+    /// <summary>게임서버가 즉시 응답했고 NPC 서버가 액션 지속 시간을 세는 중.</summary>
+    Holding = 6,
 }
 
 /// <summary>
@@ -66,8 +69,8 @@ public sealed class NpcStore
     /// <summary>스텝 실행 상태.</summary>
     public byte[] StepStatus = [];
 
-    /// <summary>스텝 명령을 발행한 틱. 타임아웃 합성의 기준이다 (docs/02 §3.4).</summary>
-    public long[] StepIssuedTick = [];
+    /// <summary>현재 스텝 상태가 끝나는 틱. Waiting에서는 응답 마감, Holding에서는 지속 시간 종료.</summary>
+    public long[] StepDeadlineTick = [];
 
     /// <summary>인지 LOD 등급 0..3.</summary>
     public byte[] Lod = [];
@@ -267,7 +270,7 @@ public sealed class NpcStore
         + sizeof(int)    // PlanId
         + sizeof(byte)   // StepIndex
         + sizeof(byte)   // StepStatus
-        + sizeof(long)   // StepIssuedTick
+        + sizeof(long)   // StepDeadlineTick
         + sizeof(byte);  // Lod
 
     /// <summary>핫 배열 전체 크기(바이트).</summary>
@@ -296,7 +299,7 @@ public sealed class NpcStore
         PlanId = new int[capacity];
         StepIndex = new byte[capacity];
         StepStatus = new byte[capacity];
-        StepIssuedTick = new long[capacity];
+        StepDeadlineTick = new long[capacity];
         Lod = new byte[capacity];
 
         Pos = new WorldPos[capacity];
@@ -368,7 +371,7 @@ public sealed class NpcStore
         Array.Copy(PlanId, buffer.PlanId, Count);
         Array.Copy(StepIndex, buffer.StepIndex, Count);
         Array.Copy(StepStatus, buffer.StepStatus, Count);
-        Array.Copy(StepIssuedTick, buffer.StepIssuedTick, Count);
+        Array.Copy(StepDeadlineTick, buffer.StepDeadlineTick, Count);
         Array.Copy(Lod, buffer.Lod, Count);
         Array.Copy(Pos, buffer.Pos, Count);
         Array.Copy(Hp, buffer.Hp, Count);
@@ -416,7 +419,7 @@ public sealed class NpcStore
         Array.Copy(buffer.PlanId, PlanId, Count);
         Array.Copy(buffer.StepIndex, StepIndex, Count);
         Array.Copy(buffer.StepStatus, StepStatus, Count);
-        Array.Copy(buffer.StepIssuedTick, StepIssuedTick, Count);
+        Array.Copy(buffer.StepDeadlineTick, StepDeadlineTick, Count);
         Array.Copy(buffer.Lod, Lod, Count);
         Array.Copy(buffer.Pos, Pos, Count);
         Array.Copy(buffer.Hp, Hp, Count);
@@ -460,7 +463,7 @@ public sealed class NpcStore
             if (StepStatus[i] == (byte)Runtime.StepStatus.Waiting)
             {
                 StepStatus[i] = (byte)Runtime.StepStatus.Ready;
-                StepIssuedTick[i] = 0;
+                StepDeadlineTick[i] = 0;
                 reissued++;
             }
         }
@@ -641,7 +644,7 @@ public sealed class NpcStore
         PlanId[slot] = 0;
         StepIndex[slot] = 0;
         StepStatus[slot] = (byte)Runtime.StepStatus.Unspawned;
-        StepIssuedTick[slot] = 0;
+        StepDeadlineTick[slot] = 0;
         Lod[slot] = InactiveLod;
         Pos[slot] = default;
         Hp[slot] = 100;
@@ -688,7 +691,7 @@ public sealed class NpcStore
             hash = Mix(hash, (ulong)PlanId[i]);
             hash = Mix(hash, StepIndex[i]);
             hash = Mix(hash, StepStatus[i]);
-            hash = Mix(hash, (ulong)StepIssuedTick[i]);
+            hash = Mix(hash, (ulong)StepDeadlineTick[i]);
             hash = Mix(hash, Lod[i]);
             hash = Mix(hash, (ulong)(uint)BitConverter.SingleToInt32Bits(Pos[i].X));
             hash = Mix(hash, (ulong)(uint)BitConverter.SingleToInt32Bits(Pos[i].Y));

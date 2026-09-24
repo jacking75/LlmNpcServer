@@ -54,6 +54,7 @@
           "replanQueued": { "type": "integer" },
           "eventBacklogs": { "type": "integer" },
           "llmCalls": { "type": "integer" },
+          "tier": { "type": "string" },
           "linkState": { "type": "string" },
           "linkReject": { "type": "string" },
           "linkNegotiation": { "type": "string" },
@@ -184,6 +185,50 @@
           "timeoutSeconds": { "type": "integer" },
           "current": { "type": "boolean" }
         }
+      },
+      "WorldMap": {
+        "type": "object",
+        "properties": {
+          "zones": { "type": "array", "items": { "$ref": "#/components/schemas/WorldZone" } },
+          "pois": { "type": "array", "items": { "$ref": "#/components/schemas/WorldPoi" } }
+        }
+      },
+      "WorldNpcSnapshot": {
+        "type": "object",
+        "properties": {
+          "tick": { "type": "integer" },
+          "id": { "type": "array", "items": { "type": "integer" } },
+          "x": { "type": "array", "items": { "type": "number" } },
+          "z": { "type": "array", "items": { "type": "number" } },
+          "archetype": { "type": "array", "items": { "type": "integer" } },
+          "status": { "type": "array", "items": { "type": "integer" } },
+          "zone": { "type": "array", "items": { "type": "integer" } },
+          "zoneState": { "type": "array", "items": { "type": "integer" } },
+          "zonesState": { "type": "array", "items": { "type": "integer" } }
+        }
+      },
+      "WorldPoi": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "type": { "type": "string" },
+          "zone": { "type": "integer" },
+          "x": { "type": "number" },
+          "z": { "type": "number" }
+        }
+      },
+      "WorldZone": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "id": { "type": "string" },
+          "x": { "type": "number" },
+          "z": { "type": "number" },
+          "minX": { "type": "number" },
+          "minZ": { "type": "number" },
+          "maxX": { "type": "number" },
+          "maxZ": { "type": "number" }
+        }
       }
     }
   },
@@ -200,6 +245,44 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/HostSnapshot" }
+              }
+            }
+          },
+          "401": { "description": "관리 토큰이 없거나 틀렸다" }
+        }
+      }
+    },
+    "/world": {
+      "get": {
+        "operationId": "get_world",
+        "summary": "지도 정적 데이터",
+        "description": "존의 중심·경계와 POI 위치. 기동 때 한 번 조립한다.",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorldMap" }
+              }
+            }
+          },
+          "401": { "description": "관리 토큰이 없거나 틀렸다" }
+        }
+      }
+    },
+    "/world/npcs": {
+      "get": {
+        "operationId": "get_world_npcs",
+        "summary": "지도 NPC 위치",
+        "description": "활성 슬롯만 담은 열 배열. 웹 스레드에서 최대 1초에 한 번 만든다.",
+        "security": [{ "adminToken": [] }],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorldNpcSnapshot" }
               }
             }
           },

@@ -97,6 +97,8 @@ public sealed class LlmOptions
 {
     /// <summary>설정 파일 이름.</summary>
     public const string FileName = "appsettings.Llm.json";
+    /// <summary>저장소에 올리지 않는 개인 엔진 설정.</summary>
+    public const string LocalFileName = "appsettings.Llm.local.json";
 
     /// <summary>기본 엔진 id.</summary>
     public required string Default { get; init; }
@@ -218,17 +220,32 @@ public sealed class LlmOptions
             throw new InvalidDataException($"{path} 에서 엔진을 하나도 읽지 못했다.");
         }
 
+        string localPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, LocalFileName);
+        LlmLocalDto? local = File.Exists(localPath)
+            ? JsonSerializer.Deserialize(File.ReadAllText(localPath), LlmJsonContext.Default.LlmLocalDto)
+            : null;
+        var engines = dto.Engines.ToList();
+        if (local?.Engines is { } additions)
+        {
+            foreach (LlmEngineDto engine in additions)
+            {
+                int index = engines.FindIndex(existing => string.Equals(existing.Id, engine.Id, StringComparison.Ordinal));
+                if (index >= 0) engines[index] = engine;
+                else engines.Add(engine);
+            }
+        }
+
         return new LlmOptions
         {
-            Default = dto.Default,
-            Preferred = dto.Preferred is null ? [] : [.. dto.Preferred],
-            Chains = dto.Chains is null
+            Default = local?.Default ?? dto.Default,
+            Preferred = (local?.Preferred ?? dto.Preferred) is { } preferred ? [.. preferred] : [],
+            Chains = (local?.Chains ?? dto.Chains) is not { } chains
                 ? ImmutableDictionary<string, ImmutableArray<string>>.Empty
-                : dto.Chains.ToImmutableDictionary(
+                : chains.ToImmutableDictionary(
                     pair => pair.Key,
                     pair => ImmutableArray.Create(pair.Value),
                     StringComparer.OrdinalIgnoreCase),
-            Engines = [.. dto.Engines.Select(e => e.ToOptions())],
+            Engines = [.. engines.Select(e => e.ToOptions())],
         };
     }
 
@@ -262,6 +279,12 @@ public sealed class LlmOptions
         string[]? Preferred,
         LlmEngineDto[] Engines,
         Dictionary<string, string[]>? Chains = null);
+
+    internal sealed record LlmLocalDto(
+        string? Default,
+        string[]? Preferred,
+        LlmEngineDto[]? Engines,
+        Dictionary<string, string[]>? Chains);
 
     internal sealed record LlmEngineDto(
         string Id,
@@ -301,6 +324,7 @@ public sealed class LlmOptions
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(LlmOptions.LlmOptionsDto))]
+[JsonSerializable(typeof(LlmOptions.LlmLocalDto))]
 internal sealed partial class LlmJsonContext : JsonSerializerContext;
 
 /// <summary>

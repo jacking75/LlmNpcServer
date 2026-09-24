@@ -70,14 +70,14 @@ public sealed class CliTests
     /// 둘은 다른 말이고, 오타와 미구현을 구별하지 못하면 사람이 헤맨다.
     /// </summary>
     [Theory]
-    [InlineData("serve", "B-08")]
-    public void Cli_PendingCommandsSayWhichTaskTheyWaitFor(string command, string task)
+    [InlineData("serve", "Npc.Host 읽기 전용 질의 API")]
+    public void Cli_PendingCommandsExplainTheAlternative(string command, string alternative)
     {
         (int code, _, string error) = Run(command);
 
         Assert.Equal(CliProgram.BadUsage, code);
         Assert.Contains("아직 없다", error, StringComparison.Ordinal);
-        Assert.Contains(task, error, StringComparison.Ordinal);
+        Assert.Contains(alternative, error, StringComparison.Ordinal);
     }
 
     [Fact]

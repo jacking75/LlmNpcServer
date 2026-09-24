@@ -131,7 +131,7 @@ public sealed class MasterDataValidationException : Exception
 /// 조립된 프롬프트 프리픽스의 토큰 수 (V9). null 이면 V9 를 건너뛴다.
 /// 프리픽스 조립은 Npc.Llm 소관이고 P2 에서 생긴다 (docs/01 §10).
 /// </param>
-public sealed record MasterDataValidationOptions(int? PromptPrefixTokens = null);
+public sealed record MasterDataValidationOptions(int? PromptPrefixTokens = null, int? TargetPopulation = null);
 
 /// <summary>
 /// 마스터데이터 검증 V1~V13. docs/01 §11.
@@ -204,7 +204,7 @@ public static class MasterDataValidator
             CheckV7(ctx, violations, skipped);
             CheckV8(ctx, violations, skipped);
             CheckV9(options, violations, skipped);
-            CheckV10(ctx, violations);
+            CheckV10(ctx, violations, options.TargetPopulation ?? PopulationOf(masterDataDirectory));
             CheckV11(ctx, violations);
             CheckV12(ctx, violations);
             CheckV13(ctx, violations, skipped);
@@ -656,10 +656,16 @@ public static class MasterDataValidator
     // ---------------------------------------------------------------- V10
 
     /// <summary>V10 — 일터 정원 총합이 그 일터를 쓰는 아키타입 인구 이상이다.</summary>
-    private static void CheckV10(Context ctx, ImmutableArray<MasterDataViolation>.Builder violations)
+    private static int PopulationOf(string masterDataDirectory)
     {
-        const int TargetPopulation = 5_000;
+        string instances = Path.Combine(masterDataDirectory, "npc_instances.json");
+        if (!File.Exists(instances)) return 5_000;
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(instances));
+        return doc.RootElement.GetProperty("npcs").GetArrayLength();
+    }
 
+    private static void CheckV10(Context ctx, ImmutableArray<MasterDataViolation>.Builder violations, int targetPopulation)
+    {
         var capacity = new Dictionary<string, int>(StringComparer.Ordinal);
 
         foreach (JsonElement poi in ctx.Array("pois.json", "pois"))
@@ -673,7 +679,7 @@ public static class MasterDataValidator
 
         foreach (JsonElement archetype in ctx.Array("archetypes.json", "archetypes"))
         {
-            int population = (int)Math.Ceiling(archetype.GetProperty("population_weight").GetDouble() * TargetPopulation);
+            int population = (int)Math.Ceiling(archetype.GetProperty("population_weight").GetDouble() * targetPopulation);
             homeNeed += population;
 
             if (!archetype.TryGetProperty("workplace_poi_type", out JsonElement workplace)

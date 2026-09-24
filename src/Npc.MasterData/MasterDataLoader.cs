@@ -74,6 +74,8 @@ public static class MasterDataLoader
             throw new DirectoryNotFoundException($"masterdata 폴더를 찾지 못했다: {masterDataDirectory}");
         }
 
+        CoreVocabulary.RequireBuiltWorldFlags(masterDataDirectory);
+
         bool skipDistances = options?.SkipDistances == true;
 
         string Path_(string name) => Path.Combine(masterDataDirectory, name);

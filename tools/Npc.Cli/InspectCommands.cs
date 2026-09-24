@@ -122,6 +122,10 @@ public static class ExplainCommand
 
         switch (kind)
         {
+            case "core" when id is null:
+                ctx.Out.Write(CoreVocabulary.Explain());
+                return Program.Ok;
+
             case "archetype" when id is not null:
                 ctx.Out.Write(ArchetypeCard.Render(ctx.Data, Program.Archetype(ctx, id).Code, ctx.Population));
                 return Program.Ok;

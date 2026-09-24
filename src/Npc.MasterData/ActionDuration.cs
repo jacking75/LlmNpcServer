@@ -45,6 +45,14 @@ public static class ActionDuration
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(action);
 
+        foreach (EmitDef emit in action.Emits)
+        {
+            if (emit.Command == NpcCommandKind.Interact)
+            {
+                return WorkSeconds(data, step.Item, step.Count, action.Duration.BaseSeconds);
+            }
+        }
+
         double seconds = action.Duration.Kind switch
         {
             DurationKind.Fixed => action.Duration.BaseSeconds,
@@ -55,6 +63,19 @@ public static class ActionDuration
         };
 
         return seconds <= 0 ? 1 : seconds;
+    }
+
+    /// <summary>상호작용 소요 시간. 레시피가 있으면 제작 횟수까지 반영한다.</summary>
+    public static int WorkSeconds(MasterDataSet data, ItemId item, int count, int defaultSeconds)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        if (item.Value != 0 && data.Items.TryGetRecipe(data.Items[item].Id, out RecipeDef recipe))
+        {
+            return recipe.DurationSeconds * Math.Max(count, 1);
+        }
+
+        return Math.Max(defaultSeconds, 1);
     }
 
     /// <summary>

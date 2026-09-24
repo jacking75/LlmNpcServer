@@ -59,6 +59,10 @@
   .heat-row > b { flex: 0 0 96px; color: var(--dim); font-weight: 400; font-size: 10px;
                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .heat-row > i { flex: 0 0 8px; height: 8px; border-radius: 1px; }
+  #world-map { display: block; width: 100%; height: 480px; background: #111821;
+               border: 1px solid var(--line); border-radius: 4px; touch-action: none; cursor: grab; }
+  #world-map.dragging { cursor: grabbing; }
+  #map-hint { color: var(--dim); margin: 8px 0 0; }
 </style>
 </head>
 <body>
@@ -69,12 +73,18 @@
 </header>
 
 <div class="grid">
+  <section class="wide">
+    <h2>라이브 월드 지도</h2>
+    <canvas id="world-map" aria-label="NPC와 장소의 현재 지도"></canvas>
+    <p id="map-hint">NPC를 누르면 아래 추적 패널에 ID가 입력된다. 휠로 확대하고 드래그로 이동한다.</p>
+  </section>
   <section><h2>틱</h2><table id="p-tick"></table></section>
   <section><h2>NPC</h2><table id="p-npc"></table></section>
   <section><h2>액션 Top 10</h2><table id="p-action"></table></section>
   <section><h2>링크</h2><table id="p-link"></table></section>
   <section>
     <h2>재계획</h2>
+    <p id="replan-note"></p>
     <table id="p-replan"></table>
     <h3>티어별 처리율</h3>
     <table id="p-replan-tier"></table>
@@ -118,9 +128,127 @@ const POLL_MS = 1000;
 const TICK_BUDGET_MS = 20;   // docs/11 §5
 const SCAN_BUDGET = 150;     // docs/11 §9
 const LOD_NAMES = ["0 근접", "1 근거리", "2 원거리", "3 비활성"];
-const STEP_STATUS = ["Unspawned", "Ready", "Waiting", "Completed", "Failed", "Done", "?", "?"];
+const STEP_STATUS = ["Ready", "Waiting", "Done", "Unspawned", "Completed", "Failed", "Holding", "?"];
 
 const $ = (id) => document.getElementById(id);
+const mapCanvas = $("world-map");
+const mapView = { scale: 1, x: 0, z: 0, drag: null, moved: false };
+let worldMap = null;
+let worldNpcs = null;
+
+function mapScreen(x, z) {
+  return { x: x * mapView.scale + mapView.x, y: z * mapView.scale + mapView.z };
+}
+
+function fitMap() {
+  if (!worldMap || worldMap.pois.length === 0) return;
+  const xs = worldMap.pois.map(p => p.x);
+  const zs = worldMap.pois.map(p => p.z);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const width = mapCanvas.clientWidth, height = mapCanvas.clientHeight;
+  mapView.scale = Math.min((width - 50) / Math.max(1, maxX - minX),
+                           (height - 50) / Math.max(1, maxZ - minZ));
+  mapView.x = width / 2 - (minX + maxX) * mapView.scale / 2;
+  mapView.z = height / 2 - (minZ + maxZ) * mapView.scale / 2;
+}
+
+function drawMap() {
+  if (!worldMap || !worldNpcs) return;
+  const ratio = window.devicePixelRatio || 1;
+  const width = mapCanvas.clientWidth, height = mapCanvas.clientHeight;
+  mapCanvas.width = Math.round(width * ratio);
+  mapCanvas.height = Math.round(height * ratio);
+  const ctx = mapCanvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const borders = ["#64748b", "#fb923c", "#ef4444", "#a855f7"];
+  worldMap.zones.forEach((zone, index) => {
+    const a = mapScreen(zone.minX, zone.minZ);
+    const b = mapScreen(zone.maxX, zone.maxZ);
+    ctx.strokeStyle = borders[worldNpcs.zonesState[index] ?? 0];
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(Math.min(a.x, b.x) - 5, Math.min(a.y, b.y) - 5,
+                   Math.abs(b.x - a.x) + 10, Math.abs(b.y - a.y) + 10);
+  });
+
+  ctx.fillStyle = "#64748b";
+  for (const poi of worldMap.pois) {
+    const p = mapScreen(poi.x, poi.z);
+    ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+  }
+  for (let i = 0; i < worldNpcs.id.length; i++) {
+    const p = mapScreen(worldNpcs.x[i], worldNpcs.z[i]);
+    ctx.fillStyle = `hsl(${(worldNpcs.archetype[i] * 137.508) % 360} 75% 64%)`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, worldNpcs.status[i] === 6 ? 2.4 : 3.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  $("map-hint").textContent =
+    `틱 ${worldNpcs.tick} · NPC ${worldNpcs.id.length}명 · POI ${worldMap.pois.length}곳 · ` +
+    "테두리: 평시 회색, 경계 주황, 전쟁 빨강 · NPC를 누르면 추적한다";
+}
+
+async function pollWorld() {
+  try {
+    if (!worldMap) {
+      const staticRes = await fetch("/world");
+      if (!staticRes.ok) throw new Error("HTTP " + staticRes.status);
+      worldMap = await staticRes.json();
+      fitMap();
+    }
+    const res = await fetch("/world/npcs", { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    worldNpcs = await res.json();
+    drawMap();
+  } catch (error) {
+    $("map-hint").textContent = "지도 조회 실패: " + error.message;
+  }
+}
+
+mapCanvas.addEventListener("pointerdown", event => {
+  mapCanvas.setPointerCapture(event.pointerId);
+  mapView.drag = { x: event.clientX, y: event.clientY };
+  mapView.moved = false;
+  mapCanvas.classList.add("dragging");
+});
+mapCanvas.addEventListener("pointermove", event => {
+  if (!mapView.drag) return;
+  const dx = event.clientX - mapView.drag.x, dy = event.clientY - mapView.drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 2) mapView.moved = true;
+  mapView.x += dx; mapView.z += dy;
+  mapView.drag = { x: event.clientX, y: event.clientY };
+  drawMap();
+});
+mapCanvas.addEventListener("pointerup", event => {
+  mapView.drag = null;
+  mapCanvas.classList.remove("dragging");
+  if (mapView.moved || !worldNpcs) return;
+  const bounds = mapCanvas.getBoundingClientRect();
+  const x = event.clientX - bounds.left, y = event.clientY - bounds.top;
+  let nearest = -1, best = 64;
+  for (let i = 0; i < worldNpcs.id.length; i++) {
+    const p = mapScreen(worldNpcs.x[i], worldNpcs.z[i]);
+    const distance = (p.x - x) ** 2 + (p.y - y) ** 2;
+    if (distance < best) { nearest = i; best = distance; }
+  }
+  if (nearest >= 0) {
+    $("trace-id").value = worldNpcs.id[nearest];
+    pollTrace();
+  }
+});
+mapCanvas.addEventListener("wheel", event => {
+  event.preventDefault();
+  const bounds = mapCanvas.getBoundingClientRect();
+  const x = event.clientX - bounds.left, y = event.clientY - bounds.top;
+  const ratio = Math.exp(-event.deltaY * 0.001);
+  mapView.x = x - (x - mapView.x) * ratio;
+  mapView.z = y - (y - mapView.z) * ratio;
+  mapView.scale *= ratio;
+  drawMap();
+}, { passive: false });
+window.addEventListener("resize", drawMap);
 
 function rows(table, items) {
   table.replaceChildren(...items.map(([k, v, cls]) => {
@@ -188,7 +316,7 @@ function spark(id, value, floor) {
     + (floor === undefined ? "" : ` · 하한 ${(100 * floor).toFixed(0)} %`);
 }
 
-function render(m) {
+function render(m, status) {
   const t = m.tick, n = m.npc, l = m.link, r = m.replan;
 
   $("clock").textContent =
@@ -240,6 +368,9 @@ function render(m) {
     ["인터럽트 억제", r.interruptsSuppressed],
     ["LLM 호출", m.llmCalls, m.llmCalls > 0 ? "warn" : "ok"],
   ]);
+  $("replan-note").textContent = status?.tier === "none"
+    ? "LLM 꺼짐: 재계획 요청을 소비하는 워커가 없어 큐에 쌓인다. NPC는 기존 플랜과 기본 행동으로 계속 움직인다."
+    : "";
 
   renderTiers(r.tiers);
   renderHistogram(r.scoreHistogram, r.queueDepth);
@@ -451,10 +582,13 @@ async function poll() {
   const state = $("state");
 
   try {
-    const res = await fetch("/metrics", { cache: "no-store" });
-    if (!res.ok) { throw new Error("HTTP " + res.status); }
+    const [res, statusRes] = await Promise.all([
+      fetch("/metrics", { cache: "no-store" }),
+      fetch("/status", { cache: "no-store" }),
+    ]);
+    if (!res.ok || !statusRes.ok) { throw new Error("HTTP " + (res.ok ? statusRes.status : res.status)); }
 
-    render(await res.json());
+    render(await res.json(), await statusRes.json());
     state.textContent = "live";
     state.className = "live";
   } catch (e) {
@@ -463,6 +597,7 @@ async function poll() {
   }
 
   await pollTrace();
+  await pollWorld();
 }
 
 poll();
