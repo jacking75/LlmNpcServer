@@ -35,6 +35,8 @@ MMORPG 게임 서버 옆에서 NPC 행동을 결정하는 .NET 10 서버다. 시
 
 .NET 10 SDK를 설치하고 저장소 루트에서 실행한다. 첫 명령은 서버와 도구를 빌드한다. 두 번째 명령은 데이터·파생물·키·포트를 진단한다. 세 번째는 게임 서버 대역을 내부에서 돌리며 NPC 100명의 게임 속 하루를 약 2분 24초에 실행한다. 외부 LLM 비용은 발생하지 않는다.
 
+SDK 없이 시작하려면 [v1.0.0 배포 zip](https://github.com/jacking75/LlmNpcServer/releases/tag/v1.0.0)을 내려받아 압축 파일의 `QUICKSTART.md`를 따른다.
+
 ```powershell
 dotnet build -c Release
 dotnet run -c Release --project src/Npc.Host -- doctor

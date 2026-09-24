@@ -67,7 +67,7 @@ LLM 엔진은 [연결 안내](llm/README.md)에 따라 설정한다. `Npc.Prebak
 
 Docker/Kubernetes 예제는 `deploy/`에 있다. `--profile service`, 스냅샷, 관리 API, `/status`·`/metrics`, 알림 웹훅, 킬스위치를 운영 환경에서 점검한다. API 키는 환경변수나 시크릿 저장소에 둔다. [시크릿 운영 안내](security/secrets.md)에 키 이름과 노출 방지 방법이 있다. 서버 옵션 전체는 [생성된 옵션 표](host_options.md)에 있다.
 
-자체 포함 배포 zip은 .NET 10 SDK와 Python 3.9+가 있는 빌드 머신에서 `tools/publish.ps1 -Rid win-x64` 또는 `-Rid linux-x64`로 만든다. 코드는 [MIT 라이선스](../LICENSE)로 배포한다. 압축을 푼 사용자는 SDK 없이 [빠른 시작](../QUICKSTART.md)을 따른다.
+자체 포함 배포 zip은 [v1.0.0 Release](https://github.com/jacking75/LlmNpcServer/releases/tag/v1.0.0)에서 내려받거나, .NET 10 SDK와 Python 3.9+가 있는 빌드 머신에서 `tools/publish.ps1 -Rid win-x64` 또는 `-Rid linux-x64`로 만든다. 코드는 [MIT 라이선스](../LICENSE)로 배포한다. 압축을 푼 사용자는 SDK 없이 [빠른 시작](../QUICKSTART.md)을 따른다.
 
 ## 상용 투입 전 남은 판단
 
