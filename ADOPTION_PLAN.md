@@ -29,14 +29,14 @@
 - [x] [T7. 첫 실행 로그 · 종료 판정 · 실행 기준 폴더를 초심자용으로](#t7) — 완료 2026-09-24 09:16 KST
 - [x] [T8. `Npc.Host doctor` — 한 번에 진단하고 다음 할 일을 말한다](#t8) — 완료 2026-09-24 09:16 KST
 - [x] [T9. 대시보드 라이브 지도](#t9) — 완료 2026-09-24 08:49 KST
-- [ ] [T10. 데모 플랜 팩](#t10) — ⚠ 사람 결정 + 비용 승인
+- [ ] [T10. 데모 플랜 팩](#t10) — 도달 버킷 목록 옵션 구현·검증 완료, 팩 방식·비용 결정 대기
 
 **P1 — 문서를 줄이고 사실에 맞춘다**
 
 - [x] [T11. 사용자 대면 문자열에서 내부 작업 ID 제거 · `--help` 그룹화 · 옵션 문서 생성](#t11) — 완료 2026-09-24 08:49 KST
-- [ ] [T12. README 재구성 (≤ 250줄)](#t12)
+- [x] [T12. README 재구성 (≤ 250줄)](#t12) — 완료 2026-09-24 09:43 KST (깨끗한 클론에서 100 NPC 하루 정상 종료)
 - [x] [T13. 낡은·모순 문서 정리 + README 드리프트 테스트](#t13) — 완료 2026-09-24 09:33 KST
-- [ ] [T14. HTML 문서를 GitHub 에서 읽히게 한다 (GitHub Pages)](#t14) — ⚠ 사람 결정
+- [ ] [T14. HTML 문서를 GitHub 에서 읽히게 한다 (GitHub Pages)](#t14) — 링크·자산 준비 완료, 공개 설정 결정 대기
 
 **P2 — 예제 마을이 아니라 "우리 게임"으로 옮겨 가는 길**
 
@@ -47,7 +47,7 @@
 **P2 — 설치와 LLM 연결**
 
 - [x] [T18. LLM 엔진 연결을 쉽게 — OpenAI 키 · Ollama · LM Studio](#t18) — 완료 2026-09-24 09:14 KST (설정·병합 검증 완료, 실제 엔진 호출 미실시)
-- [ ] [T19. 배포 산출물(자체 포함 zip) + 플랫폼 표기 정정](#t19) — ⚠ 릴리스 게시는 사람 결정
+- [ ] [T19. 배포 산출물(자체 포함 zip) + 플랫폼 표기 정정](#t19) — Windows·WSL 임시 패키지 검증 완료, LICENSE·릴리스 결정 대기
 
 ### 순서와 의존
 
@@ -662,12 +662,12 @@ ticks 1440 · game day 1 · events 344030 · commands 299096 · steps 298092 · 
 **구현 (A)**
 
 1. 사용자 승인 + 사용할 엔진·키 확인
-2. 도달 집합만 굽는 방법을 `dotnet run --project tools/Npc.Prebake -- --help` 로 확인 — 없으면 버킷 목록을 받는 옵션을 **별도 커밋**으로 먼저 추가
-3. `dotnet run -c Release --project tools/Npc.Prebake -- --masterdata ./masterdata --out ./planstore --tier T2 --model <승인된 엔진> --concurrency 8 --budget-usd 1.00 <도달 집합 옵션>`
+2. 도달 집합만 굽는 `--buckets-file` 옵션을 추가했다. `tools/reachable_buckets.py`로 현재 마스터데이터의 평시 도달 집합 264개를 산출하고 `--plan`으로 대상 수를 확인한다. `/heatmap.csv`는 실제 관측 집합의 별도 근거다
+3. `dotnet run -c Release --project tools/Npc.Prebake -- --masterdata ./masterdata --out ./planstore --tier T2 --model <승인된 엔진> --concurrency 8 --budget-usd 1.00 --buckets-file reachable-buckets.txt`
 4. `rejected/` 는 커밋하지 않는다(실패 원자료는 로컬 보존 — CLAUDE.md §7)
 5. `.gitignore` 에 `!planstore/<sha8>/plans/` 예외 · CLAUDE.md §6 "반드시 커밋하는 것"에 한 줄 + 이유 · `manifest.json` 갱신분 커밋
 
-**검증** 깨끗한 클론 빠른 시작 → 버킷 283/2880 이상, 캐시 히트율 &gt; 0 — **실측값을** README·`reference_metrics.html` 에 적는다
+**검증** 깨끗한 클론 빠른 시작 → 기존 고정 19개보다 채워진 버킷이 늘고 캐시 히트율 &gt; 0 — **실측값을** README·`reference_metrics.html` 에 적는다. 도달 집합 264개 중 고정 플랜과 겹치는 것이 5개여서 실제 생성 대상은 259개다. 생성 성공률이 100%라고 가정해 283개를 요구하지 않는다
 
 **완료 기준** 키 없는 첫 실행에서 LLM 생성 플랜이 돌고 히트율이 0 이 아니다.
 
@@ -984,7 +984,7 @@ README 의 LLM 절은 dotLLM 실행 파일(별도 배포 · GPLv3)부터 시작�
 
 **설계**
 
-- `tools/publish.ps1 -Rid win-x64|linux-x64|osx-arm64` → `dist/npc-server-<버전>-<rid>.zip`
+- `tools/publish.ps1 -Rid win-x64|linux-x64|osx-arm64` → `dist/npc-server-<버전>-<rid>.zip` (.NET 10 SDK·Python 3.9+ 필요; zip은 Unix 경로·실행 권한 보존)
   - Host · npc · Studio · Conformance · TestGameServer (자체 포함. 단일 파일은 Studio 의 정적 자산 때문에 확인 후)
   - `masterdata/` · `planstore/pinned/` + `manifest.json` · `appsettings.Llm.json` · `scenarios/` · `QUICKSTART.md`(5줄) · LICENSE
   - **dotLLM · 모델은 넣지 않는다** (GPLv3 · CLAUDE.md §2.7)
