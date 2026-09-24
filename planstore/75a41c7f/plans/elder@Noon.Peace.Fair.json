@@ -1,0 +1,61 @@
+﻿{
+  "schema": 1,
+  "bucket": "elder@Noon.Peace.Fair",
+  "archetype": "elder",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "visit_temple_and_rest",
+  "reasoning": "Noon, peaceful, fair weather. Elder has low diligence and courage. Visit temple for prayer, then rest at home.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$temple",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Pray",
+      "args": {
+        "duration_s": 900
+      },
+      "timeout_s": 1200
+    },
+    {
+      "action": "Gossip",
+      "args": {
+        "npc": "nearest:villager",
+        "topic": "rumor"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 3600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Evening"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

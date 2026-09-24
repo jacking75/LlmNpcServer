@@ -1,0 +1,72 @@
+﻿{
+  "schema": 1,
+  "bucket": "miner@Evening.Peace.Fair",
+  "archetype": "miner",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "mine_and_rest",
+  "reasoning": "Evening, peaceful, and high diligence; mine for a good portion of the remaining day, then head to the tavern for rest and social interaction.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$nearest_field",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Mine",
+      "args": {
+        "resource": "iron_ore",
+        "count": 10
+      },
+      "timeout_s": 2700
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$tavern",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Drink",
+      "args": {},
+      "timeout_s": 120
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 2400
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "gate_guard@Morning.Peace.Fair",
+  "archetype": "gate_guard",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"guard_gate_and_patrol","reasoning":"Morning, peaceful, on duty: guard the gate, then patrol the nearby area, and return home to rest.","steps":[{"action":"MoveTo","args":{"poi":"$gate"},"timeout_s":600},{"action":"Guard","args":{"poi":"$gate","duration_s":3600},"timeout_s":7200},{"action":"MoveTo","args":{"poi":"$patrol_route"},"timeout_s":600},{"action":"Patrol","args":{"route":["$gate","$market","$home"],"laps":1},"timeout_s":1800},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Rest","args":{"duration_s":1800},"timeout_s":3600},{"action":"Sleep","args":{"until_time":"Morning"}}],"on_step_fail":"fallback","loop":true}
+}

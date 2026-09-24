@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "gate_guard@Evening.Peace.Fair",
+  "archetype": "gate_guard",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"gate_duty_then_rest","reasoning":"evening, peaceful, on duty; guard the gate for a few hours, then head home to sleep","steps":[{"action":"MoveTo","args":{"poi":"$workplace","speed":"walk"},"timeout_s":600},{"action":"Guard","args":{"poi":"$workplace","duration_s":3600},"timeout_s":7200},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Eat","args":{},"timeout_s":300},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

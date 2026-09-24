@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "quest_giver@Afternoon.Peace.Fair",
+  "archetype": "quest_giver",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"afternoon_briefing_and_rest","reasoning":"afternoon, peaceful; talk to adventurers at the tavern, then rest and go home. The previous attempt failed because 'nearest:adventurer' is not a valid npc_ref.","steps":[{"action":"MoveTo","args":{"poi":"$tavern","speed":"walk"},"timeout_s":600},{"action":"Talk","args":{"npc":"nearest:villager","topic":"work"},"timeout_s":120},{"action":"Talk","args":{"npc":"nearest:villager","topic":"work"},"timeout_s":120},{"action":"Rest","args":{"duration_s":900},"timeout_s":1200},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Evening"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

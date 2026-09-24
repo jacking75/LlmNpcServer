@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "brewer@Night.Peace.Fair",
+  "archetype": "brewer",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"brew_and_store_ale","reasoning":"night, peaceful; brew ale, store it, then rest at home","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Withdraw","args":{"item":"wheat","count":15},"timeout_s":300},{"action":"Withdraw","args":{"item":"water","count":10},"timeout_s":300},{"action":"Craft","args":{"recipe":"ale","count":4},"timeout_s":1800},{"action":"Store","args":{"item":"ale","count":16},"timeout_s":120},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"}}],"on_step_fail":"fallback","loop":true}
+}

@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "innkeeper@Night.Peace.Fair",
+  "archetype": "innkeeper",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"serve_and_rest","reasoning":"night, peaceful; cook for guests, then clean up and rest at home. The previous plan failed to get raw materials for cooking.","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Withdraw","args":{"item":"raw_fish","count":2},"timeout_s":300},{"action":"Cook","args":{"recipe":"cooked_fish","count":2},"timeout_s":900},{"action":"Store","args":{"item":"cooked_fish","count":2},"timeout_s":120},{"action":"Gossip","args":{"npc":"nearest:villager","topic":"rumor"},"timeout_s":600},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

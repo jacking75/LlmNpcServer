@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "villager@Noon.Peace.Fair",
+  "archetype": "villager",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"noon_errands_and_chat","reasoning":"peaceful day, midday; run errands at the market, chat with locals, then head home to rest","steps":[{"action":"MoveTo","args":{"poi":"$market","speed":"walk"},"timeout_s":600},{"action":"Trade","args":{"item":"bread","amount":1},"timeout_s":600},{"action":"Gossip","args":{"npc":"nearest:villager","topic":"rumor"},"timeout_s":300},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Eat","args":{},"timeout_s":300},{"action":"Rest","args":{"duration_s":900},"timeout_s":1200},{"action":"Sleep","args":{"until_time":"Evening"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

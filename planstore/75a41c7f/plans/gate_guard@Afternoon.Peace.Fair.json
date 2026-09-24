@@ -1,0 +1,54 @@
+﻿{
+  "schema": 1,
+  "bucket": "gate_guard@Afternoon.Peace.Fair",
+  "archetype": "gate_guard",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "guard_gate_then_rest",
+  "reasoning": "Afternoon, peaceful, on duty. Guard the gate for a set duration, then rest at home before sleeping.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Guard",
+      "args": {
+        "poi": "$workplace",
+        "duration_s": 3600
+      },
+      "timeout_s": 4000
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 2000
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

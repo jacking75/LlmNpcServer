@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "watchman@Night.Peace.Fair",
+  "archetype": "watchman",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"night_watch_then_rest","reasoning":"night, peaceful, on duty; patrol the route, then rest at home before morning","steps":[{"action":"MoveTo","args":{"poi":"$patrol_route","speed":"walk"},"timeout_s":600},{"action":"Patrol","args":{"route":["$patrol_route","$gate","$market","$home"],"laps":1},"timeout_s":7200},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Rest","args":{"duration_s":1800},"timeout_s":2400},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

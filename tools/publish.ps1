@@ -57,6 +57,23 @@ try {
         $source = Join-Path (Join-Path $repoRoot 'planstore') $name
         if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination $planTarget -Recurse }
     }
+    $demoMarker = Join-Path $repoRoot 'planstore/demo-pack.txt'
+    if (Test-Path -LiteralPath $demoMarker -PathType Leaf) {
+        $demoPrefix = (Get-Content -LiteralPath $demoMarker -Raw).Trim()
+        if ($demoPrefix -cnotmatch '^[0-9a-f]{8}$') { throw 'demo-pack.txt의 프리픽스가 잘못됐다.' }
+        $demoSource = Join-Path (Join-Path $repoRoot 'planstore') $demoPrefix
+        if (-not (Test-Path -LiteralPath (Join-Path $demoSource 'plans') -PathType Container)) {
+            throw "데모 플랜 폴더가 없다: $demoSource"
+        }
+        $demoTarget = Join-Path $planTarget $demoPrefix
+        New-Item -ItemType Directory -Path $demoTarget -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $demoSource 'plans') -Destination $demoTarget -Recurse
+        $demoManifest = Join-Path $demoSource 'manifest.json'
+        if (Test-Path -LiteralPath $demoManifest -PathType Leaf) {
+            Copy-Item -LiteralPath $demoManifest -Destination $demoTarget
+        }
+        Copy-Item -LiteralPath $demoMarker -Destination $planTarget
+    }
     $sampleTarget = Join-Path $package 'samples'
     New-Item -ItemType Directory -Path $sampleTarget -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $repoRoot 'samples/worlds') -Destination $sampleTarget -Recurse

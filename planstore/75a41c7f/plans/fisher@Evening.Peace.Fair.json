@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "fisher@Evening.Peace.Fair",
+  "archetype": "fisher",
+  "version": 1,
+  "origin": "Repaired",
+  "plan": {"schema":1,"goal":"evening_fishing_and_rest","reasoning":"evening, peaceful, fair weather; fish for a bit, store the catch, eat, and rest before sleeping","steps":[{"action":"MoveTo","args":{"poi":"$nearest_field"},"timeout_s":600},{"action":"Fish","args":{"count":5},"timeout_s":900},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Store","args":{"item":"raw_fish","count":5},"timeout_s":120},{"action":"Eat","args":{},"timeout_s":300},{"action":"Rest","args":{"duration_s":600},"timeout_s":900},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

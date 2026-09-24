@@ -1,0 +1,65 @@
+﻿{
+  "schema": 1,
+  "bucket": "patrol_scout@Noon.Peace.Fair",
+  "archetype": "patrol_scout",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "patrol_outskirts_and_return",
+  "reasoning": "noon, peaceful, on duty; patrol the designated route, observe for threats, and return home to rest",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$patrol_route",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Patrol",
+      "args": {
+        "route": [
+          "$patrol_route",
+          "$nearest_field"
+        ],
+        "laps": 1
+      },
+      "timeout_s": 3600
+    },
+    {
+      "action": "Observe",
+      "args": {
+        "target": "nearest:villager",
+        "duration_s": 600
+      },
+      "timeout_s": 900
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 2400
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

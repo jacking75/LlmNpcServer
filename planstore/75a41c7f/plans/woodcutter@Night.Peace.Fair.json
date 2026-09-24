@@ -1,0 +1,55 @@
+﻿{
+  "schema": 1,
+  "bucket": "woodcutter@Night.Peace.Fair",
+  "archetype": "woodcutter",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "night_rest_and_prepare",
+  "reasoning": "Nighttime, peaceful, and the woodcutter has tools and weapons. The plan is to rest, eat, and then prepare for the next day's work by sharpening the axe.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Drink",
+      "args": {},
+      "timeout_s": 120
+    },
+    {
+      "action": "Equip",
+      "args": {
+        "item": "axe"
+      },
+      "timeout_s": 60
+    },
+    {
+      "action": "Wait",
+      "args": {
+        "duration_s": 600
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

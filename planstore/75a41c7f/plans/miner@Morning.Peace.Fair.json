@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "miner@Morning.Peace.Fair",
+  "archetype": "miner",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"mine_and_deliver_ore","reasoning":"morning, peaceful; mine iron ore, deliver it to the market, then rest","steps":[{"action":"MoveTo","args":{"poi":"$nearest_field","speed":"walk"},"timeout_s":600},{"action":"Mine","args":{"resource":"iron_ore","count":8},"timeout_s":1800},{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Store","args":{"item":"iron_ore","count":8},"timeout_s":120},{"action":"MoveTo","args":{"poi":"$market","speed":"walk"},"timeout_s":600},{"action":"Trade","args":{"item":"iron_ore","amount":8},"timeout_s":600},{"action":"MoveTo","args":{"poi":"$tavern","speed":"walk"},"timeout_s":600},{"action":"Rest","args":{"duration_s":1800},"timeout_s":3600},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"}}],"on_step_fail":"fallback","loop":true}
+}

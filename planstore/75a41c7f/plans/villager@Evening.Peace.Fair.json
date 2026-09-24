@@ -1,0 +1,68 @@
+﻿{
+  "schema": 1,
+  "bucket": "villager@Evening.Peace.Fair",
+  "archetype": "villager",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "evening_market_visit_and_chat",
+  "reasoning": "Evening, peaceful, fair weather. Villager with moderate sociability and diligence. Visit the market for errands, chat with a villager, then head home to rest.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$market",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Trade",
+      "args": {
+        "item": "bread",
+        "amount": 5
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Talk",
+      "args": {
+        "npc": "nearest:villager",
+        "topic": "greeting"
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "Gossip",
+      "args": {
+        "npc": "nearest:villager",
+        "topic": "rumor"
+      },
+      "timeout_s": 300
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

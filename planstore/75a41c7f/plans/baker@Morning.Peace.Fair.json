@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "baker@Morning.Peace.Fair",
+  "archetype": "baker",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"mill_and_bake_daily","reasoning":"Morning, peaceful. The baker needs flour to bake bread. The previous plan failed because it didn't mill enough flour. Mill twice, then bake bread and store it before resting.","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Work","args":{"recipe":"flour","count":2},"timeout_s":1200},{"action":"Work","args":{"recipe":"bread","count":2},"timeout_s":1800},{"action":"Store","args":{"item":"bread","count":2},"timeout_s":120},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

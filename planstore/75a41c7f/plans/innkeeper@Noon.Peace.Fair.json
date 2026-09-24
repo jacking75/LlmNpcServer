@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "innkeeper@Noon.Peace.Fair",
+  "archetype": "innkeeper",
+  "version": 1,
+  "origin": "Repaired",
+  "plan": {"schema":1,"goal":"serve_guests_and_cook","reasoning":"Noon, peaceful. The innkeeper needs to cook but lacks raw materials. So, withdraw ingredients from home, cook, serve, and then rest.","steps":[{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Withdraw","args":{"item":"raw_fish","count":3},"timeout_s":300},{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Cook","args":{"recipe":"cooked_fish","count":3},"timeout_s":900},{"action":"Store","args":{"item":"cooked_fish","count":3},"timeout_s":120},{"action":"Trade","args":{"item":"cooked_fish","amount":3},"timeout_s":600},{"action":"Rest","args":{"duration_s":600},"timeout_s":900},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"}}],"on_step_fail":"fallback","loop":true}
+}

@@ -55,7 +55,7 @@ python samples/python_gs/mini_gs.py --bundle bundle.json --port 7010 --time-scal
 dotnet run -c Release --project src/Npc.Host -- --link tcp --gs-port 7010 --npcs 300 --time-scale 60 --days 0
 ```
 
-첫 단계에서는 [명령별 응답 표](reference_link.html)와 번들의 해시·로스터 순서를 그대로 따른다. 별도 터미널에서 `dotnet run --project tools/Npc.Conformance -- --host 127.0.0.1 --port 7010 --npcs 300 --time-scale 60 --seconds 60 --probe`를 실행해 C1~C7 판정을 본다. 예제에서 근접과 전투 판정은 미구현이므로 C4·C5는 미판정이다. 운영 전에는 인증·TLS, 재접속, 샤드 소유권을 적용한다.
+첫 단계에서는 [명령별 응답 표](reference_link.html)와 번들의 해시·로스터 순서를 그대로 따른다. 테스트 게임서버에 별도 터미널에서 `dotnet run --project tools/Npc.Conformance -- --host 127.0.0.1 --port 7010 --npcs 300 --time-scale 60 --seconds 60 --probe`를 실행해 C1~C7 판정을 본다. `--probe`는 실제 명령을 보내 게임 상태를 바꿀 수 있으며, 옵션을 빼면 C6은 미판정이다. 예제에서 근접과 전투 판정은 미구현이므로 C4·C5는 미판정이다. 운영 전에는 인증·TLS, 재접속, 샤드 소유권을 적용한다.
 
 ## 플랜을 굽고 검수한다
 
@@ -67,7 +67,7 @@ LLM 엔진은 [연결 안내](llm/README.md)에 따라 설정한다. `Npc.Prebak
 
 Docker/Kubernetes 예제는 `deploy/`에 있다. `--profile service`, 스냅샷, 관리 API, `/status`·`/metrics`, 알림 웹훅, 킬스위치를 운영 환경에서 점검한다. API 키는 환경변수나 시크릿 저장소에 둔다. [시크릿 운영 안내](security/secrets.md)에 키 이름과 노출 방지 방법이 있다. 서버 옵션 전체는 [생성된 옵션 표](host_options.md)에 있다.
 
-자체 포함 배포 zip은 .NET 10 SDK와 Python 3.9+가 있는 빌드 머신에서 `tools/publish.ps1 -Rid win-x64` 또는 `-Rid linux-x64`로 만든다. 라이선스를 확정해 `LICENSE`를 둔 뒤 실행해야 한다. 압축을 푼 사용자는 SDK 없이 [빠른 시작](../QUICKSTART.md)을 따른다.
+자체 포함 배포 zip은 .NET 10 SDK와 Python 3.9+가 있는 빌드 머신에서 `tools/publish.ps1 -Rid win-x64` 또는 `-Rid linux-x64`로 만든다. 코드는 [MIT 라이선스](../LICENSE)로 배포한다. 압축을 푼 사용자는 SDK 없이 [빠른 시작](../QUICKSTART.md)을 따른다.
 
 ## 상용 투입 전 남은 판단
 

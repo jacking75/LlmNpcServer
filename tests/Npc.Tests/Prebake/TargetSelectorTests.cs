@@ -190,6 +190,31 @@ public sealed class TargetSelectorTests
         }
     }
 
+    [Fact]
+    public void Target_BucketsFileResumeSkipsAlreadyGeneratedPlans()
+    {
+        BucketKey first = BucketKey.FromIndex(0);
+        BucketKey second = BucketKey.FromIndex(1);
+        string firstName = first.Format(s_data.Archetypes[first.A].Id);
+        string secondName = second.Format(s_data.Archetypes[second.A].Id);
+        string file = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(file, [firstName, secondName]);
+            TargetSelection selection = TargetSelector.Select(
+                Options("--buckets-file", file, "--resume"),
+                s_data, StoreWith(1), InvalidationScope.Full);
+
+            Assert.Equal(TargetMode.Resume, selection.Mode);
+            Assert.Equal(secondName,
+                Assert.Single(selection.Buckets).Format(s_data.Archetypes[second.A].Id));
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
     /// <summary>무효화가 None 이면 할 것이 없다.</summary>
     [Fact]
     public void Target_NoneSelectsNothing()

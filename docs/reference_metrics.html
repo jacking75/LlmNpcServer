@@ -184,6 +184,9 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
           <tr><td>마지막 틱 인지 스캔 · 이벤트 적체</td><td class="num">150 · 1</td></tr>
         </tbody>
       </table></div>
+      <h3>2026-09-24 데모 플랜 팩 — 첫 실행 검증</h3>
+      <p>현재 프리픽스 <code>75a41c7f</code>에서 평시 도달 집합 264개를 골랐다. 고정 플랜과 겹치는 5개를 빼고 259개를 생성 대상으로 삼았다. OpenRouter Gemini 2.5 Flash Lite를 네 회차 호출해 242개가 검증을 통과했고 17개는 검증 실패로 남았다. 생성 응답 비용 합계는 $0.344647, 워밍업 네 건을 더한 보고 비용은 $0.347332다. 반려 응답은 배포 팩에 넣지 않았다.</p>
+      <p>생성 플랜 242개와 고정 플랜 19개만 넣은 격리 스토어에서 <code>--loopback --npcs 100 --time-scale 600 --days 1 --no-llm</code> 회차를 실행했다. 1,312틱 시점 <code>/metrics</code>의 버킷 캐시 적중은 1,053/1,073건(98.14%)이었다. 게임 속 하루 1,440틱을 정상 종료했고 타임아웃·링크 드롭·이벤트 갭은 0이었다. 적중률은 종료 직전의 관측값이며 전체 2,880개 버킷의 채움 비율과 다르다.</p>
       <h3>2026년 7월 P4 7게임일 완주 회차 (과거 기준선)</h3>
       <div class="table-wrap"><table>
         <thead><tr><th>항목</th><th class="num">값</th></tr></thead>

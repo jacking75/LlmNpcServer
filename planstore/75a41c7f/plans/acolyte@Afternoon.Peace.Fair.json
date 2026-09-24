@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "acolyte@Afternoon.Peace.Fair",
+  "archetype": "acolyte",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"afternoon_temple_work_and_study","reasoning":"Afternoon, peaceful. The plan needs a tool for repair. Get one, then repair, then pray, and finally go home to sleep.","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Withdraw","args":{"item":"smith_hammer","count":1},"timeout_s":300},{"action":"Repair","args":{"target":"$workplace"},"timeout_s":900},{"action":"MoveTo","args":{"poi":"$temple"},"timeout_s":600},{"action":"Pray","args":{"duration_s":900},"timeout_s":1200},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

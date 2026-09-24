@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "drunkard@Evening.Peace.Fair",
+  "archetype": "drunkard",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"evening_drink_and_home","reasoning":"evening, peaceful, and drunkard archetype; wander the town, visit the tavern for a drink, then head home to sleep","steps":[{"action":"MoveTo","args":{"poi":"$tavern","speed":"walk"},"timeout_s":600},{"action":"Drink","args":{},"timeout_s":120},{"action":"Wander","args":{"duration_s":1800},"timeout_s":3600},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

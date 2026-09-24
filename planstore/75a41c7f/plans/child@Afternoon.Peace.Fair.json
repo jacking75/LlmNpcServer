@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "child@Afternoon.Peace.Fair",
+  "archetype": "child",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"afternoon_play_and_errands","reasoning":"afternoon, peaceful; play around the market, then run a small errand for an adult, and head home to sleep","steps":[{"action":"MoveTo","args":{"poi":"$market","speed":"walk"},"timeout_s":600},{"action":"Wander","args":{"duration_s":900},"timeout_s":1200},{"action":"Follow","args":{"npc":"nearest:villager","distance":5},"timeout_s":600},{"action":"Talk","args":{"npc":"nearest:villager","topic":"greeting"},"timeout_s":120},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Eat","args":{},"timeout_s":300},{"action":"Sleep","args":{"until_time":"Night"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

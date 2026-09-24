@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "noble@Noon.Peace.Fair",
+  "archetype": "noble",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"attend_service_and_inspect","reasoning":"noon, peaceful; attend service at the temple, then inspect holdings in the market, and finally rest at home","steps":[{"action":"MoveTo","args":{"poi":"$temple","speed":"walk"},"timeout_s":600},{"action":"Pray","args":{"duration_s":900},"timeout_s":1200},{"action":"MoveTo","args":{"poi":"$market","speed":"walk"},"timeout_s":600},{"action":"Observe","args":{"target":"nearest:merchant","duration_s":600},"timeout_s":900},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Eat","args":{},"timeout_s":300},{"action":"Sleep","args":{"until_time":"Evening"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

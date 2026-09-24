@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "watchman@Dawn.Peace.Fair",
+  "archetype": "watchman",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"start_watch_then_patrol","reasoning":"dawn, on duty; start the day by guarding the gate, then patrol the town until evening","steps":[{"action":"MoveTo","args":{"poi":"$gate","speed":"walk"},"timeout_s":600},{"action":"Guard","args":{"poi":"$gate","duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$patrol_route","speed":"walk"},"timeout_s":600},{"action":"Patrol","args":{"route":["$patrol_route","$market","$tavern","$home"],"laps":2},"timeout_s":3600},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

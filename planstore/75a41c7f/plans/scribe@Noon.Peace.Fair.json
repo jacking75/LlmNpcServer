@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "scribe@Noon.Peace.Fair",
+  "archetype": "scribe",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"copy_and_archive","reasoning":"midday, peaceful, and scribe has tools and coin. Work on parchment, then craft books, store them, and rest at home.","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Work","args":{"recipe":"parchment","count":4},"timeout_s":1200},{"action":"Work","args":{"recipe":"book","count":2},"timeout_s":1800},{"action":"Store","args":{"item":"parchment","count":4},"timeout_s":120},{"action":"Store","args":{"item":"book","count":2},"timeout_s":120},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Eat","args":{},"timeout_s":300},{"action":"Sleep","args":{"until_time":"Evening"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

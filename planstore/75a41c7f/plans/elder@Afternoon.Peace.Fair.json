@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "elder@Afternoon.Peace.Fair",
+  "archetype": "elder",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"afternoon_temple_visit_and_rest","reasoning":"afternoon, peaceful day; visit the temple for prayer, then wander through the village before heading home to rest.","steps":[{"action":"MoveTo","args":{"poi":"$temple","speed":"walk"},"timeout_s":600},{"action":"Pray","args":{"duration_s":1800},"timeout_s":2400},{"action":"Wander","args":{"duration_s":1800},"timeout_s":3600},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Rest","args":{"duration_s":1800},"timeout_s":3600},{"action":"Sleep","args":{"until_time":"Evening"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

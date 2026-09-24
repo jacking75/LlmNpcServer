@@ -1,0 +1,70 @@
+﻿{
+  "schema": 1,
+  "bucket": "miner@Night.Alert.Cold",
+  "archetype": "miner",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "night_mining_and_rest",
+  "reasoning": "Night, alert but peaceful; mine some ore, then head to the tavern to rest and socialize briefly before sleeping at home.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$nearest_field",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Mine",
+      "args": {
+        "resource": "iron_ore",
+        "count": 5
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$tavern",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Talk",
+      "args": {
+        "npc": "nearest:villager",
+        "topic": "greeting"
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 900
+      },
+      "timeout_s": 1200
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

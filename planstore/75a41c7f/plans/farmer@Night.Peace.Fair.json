@@ -1,0 +1,48 @@
+﻿{
+  "schema": 1,
+  "bucket": "farmer@Night.Peace.Fair",
+  "archetype": "farmer",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "night_rest_and_prepare",
+  "reasoning": "night time, peaceful region; farmer should rest at home and prepare for the next day's work.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Drink",
+      "args": {},
+      "timeout_s": 120
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 3600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

@@ -1,0 +1,83 @@
+﻿{
+  "schema": 1,
+  "bucket": "miner@Noon.Peace.Fair",
+  "archetype": "miner",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "mine_and_sell_ore",
+  "reasoning": "Noon, peaceful, high diligence and greed; mine a good amount of ore, sell it at the market, then rest at the tavern before heading home.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$nearest_field",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Mine",
+      "args": {
+        "resource": "iron_ore",
+        "count": 10
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$market",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Trade",
+      "args": {
+        "item": "iron_ore",
+        "amount": 10
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$tavern",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Drink",
+      "args": {},
+      "timeout_s": 120
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 900
+      },
+      "timeout_s": 1200
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

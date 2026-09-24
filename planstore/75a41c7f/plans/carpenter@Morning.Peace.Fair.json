@@ -1,0 +1,77 @@
+﻿{
+  "schema": 1,
+  "bucket": "carpenter@Morning.Peace.Fair",
+  "archetype": "carpenter",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "restock_timber_and_craft",
+  "reasoning": "The previous plan failed because it tried to craft planks without having raw materials. The fix is to add a step to gather timber before crafting.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$nearest_field",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Gather",
+      "args": {
+        "resource": "timber",
+        "count": 4
+      },
+      "timeout_s": 900
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Craft",
+      "args": {
+        "recipe": "plank",
+        "count": 2
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Work",
+      "args": {
+        "recipe": "wooden_chair",
+        "count": 1
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "wooden_chair",
+        "count": 1
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

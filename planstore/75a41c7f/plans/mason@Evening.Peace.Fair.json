@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "mason@Evening.Peace.Fair",
+  "archetype": "mason",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"quarry_and_cut_stone","reasoning":"evening, peaceful; gather stone, cut blocks, store them, and then head home to rest","steps":[{"action":"MoveTo","args":{"poi":"$nearest_field","speed":"walk"},"timeout_s":600},{"action":"Mine","args":{"resource":"stone","count":10},"timeout_s":1800},{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Craft","args":{"recipe":"stone_block","count":3},"timeout_s":1800},{"action":"Store","args":{"item":"stone_block","count":3},"timeout_s":120},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Eat","args":{},"timeout_s":300},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

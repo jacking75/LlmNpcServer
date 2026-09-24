@@ -38,6 +38,7 @@
     <VersionPrefix>1.0.0</VersionPrefix>
     <Product>LLM NPC Server</Product>
     <Company>LLM NPC Server</Company>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
 

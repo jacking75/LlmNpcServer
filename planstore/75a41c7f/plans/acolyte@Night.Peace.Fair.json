@@ -1,0 +1,54 @@
+﻿{
+  "schema": 1,
+  "bucket": "acolyte@Night.Peace.Fair",
+  "archetype": "acolyte",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "night_prayers_and_rest",
+  "reasoning": "Night, peaceful, acolyte: pray at the temple, then head home to sleep.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$temple",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Pray",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 2400
+    },
+    {
+      "action": "Gossip",
+      "args": {
+        "npc": "nearest:priest",
+        "topic": "rumor"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

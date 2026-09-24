@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "farmer@Dawn.Peace.Fair",
+  "archetype": "farmer",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"harvest_and_store_wheat","reasoning":"dawn, peaceful; start the day with a harvest, store it, eat and rest before the main work","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Store","args":{"item":"wheat","count":10},"timeout_s":120},{"action":"MoveTo","args":{"poi":"$nearest_field"},"timeout_s":600},{"action":"Farm","args":{"crop":"wheat","count":10},"timeout_s":1200},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Store","args":{"item":"wheat","count":10},"timeout_s":120},{"action":"Eat","args":{},"timeout_s":300},{"action":"Rest","args":{"duration_s":900},"timeout_s":1200},{"action":"Sleep","args":{"until_time":"Morning"}}],"on_step_fail":"fallback","loop":true}
+}

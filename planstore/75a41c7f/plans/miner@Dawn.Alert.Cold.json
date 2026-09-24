@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "miner@Dawn.Alert.Cold",
+  "archetype": "miner",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"mine_then_rest","reasoning":"dawn, alert, cold; go to the mine, gather ore, then rest at the tavern before night","steps":[{"action":"MoveTo","args":{"poi":"$nearest_field","speed":"walk"},"timeout_s":600},{"action":"Mine","args":{"resource":"iron_ore","count":5},"timeout_s":1800},{"action":"MoveTo","args":{"poi":"$tavern","speed":"walk"},"timeout_s":600},{"action":"Rest","args":{"duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "guard_captain@Noon.Peace.Fair",
+  "archetype": "guard_captain",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"inspect_and_assign_watch","reasoning":"noon, peaceful, on duty; inspect the gate, assign watch, then patrol the market before returning home","steps":[{"action":"MoveTo","args":{"poi":"$gate","speed":"walk"},"timeout_s":600},{"action":"Guard","args":{"poi":"$gate","duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$market","speed":"walk"},"timeout_s":600},{"action":"Observe","args":{"target":"nearest:town_guard","duration_s":600},"timeout_s":900},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

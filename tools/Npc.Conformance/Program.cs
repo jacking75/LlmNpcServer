@@ -103,9 +103,16 @@ internal static class Cli
 
             await Task.Delay(TimeSpan.FromSeconds(seconds), cts.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
             Console.Out.WriteLine("중단됐다. 여기까지의 관찰로 판정한다.");
+        }
+        catch (OperationCanceledException) when (probe)
+        {
+            Console.Error.WriteLine("C6 확인용 명령을 보내기 전에 연결 또는 재동기화가 5초 안에 끝나지 않았다.");
+            await cts.CancelAsync().ConfigureAwait(false);
+            try { await run.ConfigureAwait(false); } catch (OperationCanceledException) { }
+            return BadUsage;
         }
 
         observer.Stop();
@@ -253,7 +260,8 @@ internal static class Cli
         Npc.Conformance — 게임서버 적합성 테스트 키트 (B-07)
 
           NPC 서버 대신 게임서버에 붙어 발행 규약(docs/reference_link.html §11)을
-          지키는지 관찰하고 보고서를 낸다. 명령을 내지 않으므로 세계를 바꾸지 않는다.
+          지키는지 관찰하고 보고서를 낸다. 기본 모드는 명령을 내지 않는다.
+          --probe 모드는 명령 3건을 보내며 게임 세계의 상태를 바꿀 수 있다.
 
         사용:
           Npc.Conformance [옵션]
@@ -266,7 +274,7 @@ internal static class Cli
           --time-scale <배속>  게임서버와 같아야 붙는다 (기본 600)
           --seconds <초>       관찰 시간 (기본 60)
           --out <폴더>         보고서 폴더 (기본 docs/measurements)
-          --probe              재동기화 뒤 안전한 명령 3건을 보내 C6 를 확인한다
+          --probe              재동기화 뒤 명령 3건을 보내 C6 를 확인한다
 
         환경변수:
           NPC_LINK_SECRET      링크 HMAC 비밀 hex 64자. 게임서버가 인증을 켰으면 필요하다

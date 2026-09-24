@@ -1,0 +1,65 @@
+﻿{
+  "schema": 1,
+  "bucket": "patrol_scout@Dawn.Peace.Fair",
+  "archetype": "patrol_scout",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "scout_outskirts_then_return",
+  "reasoning": "Dawn, peaceful region. Scout the outskirts using patrol route, then return home to rest before the day truly begins.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$patrol_route",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Patrol",
+      "args": {
+        "route": [
+          "$patrol_route",
+          "$workplace"
+        ],
+        "laps": 1
+      },
+      "timeout_s": 3600
+    },
+    {
+      "action": "Observe",
+      "args": {
+        "target": "nearest:villager",
+        "duration_s": 600
+      },
+      "timeout_s": 900
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 900
+      },
+      "timeout_s": 1200
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

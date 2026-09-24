@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "shepherd@Afternoon.Peace.Fair",
+  "archetype": "shepherd",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema": 1, "goal": "graze_flock_then_rest", "reasoning": "afternoon, peaceful; shepherd needs to graze flock, then rest before night. The previous attempt failed on observing sheep, which is not a valid target for Observe.", "steps": [{"action": "MoveTo", "args": {"poi": "$nearest_field", "speed": "walk"}, "timeout_s": 600}, {"action": "Gather", "args": {"resource": "wool", "count": 5}, "timeout_s": 900}, {"action": "Observe", "args": {"target": "nearest:shepherd", "duration_s": 300}, "timeout_s": 600}, {"action": "MoveTo", "args": {"poi": "$home"}, "timeout_s": 600}, {"action": "Rest", "args": {"duration_s": 1800}, "timeout_s": 2400}, {"action": "Sleep", "args": {"until_time": "Morning"}, "timeout_s": 7200}], "on_step_fail": "fallback", "loop": true}
+}

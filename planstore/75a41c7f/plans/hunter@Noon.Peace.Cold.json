@@ -1,0 +1,71 @@
+﻿{
+  "schema": 1,
+  "bucket": "hunter@Noon.Peace.Cold",
+  "archetype": "hunter",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "hunt_and_patrol_woods",
+  "reasoning": "Daytime, peaceful, and cold. Hunter is on duty, so patrol the woods, hunt for game, and return home to rest.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$patrol_route",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Patrol",
+      "args": {
+        "route": [
+          "$patrol_route",
+          "$nearest_field"
+        ],
+        "laps": 2
+      },
+      "timeout_s": 3600
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$nearest_field",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Gather",
+      "args": {
+        "resource": "game_meat",
+        "count": 3
+      },
+      "timeout_s": 900
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

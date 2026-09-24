@@ -1,0 +1,63 @@
+﻿{
+  "schema": 1,
+  "bucket": "jeweler@Noon.Peace.Fair",
+  "archetype": "jeweler",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "restock_and_craft_rings",
+  "reasoning": "The jeweler needs to restock gems but cannot gather. They will withdraw existing materials and craft rings.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Withdraw",
+      "args": {
+        "item": "silver_ore",
+        "count": 4
+      },
+      "timeout_s": 300
+    },
+    {
+      "action": "Craft",
+      "args": {
+        "recipe": "silver_ring",
+        "count": 2
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "silver_ring",
+        "count": 2
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

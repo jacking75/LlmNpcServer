@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "woodcutter@Noon.Peace.Fair",
+  "archetype": "woodcutter",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"gather_timber_and_rest","reasoning":"noon, peaceful, and has tool; gather timber, then rest at home before continuing","steps":[{"action":"MoveTo","args":{"poi":"$nearest_field","speed":"walk"},"timeout_s":600},{"action":"Gather","args":{"resource":"timber","count":10},"timeout_s":1200},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Store","args":{"item":"timber","count":10},"timeout_s":120},{"action":"Eat","args":{},"timeout_s":300},{"action":"Rest","args":{"duration_s":1200},"timeout_s":1800},{"action":"Sleep","args":{"until_time":"Evening"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

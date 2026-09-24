@@ -1,0 +1,60 @@
+﻿{
+  "schema": 1,
+  "bucket": "scholar@Evening.Peace.Fair",
+  "archetype": "scholar",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "evening_research_and_rest",
+  "reasoning": "Evening, peaceful, scholar archetype. The scholar should go to the temple to pray for rest, then to their workplace to do some research, and finally home to sleep.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$temple",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Pray",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 2400
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Observe",
+      "args": {
+        "target": "self",
+        "duration_s": 1800
+      },
+      "timeout_s": 2400
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

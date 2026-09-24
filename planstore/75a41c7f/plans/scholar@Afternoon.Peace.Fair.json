@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "scholar@Afternoon.Peace.Fair",
+  "archetype": "scholar",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"afternoon_study_then_rest","reasoning":"afternoon, peaceful; go to the scriptorium to study, then rest at home before sleeping","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Observe","args":{"target":"self","duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Rest","args":{"duration_s":900},"timeout_s":1200},{"action":"Sleep","args":{"until_time":"Night"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

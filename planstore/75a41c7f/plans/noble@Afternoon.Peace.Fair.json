@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "noble@Afternoon.Peace.Fair",
+  "archetype": "noble",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"afternoon_court_and_rest","reasoning":"peaceful afternoon; hold court at home, then attend service, and rest before the evening","steps":[{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Talk","args":{"npc":"nearest:villager","topic":"greeting"},"timeout_s":120},{"action":"Wait","args":{"duration_s":600},"timeout_s":600},{"action":"MoveTo","args":{"poi":"$temple"},"timeout_s":600},{"action":"Pray","args":{"duration_s":900},"timeout_s":1200},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Rest","args":{"duration_s":1800},"timeout_s":2400},{"action":"Sleep","args":{"until_time":"Evening"}}],"on_step_fail":"fallback","loop":true}
+}

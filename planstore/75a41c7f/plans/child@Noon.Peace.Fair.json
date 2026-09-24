@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "child@Noon.Peace.Fair",
+  "archetype": "child",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"play_and_wander","reasoning":"child, daytime, peaceful; wander around the village, interact with others, and return home to sleep","steps":[{"action":"Wander","args":{"duration_s":1800},"timeout_s":2400},{"action":"Greet","args":{"npc":"nearest:villager"},"timeout_s":60},{"action":"Talk","args":{"npc":"nearest:villager","topic":"greeting"},"timeout_s":120},{"action":"Wander","args":{"duration_s":1800},"timeout_s":2400},{"action":"Gossip","args":{"npc":"nearest:villager","topic":"rumor"},"timeout_s":300},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Evening"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

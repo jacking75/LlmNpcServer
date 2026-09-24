@@ -1,0 +1,76 @@
+﻿{
+  "schema": 1,
+  "bucket": "brewer@Afternoon.Peace.Fair",
+  "archetype": "brewer",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "ferment_and_supply",
+  "reasoning": "Afternoon, peaceful, has product and coin. Brew more ale, sell it, then rest.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Withdraw",
+      "args": {
+        "item": "wheat",
+        "count": 15
+      },
+      "timeout_s": 300
+    },
+    {
+      "action": "Craft",
+      "args": {
+        "recipe": "ale",
+        "count": 3
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "ale",
+        "count": 12
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$market"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Trade",
+      "args": {
+        "item": "ale",
+        "amount": 4
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

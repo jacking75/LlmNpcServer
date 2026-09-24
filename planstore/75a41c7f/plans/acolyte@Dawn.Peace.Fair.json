@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "acolyte@Dawn.Peace.Fair",
+  "archetype": "acolyte",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"morning_prayer_and_study","reasoning":"dawn, peaceful; pray at the temple, then study before the day's duties begin.","steps":[{"action":"MoveTo","args":{"poi":"$temple","speed":"walk"},"timeout_s":600},{"action":"Pray","args":{"duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Observe","args":{"target":"nearest:acolyte","duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

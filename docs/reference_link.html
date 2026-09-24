@@ -757,7 +757,8 @@ public enum LinkByeCode : byte
       <p>패킷 정의만으로는 부족하다. <strong>언제 무엇을 얼마나 자주 보내는가</strong>가 NPC 서버의 동작을 좌우한다. 아래는 레퍼런스 게임서버(<code>Npc.TestGameServer</code>)가 실제로 지키는 규약이며, 실제 게임서버를 붙일 때도 같은 것을 기대한다.</p>
 
       <div class="callout"><strong>지키는지 확인하는 도구가 있다 — <code>Npc.Conformance</code> (B-07)</strong><p>규약 위반은 크래시가 아니라 <strong>"재계획 큐 폭주" 와 "가끔 이상하다"</strong> 로 나타난다. 적합성 키트가 <strong>NPC 서버 대신</strong> 게임서버에 붙어(같은 <code>TcpGameServerLink</code> 를 쓴다) 관찰하고 보고서를 낸다.</p>
-      <pre><code>dotnet run --project tools/Npc.Conformance -- --host &lt;게임서버&gt; --port 7010 --seconds 60</code></pre>
+      <pre><code>dotnet run --project tools/Npc.Conformance -- --host &lt;게임서버&gt; --port 7010 --seconds 60 --probe</code></pre>
+      <p><code>--probe</code>는 재동기화 뒤 명령 3건을 실제 송신해 C6 응답을 판정한다. 게임 세계의 상태를 바꿀 수 있으므로 테스트 환경에서 사용한다. 옵션을 빼면 관찰만 하며 C6은 미판정이다.</p>
       <p>종료 코드는 <strong>0 합격 · 1 위반 · 2 못 붙음</strong>이다. 보고서(<code>conformance_*.md</code>·<code>.json</code>)를 이 문서와 함께 게임서버 팀에 건넨다. 대역 자신의 보고서는 <code>docs/measurements/conformance_testbed.md</code> 에 있다.</p></div>
 
       <div class="table-wrap"><table>

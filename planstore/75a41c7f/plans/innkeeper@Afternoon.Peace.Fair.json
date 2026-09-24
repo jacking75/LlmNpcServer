@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "innkeeper@Afternoon.Peace.Fair",
+  "archetype": "innkeeper",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"prepare_food_and_serve","reasoning":"afternoon, peaceful; need to prepare food before cooking, then serve guests, and finally rest","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Withdraw","args":{"item":"raw_fish","count":2},"timeout_s":300},{"action":"Cook","args":{"recipe":"cooked_fish","count":2},"timeout_s":900},{"action":"MoveTo","args":{"poi":"$market"},"timeout_s":600},{"action":"Trade","args":{"item":"cooked_fish","amount":2},"timeout_s":600},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Evening"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

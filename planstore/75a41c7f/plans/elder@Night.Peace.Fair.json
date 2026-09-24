@@ -1,0 +1,54 @@
+﻿{
+  "schema": 1,
+  "bucket": "elder@Night.Peace.Fair",
+  "archetype": "elder",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "evening_temple_visit_and_rest",
+  "reasoning": "night, peaceful, elder archetype; visit the temple for prayer, then head home to sleep. elder has low diligence and courage, so no strenuous activity.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$temple",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Pray",
+      "args": {
+        "duration_s": 900
+      },
+      "timeout_s": 1200
+    },
+    {
+      "action": "Gossip",
+      "args": {
+        "npc": "nearest:villager",
+        "topic": "rumor"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

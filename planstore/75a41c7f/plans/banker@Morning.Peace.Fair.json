@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "banker@Morning.Peace.Fair",
+  "archetype": "banker",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"manage_bank_deposits","reasoning":"morning, peaceful, banker archetype; go to work, secure the vault, then handle transactions and rest","steps":[{"action":"MoveTo","args":{"poi":"$workplace","speed":"walk"},"timeout_s":600},{"action":"Store","args":{"item":"coin","count":20},"timeout_s":120},{"action":"Withdraw","args":{"item":"coin","count":10},"timeout_s":300},{"action":"Trade","args":{"item":"coin","amount":5},"timeout_s":600},{"action":"Gossip","args":{"npc":"nearest:villager","topic":"trade"},"timeout_s":300},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

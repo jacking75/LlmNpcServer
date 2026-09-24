@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "watchman@Evening.Peace.Fair",
+  "archetype": "watchman",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"night_watch_and_rest","reasoning":"evening, peaceful, on duty; guard the gate, then go home to sleep.","steps":[{"action":"MoveTo","args":{"poi":"$gate"},"timeout_s":600},{"action":"Guard","args":{"poi":"$gate","duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

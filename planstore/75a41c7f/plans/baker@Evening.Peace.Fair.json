@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "baker@Evening.Peace.Fair",
+  "archetype": "baker",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"bake_and_sell_bread","reasoning":"evening, peaceful; mill flour, bake bread, sell it at the market, then go home to rest","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Work","args":{"recipe":"flour","count":3},"timeout_s":1200},{"action":"Work","args":{"recipe":"bread","count":3},"timeout_s":1800},{"action":"MoveTo","args":{"poi":"$market"},"timeout_s":600},{"action":"Trade","args":{"item":"bread","amount":3},"timeout_s":600},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Eat","args":{},"timeout_s":300},{"action":"Sleep","args":{"until_time":"Morning"}}],"on_step_fail":"fallback","loop":true}
+}

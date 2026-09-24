@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "banker@Noon.Peace.Fair",
+  "archetype": "banker",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"manage_vault","reasoning":"noon, peaceful, and banker; check the vault, then rest and prepare for the evening","steps":[{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Observe","args":{"target":"poi_owner:$workplace","duration_s":1800},"timeout_s":2400},{"action":"Withdraw","args":{"item":"coin","count":20},"timeout_s":300},{"action":"Store","args":{"item":"coin","count":20},"timeout_s":300},{"action":"Rest","args":{"duration_s":900},"timeout_s":1200},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Evening"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

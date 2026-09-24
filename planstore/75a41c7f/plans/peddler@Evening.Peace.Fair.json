@@ -1,0 +1,60 @@
+﻿{
+  "schema": 1,
+  "bucket": "peddler@Evening.Peace.Fair",
+  "archetype": "peddler",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "sell_wares_then_rest",
+  "reasoning": "Evening, peaceful; sell wares at the market, then head home to rest. The previous attempt failed because 'trinket' is not a valid item.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$market",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Trade",
+      "args": {
+        "item": "coin",
+        "amount": 10
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Gossip",
+      "args": {
+        "npc": "nearest:villager",
+        "topic": "rumor"
+      },
+      "timeout_s": 300
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

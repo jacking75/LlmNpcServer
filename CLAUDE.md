@@ -368,6 +368,7 @@ logs/ replays/ artifacts/
 
 - `masterdata/**` — 소스
 - `planstore/pinned/**` — **사람이 수정한 플랜.** 잃으면 검수 작업이 날아간다
+- `planstore/75a41c7f/plans/**` · `planstore/demo-pack.txt` — 승인된 평시 도달 버킷 데모 팩이다. 키 없는 첫 실행에 필요하며, 프롬프트 해시가 바뀌면 새 팩을 다시 생성한다
 - `planstore/manifest.json` · `planstore/<sha8>/manifest.json` — 실측 원자료
 - `tests/golden/**`
 - `tests/agent-bench/**` — 에이전트 벤치 과제·채점기·반려 플랜 표본 (E-06)

@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "patrol_scout@Morning.Peace.Fair",
+  "archetype": "patrol_scout",
+  "version": 1,
+  "origin": "Repaired",
+  "plan": {"schema":1,"goal":"patrol_outskirts_and_rest","reasoning":"morning, peaceful; patrol the assigned route, then rest before continuing duties","steps":[{"action":"MoveTo","args":{"poi":"$patrol_route","speed":"walk"},"timeout_s":600},{"action":"Patrol","args":{"route":["$patrol_route","$nearest_field","$gate"],"laps":1},"timeout_s":7200},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Rest","args":{"duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$workplace"},"timeout_s":600},{"action":"Guard","args":{"poi":"$workplace","duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$home"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

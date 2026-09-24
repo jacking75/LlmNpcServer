@@ -1,0 +1,58 @@
+﻿{
+  "schema": 1,
+  "bucket": "caravan_leader@Evening.Peace.Fair",
+  "archetype": "caravan_leader",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "escort_caravan_home",
+  "reasoning": "Evening, peaceful, on duty. Caravan leader should ensure the caravan is safely at its destination, then rest.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Guard",
+      "args": {
+        "poi": "$workplace",
+        "duration_s": 1800
+      },
+      "timeout_s": 2400
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "coin",
+        "count": 20
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

@@ -173,6 +173,11 @@ public static class TargetSelector
     {
         ArgumentNullException.ThrowIfNull(options);
 
+        if (options.Resume && options.BucketsFile is not null)
+        {
+            return TargetMode.Resume;
+        }
+
         if (!options.Only.IsEmpty || options.BucketsFile is not null)
         {
             return TargetMode.Only;

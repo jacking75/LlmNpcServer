@@ -1,0 +1,68 @@
+﻿{
+  "schema": 1,
+  "bucket": "jeweler@Night.Peace.Fair",
+  "archetype": "jeweler",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "restock_and_craft_at_night",
+  "reasoning": "Nighttime, peaceful, and jeweler has tools and coin. Focus on restocking materials and crafting, then rest.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Withdraw",
+      "args": {
+        "item": "gold_ore",
+        "count": 10
+      },
+      "timeout_s": 300
+    },
+    {
+      "action": "Craft",
+      "args": {
+        "recipe": "gold_necklace",
+        "count": 2
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "gold_necklace",
+        "count": 2
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

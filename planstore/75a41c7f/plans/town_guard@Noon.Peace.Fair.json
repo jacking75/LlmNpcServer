@@ -1,0 +1,8 @@
+﻿{
+  "schema": 1,
+  "bucket": "town_guard@Noon.Peace.Fair",
+  "archetype": "town_guard",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {"schema":1,"goal":"noon_watch_and_patrol","reasoning":"Peaceful day, guard is on duty. Hold post, patrol market, then head home to rest.","steps":[{"action":"MoveTo","args":{"poi":"$workplace","speed":"walk"},"timeout_s":600},{"action":"Guard","args":{"poi":"$workplace","duration_s":1800},"timeout_s":2400},{"action":"MoveTo","args":{"poi":"$market","speed":"walk"},"timeout_s":600},{"action":"Observe","args":{"target":"nearest:villager","duration_s":600},"timeout_s":900},{"action":"MoveTo","args":{"poi":"$home","speed":"walk"},"timeout_s":600},{"action":"Sleep","args":{"until_time":"Morning"},"timeout_s":7200}],"on_step_fail":"fallback","loop":true}
+}

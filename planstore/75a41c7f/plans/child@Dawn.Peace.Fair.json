@@ -1,0 +1,57 @@
+﻿{
+  "schema": 1,
+  "bucket": "child@Dawn.Peace.Fair",
+  "archetype": "child",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "play_and_eat_then_sleep",
+  "reasoning": "dawn, peaceful; child needs food to start the day, then play, then sleep. The previous plan failed to ensure food for the loop.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Eat",
+      "args": {},
+      "timeout_s": 300
+    },
+    {
+      "action": "Wander",
+      "args": {
+        "duration_s": 1800
+      },
+      "timeout_s": 3600
+    },
+    {
+      "action": "Gossip",
+      "args": {
+        "npc": "nearest:villager",
+        "topic": "rumor"
+      },
+      "timeout_s": 300
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

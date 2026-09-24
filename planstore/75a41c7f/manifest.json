@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "masterdata_hash": "a78156a66e978f625fc5a1454a106f67d10c33b4ef1b5b1a4e5f0147cb8b783d",
+  "prefix_hash": "75a41c7fb2b7a5bc293b9027e9336cc070ea0f57e73616d79badb318a6869b2a",
+  "prompt_version": "2026.09-r1",
+  "generated_at": "",
+  "partial": false,
+  "generated_by": {
+    "tier": "T2",
+    "model": "openrouter-gemini-2.5-flash-lite",
+    "temperature": 0.4000000059604645,
+    "concurrency": 8,
+    "peak_concurrency": 9,
+    "first_rate_limit_concurrency": 0
+  },
+  "counts": {
+    "total": 2880,
+    "generated": 242,
+    "pinned": 19,
+    "fallback": 17,
+    "reused": 0,
+    "target": 24
+  },
+  "validation": {
+    "pass": 7,
+    "fail_schema": 0,
+    "fail_vocab": 6,
+    "fail_coherence": 11,
+    "fail_dryrun": 0,
+    "fail_call": 0
+  },
+  "cost_usd": 0.017773,
+  "wall_clock_s": 17.3,
+  "cache_hit_rate": 0.9179,
+  "file_hashes": [
+    {
+      "file": "actions.json",
+      "sha256": "dca817504c000cadde4ed63497a9cb9eb59717f99588ee5b9dfbd0b6138501e4"
+    },
+    {
+      "file": "archetypes.json",
+      "sha256": "217a4e4b2166e9883bf548e56db161bd2475cf3f14a62b902156292dbdb226f0"
+    },
+    {
+      "file": "context_buckets.json",
+      "sha256": "d14c7ee18cdfffc45731d793b994a2d977ee755e5d2fdf009efd51248ca02b3e"
+    },
+    {
+      "file": "dialogue_lines.json",
+      "sha256": "ac3b55420b87d2e45544f650767f77d2510795c8f52a0460d22c9c6ca061bef9"
+    },
+    {
+      "file": "factions.json",
+      "sha256": "b476d4fbb474d621a81e3739771126025ae99b736116648b257ab614c0ad3072"
+    },
+    {
+      "file": "fallback_plans.json",
+      "sha256": "37110068d89950acaf1e0bf438299e92ef9b4ea1b9d95d16706dd8c0060ef209"
+    },
+    {
+      "file": "interrupts.json",
+      "sha256": "fc2cac152845b3f410b41a92938b6c571f5eda51c9b38d48b7e8a060aee96b81"
+    },
+    {
+      "file": "items.json",
+      "sha256": "24c9ca1fc4bf29fd6d1427ff65b52cfc4f8cab15afe08106654d0074bc161527"
+    },
+    {
+      "file": "poi_distances.bin",
+      "sha256": "e5bfced613ba3f27bdae10685f105fc05cbe5857f90e19098d8ca2bbb0decf27"
+    },
+    {
+      "file": "pois.json",
+      "sha256": "233507ff92666fe451ef224d6fa3c660a43a4052edaedfdbbea1569110e88157"
+    },
+    {
+      "file": "world_flags.json",
+      "sha256": "7454ab7e1d4bf6e8a3c80ab80d9e1644a2cb26cb9b0a91a91d9a65ee949180a5"
+    },
+    {
+      "file": "zones.json",
+      "sha256": "b2af8466ec7e00a66c86eb576fea12e40eb778ec5956241c5965b4e9e66e269e"
+    }
+  ]
+}

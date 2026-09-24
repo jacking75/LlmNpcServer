@@ -1,0 +1,76 @@
+﻿{
+  "schema": 1,
+  "bucket": "shepherd@Night.Peace.Fair",
+  "archetype": "shepherd",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "night_rest_and_prepare",
+  "reasoning": "night, peaceful, fair weather; shepherd is at home, rested, and has supplies. prepare for the day by resting and then heading to the pasture.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$nearest_field"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Gather",
+      "args": {
+        "resource": "wool",
+        "count": 5
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "Gather",
+      "args": {
+        "resource": "milk",
+        "count": 5
+      },
+      "timeout_s": 1800
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "wool",
+        "count": 5
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "Store",
+      "args": {
+        "item": "milk",
+        "count": 5
+      },
+      "timeout_s": 120
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}

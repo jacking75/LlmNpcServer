@@ -1,0 +1,62 @@
+﻿{
+  "schema": 1,
+  "bucket": "scholar@Morning.Peace.Fair",
+  "archetype": "scholar",
+  "version": 1,
+  "origin": "Runtime",
+  "plan": {
+  "schema": 1,
+  "goal": "morning_research_and_rest",
+  "reasoning": "Morning, peaceful, and the scholar has tools and resources. They should go to the library to research, then rest before the day continues.",
+  "steps": [
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$workplace",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Observe",
+      "args": {
+        "target": "self",
+        "duration_s": 1800
+      },
+      "timeout_s": 3600
+    },
+    {
+      "action": "Talk",
+      "args": {
+        "npc": "nearest:acolyte",
+        "topic": "work"
+      },
+      "timeout_s": 120
+    },
+    {
+      "action": "Rest",
+      "args": {
+        "duration_s": 900
+      },
+      "timeout_s": 1200
+    },
+    {
+      "action": "MoveTo",
+      "args": {
+        "poi": "$home",
+        "speed": "walk"
+      },
+      "timeout_s": 600
+    },
+    {
+      "action": "Sleep",
+      "args": {
+        "until_time": "Morning"
+      },
+      "timeout_s": 7200
+    }
+  ],
+  "on_step_fail": "fallback",
+  "loop": true
+}
+}
