@@ -126,13 +126,13 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
       <p class="lead">이 프로젝트가 실제로 잰 값들이다. <strong>추정치를 쓰지 않는다 — 재지 못한 것은 빈칸이 아니라 "미측정"으로 적는다.</strong> 없는 것을 채우면 이 표를 근거로 쓴 뒤 문서가 전부 거짓이 된다.</p>
       <div class="chips">
         <span class="chip primary">전부 실측</span>
-        <span class="chip">2026-07-25 ~ 07-28</span>
+        <span class="chip">기존 회차 2026-07-25 ~ 07-28 · 재측정 2026-09-24</span>
         <span class="chip">RTX 4060 · VRAM 8GB</span>
       </div>
     </header>
 
     <section class="summary" aria-label="핵심 수치">
-      <div><b>0.801 ms</b><strong>틱 p99</strong><span>NPC 5,000 · 예산 20ms</span></div>
+      <div><b>0.291 ms</b><strong>틱 p99</strong><span>2026-09-24 · NPC 5,000 · 예산 20ms</span></div>
       <div><b>0 B</b><strong>틱당 할당</strong><span>Gen0 GC 0회</span></div>
       <div><b>98.67 %</b><strong>플랜 캐시 히트율</strong><span>시나리오 A</span></div>
       <div><b>$0.001015</b><strong>LLM 요청 단가</strong><span>gemini-2.5-flash-lite</span></div>
@@ -140,7 +140,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
 
     <section class="card" id="howto">
       <div class="shead"><span class="snum">01</span><h2>이 문서를 읽는 법</h2></div>
-      <h3>측정 기기 — 모든 로컬 수치의 전제</h3>
+      <h3>측정 기기 — 2026년 7월 기존 회차의 전제</h3>
       <div class="table-wrap"><table>
         <thead><tr><th>항목</th><th>값</th></tr></thead>
         <tbody>
@@ -171,7 +171,20 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
           <tr><td>시퀀스 갭 (N6)</td><td class="num">0</td><td class="num"><strong>0</strong></td><td class="num">0</td><td><span class="badge ok">통과</span></td></tr>
         </tbody>
       </table></div>
-      <h3>7게임일 완주 회차</h3>
+      <h3>2026-09-24 재측정 — 스텝 마감·지속형 액션 수정 후</h3>
+      <p>Windows 11 · .NET SDK 10.0.400 · Release · 로컬 생성 플랜 718개와 고정 플랜 19개 · <code>--loopback --npcs 5000 --time-scale 600 --days 7 --no-llm --max-speed --no-dashboard</code> 회차다. 기존 P4 회차와 플랜 스토어·코드가 달라 수치의 전후 차이를 단일 원인으로 해석하지 않는다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>항목</th><th class="num">실측</th></tr></thead>
+        <tbody>
+          <tr><td>완주 틱 · 게임 시간</td><td class="num">10,080틱 · 7일</td></tr>
+          <tr><td>틱 p50 / p99 / 최대</td><td class="num">0.115 / 0.291 / 1.067 ms</td></tr>
+          <tr><td>전진한 플랜 스텝</td><td class="num">2,137,311</td></tr>
+          <tr><td>발행 명령</td><td class="num">2,617,190</td></tr>
+          <tr><td>합성 타임아웃 · 틱 오버런 · 틱당 할당</td><td class="num">0 · 0 · 0 B</td></tr>
+          <tr><td>마지막 틱 인지 스캔 · 이벤트 적체</td><td class="num">150 · 1</td></tr>
+        </tbody>
+      </table></div>
+      <h3>2026년 7월 P4 7게임일 완주 회차 (과거 기준선)</h3>
       <div class="table-wrap"><table>
         <thead><tr><th>항목</th><th class="num">값</th></tr></thead>
         <tbody>
@@ -501,6 +514,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
       <div class="callout warn"><strong>네 세트의 LLM 요청 수가 전부 1,686건으로 같다</strong><p>T1 예산 상한이 정확히 묶은 값이고 가중치는 여기에 관여하지 않는다. 반면 큐 유입은 38,276건, 포화로 버린 것이 872,468건이다 — <strong>요청하고 싶은 것의 0.2%만 처리된다.</strong> 그래서 가중치가 정하는 것은 "얼마나 부를까"가 아니라 <strong>"그 0.2%를 누구에게 쓸까"</strong>다.</p></div>
       <p>근처 집중도 차이는 46.3% ~ 47.2%로 <strong>0.9%p</strong>다. 큐가 포화 상태라 <strong>축출도 같은 점수로 일어나기</strong> 때문이다 — 4,096칸에 남는 것은 이미 상위 점수뿐이고, 그 안에서 순서를 바꿔 봐야 여지가 좁다.</p>
       <div class="callout bad"><strong>A/B가 세트를 가르지 못했다 — 그래서 1위를 승격하지 않았다</strong><p>이 회차 1위는 <code>D-uniform</code>이지만 1·2위 차이가 <strong>회차 간 변동 폭(±2.6%)보다 작다.</strong> 그 상태에서 1위를 기본값으로 올리면 <strong>잡음을 기본값으로 승격하는 것</strong>이다. 그래서 기본값은 <code>B-baseline</code>을 유지한다.</p><p><strong>이 표는 "가중치가 별로 안 중요하다"가 아니라 "지금은 예산이 병목이다"를 말한다.</strong> T1 처리량이 올라가 큐가 포화를 벗어나면 다시 재야 한다 — 그때는 가중치가 "누구를 먼저"가 아니라 "몇 명을"까지 정하게 되어 차이가 커진다.</p></div>
+      <p class="muted">2026-09-24 재측정에서는 세트별 결정론 반복 3회의 관측 폭이 0%p였고 <code>D-uniform</code>과 차점의 집중도 차이는 1.4%p였다. 과거에 같은 세트의 회차 간 관측값이 2.3%p 달랐으므로, 승격에는 관측 폭과 2.3%p 중 큰 값을 하한으로 쓴다. 이 조건에서는 <code>B-baseline</code>을 유지한다.</p>
     </section>
 
     <section class="card" id="authoring">
@@ -541,7 +555,7 @@ pre{overflow:auto;margin:13px 0;padding:16px 18px;border:1px solid var(--line);b
           <tr><td>기능</td><td>링크 교체 시 코드 무변경</td><td><span class="badge ok">통과</span></td><td>런타임 3프로젝트가 게이트웨이 미참조</td></tr>
           <tr><td>기능</td><td>프리베이크 2,880 ≤ 5분</td><td><span class="badge bad">미달</span></td><td>전량 외삽 19분. 전량 회차 미실행</td></tr>
           <tr><td>기능</td><td>pin 유지</td><td><span class="badge ok">통과</span></td><td><code>planstore/pinned/</code></td></tr>
-          <tr><td>성능</td><td>틱 p99 ≤ 20 ms</td><td><span class="badge ok">통과</span></td><td><strong>0.801 ms</strong></td></tr>
+          <tr><td>성능</td><td>틱 p99 ≤ 20 ms</td><td><span class="badge ok">통과</span></td><td><strong>0.291 ms</strong> (2026-09-24 재측정)</td></tr>
           <tr><td>성능</td><td>인지 스캔 ≤ 150/틱</td><td><span class="badge ok">통과</span></td><td>150</td></tr>
           <tr><td>성능</td><td>플랜 캐시 히트율 ≥ 98 %</td><td><span class="badge ok">통과</span></td><td><strong>98.67 %</strong> (재측정)</td></tr>
           <tr><td>성능</td><td>명령 송출 ≥ 2,000 cmd/s 무할당</td><td><span class="badge ok">통과</span></td><td>20,860 cmd/s · 0 B/틱</td></tr>

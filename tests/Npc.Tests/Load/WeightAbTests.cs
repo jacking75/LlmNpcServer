@@ -78,6 +78,21 @@ public sealed class WeightAbTests
             "요청 수가 2배인데 점수가 낮지 않다.");
     }
 
+    [Fact]
+    public void Weights_KeepsBaselineWhenDeterministicRunsDifferByLessThanHistoricalMargin()
+    {
+        WeightAbResult[] results =
+        [
+            Result("A-proximity", 100, 0.519, 2_287),
+            Result("B-baseline", 100, 0.519, 2_287),
+            Result("C-deviation", 100, 0.519, 2_287),
+            Result("D-uniform", 100, 0.533, 2_285),
+        ];
+
+        Assert.Equal("B-baseline", WeightAbHarness.Choose(results));
+        Assert.False(WeightAbHarness.SeparatedByMargin(results));
+    }
+
     /// <summary>리포트에 4세트가 다 들어가고 선정된 세트가 강조된다.</summary>
     [Fact]
     public void Weights_ReportListsAllSets()

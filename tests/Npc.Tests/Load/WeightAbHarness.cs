@@ -181,6 +181,10 @@ internal sealed class WeightAbDrainer : ITickObserver
 /// </summary>
 internal static class WeightAbHarness
 {
+    // 과거 같은 세트의 회차 간 차이 45.0~47.3%에서 얻은 실용적 승격 하한이다.
+    // 결정론 회차 3개가 완전히 같아 관측 폭이 0이어도 작은 차이를 과대평가하지 않는다.
+    public const double MinimumPromotionMargin = 0.023;
+
     /// <summary>산출 경로 환경변수.</summary>
     public const string OutPathVariable = "NPC_WEIGHTS_OUT";
 
@@ -408,7 +412,8 @@ internal static class WeightAbHarness
 
             text.AppendLine($"⚠ **A/B 가 세트를 가르지 못했다.** 이번 회차 1위는 `{top.Name}`"
                 + $"(근처 집중도 {top.NearShare:P1}) 이지만,");
-            text.AppendLine($"1·2위 차이가 회차 간 변동 폭(±{results.Max(r => r.NearShareSpread):P1})보다 작다.");
+            text.AppendLine($"1·2위 차이가 승격 하한({RequiredMargin(results):P1}; "
+                + $"관측 회차 폭 {results.Max(r => r.NearShareSpread):P1})보다 작다.");
             text.AppendLine();
             text.AppendLine("그 상태에서 1위를 기본값으로 승격하면 **잡음을 기본값으로 올리는 것**이고,");
             text.AppendLine("그게 바로 `docs/14 §10` 이 말한 \"재현 불가\" 의 다른 얼굴이다.");
@@ -420,7 +425,7 @@ internal static class WeightAbHarness
 
         text.AppendLine();
 
-        return text.ToString();
+        return text.ToString().TrimEnd() + Environment.NewLine;
     }
 
     /// <summary>결과표를 파일로 낸다.</summary>
@@ -434,7 +439,8 @@ internal static class WeightAbHarness
     /// 선정. <b>회차 잡음을 넘는 차이가 없으면 사양 기본값(B)을 유지한다.</b>
     ///
     /// 실측에서 같은 세트의 회차 간 근처 집중도 변동(45.0~47.3%)이 한 회차 안의 세트 간
-    /// 차이(~2%p)만큼 컸다 — 그 상태에서 1위를 골라 <c>Weights.Default</c> 에 반영하면
+    /// 차이(~2%p)만큼 컸다. 반복 3회가 결정론적으로 같아 관측 폭이 0이어도 이 하한은 유지한다.
+    /// 그 상태에서 1위를 골라 <c>Weights.Default</c> 에 반영하면
     /// <b>잡음을 기본값으로 승격</b>하는 것이다. 그것이 §10 이 말한 "재현 불가" 의 다른 얼굴이다.
     ///
     /// 그래서 1위가 2위를 <b>회차 폭보다 크게</b> 이겼을 때만 갈아탄다.
@@ -446,7 +452,7 @@ internal static class WeightAbHarness
         long baseline = results.FirstOrDefault(r => r.Name.StartsWith('B')).Requests;
 
         WeightAbResult[] ranked = [.. results.OrderByDescending(r => Score(in r, baseline))];
-        double spread = results.Max(r => r.NearShareSpread);
+        double spread = RequiredMargin(results);
 
         // 점수 차이를 근처 집중도 눈금으로 환산한다 — 점수는 집중도에 비례하므로
         // 1위와 2위의 집중도 차이를 회차 폭과 직접 비교하면 된다.
@@ -466,6 +472,9 @@ internal static class WeightAbHarness
         long baseline = results.FirstOrDefault(r => r.Name.StartsWith('B')).Requests;
         WeightAbResult[] ranked = [.. results.OrderByDescending(r => Score(in r, baseline))];
 
-        return ranked[0].NearShare - ranked[1].NearShare > results.Max(r => r.NearShareSpread);
+        return ranked[0].NearShare - ranked[1].NearShare > RequiredMargin(results);
     }
+
+    private static double RequiredMargin(WeightAbResult[] results) =>
+        Math.Max(MinimumPromotionMargin, results.Max(r => r.NearShareSpread));
 }
